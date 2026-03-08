@@ -1,0 +1,74 @@
+{
+  "easycom": {
+    "autoscan": true,
+    "custom": {}
+  },
+  "pages": [
+    {
+      "path": "pages/index/index",
+      "style": {
+        "navigationBarTitleText": "母婴AI日历",
+        "navigationBarBackgroundColor": "#FFE8F0"
+      }
+    },
+    {
+      "path": "pages/qa/qa",
+      "style": {
+        "navigationBarTitleText": "AI育儿问答",
+        "navigationBarBackgroundColor": "#E8F4FF"
+      }
+    },
+    {
+      "path": "pages/recommend/recommend",
+      "style": {
+        "navigationBarTitleText": "为你推荐",
+        "navigationBarBackgroundColor": "#F0FFE8"
+      }
+    },
+    {
+      "path": "pages/mine/mine",
+      "style": {
+        "navigationBarTitleText": "我的",
+        "navigationBarBackgroundColor": "#F5F5F5"
+      }
+    }
+  ],
+  "tabBar": {
+    "color": "#999",
+    "selectedColor": "#FF6B9D",
+    "backgroundColor": "#fff",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/index/index",
+        "text": "日历",
+        "iconPath": "static/tab-calendar.png",
+        "selectedIconPath": "static/tab-calendar-active.png"
+      },
+      {
+        "pagePath": "pages/qa/qa",
+        "text": "问答",
+        "iconPath": "static/tab-qa.png",
+        "selectedIconPath": "static/tab-qa-active.png"
+      },
+      {
+        "pagePath": "pages/recommend/recommend",
+        "text": "推荐",
+        "iconPath": "static/tab-recommend.png",
+        "selectedIconPath": "static/tab-recommend-active.png"
+      },
+      {
+        "pagePath": "pages/mine/mine",
+        "text": "我的",
+        "iconPath": "static/tab-mine.png",
+        "selectedIconPath": "static/tab-mine-active.png"
+      }
+    ]
+  },
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "母婴AI日历",
+    "navigationBarBackgroundColor": "#FFE8F0",
+    "backgroundColor": "#F8F8F8"
+  }
+}

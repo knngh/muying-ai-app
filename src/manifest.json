@@ -1,0 +1,42 @@
+{
+  "name": "母婴AI日历",
+  "appid": "__UNI__MUYINGAI",
+  "description": "日历入口 · AI问答 · 场景化产品推荐",
+  "versionName": "1.0.0",
+  "versionCode": "100",
+  "transformPx": false,
+  "mp-weixin": {
+    "appid": "请替换为你的微信小程序AppID",
+    "setting": {
+      "urlCheck": false,
+      "es6": true,
+      "minified": true
+    }
+  },
+  "app-plus": {
+    "usingComponents": true,
+    "nvueStyleCompiler": "uni-app",
+    "compilerVersion": 3,
+    "splashscreen": {
+      "alwaysShowBeforeRender": true,
+      "waiting": true,
+      "autoclose": true,
+      "delay": 0
+    },
+    "modules": {},
+    "distribute": {
+      "android": {
+        "permissions": []
+      },
+      "ios": {},
+      "sdkConfigs": {}
+    }
+  },
+  "h5": {
+    "template": "index.html",
+    "router": {
+      "mode": "hash",
+      "base": "./"
+    }
+  }
+}
