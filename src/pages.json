@@ -31,6 +31,13 @@
         "navigationBarTitleText": "我的",
         "navigationBarBackgroundColor": "#F5F5F5"
       }
+    },
+    {
+      "path": "pages/webview/webview",
+      "style": {
+        "navigationBarTitleText": "H5应用",
+        "navigationBarBackgroundColor": "#ffffff"
+      }
     }
   ],
   "tabBar": {

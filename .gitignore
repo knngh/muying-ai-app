@@ -6,3 +6,10 @@ unpackage/
 .env
 .env.*
 !.env.example
+
+# 部署配置（包含敏感信息）
+deploy.config.sh
+
+# 后端
+server/node_modules/
+server/logs/

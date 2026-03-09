@@ -1,14 +1,78 @@
 import type { CalendarDayItem, UserStage } from './types'
+import config from './config'
 
-const MOCK_STAGE: UserStage = {
-  mode: 'pregnancy',
-  pregnancyWeeks: 12,
+const API_BASE = config.baseURL
+
+/**
+ * 获取今日/指定日期的日历内容
+ */
+export function getCalendarByDate(date: string, stage?: UserStage): Promise<CalendarDayItem[]> {
+  const params = new URLSearchParams()
+  params.append('date', date)
+  if (stage) {
+    params.append('mode', stage.mode)
+    if (stage.pregnancyWeeks) {
+      params.append('pregnancyWeeks', String(stage.pregnancyWeeks))
+    }
+    if (stage.babyMonths) {
+      params.append('babyMonths', String(stage.babyMonths))
+    }
+  }
+
+  return fetch(`${API_BASE}/calendar?${params.toString()}`)
+    .then(res => res.json())
+    .then(data => {
+      if (data.code === 0) {
+        return data.data
+      }
+      console.error('API Error:', data.message)
+      return getMockCalendar(date, stage)
+    })
+    .catch(err => {
+      console.error('Fetch error:', err)
+      return getMockCalendar(date, stage)
+    })
 }
 
-/** 获取今日/指定日期的日历内容（后续对接权威来源+RAG） */
-export function getCalendarByDate(date: string, stage?: UserStage): Promise<CalendarDayItem[]> {
-  const s = stage || MOCK_STAGE
-  return Promise.resolve([
+/**
+ * 获取用户当前阶段
+ */
+export function getCurrentStage(): Promise<UserStage> {
+  return fetch(`${API_BASE}/calendar/stage`)
+    .then(res => res.json())
+    .then(data => {
+      if (data.code === 0) {
+        return data.data
+      }
+      return getMockStage()
+    })
+    .catch(() => getMockStage())
+}
+
+/**
+ * 更新用户阶段
+ */
+export function updateStage(stage: UserStage): Promise<UserStage> {
+  return fetch(`${API_BASE}/calendar/stage`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(stage)
+  })
+    .then(res => res.json())
+    .then(data => {
+      if (data.code === 0) {
+        return data.data
+      }
+      throw new Error(data.message)
+    })
+}
+
+// Mock 数据（备用）
+function getMockCalendar(date: string, stage?: UserStage): CalendarDayItem[] {
+  const s = stage || { mode: 'pregnancy', pregnancyWeeks: 12 }
+  return [
     {
       date,
       title: s.mode === 'pregnancy' ? `孕${s.pregnancyWeeks}周小贴士` : '今日育儿提醒',
@@ -19,10 +83,12 @@ export function getCalendarByDate(date: string, stage?: UserStage): Promise<Cale
       source: '美国儿科学会',
       stage: s.mode === 'pregnancy' ? 'pregnancy' : '0-6m',
     },
-  ])
+  ]
 }
 
-/** 获取用户当前阶段（本地/登录后） */
-export function getCurrentStage(): Promise<UserStage> {
-  return Promise.resolve(MOCK_STAGE)
+function getMockStage(): UserStage {
+  return {
+    mode: 'pregnancy',
+    pregnancyWeeks: 12,
+  }
 }

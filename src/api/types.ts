@@ -13,6 +13,7 @@ export interface UserStage {
   mode: 'pregnancy' | 'baby'
   pregnancyWeeks?: number
   babyBirthday?: string
+  babyMonths?: number
 }
 
 /** 问答消息 */
