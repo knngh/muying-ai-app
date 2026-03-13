@@ -1,12 +1,16 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { sendQuestion } from '@/api/qa'
-import type { QAMessage } from '@/api/types'
+import { getRecommendByScene } from '@/api/recommend'
+import type { QAMessage, RecommendProduct } from '@/api/types'
 import ChatMessage from '@/components/ChatMessage.vue'
+import ProductCard from '@/components/ProductCard.vue'
 
 const messages = ref<QAMessage[]>([])
 const input = ref('')
 const sending = ref(false)
+const recommendList = ref<RecommendProduct[]>([])
+const recommendTitle = ref('')
 
 const welcome: QAMessage = {
   id: 'welcome',
@@ -34,6 +38,23 @@ async function send() {
   try {
     const res = await sendQuestion(q, messages.value)
     messages.value.push(res)
+
+    // 根据回答中的场景加载商品推荐
+    if (res.scenes && res.scenes.length) {
+      const scene = res.scenes[0]
+      recommendTitle.value =
+        scene === 'weaning'
+          ? '辅食期相关推荐'
+          : scene === 'newborn'
+          ? '新生儿护理推荐'
+          : scene === 'vaccine'
+          ? '疫苗与出行相关用品推荐'
+          : '为你推荐的母婴用品'
+      recommendList.value = await getRecommendByScene(scene)
+    } else {
+      recommendList.value = []
+      recommendTitle.value = ''
+    }
   } finally {
     sending.value = false
   }
@@ -54,6 +75,13 @@ async function send() {
           :sources="m.sources"
           :disclaimer="m.disclaimer"
         />
+      </view>
+
+      <view v-if="recommendList.length" class="recommend-block">
+        <text class="recommend-title">{{ recommendTitle }}</text>
+        <view class="recommend-list">
+          <ProductCard v-for="p in recommendList" :key="p.id" :product="p" />
+        </view>
       </view>
     </scroll-view>
     <view class="input-bar">
@@ -106,5 +134,21 @@ async function send() {
   font-size: 28rpx;
   border-radius: 36rpx;
   padding: 0;
+}
+.recommend-block {
+  margin-top: 24rpx;
+  padding-top: 12rpx;
+  border-top: 1rpx solid #e5e5e5;
+}
+.recommend-title {
+  display: block;
+  font-size: 26rpx;
+  color: #666;
+  margin-bottom: 12rpx;
+}
+.recommend-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
 }
 </style>

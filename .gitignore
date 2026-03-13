@@ -13,3 +13,7 @@ deploy.config.sh
 # 后端
 server/node_modules/
 server/logs/
+
+# 微信小程序本地配置
+project.config.json
+project.private.config.json

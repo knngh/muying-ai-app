@@ -16,16 +16,6 @@ export interface UserStage {
   babyMonths?: number
 }
 
-/** 问答消息 */
-export interface QAMessage {
-  id: string
-  role: 'user' | 'assistant'
-  content: string
-  sources?: { name: string; url?: string }[]
-  disclaimer?: boolean
-  timestamp: number
-}
-
 /** 场景化推荐 */
 export interface RecommendProduct {
   id: string
@@ -41,4 +31,23 @@ export interface RecommendProduct {
 }
 
 /** 推荐场景 */
-export type RecommendScene = 'pregnancy' | 'newborn' | 'feeding' | 'weaning' | 'sleep' | 'growth' | 'vaccine' | 'daily'
+export type RecommendScene =
+  | 'pregnancy'
+  | 'newborn'
+  | 'feeding'
+  | 'weaning'
+  | 'sleep'
+  | 'growth'
+  | 'vaccine'
+  | 'daily'
+
+/** 问答消息 */
+export interface QAMessage {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  sources?: { name: string; url?: string }[]
+  disclaimer?: boolean
+  timestamp: number
+  scenes?: RecommendScene[]
+}
