@@ -1,0 +1,440 @@
+import { Request, Response, NextFunction } from 'express';
+import { PrismaClient } from '@prisma/client';
+import { successResponse, AppError, ErrorCodes } from '../middlewares/error.middleware';
+
+const prisma = new PrismaClient();
+
+// 辅助函数：获取一周的开始和结束日期（周一到周日）
+const getWeekRange = (dateStr: string): { start: Date; end: Date } => {
+  const date = new Date(dateStr);
+  const dayOfWeek = date.getDay();
+  // 调整为周一作为一周的开始（0=周日, 1=周一...）
+  const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  
+  const start = new Date(date);
+  start.setDate(date.getDate() + diff);
+  start.setHours(0, 0, 0, 0);
+  
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  end.setHours(23, 59, 59, 999);
+  
+  return { start, end };
+};
+
+// 辅助函数：格式化日期为 YYYY-MM-DD
+const formatDate = (date: Date): string => {
+  return date.toISOString().split('T')[0];
+};
+
+// 辅助函数：获取周的唯一标识（YYYY-WW）
+const getWeekId = (date: Date): string => {
+  const year = date.getFullYear();
+  const start = new Date(year, 0, 1);
+  const diff = (date.getTime() - start.getTime()) / (1000 * 60 * 60 * 24);
+  const weekNumber = Math.ceil((diff + start.getDay() + 1) / 7);
+  return `${year}-W${String(weekNumber).padStart(2, '0')}`;
+};
+
+// 获取周历数据（新接口）
+export const getWeekEvents = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { date } = req.query; // YYYY-MM-DD 格式，默认为今天
+    const userId = req.userId!;
+
+    const targetDate = date ? new Date(date as string) : new Date();
+    const { start, end } = getWeekRange(formatDate(targetDate));
+
+    const events = await prisma.calendarEvent.findMany({
+      where: {
+        userId: BigInt(userId),
+        deletedAt: null,
+        eventDate: {
+          gte: start,
+          lte: end
+        }
+      },
+      orderBy: [
+        { eventDate: 'asc' },
+        { eventTime: 'asc' }
+      ]
+    });
+
+    // 按日期分组
+    const eventsByDate: Record<string, any[]> = {};
+    const weekDays: Array<{ date: string; dayOfWeek: number; dayName: string; isToday: boolean }> = [];
+    
+    const dayNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+    const today = formatDate(new Date());
+
+    for (let i = 0; i < 7; i++) {
+      const currentDate = new Date(start);
+      currentDate.setDate(start.getDate() + i);
+      const dateStr = formatDate(currentDate);
+      
+      eventsByDate[dateStr] = [];
+      weekDays.push({
+        date: dateStr,
+        dayOfWeek: currentDate.getDay(),
+        dayName: dayNames[currentDate.getDay()],
+        isToday: dateStr === today
+      });
+    }
+
+    // 将事件分配到对应日期
+    events.forEach((event: any) => {
+      const dateStr = formatDate(event.eventDate);
+      if (eventsByDate[dateStr]) {
+        eventsByDate[dateStr].push(event);
+      }
+    });
+
+    // 计算周统计
+    const weekStats = {
+      total: events.length,
+      completed: events.filter((e: any) => e.status === 1).length,
+      pending: events.filter((e: any) => e.status === 0).length
+    };
+
+    res.json(successResponse({
+      weekId: getWeekId(targetDate),
+      weekStart: formatDate(start),
+      weekEnd: formatDate(end),
+      weekDays,
+      eventsByDate,
+      stats: weekStats
+    }));
+  } catch (error) {
+    next(error);
+  }
+};
+
+// 获取事件列表（保留原接口）
+export const getEvents = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { startDate, endDate, type } = req.query;
+    const userId = req.userId!;
+
+    if (!startDate || !endDate) {
+      throw new AppError('请提供开始和结束日期', ErrorCodes.PARAM_ERROR, 400);
+    }
+
+    const where: any = {
+      userId: BigInt(userId),
+      deletedAt: null
+    };
+
+    if (type) {
+      where.eventType = type;
+    }
+
+    where.eventDate = {
+      gte: new Date(startDate as string),
+      lte: new Date(endDate as string)
+    };
+
+    const events = await prisma.calendarEvent.findMany({
+      where,
+      orderBy: { eventDate: 'asc' }
+    });
+
+    res.json(successResponse({ list: events }));
+  } catch (error) {
+    next(error);
+  }
+};
+
+// 创建事件
+export const createEvent = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.userId!;
+    const {
+      title,
+      description,
+      eventType,
+      eventDate,
+      eventTime,
+      endDate,
+      endTime,
+      isAllDay,
+      isRecurring,
+      recurrenceRule,
+      reminderMinutes,
+      reminderType,
+      relatedArticleId,
+      relatedVaccineId
+    } = req.body;
+
+    if (!title || !eventType || !eventDate) {
+      throw new AppError('标题、事件类型和日期不能为空', ErrorCodes.PARAM_ERROR, 400);
+    }
+
+    const event = await prisma.calendarEvent.create({
+      data: {
+        userId: BigInt(userId),
+        title,
+        description,
+        eventType,
+        eventDate: new Date(eventDate),
+        eventTime: eventTime ? new Date(`1970-01-01T${eventTime}`) : null,
+        endDate: endDate ? new Date(endDate) : null,
+        endTime: endTime ? new Date(`1970-01-01T${endTime}`) : null,
+        isAllDay: isAllDay ? 1 : 0,
+        isRecurring: isRecurring ? 1 : 0,
+        recurrenceRule,
+        reminderMinutes: reminderMinutes || 0,
+        reminderType,
+        relatedArticleId: relatedArticleId ? BigInt(relatedArticleId) : null,
+        relatedVaccineId: relatedVaccineId ? BigInt(relatedVaccineId) : null
+      }
+    });
+
+    res.status(201).json(successResponse(event, '创建成功'));
+  } catch (error) {
+    next(error);
+  }
+};
+
+// 更新事件
+export const updateEvent = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const userId = req.userId!;
+
+    // 检查事件是否存在且属于当前用户
+    const existingEvent = await prisma.calendarEvent.findFirst({
+      where: { id: BigInt(id), userId: BigInt(userId), deletedAt: null }
+    });
+
+    if (!existingEvent) {
+      throw new AppError('事件不存在', ErrorCodes.PARAM_ERROR, 404);
+    }
+
+    const event = await prisma.calendarEvent.update({
+      where: { id: BigInt(id) },
+      data: req.body
+    });
+
+    res.json(successResponse(event, '更新成功'));
+  } catch (error) {
+    next(error);
+  }
+};
+
+// 拖拽更新事件日期（新接口）
+export const dragEvent = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const userId = req.userId!;
+    const { newDate, newTime } = req.body;
+
+    if (!newDate) {
+      throw new AppError('请提供新日期', ErrorCodes.PARAM_ERROR, 400);
+    }
+
+    // 检查事件是否存在且属于当前用户
+    const existingEvent = await prisma.calendarEvent.findFirst({
+      where: { id: BigInt(id), userId: BigInt(userId), deletedAt: null }
+    });
+
+    if (!existingEvent) {
+      throw new AppError('事件不存在', ErrorCodes.PARAM_ERROR, 404);
+    }
+
+    const updateData: any = {
+      eventDate: new Date(newDate)
+    };
+
+    if (newTime) {
+      updateData.eventTime = new Date(`1970-01-01T${newTime}`);
+    }
+
+    const event = await prisma.calendarEvent.update({
+      where: { id: BigInt(id) },
+      data: updateData
+    });
+
+    res.json(successResponse(event, '拖拽更新成功'));
+  } catch (error) {
+    next(error);
+  }
+};
+
+// 批量更新事件（新接口）
+export const batchUpdateEvents = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.userId!;
+    const { events } = req.body; // [{ id, eventDate, eventTime, status, ... }, ...]
+
+    if (!Array.isArray(events) || events.length === 0) {
+      throw new AppError('请提供要更新的事件列表', ErrorCodes.PARAM_ERROR, 400);
+    }
+
+    const results = [];
+
+    for (const eventUpdate of events) {
+      const { id, ...updateData } = eventUpdate;
+
+      // 验证事件所有权
+      const existingEvent = await prisma.calendarEvent.findFirst({
+        where: { id: BigInt(id), userId: BigInt(userId), deletedAt: null }
+      });
+
+      if (!existingEvent) {
+        continue; // 跳过不存在的事件
+      }
+
+      // 处理日期字段
+      if (updateData.eventDate) {
+        updateData.eventDate = new Date(updateData.eventDate);
+      }
+      if (updateData.eventTime) {
+        updateData.eventTime = new Date(`1970-01-01T${updateData.eventTime}`);
+      }
+
+      const updated = await prisma.calendarEvent.update({
+        where: { id: BigInt(id) },
+        data: updateData
+      });
+
+      results.push(updated);
+    }
+
+    res.json(successResponse({ updated: results.length, events: results }, '批量更新成功'));
+  } catch (error) {
+    next(error);
+  }
+};
+
+// 删除事件
+export const deleteEvent = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const userId = req.userId!;
+
+    const event = await prisma.calendarEvent.findFirst({
+      where: { id: BigInt(id), userId: BigInt(userId), deletedAt: null }
+    });
+
+    if (!event) {
+      throw new AppError('事件不存在', ErrorCodes.PARAM_ERROR, 404);
+    }
+
+    await prisma.calendarEvent.update({
+      where: { id: BigInt(id) },
+      data: { deletedAt: new Date() }
+    });
+
+    res.json(successResponse(null, '删除成功'));
+  } catch (error) {
+    next(error);
+  }
+};
+
+// 批量删除事件（新接口）
+export const batchDeleteEvents = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.userId!;
+    const { ids } = req.body; // [id1, id2, ...]
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      throw new AppError('请提供要删除的事件ID列表', ErrorCodes.PARAM_ERROR, 400);
+    }
+
+    // 验证所有权并批量软删除
+    const result = await prisma.calendarEvent.updateMany({
+      where: {
+        id: { in: ids.map((id: string) => BigInt(id)) },
+        userId: BigInt(userId),
+        deletedAt: null
+      },
+      data: { deletedAt: new Date() }
+    });
+
+    res.json(successResponse({ deleted: result.count }, '批量删除成功'));
+  } catch (error) {
+    next(error);
+  }
+};
+
+// 标记完成
+export const completeEvent = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const userId = req.userId!;
+
+    const event = await prisma.calendarEvent.findFirst({
+      where: { id: BigInt(id), userId: BigInt(userId), deletedAt: null }
+    });
+
+    if (!event) {
+      throw new AppError('事件不存在', ErrorCodes.PARAM_ERROR, 404);
+    }
+
+    const updatedEvent = await prisma.calendarEvent.update({
+      where: { id: BigInt(id) },
+      data: { status: 1, completedAt: new Date() }
+    });
+
+    res.json(successResponse(updatedEvent, '标记完成'));
+  } catch (error) {
+    next(error);
+  }
+};
+
+// 获取事件类型列表（新接口）
+export const getEventTypes = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    // 预定义的事件类型
+    const eventTypes = [
+      { value: 'checkup', label: '产检', color: '#4CAF50' },
+      { value: 'vaccine', label: '疫苗接种', color: '#2196F3' },
+      { value: 'reminder', label: '提醒事项', color: '#FF9800' },
+      { value: 'exercise', label: '运动', color: '#9C27B0' },
+      { value: 'diet', label: '饮食', color: '#E91E63' },
+      { value: 'other', label: '其他', color: '#607D8B' }
+    ];
+
+    res.json(successResponse(eventTypes));
+  } catch (error) {
+    next(error);
+  }
+};
+
+// 获取单日事件（新接口）
+export const getDayEvents = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { date } = req.params;
+    const userId = req.userId!;
+
+    const targetDate = new Date(date);
+    const nextDay = new Date(targetDate);
+    nextDay.setDate(nextDay.getDate() + 1);
+
+    const events = await prisma.calendarEvent.findMany({
+      where: {
+        userId: BigInt(userId),
+        deletedAt: null,
+        eventDate: {
+          gte: targetDate,
+          lt: nextDay
+        }
+      },
+      orderBy: [
+        { isAllDay: 'desc' },
+        { eventTime: 'asc' }
+      ]
+    });
+
+    res.json(successResponse({
+      date,
+      events,
+      stats: {
+        total: events.length,
+        completed: events.filter((e: any) => e.status === 1).length
+      }
+    }));
+  } catch (error) {
+    next(error);
+  }
+};

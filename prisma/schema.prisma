@@ -1,0 +1,495 @@
+// Prisma Schema for 母婴网页项目
+// 数据库: MySQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// 用户表
+// ============================================
+model User {
+  id              BigInt   @id @default(autoincrement())
+  username        String   @unique @db.VarChar(50)
+  email           String?  @unique @db.VarChar(100)
+  phone           String?  @unique @db.VarChar(20)
+  passwordHash    String   @db.VarChar(255)
+  avatar          String?  @db.VarChar(500)
+  nickname        String?  @db.VarChar(50)
+  gender          Int      @default(0) // 0-未知, 1-男, 2-女
+  birthday        DateTime? @db.Date
+  
+  // 孕期/育儿相关信息
+  pregnancyStatus Int      @default(0) // 0-未设置, 1-备孕中, 2-怀孕中, 3-已生产
+  dueDate         DateTime? @db.Date
+  babyBirthday    DateTime? @db.Date
+  babyGender      Int      @default(0)
+  
+  // 账户状态
+  status          Int      @default(1) // 0-禁用, 1-正常
+  lastLoginAt     DateTime?
+  lastLoginIp     String?  @db.VarChar(45)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+  
+  // 关联
+  calendarEvents     CalendarEvent[]
+  favorites          UserFavorite[]
+  readHistory        UserReadHistory[]
+  likes              UserLike[]
+  searchLogs         SearchLog[]
+  communityPosts     CommunityPost[]
+  communityComments  CommunityComment[]
+  communityPostLikes CommunityPostLike[]
+
+  @@index([phone])
+  @@index([email])
+  @@index([status])
+  @@map("users")
+}
+
+// ============================================
+// 分类表
+// ============================================
+model Category {
+  id              BigInt   @id @default(autoincrement())
+  parentId        BigInt?
+  level           Int      @default(1)
+  name            String   @db.VarChar(100)
+  slug            String   @unique @db.VarChar(100)
+  description     String?  @db.VarChar(500)
+  icon            String?  @db.VarChar(200)
+  sortOrder       Int      @default(0)
+  articleCount    Int      @default(0)
+  isActive        Int      @default(1)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // 关联
+  parent       Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children     Category[] @relation("CategoryTree")
+  articles     Article[]
+
+  @@index([parentId])
+  @@index([slug])
+  @@index([level])
+  @@index([isActive])
+  @@map("categories")
+}
+
+// ============================================
+// 标签表
+// ============================================
+model Tag {
+  id              BigInt   @id @default(autoincrement())
+  name            String   @unique @db.VarChar(50)
+  slug            String   @unique @db.VarChar(100)
+  description     String?  @db.VarChar(300)
+  color           String?  @db.VarChar(20)
+  articleCount    Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // 关联
+  articles        ArticleTag[]
+  communityPosts  CommunityPostTag[]
+
+  @@index([slug])
+  @@index([name])
+  @@map("tags")
+}
+
+// ============================================
+// 作者表
+// ============================================
+model Author {
+  id              BigInt   @id @default(autoincrement())
+  name            String   @db.VarChar(50)
+  avatar          String?  @db.VarChar(500)
+  title           String?  @db.VarChar(100)
+  bio             String?  @db.Text
+  isVerified      Int      @default(0)
+  status          Int      @default(1)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // 关联
+  articles        Article[]
+
+  @@index([name])
+  @@index([status])
+  @@map("authors")
+}
+
+// ============================================
+// 文章表
+// ============================================
+model Article {
+  id              BigInt   @id @default(autoincrement())
+  categoryId      BigInt
+  authorId        BigInt?
+  
+  // 基本信息
+  title           String   @db.VarChar(200)
+  slug            String?  @unique @db.VarChar(200)
+  summary         String?  @db.VarChar(500)
+  content         String?  @db.LongText
+  coverImage      String?  @db.VarChar(500)
+  
+  // 内容类型与难度
+  contentType     String   @default("article") @db.VarChar(20)
+  difficulty      String   @default("beginner") @db.VarChar(20)
+  
+  // 适用阶段
+  targetStage     Json?
+  
+  // SEO 字段
+  seoTitle        String?  @db.VarChar(100)
+  seoDescription  String?  @db.VarChar(200)
+  seoKeywords     String?  @db.VarChar(300)
+  
+  // 元数据
+  readingTime     Int      @default(0)
+  wordCount       Int      @default(0)
+  source          String?  @db.VarChar(200)
+  
+  // 医学审核
+  isVerified      Int      @default(0)
+  verifiedBy      String?  @db.VarChar(50)
+  disclaimer      String?  @db.Text
+  
+  // 参考资料
+  references      Json?
+  
+  // 统计
+  viewCount       Int      @default(0)
+  likeCount       Int      @default(0)
+  collectCount    Int      @default(0)
+  commentCount    Int      @default(0)
+  
+  // 推荐相关
+  isRecommended   Int      @default(0)
+  isFeatured      Int      @default(0)
+  isHot           Int      @default(0)
+  
+  // 相关文章
+  relatedArticles Json?
+  
+  // 状态
+  status          Int      @default(0) // 0-草稿, 1-已发布, 2-已下线, 3-已归档
+  publishedAt     DateTime?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+  
+  // 关联
+  category        Category     @relation(fields: [categoryId], references: [id])
+  author          Author?      @relation(fields: [authorId], references: [id])
+  tags            ArticleTag[]
+  readHistory     UserReadHistory[]
+  favorites       UserFavorite[]
+
+  @@index([categoryId])
+  @@index([authorId])
+  @@index([slug])
+  @@index([status])
+  @@index([publishedAt])
+  @@index([isRecommended])
+  @@index([isFeatured])
+  @@index([contentType])
+  @@index([difficulty])
+  @@fulltext([title, content])
+  @@map("articles")
+}
+
+// ============================================
+// 文章-标签关联表
+// ============================================
+model ArticleTag {
+  id              BigInt   @id @default(autoincrement())
+  articleId       BigInt
+  tagId           BigInt
+  createdAt       DateTime @default(now())
+  
+  article         Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  tag             Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([articleId, tagId])
+  @@index([articleId])
+  @@index([tagId])
+  @@map("article_tags")
+}
+
+// ============================================
+// 日历事件表
+// ============================================
+model CalendarEvent {
+  id              BigInt   @id @default(autoincrement())
+  userId          BigInt
+  
+  // 事件信息
+  title           String   @db.VarChar(200)
+  description     String?  @db.Text
+  eventType       String   @db.VarChar(50)
+  
+  // 时间
+  eventDate       DateTime @db.Date
+  eventTime       DateTime?
+  endDate         DateTime? @db.Date
+  endTime         DateTime?
+  isAllDay        Int      @default(0)
+  
+  // 重复设置
+  isRecurring     Int      @default(0)
+  recurrenceRule  String?  @db.VarChar(200)
+  
+  // 提醒设置
+  reminderMinutes Int      @default(0)
+  reminderType    String?  @db.VarChar(20)
+  
+  // 关联信息
+  relatedArticleId BigInt?
+  relatedVaccineId BigInt?
+  
+  // 状态
+  status          Int      @default(0)
+  completedAt     DateTime?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+  
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([eventDate])
+  @@index([eventType])
+  @@index([status])
+  @@index([userId, eventDate])
+  @@map("calendar_events")
+}
+
+// ============================================
+// 疫苗信息表
+// ============================================
+model Vaccine {
+  id              BigInt   @id @default(autoincrement())
+  name            String   @db.VarChar(100)
+  nameEn          String?  @db.VarChar(100)
+  category        String?  @db.VarChar(50)
+  
+  // 接种信息
+  description     String?  @db.Text
+  preventDisease  String?  @db.Text
+  sideEffects     String?  @db.Text
+  contraindication String?  @db.Text
+  
+  // 接种时间
+  minMonth        Int?
+  maxMonth        Int?
+  doseCount       Int      @default(1)
+  doseInterval    Int?
+  
+  relatedArticleId BigInt?
+  status          Int      @default(1)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([category])
+  @@index([minMonth])
+  @@index([status])
+  @@map("vaccines")
+}
+
+// ============================================
+// 用户收藏表
+// ============================================
+model UserFavorite {
+  id              BigInt   @id @default(autoincrement())
+  userId          BigInt
+  favType         String   @db.VarChar(50)
+  favId           BigInt
+  createdAt       DateTime @default(now())
+  
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  article         Article? @relation(fields: [favId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, favType, favId])
+  @@index([userId])
+  @@index([favType, favId])
+  @@map("user_favorites")
+}
+
+// ============================================
+// 用户阅读历史表
+// ============================================
+model UserReadHistory {
+  id              BigInt   @id @default(autoincrement())
+  userId          BigInt
+  articleId       BigInt
+  readDuration    Int      @default(0)
+  progress        Decimal  @default(0) @db.Decimal(5, 2)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  article         Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, articleId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("user_read_history")
+}
+
+// ============================================
+// 用户点赞表
+// ============================================
+model UserLike {
+  id              BigInt   @id @default(autoincrement())
+  userId          BigInt
+  likeType        String   @db.VarChar(50)
+  likeId          BigInt
+  createdAt       DateTime @default(now())
+  
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, likeType, likeId])
+  @@index([userId])
+  @@index([likeType, likeId])
+  @@map("user_likes")
+}
+
+// ============================================
+// 搜索日志表
+// ============================================
+model SearchLog {
+  id              BigInt   @id @default(autoincrement())
+  userId          BigInt?
+  keyword         String   @db.VarChar(200)
+  resultCount     Int      @default(0)
+  ip              String?  @db.VarChar(45)
+  userAgent       String?  @db.VarChar(500)
+  createdAt       DateTime @default(now())
+  
+  user            User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([keyword])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("search_logs")
+}
+
+// ============================================
+// 社区帖子表
+// ============================================
+model CommunityPost {
+  id              BigInt   @id @default(autoincrement())
+  authorId        BigInt
+  
+  // 基本信息
+  title           String   @db.VarChar(200)
+  content         String   @db.Text
+  categoryId      BigInt?
+  
+  // 统计
+  viewCount       Int      @default(0)
+  likeCount       Int      @default(0)
+  commentCount    Int      @default(0)
+  
+  // 状态
+  status          String   @default("published") @db.VarChar(20) // draft, published, hidden, banned
+  isAnonymous     Int      @default(0)
+  isPinned        Int      @default(0)
+  isFeatured      Int      @default(0)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+  
+  // 关联
+  author          User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  comments        CommunityComment[]
+  likes           CommunityPostLike[]
+  tags            CommunityPostTag[]
+
+  @@index([authorId])
+  @@index([categoryId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([isPinned])
+  @@fulltext([title, content])
+  @@map("community_posts")
+}
+
+// ============================================
+// 社区评论表
+// ============================================
+model CommunityComment {
+  id              BigInt   @id @default(autoincrement())
+  postId          BigInt
+  authorId        BigInt
+  parentId        BigInt?
+  replyToId       BigInt?  // 回复的评论作者
+  
+  content         String   @db.Text
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+  
+  // 关联
+  post            CommunityPost  @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author          User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parent          CommunityComment?  @relation("CommentReplies", fields: [parentId], references: [id])
+  replies         CommunityComment[] @relation("CommentReplies")
+
+  @@index([postId])
+  @@index([authorId])
+  @@index([parentId])
+  @@index([createdAt])
+  @@map("community_comments")
+}
+
+// ============================================
+// 社区帖子点赞表
+// ============================================
+model CommunityPostLike {
+  id              BigInt   @id @default(autoincrement())
+  postId          BigInt
+  userId          BigInt
+  createdAt       DateTime @default(now())
+  
+  post            CommunityPost  @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@index([postId])
+  @@index([userId])
+  @@map("community_post_likes")
+}
+
+// ============================================
+// 社区帖子标签关联表
+// ============================================
+model CommunityPostTag {
+  id              BigInt   @id @default(autoincrement())
+  postId          BigInt
+  tagId           BigInt
+  createdAt       DateTime @default(now())
+  
+  post            CommunityPost  @relation(fields: [postId], references: [id], onDelete: Cascade)
+  tag             Tag           @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, tagId])
+  @@index([postId])
+  @@index([tagId])
+  @@map("community_post_tags")
+}
