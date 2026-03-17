@@ -1,0 +1,78 @@
+.chatContainer {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 200px);
+  min-height: 500px;
+}
+
+.header {
+  margin-bottom: 16px;
+}
+
+.disclaimer {
+  margin-bottom: 16px;
+}
+
+.messagesCard {
+  flex: 1;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+.messagesList {
+  height: 100%;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+.emptyState {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 300px;
+}
+
+.quickQuestions {
+  margin-top: 16px;
+  text-align: center;
+}
+
+.loading {
+  display: flex;
+  justify-content: center;
+  padding: 20px;
+}
+
+.inputCard {
+  flex-shrink: 0;
+}
+
+.input {
+  border-radius: 8px 0 0 8px !important;
+}
+
+.sendButton {
+  border-radius: 0 8px 8px 0 !important;
+  height: auto;
+  min-height: 40px;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .chatContainer {
+    height: calc(100vh - 180px);
+  }
+  
+  .quickQuestions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+}

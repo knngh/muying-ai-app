@@ -1,0 +1,79 @@
+.messageWrapper {
+  display: flex;
+  margin-bottom: 16px;
+  gap: 12px;
+}
+
+.userMessage {
+  flex-direction: row-reverse;
+}
+
+.assistantMessage {
+  flex-direction: row;
+}
+
+.avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.userMessage .avatar {
+  background: #1890ff;
+  color: white;
+}
+
+.assistantMessage .avatar {
+  background: #52c41a;
+  color: white;
+}
+
+.messageCard {
+  max-width: 80%;
+  border-radius: 12px;
+}
+
+.userMessage .messageCard {
+  background: #e6f7ff;
+  border-color: #91d5ff;
+}
+
+.assistantMessage .messageCard {
+  background: #f6ffed;
+  border-color: #b7eb8f;
+}
+
+.emergencyCard {
+  background: #fff2f0 !important;
+  border-color: #ffccc7 !important;
+  border-width: 2px;
+}
+
+.sources {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed #d9d9d9;
+}
+
+.timestamp {
+  margin-top: 8px;
+  text-align: right;
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .messageCard {
+    max-width: 90%;
+  }
+  
+  .avatar {
+    width: 32px;
+    height: 32px;
+    font-size: 16px;
+  }
+}
