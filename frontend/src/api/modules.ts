@@ -10,6 +10,7 @@ export interface Category {
   icon?: string
   parentId?: number
   sortOrder: number
+  articleCount: number
   createdAt: string
   updatedAt: string
 }
@@ -18,6 +19,7 @@ export interface Tag {
   id: number
   name: string
   slug: string
+  articleCount: number
   createdAt: string
 }
 
@@ -34,12 +36,19 @@ export interface Article {
   author?: string
   viewCount: number
   likeCount: number
-  favoriteCount: number
+  collectCount: number
   stage?: string
-  isPublished: boolean
+  difficulty?: string
+  contentType?: string
+  isVerified?: boolean
+  disclaimer?: string
+  status: number
   publishedAt?: string
   createdAt: string
   updatedAt: string
+  // 用户交互状态（需登录）
+  isLiked?: boolean
+  isFavorited?: boolean
 }
 
 export interface CalendarEvent {
@@ -48,59 +57,66 @@ export interface CalendarEvent {
   title: string
   description?: string
   eventDate: string
-  eventType: 'checkup' | 'vaccine' | 'reminder' | 'other'
+  startTime?: string
+  endTime?: string
+  eventType: 'checkup' | 'vaccine' | 'reminder' | 'exercise' | 'diet' | 'other'
   isCompleted: boolean
+  isAllDay?: boolean
+  location?: string
   reminderEnabled: boolean
-  reminderTime?: string
+  reminderMinutes?: number
+  status: string
   createdAt: string
   updatedAt: string
 }
 
 export interface User {
   id: string
-  email: string
-  name?: string
+  username: string
+  nickname?: string
   avatar?: string
   phone?: string
-  pregnancyWeek?: number
+  email?: string
+  gender?: string
+  birthday?: string
+  pregnancyStatus?: string
   dueDate?: string
-  lastMenstrualPeriod?: string
+  babyBirthday?: string
+  babyGender?: string
   createdAt: string
 }
 
-// ==================== 分页响应 ====================
+// ==================== 分页响应（匹配后端 paginatedResponse 格式） ====================
 
-export interface PaginatedResponse<T> {
-  data: T[]
-  total: number
+export interface PaginationMeta {
   page: number
   pageSize: number
+  total: number
   totalPages: number
+}
+
+export interface PaginatedResponse<T> {
+  list: T[]
+  pagination: PaginationMeta
 }
 
 // ==================== 分类 API ====================
 
 export const categoryApi = {
-  // 获取所有分类
-  getAll: () => api.get<Category[]>('/categories'),
-  
-  // 获取分类详情
-  getById: (id: number) => api.get<Category>(`/categories/${id}`),
-  
-  // 获取子分类
-  getChildren: (parentId: number) => 
-    api.get<Category[]>(`/categories/${parentId}/children`),
+  getAll: (params?: { parentId?: number }) =>
+    api.get<Category[]>('/categories', { params }),
+
+  getBySlug: (slug: string) =>
+    api.get<Category>(`/categories/${slug}`),
 }
 
 // ==================== 标签 API ====================
 
 export const tagApi = {
-  // 获取所有标签
   getAll: () => api.get<Tag[]>('/tags'),
-  
-  // 获取热门标签
-  getPopular: (limit = 10) => 
-    api.get<Tag[]>('/tags/popular', { params: { limit } }),
+
+  getArticlesByTag: (slug: string, params?: { page?: number; pageSize?: number }) =>
+    api.get<PaginatedResponse<Article>>(`/tags/${slug}/articles`, { params }),
 }
 
 // ==================== 文章 API ====================
@@ -110,52 +126,70 @@ export const articleApi = {
   getList: (params?: {
     page?: number
     pageSize?: number
-    categoryId?: number
-    tagId?: number
+    category?: string
+    tag?: string
+    difficulty?: string
+    contentType?: string
     stage?: string
+    sort?: string
     keyword?: string
   }) => api.get<PaginatedResponse<Article>>('/articles', { params }),
 
-  // 获取文章详情
-  getById: (id: number) => api.get<Article>(`/articles/${id}`),
-
-  // 获取推荐文章
-  getRecommended: (limit = 5) => 
-    api.get<Article[]>('/articles/recommended', { params: { limit } }),
+  // 获取文章详情（按 slug）
+  getBySlug: (slug: string) =>
+    api.get<Article>(`/articles/${slug}`),
 
   // 搜索文章
   search: (keyword: string, params?: { page?: number; pageSize?: number }) =>
-    api.get<PaginatedResponse<Article>>('/articles/search', { 
-      params: { keyword, ...params } 
+    api.get<PaginatedResponse<Article>>('/articles/search', {
+      params: { keyword, ...params },
     }),
 
+  // 获取相关文章
+  getRelated: (id: number, limit = 5) =>
+    api.get<Article[]>(`/articles/${id}/related`, { params: { limit } }),
+
   // 点赞文章
-  like: (id: number) => api.post<{ likeCount: number }>(`/articles/${id}/like`),
+  like: (id: number) =>
+    api.post<{ likeCount: number }>(`/articles/${id}/like`),
+
+  // 取消点赞
+  unlike: (id: number) =>
+    api.delete<{ likeCount: number }>(`/articles/${id}/like`),
 
   // 收藏文章
-  favorite: (id: number) => 
-    api.post<{ favoriteCount: number }>(`/articles/${id}/favorite`),
+  favorite: (id: number) =>
+    api.post<{ collectCount: number }>(`/articles/${id}/favorite`),
 
   // 取消收藏
-  unfavorite: (id: number) => 
-    api.delete<{ favoriteCount: number }>(`/articles/${id}/favorite`),
+  unfavorite: (id: number) =>
+    api.delete<{ collectCount: number }>(`/articles/${id}/favorite`),
 }
 
 // ==================== 日历事件 API ====================
 
 export const calendarApi = {
   // 获取事件列表
-  getEvents: (params?: { 
+  getEvents: (params?: {
     startDate?: string
     endDate?: string
-    eventType?: string 
+    eventType?: string
   }) => api.get<CalendarEvent[]>('/calendar/events', { params }),
 
-  // 获取事件详情
-  getEvent: (id: number) => api.get<CalendarEvent>(`/calendar/events/${id}`),
+  // 获取周视图
+  getWeek: (params?: { date?: string }) =>
+    api.get('/calendar/week', { params }),
+
+  // 获取某天事件
+  getDay: (date: string) =>
+    api.get('/calendar/day/' + date),
+
+  // 获取事件类型
+  getEventTypes: () =>
+    api.get('/calendar/event-types'),
 
   // 创建事件
-  createEvent: (data: Omit<CalendarEvent, 'id' | 'userId' | 'createdAt' | 'updatedAt'>) =>
+  createEvent: (data: Omit<CalendarEvent, 'id' | 'userId' | 'createdAt' | 'updatedAt' | 'status'>) =>
     api.post<CalendarEvent>('/calendar/events', data),
 
   // 更新事件
@@ -163,50 +197,82 @@ export const calendarApi = {
     api.put<CalendarEvent>(`/calendar/events/${id}`, data),
 
   // 删除事件
-  deleteEvent: (id: number) => api.delete(`/calendar/events/${id}`),
+  deleteEvent: (id: number) =>
+    api.delete(`/calendar/events/${id}`),
 
-  // 标记完成
+  // 标记完成（POST，非 PUT）
   completeEvent: (id: number) =>
-    api.put<CalendarEvent>(`/calendar/events/${id}/complete`),
+    api.post<CalendarEvent>(`/calendar/events/${id}/complete`),
 
-  // 获取近期提醒
-  getUpcoming: (days = 7) =>
-    api.get<CalendarEvent[]>('/calendar/events/upcoming', { params: { days } }),
+  // 拖拽更新
+  dragEvent: (id: number, data: { newDate: string; newStartTime?: string; newEndTime?: string }) =>
+    api.patch<CalendarEvent>(`/calendar/events/${id}/drag`, data),
 }
 
 // ==================== 用户 API ====================
 
 export const userApi = {
-  // 获取用户信息
-  getProfile: () => api.get<User>('/users/profile'),
+  // 获取收藏列表
+  getFavorites: (params?: { page?: number; pageSize?: number }) =>
+    api.get('/user/favorites', { params }),
 
-  // 更新用户信息
-  updateProfile: (data: Partial<User>) =>
-    api.put<User>('/users/profile', data),
+  // 添加收藏
+  addFavorite: (data: { targetId: number; targetType: string }) =>
+    api.post('/user/favorites', data),
 
-  // 更新孕期信息
-  updatePregnancy: (data: {
-    lastMenstrualPeriod?: string
-    dueDate?: string
-  }) => api.put<User>('/users/profile/pregnancy', data),
+  // 删除收藏
+  removeFavorite: (articleId: number) =>
+    api.delete(`/user/favorites/${articleId}`),
+
+  // 获取阅读历史
+  getReadHistory: (params?: { page?: number; pageSize?: number }) =>
+    api.get('/user/read-history', { params }),
+
+  // 记录阅读
+  recordRead: (data: { articleId: number; duration?: number; progress?: number }) =>
+    api.post('/user/read-history', data),
+
+  // 获取用户统计
+  getStats: () =>
+    api.get('/user/stats'),
 }
 
 // ==================== 认证 API ====================
 
 export const authApi = {
   // 注册
-  register: (data: { email: string; password: string; name?: string }) =>
-    api.post<{ token: string; user: User }>('/auth/register', data),
+  register: (data: { username: string; password: string; phone?: string; email?: string }) =>
+    api.post<{ user: User; token: string }>('/auth/register', data),
 
-  // 登录
-  login: (data: { email: string; password: string }) =>
-    api.post<{ token: string; user: User }>('/auth/login', data),
+  // 登录（支持 username / phone / email 作为用户名）
+  login: (data: { username: string; password: string }) =>
+    api.post<{ user: User; token: string }>('/auth/login', data),
 
   // 获取当前用户
-  me: () => api.get<User>('/auth/me'),
+  me: () =>
+    api.get<User>('/auth/me'),
+
+  // 刷新 token
+  refresh: () =>
+    api.post<{ token: string }>('/auth/refresh'),
+
+  // 更新用户资料
+  updateProfile: (data: {
+    nickname?: string
+    avatar?: string
+    pregnancyStatus?: string
+    dueDate?: string
+    babyBirthday?: string
+    babyGender?: string
+  }) => api.put<User>('/auth/profile', data),
+
+  // 修改密码
+  changePassword: (data: { oldPassword: string; newPassword: string }) =>
+    api.put('/auth/password', data),
 
   // 退出登录
-  logout: () => api.post('/auth/logout'),
+  logout: () =>
+    api.post('/auth/logout'),
 }
 
 // ==================== 健康检查 ====================

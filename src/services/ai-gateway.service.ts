@@ -160,7 +160,7 @@ export async function callAIGateway(
       throw new Error(`AI Gateway error: ${response.status}`);
     }
 
-    const data: ChatResponse = await response.json();
+    const data: ChatResponse = await response.json() as ChatResponse;
     return data.choices?.[0]?.message?.content || '抱歉，我暂时无法回答这个问题。';
   } catch (error) {
     console.error('[AI Gateway] Request failed:', error);

@@ -310,7 +310,7 @@ export const searchArticles = async (req: Request, res: Response, next: NextFunc
       `
     ]);
 
-    res.json(paginatedResponse(articles, Number(page), Number(pageSize), Number((total as any)[0]?.total || 0)));
+    res.json(paginatedResponse(articles as unknown[], Number(page), Number(pageSize), Number((total as any)[0]?.total || 0)));
   } catch (error) {
     next(error);
   }

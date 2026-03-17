@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { v4 as uuidv4 } from '@/utils/uuid'
-import type { AIMessage, SourceReference } from '@/api/ai'
+import type { AIMessage } from '@/api/ai'
 import { aiApi, detectEmergency, getEmergencyWarning } from '@/api/ai'
 
 interface ChatState {

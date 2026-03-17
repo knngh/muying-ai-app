@@ -3,7 +3,7 @@
 import fs from 'fs';
 import path from 'path';
 import { createKnowledgeCollection, insertDocuments, getEmbedding } from '../services/vector.service';
-import { callKimiAPI } from '../controllers/ai.controller';
+import { callAIGateway } from '../services/ai-gateway.service';
 
 // 配置
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '../../../data');
@@ -43,7 +43,7 @@ async function generateAnswer(question: string, category: string): Promise<strin
   ];
 
   try {
-    return await callKimiAPI(messages);
+    return await callAIGateway(messages as any);
   } catch (error) {
     console.error('生成答案失败:', error);
     return '抱歉，暂时无法回答这个问题。请咨询专业医生。';

@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { Card, Input, List, Tag, Typography, Spin, Empty, Row, Col, Select, Space, Button } from 'antd'
-import { SearchOutlined, BookOutlined, HeartOutlined, StarOutlined, EyeOutlined } from '@ant-design/icons'
+import { BookOutlined, HeartOutlined, StarOutlined, EyeOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { useKnowledgeStore } from '@/stores/knowledgeStore'
 import type { Article } from '@/api/modules'
@@ -64,8 +64,8 @@ export function Knowledge() {
   }
 
   // 处理分类选择
-  const handleCategoryChange = (categoryId: number | null) => {
-    setCategory(categoryId)
+  const handleCategoryChange = (categorySlug: string | null) => {
+    setCategory(categorySlug)
   }
 
   // 处理阶段选择
@@ -81,8 +81,8 @@ export function Knowledge() {
   }
 
   // 跳转到详情
-  const goToDetail = (id: number) => {
-    navigate(`/knowledge/${id}`)
+  const goToDetail = (slug: string) => {
+    navigate(`/knowledge/${slug}`)
   }
 
   // 渲染文章卡片
@@ -90,7 +90,7 @@ export function Knowledge() {
     <List.Item>
       <Card 
         hoverable 
-        onClick={() => goToDetail(article.id)}
+        onClick={() => goToDetail(article.slug)}
         styles={{ body: { padding: 16 } }}
       >
         <Row gutter={16}>
@@ -133,7 +133,7 @@ export function Knowledge() {
                 <StarOutlined onClick={(e) => {
                   e.stopPropagation()
                   favoriteArticle(article.id)
-                }} style={{ cursor: 'pointer' }} /> {article.favoriteCount}
+                }} style={{ cursor: 'pointer' }} /> {article.collectCount}
               </Text>
             </Space>
           </Col>
@@ -172,7 +172,7 @@ export function Knowledge() {
               onChange={handleCategoryChange}
               options={[
                 { value: null, label: '全部分类' },
-                ...categories.map(c => ({ value: c.id, label: c.name }))
+                ...categories.map(c => ({ value: c.slug, label: c.name }))
               ]}
             />
           </Col>

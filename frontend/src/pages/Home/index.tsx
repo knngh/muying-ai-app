@@ -20,8 +20,9 @@ export function Home() {
   const fetchRecommended = async () => {
     setLoading(true)
     try {
-      const articles = await articleApi.getRecommended(5) as Article[]
-      setRecommendedArticles(articles)
+      const response = await articleApi.getList({ pageSize: 5 })
+      const result = response as unknown as { list: Article[] }
+      setRecommendedArticles(result.list || [])
     } catch (error) {
       console.error('获取推荐文章失败:', error)
     } finally {

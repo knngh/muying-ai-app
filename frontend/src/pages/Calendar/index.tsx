@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
-import { Card, Calendar as AntCalendar, Typography, List, Tag, Modal, Form, Input, Select, DatePicker, Switch, Button, Space, Spin, Empty } from 'antd'
+import { Card, Calendar as AntCalendar, Typography, List, Tag, Modal, Form, Input, Select, DatePicker, Switch, Button, Space, Spin, Empty, Row, Col } from 'antd'
 import { CalendarOutlined, PlusOutlined, CheckCircleOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons'
 import { useCalendarStore } from '@/stores/calendarStore'
 import type { CalendarEvent } from '@/api/modules'
 import dayjs, { Dayjs } from 'dayjs'
 
-const { Title, Text, Paragraph } = Typography
+const { Title, Text } = Typography
 
 const eventTypeColors: Record<string, string> = {
   checkup: 'orange',
@@ -26,9 +26,9 @@ export function Calendar() {
   const [form] = Form.useForm()
   
   const {
-    events,
+    events: _events,
     selectedEvent,
-    currentMonth,
+    currentMonth: _currentMonth,
     loading,
     fetchEvents,
     createEvent,

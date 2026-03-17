@@ -1,13 +1,5 @@
 import { create } from 'zustand'
-
-interface User {
-  id: string
-  name: string
-  avatar?: string
-  phone?: string
-  pregnancyWeek?: number
-  dueDate?: string
-}
+import type { User } from '@/api/modules'
 
 interface AppState {
   user: User | null

@@ -1,13 +1,13 @@
 import { useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Card, Typography, Tag, Space, Button, Spin, Divider, message } from 'antd'
-import { ArrowLeftOutlined, HeartOutlined, StarOutlined, EyeOutlined, ShareOutlined } from '@ant-design/icons'
+import { ArrowLeftOutlined, HeartOutlined, StarOutlined, EyeOutlined } from '@ant-design/icons'
 import { useKnowledgeStore } from '@/stores/knowledgeStore'
 
 const { Title, Paragraph, Text } = Typography
 
 export function KnowledgeDetail() {
-  const { id } = useParams<{ id: string }>()
+  const { id: slug } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const {
     currentArticle,
@@ -19,10 +19,10 @@ export function KnowledgeDetail() {
   } = useKnowledgeStore()
 
   useEffect(() => {
-    if (id) {
-      fetchArticleDetail(Number(id))
+    if (slug) {
+      fetchArticleDetail(slug)
     }
-  }, [id])
+  }, [slug])
 
   // 处理点赞
   const handleLike = async () => {
@@ -159,10 +159,9 @@ export function KnowledgeDetail() {
             icon={<StarOutlined />}
             onClick={handleFavorite}
           >
-            收藏 ({currentArticle.favoriteCount})
+            收藏 ({currentArticle.collectCount})
           </Button>
-          <Button 
-            icon={<ShareOutlined />}
+          <Button
             onClick={() => {
               navigator.clipboard.writeText(window.location.href)
               message.success('链接已复制')

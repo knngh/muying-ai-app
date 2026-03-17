@@ -159,6 +159,6 @@ export async function getEmbedding(text: string): Promise<number[]> {
     }),
   });
   
-  const data = await response.json();
+  const data: any = await response.json();
   return data.data[0].embedding;
 }

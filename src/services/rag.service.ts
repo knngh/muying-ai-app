@@ -1,7 +1,7 @@
 // RAG 检索增强生成服务
 
 import { searchKnowledge, getEmbedding } from './vector.service';
-import { callKimiAPI } from '../controllers/ai.controller';
+import { callAIGateway } from './ai-gateway.service';
 
 // RAG 系统提示词
 const RAG_SYSTEM_PROMPT = `你是一位专业的母婴健康顾问，请基于提供的知识库内容回答用户问题。
@@ -57,7 +57,7 @@ export async function ragAnswer(question: string): Promise<{
       { role: 'user', content: question }
     ];
     
-    const answer = await callKimiAPI(messages);
+    const answer = await callAIGateway(messages as any);
     
     // 6. 计算置信度
     const confidence = relevantDocs.length > 0 
@@ -87,7 +87,7 @@ export async function importKnowledge(documents: Array<{
   category: string;
   source: string;
 }>): Promise<number> {
-  const { insertDocuments } = await import('./vector.service');
+  const { insertDocuments } = require('./vector.service') as typeof import('./vector.service');
   
   let imported = 0;
   const batchSize = 100;

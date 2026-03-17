@@ -61,9 +61,6 @@ export const getPosts = async (req: Request, res: Response, next: NextFunction) 
           author: {
             select: { id: true, nickname: true, avatar: true }
           },
-          category: {
-            select: { id: true, name: true, slug: true }
-          },
           tags: {
             include: {
               tag: { select: { id: true, name: true, slug: true } }
@@ -79,9 +76,9 @@ export const getPosts = async (req: Request, res: Response, next: NextFunction) 
 
     const list = posts.map(post => ({
       ...post,
-      tags: post.tags.map(t => t.tag),
-      commentCount: post._count.comments,
-      likeCount: post._count.likes
+      tags: (post as any).tags.map((t: any) => t.tag),
+      commentCount: (post as any)._count.comments,
+      likeCount: (post as any)._count.likes
     }));
 
     res.json(paginatedResponse(list, Number(page), Number(pageSize), total));
@@ -104,7 +101,6 @@ export const getPostById = async (req: Request, res: Response, next: NextFunctio
         author: {
           select: { id: true, nickname: true, avatar: true, createdAt: true }
         },
-        category: true,
         tags: {
           include: { tag: true }
         }
@@ -132,7 +128,7 @@ export const getPostById = async (req: Request, res: Response, next: NextFunctio
 
     res.json(successResponse({
       ...post,
-      tags: post.tags.map(t => t.tag),
+      tags: (post as any).tags.map((t: any) => t.tag),
       isLiked
     }));
   } catch (error) {
@@ -168,7 +164,6 @@ export const createPost = async (req: Request, res: Response, next: NextFunction
         } : undefined
       },
       include: {
-        category: true,
         tags: { include: { tag: true } }
       }
     });
@@ -342,8 +337,7 @@ export const getComments = async (req: Request, res: Response, next: NextFunctio
           replies: {
             where: { deletedAt: null },
             include: {
-              author: { select: { id: true, nickname: true, avatar: true } },
-              replyTo: { select: { id: true, nickname: true } }
+              author: { select: { id: true, nickname: true, avatar: true } }
             },
             take: 5
           },
@@ -359,7 +353,7 @@ export const getComments = async (req: Request, res: Response, next: NextFunctio
 
     const list = comments.map(comment => ({
       ...comment,
-      replyCount: comment._count.replies
+      replyCount: (comment as any)._count.replies
     }));
 
     res.json(paginatedResponse(list, Number(page), Number(pageSize), total));

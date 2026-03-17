@@ -8,6 +8,11 @@ import dotenv from 'dotenv';
 // 加载环境变量
 dotenv.config();
 
+// BigInt JSON 序列化支持（Prisma 使用 BigInt ID）
+(BigInt.prototype as unknown as { toJSON: () => string }).toJSON = function () {
+  return this.toString();
+};
+
 // 路由导入
 import authRoutes from './routes/auth.routes';
 import userRoutes from './routes/user.routes';

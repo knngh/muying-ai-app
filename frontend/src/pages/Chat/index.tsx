@@ -7,7 +7,7 @@ import { getDisclaimer } from '@/api/ai'
 import styles from './Chat.module.css'
 
 const { TextArea } = Input
-const { Title, Paragraph, Text } = Typography
+const { Title, Text } = Typography
 
 export function Chat() {
   const [inputValue, setInputValue] = useState('')

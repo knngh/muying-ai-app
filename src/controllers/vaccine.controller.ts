@@ -42,17 +42,7 @@ export const getVaccineById = async (req: Request, res: Response, next: NextFunc
     const { id } = req.params;
 
     const vaccine = await prisma.vaccine.findUnique({
-      where: { id: BigInt(id) },
-      include: {
-        relatedArticle: {
-          select: {
-            id: true,
-            title: true,
-            slug: true,
-            summary: true
-          }
-        }
-      }
+      where: { id: BigInt(id) }
     });
 
     if (!vaccine) {

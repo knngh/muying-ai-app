@@ -2,7 +2,7 @@
 
 import fs from 'fs';
 import path from 'path';
-import { callKimiAPI } from '../controllers/ai.controller';
+import { callAIGateway } from '../services/ai-gateway.service';
 
 const INPUT_FILE = process.env.INPUT_FILE || path.join(__dirname, '../../../data/qa-pairs-1000.json');
 const OUTPUT_FILE = process.env.OUTPUT_FILE || path.join(__dirname, '../../../data/qa-pairs-with-answers-1000.json');
@@ -57,7 +57,7 @@ ${isUrgent ? '5. 这是一个紧急问题，强调立即就医的重要性' : ''
       { role: 'user', content: item.question }
     ];
     
-    return await callKimiAPI(messages);
+    return await callAIGateway(messages as any);
   } catch (error) {
     console.error(`生成答案失败 [${item.id}]:`, error);
     return '抱歉，暂时无法回答这个问题。请咨询专业医生。';

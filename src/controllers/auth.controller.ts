@@ -11,7 +11,7 @@ const generateToken = (userId: string): string => {
   return jwt.sign(
     { userId },
     process.env.JWT_SECRET || 'default-secret',
-    { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+    { expiresIn: (process.env.JWT_EXPIRES_IN || '7d') } as any
   );
 };
 
@@ -54,14 +54,19 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
       data: {
         username,
         passwordHash,
+        nickname: username,
         phone,
         email
       },
       select: {
         id: true,
         username: true,
+        nickname: true,
+        avatar: true,
         phone: true,
         email: true,
+        pregnancyStatus: true,
+        dueDate: true,
         createdAt: true
       }
     });
