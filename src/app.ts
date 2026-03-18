@@ -1,4 +1,5 @@
 import express, { Express, Request, Response, NextFunction } from 'express';
+import { createServer } from 'http';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
@@ -27,6 +28,7 @@ import communityRoutes from './routes/community.routes';
 // 中间件导入
 import { errorHandler, notFoundHandler } from './middlewares/error.middleware';
 import { cache } from './services/cache.service';
+import { setupWebSocket } from './services/websocket.service';
 
 const app: Express = express();
 const PORT = process.env.PORT || 3000;
@@ -94,7 +96,12 @@ app.use(errorHandler);
 // ============================================
 // 启动服务器
 // ============================================
-app.listen(Number(PORT), HOST, () => {
+const server = createServer(app);
+
+// 挂载 WebSocket 服务（供小程序和 App 使用）
+setupWebSocket(server);
+
+server.listen(Number(PORT), HOST, () => {
   console.log(`🚀 Server is running on http://${HOST}:${PORT}`);
   console.log(`📚 API docs available at http://${HOST}:${PORT}${API_PREFIX}`);
   console.log(`🏥 Health check at http://${HOST}:${PORT}/health`);
