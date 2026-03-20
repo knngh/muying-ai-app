@@ -7,8 +7,8 @@ import { Calendar } from './pages/Calendar'
 import { Profile } from './pages/Profile'
 import { Chat } from './pages/Chat'
 import { Login } from './pages/Login'
-import { Community } from './pages/Community'
-import { PostDetail } from './pages/Community/PostDetail'
+// import { Community } from './pages/Community'
+// import { PostDetail } from './pages/Community/PostDetail'
 
 // 需要登录的路由守卫
 const ProtectedRoute = () => {
@@ -40,8 +40,8 @@ function App() {
         <Route path="knowledge" element={<Knowledge />} />
         <Route path="knowledge/:id" element={<KnowledgeDetail />} />
         <Route path="chat" element={<Chat />} />
-        <Route path="community" element={<Community />} />
-        <Route path="community/:id" element={<PostDetail />} />
+        {/* <Route path="community" element={<Community />} /> */}
+        {/* <Route path="community/:id" element={<PostDetail />} /> */}
 
         {/* 需要登录的页面 */}
         <Route element={<ProtectedRoute />}>

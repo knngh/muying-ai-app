@@ -5,8 +5,8 @@
     { "path": "pages/knowledge/index", "style": { "navigationBarTitleText": "知识库" } },
     { "path": "pages/knowledge-detail/index", "style": { "navigationBarTitleText": "文章详情" } },
     { "path": "pages/calendar/index", "style": { "navigationBarTitleText": "孕育日历" } },
-    { "path": "pages/community/index", "style": { "navigationBarTitleText": "社区" } },
-    { "path": "pages/post-detail/index", "style": { "navigationBarTitleText": "帖子详情" } },
+    // { "path": "pages/community/index", "style": { "navigationBarTitleText": "社区" } },
+    // { "path": "pages/post-detail/index", "style": { "navigationBarTitleText": "帖子详情" } },
     { "path": "pages/profile/index", "style": { "navigationBarTitleText": "我的" } },
     { "path": "pages/login/index", "style": { "navigationBarTitleText": "登录" } }
   ],
@@ -25,7 +25,7 @@
       { "pagePath": "pages/home/index", "text": "首页", "iconPath": "static/tab-home.png", "selectedIconPath": "static/tab-home-active.png" },
       { "pagePath": "pages/chat/index", "text": "AI问答", "iconPath": "static/tab-chat.png", "selectedIconPath": "static/tab-chat-active.png" },
       { "pagePath": "pages/knowledge/index", "text": "知识库", "iconPath": "static/tab-book.png", "selectedIconPath": "static/tab-book-active.png" },
-      { "pagePath": "pages/community/index", "text": "社区", "iconPath": "static/tab-community.png", "selectedIconPath": "static/tab-community-active.png" },
+      // { "pagePath": "pages/community/index", "text": "社区", "iconPath": "static/tab-community.png", "selectedIconPath": "static/tab-community-active.png" },
       { "pagePath": "pages/profile/index", "text": "我的", "iconPath": "static/tab-user.png", "selectedIconPath": "static/tab-user-active.png" }
     ]
   }

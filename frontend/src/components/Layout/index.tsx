@@ -6,7 +6,6 @@ import {
   CalendarOutlined,
   UserOutlined,
   MessageOutlined,
-  TeamOutlined,
 } from '@ant-design/icons'
 import { useNavigate, useLocation } from 'react-router-dom'
 import styles from './Layout.module.css'
@@ -25,7 +24,7 @@ export function Layout({ children }: LayoutProps) {
     { key: '/', icon: <HomeOutlined />, label: '首页' },
     { key: '/chat', icon: <MessageOutlined />, label: 'AI问答' },
     { key: '/knowledge', icon: <BookOutlined />, label: '知识库' },
-    { key: '/community', icon: <TeamOutlined />, label: '社区' },
+    // { key: '/community', icon: <TeamOutlined />, label: '社区' },
     { key: '/calendar', icon: <CalendarOutlined />, label: '日历' },
     { key: '/profile', icon: <UserOutlined />, label: '我的' },
   ]

@@ -49,8 +49,8 @@
             <text class="emergency-icon">⚠️</text>
             <text class="emergency-label">紧急提醒</text>
           </view>
-          <!-- Note: AI responses may contain markdown; rich-text used for basic HTML rendering -->
-          <rich-text v-if="msg.role === 'assistant'" :nodes="msg.content" class="message-content" />
+          
+          <mp-html v-if="msg.role === 'assistant'" :content="renderMarkdown(msg.content)" class="message-content" />
           <text v-else class="message-content">{{ msg.content }}</text>
         </view>
         <view
@@ -67,7 +67,7 @@
           <text class="avatar-text">AI</text>
         </view>
         <view class="message-bubble bubble-ai">
-          <text class="message-content">{{ streamingContent }}</text>
+          <mp-html :content="renderMarkdown(streamingContent)" class="message-content" />
           <text class="typing-indicator">...</text>
         </view>
       </view>
@@ -115,6 +115,18 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
 import { useChatStore } from '@/stores/chat'
+import mpHtml from 'mp-html/dist/uni-app/components/mp-html/mp-html.vue'
+import MarkdownIt from 'markdown-it'
+
+const md = new MarkdownIt({
+  html: true,
+  linkify: true,
+  typographer: true,
+})
+
+const renderMarkdown = (text: string) => {
+  return md.render(text || '')
+}
 
 const chatStore = useChatStore()
 const inputText = ref('')

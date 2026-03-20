@@ -2,8 +2,10 @@ import { Typography, Card, Tag, Space, Alert } from 'antd'
 import { UserOutlined, RobotOutlined, WarningOutlined, LinkOutlined } from '@ant-design/icons'
 import type { AIMessage } from '@/api/ai'
 import styles from './ChatMessage.module.css'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
-const { Paragraph, Text } = Typography
+const { Text } = Typography
 
 interface ChatMessageProps {
   message: AIMessage
@@ -34,9 +36,11 @@ export function ChatMessage({ message }: ChatMessageProps) {
         )}
 
         {/* 消息内容 */}
-        <Paragraph style={{ whiteSpace: 'pre-wrap', marginBottom: 0 }}>
-          {message.content}
-        </Paragraph>
+        <div className="prose prose-sm md:prose-base dark:prose-invert max-w-none">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            {message.content}
+          </ReactMarkdown>
+        </div>
 
         {/* 来源引用 */}
         {message.sources && message.sources.length > 0 && (
