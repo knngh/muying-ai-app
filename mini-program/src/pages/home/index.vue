@@ -68,10 +68,26 @@
 import { ref } from 'vue'
 
 const navigateTo = (url: string) => {
-  uni.navigateTo({ url })
+  const token = uni.getStorageSync('token')
+  if (!token) {
+    uni.showToast({ title: '请先登录或注册', icon: 'none' })
+    setTimeout(() => {
+      uni.reLaunch({ url: '/pages/login/index' })
+    }, 1000)
+    return
+  }
+  uni.switchTab({ url })
 }
 
 const handleAITap = () => {
+  const token = uni.getStorageSync('token')
+  if (!token) {
+    uni.showToast({ title: '请先登录或注册', icon: 'none' })
+    setTimeout(() => {
+      uni.reLaunch({ url: '/pages/login/index' })
+    }, 1000)
+    return
+  }
   uni.switchTab({ url: '/pages/chat/index' })
 }
 </script>

@@ -76,52 +76,70 @@
         </text>
       </view>
 
-      <!-- 体验通道 -->
-      <view class="submit-btn skip-btn" @tap="skipLogin" style="background: #f0f0f0; margin-top: 30rpx;">
-        <text class="btn-text" style="color: #666;">🌟 免登录直接体验</text>
+      <!-- 微信登录 -->
+      <view class="submit-btn wechat-btn" @tap="handleWechatLogin" style="background: #07c160; margin-top: 30rpx;">
+        <text class="btn-text" style="color: #fff;">微信一键登录</text>
       </view>
-      </view>
-      </view>
-      </template>
+    </view>
+  </view>
+</template>
 
-      <script setup lang="ts">
-      import { ref, reactive } from 'vue'
-      import { authApi } from '@/api/modules'
-      import { useAppStore } from '@/stores/app'
-      import type { User } from '@/api/types'
+<script setup lang="ts">
+import { ref, reactive } from 'vue'
+import { authApi } from '@/api/modules'
+import { useAppStore } from '@/stores/app'
+import type { User } from '@/api/types'
 
-      const appStore = useAppStore()
+const appStore = useAppStore()
 
-      const isRegister = ref(false)
-      const submitting = ref(false)
+const isRegister = ref(false)
+const submitting = ref(false)
 
-      const form = reactive({
-        username: '',
-        password: '',
-        phone: '',
-        email: '',
-        pregnancyWeek: '',
-      })
+const form = reactive({
+  username: '',
+  password: '',
+  phone: '',
+  email: '',
+  pregnancyWeek: '',
+})
 
-      const weekOptions = Array.from({ length: 40 }, (_, i) => `第 ${i + 1} 周`)
+const weekOptions = Array.from({ length: 40 }, (_, i) => `第 ${i + 1} 周`)
 
-      const onWeekChange = (e: any) => {
-        form.pregnancyWeek = String(e.detail.value + 1)
-      }
+const onWeekChange = (e: any) => {
+  form.pregnancyWeek = String(e.detail.value + 1)
+}
 
-      function toggleMode() {
-        isRegister.value = !isRegister.value
-        form.phone = ''
-        form.email = ''
-        form.pregnancyWeek = ''
-      }
-      // 快速体验模式
-      function skipLogin() {
-        uni.showToast({ title: '已进入体验模式', icon: 'success' })
-        setTimeout(() => {
-          uni.switchTab({ url: '/pages/home/index' })
-        }, 500)
-      }
+function toggleMode() {
+  isRegister.value = !isRegister.value
+  form.phone = ''
+  form.email = ''
+  form.pregnancyWeek = ''
+}
+
+// 微信登录逻辑
+async function handleWechatLogin() {
+  uni.showLoading({ title: '登录中...' })
+  uni.login({
+    provider: 'weixin',
+    success: async (loginRes) => {
+      // 实际上这里应该把 loginRes.code 发给你的后端去换取 token 和 openid
+      // 例如：const res = await authApi.wechatLogin({ code: loginRes.code })
+      console.log('WeChat login code:', loginRes.code)
+      
+      // 模拟微信登录成功后的跳转（在后端接口完成前）
+      uni.hideLoading()
+      uni.showToast({ title: '微信登录成功', icon: 'success' })
+      setTimeout(() => {
+        uni.switchTab({ url: '/pages/home/index' })
+      }, 500)
+    },
+    fail: (err) => {
+      uni.hideLoading()
+      console.error('WeChat login failed:', err)
+      uni.showToast({ title: '微信登录失败', icon: 'none' })
+    }
+  })
+}
 async function handleSubmit() {
   if (submitting.value) return
 

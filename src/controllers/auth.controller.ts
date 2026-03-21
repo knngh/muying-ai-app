@@ -18,7 +18,7 @@ const generateToken = (userId: string): string => {
 // 用户注册
 export const register = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { username, password, phone, email } = req.body;
+    const { username, password, phone, email, pregnancyWeek } = req.body;
 
     // 验证必填字段
     if (!username || !password) {
@@ -49,6 +49,18 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
     // 加密密码
     const passwordHash = await bcrypt.hash(password, 10);
 
+    let dueDate = undefined;
+    let pregnancyStatus = 0;
+    if (pregnancyWeek) {
+      pregnancyStatus = 2; // 怀孕中
+      const week = parseInt(pregnancyWeek);
+      if (!isNaN(week) && week > 0 && week <= 40) {
+        const remainingWeeks = 40 - week;
+        const now = new Date();
+        dueDate = new Date(now.getTime() + remainingWeeks * 7 * 24 * 60 * 60 * 1000);
+      }
+    }
+
     // 创建用户
     const user = await prisma.user.create({
       data: {
@@ -56,7 +68,9 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
         passwordHash,
         nickname: username,
         phone,
-        email
+        email,
+        pregnancyStatus,
+        dueDate
       },
       select: {
         id: true,

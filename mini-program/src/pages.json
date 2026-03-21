@@ -1,7 +1,7 @@
 {
   "pages": [
-    { "path": "pages/login/index", "style": { "navigationBarTitleText": "登录" } },
     { "path": "pages/home/index", "style": { "navigationBarTitleText": "母婴助手" } },
+    { "path": "pages/login/index", "style": { "navigationBarTitleText": "登录" } },
     { "path": "pages/calendar/index", "style": { "navigationBarTitleText": "孕育时间轴" } },
     { "path": "pages/chat/index", "style": { "navigationBarTitleText": "AI答疑" } },
     { "path": "pages/profile/index", "style": { "navigationBarTitleText": "我的" } }
