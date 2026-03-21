@@ -29,7 +29,11 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { authApi } from '@/api/modules'
+import { useAppStore } from '@/stores/app'
+import type { User } from '@/api/types'
 
+const appStore = useAppStore()
 const pregnancyWeek = ref('')
 const weekOptions = Array.from({ length: 40 }, (_, i) => `第 ${i + 1} 周`)
 
