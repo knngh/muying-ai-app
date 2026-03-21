@@ -90,7 +90,7 @@ export const wechatLogin = async (req: Request, res: Response, next: NextFunctio
     
     if (wxResponse.data.errcode) {
       console.error('WeChat API Error:', wxResponse.data);
-      throw new AppError('微信登录失败: ' + wxResponse.data.errmsg, ErrorCodes.UNAUTHORIZED, 401);
+      throw new AppError('微信登录失败: ' + wxResponse.data.errmsg, ErrorCodes.THIRD_PARTY_ERROR, 401);
     }
 
     const { openid } = wxResponse.data;
