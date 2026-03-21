@@ -34,7 +34,7 @@
 
 <script setup lang="ts">
 const goBack = () => {
-  uni.switchTab({ url: '/pages/calendar/index' })
+  uni.navigateTo({ url: '/pages/calendar/index' })
 }
 </script>
 

@@ -65,29 +65,36 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+// tabBar 页面路径集合，用于区分导航方式
+const TAB_PAGES = new Set([
+  '/pages/home/index',
+  '/pages/chat/index',
+  '/pages/profile/index',
+])
 
-const navigateTo = (url: string) => {
+const checkLogin = (): boolean => {
   const token = uni.getStorageSync('token')
   if (!token) {
     uni.showToast({ title: '请先登录或注册', icon: 'none' })
     setTimeout(() => {
       uni.reLaunch({ url: '/pages/login/index' })
     }, 1000)
-    return
+    return false
   }
-  uni.switchTab({ url })
+  return true
+}
+
+const navigateTo = (url: string) => {
+  if (!checkLogin()) return
+  if (TAB_PAGES.has(url)) {
+    uni.switchTab({ url })
+  } else {
+    uni.navigateTo({ url })
+  }
 }
 
 const handleAITap = () => {
-  const token = uni.getStorageSync('token')
-  if (!token) {
-    uni.showToast({ title: '请先登录或注册', icon: 'none' })
-    setTimeout(() => {
-      uni.reLaunch({ url: '/pages/login/index' })
-    }, 1000)
-    return
-  }
+  if (!checkLogin()) return
   uni.switchTab({ url: '/pages/chat/index' })
 }
 </script>

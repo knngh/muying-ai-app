@@ -53,15 +53,28 @@ async function handleWechatLogin() {
     provider: 'weixin',
     success: async (loginRes) => {
       try {
-        const res = await authApi.wechatLogin({ 
-          code: loginRes.code, 
-          pregnancyWeek: pregnancyWeek.value 
+        const res = await authApi.wechatLogin({
+          code: loginRes.code,
+          pregnancyWeek: pregnancyWeek.value
         }) as unknown as { user: User; token: string }
-        
+
+        console.log('[Login] API 返回:', JSON.stringify(res))
+
+        if (!res || !res.token) {
+          uni.hideLoading()
+          uni.showToast({ title: '登录异常：未获取到凭证', icon: 'none' })
+          console.error('[Login] res.token 为空, res =', res)
+          return
+        }
+
         uni.setStorageSync('userPregnancyWeek', pregnancyWeek.value)
         uni.setStorageSync('token', res.token)
         appStore.setUser(res.user)
-        
+
+        // 验证 token 是否成功写入
+        const savedToken = uni.getStorageSync('token')
+        console.log('[Login] token 已保存, 验证读取:', savedToken ? '成功' : '失败')
+
         uni.hideLoading()
         uni.showToast({ title: '登录成功', icon: 'success' })
         setTimeout(() => {
