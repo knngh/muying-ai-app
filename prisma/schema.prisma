@@ -19,6 +19,7 @@ model User {
   username        String   @unique @db.VarChar(50)
   email           String?  @unique @db.VarChar(100)
   phone           String?  @unique @db.VarChar(20)
+  openid          String?  @unique @db.VarChar(100)
   passwordHash    String   @db.VarChar(255)
   avatar          String?  @db.VarChar(500)
   nickname        String?  @db.VarChar(50)

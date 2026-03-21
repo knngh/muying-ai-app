@@ -66,10 +66,12 @@ export const userApi = {
 
 // ==================== 认证 API ====================
 export const authApi = {
-  register: (data: { username: string; password: string; phone?: string; email?: string }) =>
+  register: (data: { username: string; password: string; phone?: string; email?: string; pregnancyWeek?: string }) =>
     api.post<{ user: User; token: string }>('/auth/register', data),
   login: (data: { username: string; password: string }) =>
     api.post<{ user: User; token: string }>('/auth/login', data),
+  wechatLogin: (data: { code: string; pregnancyWeek?: string }) =>
+    api.post<{ user: User; token: string }>('/auth/wechat-login', data),
   me: () => api.get<User>('/auth/me'),
   refresh: () => api.post<{ token: string }>('/auth/refresh'),
   updateProfile: (data: {
