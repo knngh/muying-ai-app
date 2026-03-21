@@ -1,5 +1,5 @@
 // uni.request 封装 - 对标 Web 端 Axios 拦截器
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1'
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://212.64.29.211/api/v1'
 
 let isRefreshing = false
 let failedQueue: Array<{ resolve: (token: string) => void; reject: (error: unknown) => void }> = []

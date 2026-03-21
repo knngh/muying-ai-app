@@ -1,755 +1,442 @@
 <template>
-  <view class="calendar-page">
-    <!-- Header -->
-    <view class="header">
-      <text class="header-title">孕育日历</text>
-      <view class="header-btn" @tap="openAddModal">
-        <text class="header-btn-text">+ 添加事件</text>
+  <view class="calendar-timeline-page">
+    <!-- 顶部背景与动态宝宝展示 -->
+    <view class="hero-section">
+      <view class="header-nav">
+        <text class="hero-title">{{ currentWeekData.title }}</text>
       </view>
-    </view>
 
-    <!-- Month Navigation -->
-    <view class="month-nav">
-      <view class="nav-arrow" @tap="prevMonth">
-        <text class="arrow-text">&lt;</text>
+      <!-- 动态宝宝成长动画区 -->
+      <view class="baby-animation-container">
+        <!-- 呼吸动画的光晕 -->
+        <view class="breathing-glow"></view>
+        <!-- 宝宝状态/大小比喻展示 -->
+        <view class="baby-visual">
+          <text class="baby-emoji">{{ currentWeekData.babySizeEmoji || '🌱' }}</text>
+        </view>
+        <view class="baby-size-info">
+          <text class="size-text">相当于: {{ currentWeekData.babySizeText || '未知大小' }}</text>
+          <text class="size-desc" v-if="currentWeekData.babyWeight">体重约: {{ currentWeekData.babyWeight }}</text>
+        </view>
       </view>
-      <text class="month-text">{{ currentMonthLabel }}</text>
-      <view class="nav-arrow" @tap="nextMonth">
-        <text class="arrow-text">&gt;</text>
-      </view>
-    </view>
 
-    <!-- Weekday Headers -->
-    <view class="weekday-row">
-      <text v-for="d in weekdays" :key="d" class="weekday-cell">{{ d }}</text>
-    </view>
-
-    <!-- Date Grid -->
-    <view class="date-grid">
-      <view
-        v-for="(cell, idx) in calendarCells"
-        :key="idx"
-        class="date-cell"
-        :class="{
-          'date-cell--other': !cell.currentMonth,
-          'date-cell--today': cell.isToday,
-          'date-cell--selected': cell.dateStr === selectedDate,
-          'date-cell--has-event': cell.hasEvent,
-        }"
-        @tap="onDateTap(cell)"
+      <!-- 横向滑动时间轴 -->
+      <scroll-view 
+        scroll-x 
+        class="week-timeline-scroll" 
+        :scroll-into-view="'week-' + currentSelectedWeek"
+        scroll-with-animation
       >
-        <text class="date-num">{{ cell.day }}</text>
-        <view v-if="cell.hasEvent" class="event-dot" />
+        <view class="timeline-container">
+          <view 
+            v-for="week in weeksList" 
+            :key="week.num" 
+            :id="'week-' + week.num"
+            class="timeline-item"
+            :class="{ 'active': currentSelectedWeek === week.num }"
+            :data-week="week.num"
+            @tap="handleSelectWeek"
+          >
+            <view class="week-circle">{{ week.num }}</view>
+            <text class="week-label">周</text>
+          </view>
+        </view>
+      </scroll-view>
+    </view>
+
+    <!-- 选项卡切换 -->
+    <view class="tabs-container">
+      <view 
+        class="tab-item" 
+        :class="{ 'active': activeTab === 'guide' }" 
+        @tap="activeTab = 'guide'"
+      >
+        <text class="tab-text">孕周指南</text>
+        <view class="tab-line" v-if="activeTab === 'guide'"></view>
+      </view>
+      <view 
+        class="tab-item" 
+        :class="{ 'active': activeTab === 'diary' }" 
+        @tap="activeTab = 'diary'"
+      >
+        <text class="tab-text">我的记录</text>
+        <view class="tab-line" v-if="activeTab === 'diary'"></view>
       </view>
     </view>
 
-    <!-- Event List -->
-    <view class="event-section">
-      <text class="section-title">
-        {{ selectedDate ? `${selectedDate} 的事件` : '近期事件' }}
-      </text>
-
-      <view v-if="calendarStore.loading" class="loading-box">
-        <text class="loading-text">加载中...</text>
+    <!-- 孕周指南 内容 -->
+    <view class="content-section" v-if="activeTab === 'guide'">
+      <!-- 总体总结 -->
+      <view class="summary-card">
+        <text class="quote-mark">“</text>
+        <text class="summary-text">{{ currentWeekData.summary }}</text>
+        <text class="quote-mark right">”</text>
       </view>
 
-      <view v-else-if="displayEvents.length === 0" class="empty-box">
-        <text class="empty-text">暂无事件</text>
+      <!-- 宝宝发育 -->
+      <view class="info-card baby-card">
+        <view class="card-header">
+          <view class="header-left">
+            <text class="card-icon">👶</text>
+            <text class="card-title">宝宝发育</text>
+          </view>
+        </view>
+        <view class="card-body">
+          <text class="card-text">{{ parsedContent.baby }}</text>
+        </view>
       </view>
 
-      <view v-else class="event-list">
-        <view v-for="event in displayEvents" :key="event.id" class="event-card">
-          <view class="event-card-header">
-            <view class="event-title-row">
-              <text class="event-title">{{ event.title }}</text>
-              <view class="event-tag" :style="{ backgroundColor: typeColor(event.eventType) }">
-                <text class="event-tag-text">{{ typeLabel(event.eventType) }}</text>
-              </view>
-            </view>
-            <text class="event-date">{{ formatDate(event.eventDate) }}</text>
+      <!-- 孕妈变化 -->
+      <view class="info-card mom-card">
+        <view class="card-header">
+          <view class="header-left">
+            <text class="card-icon">👩</text>
+            <text class="card-title">妈妈变化</text>
           </view>
-          <text v-if="event.description" class="event-desc">{{ event.description }}</text>
-          <view class="event-actions">
-            <view
-              class="action-btn action-btn--complete"
-              :class="{ 'action-btn--completed': event.isCompleted }"
-              @tap="onComplete(event)"
-            >
-              <text class="action-btn-text">{{ event.isCompleted ? '已完成' : '完成' }}</text>
-            </view>
-            <view class="action-btn action-btn--edit" @tap="openEditModal(event)">
-              <text class="action-btn-text">编辑</text>
-            </view>
-            <view class="action-btn action-btn--delete" @tap="onDelete(event)">
-              <text class="action-btn-text">删除</text>
-            </view>
+        </view>
+        <view class="card-body">
+          <text class="card-text">{{ parsedContent.mom }}</text>
+        </view>
+      </view>
+
+      <!-- 本周建议 Tips -->
+      <view class="info-card tips-card" v-if="parsedContent.tips && parsedContent.tips.length > 0">
+        <view class="card-header">
+          <view class="header-left">
+            <text class="card-icon">💡</text>
+            <text class="card-title">本周建议</text>
+          </view>
+        </view>
+        <view class="card-body">
+          <view class="tip-item" v-for="(tip, index) in parsedContent.tips" :key="index">
+            <view class="tip-dot"></view>
+            <text class="tip-text">{{ tip }}</text>
           </view>
         </view>
       </view>
-    </view>
 
-    <!-- Add/Edit Modal -->
-    <view v-if="showModal" class="modal-mask" @tap.self="closeModal">
-      <view class="modal-content">
-        <text class="modal-title">{{ editingEvent ? '编辑事件' : '添加事件' }}</text>
-
-        <view class="form-item">
-          <text class="form-label">标题 *</text>
-          <input
-            v-model="form.title"
-            class="form-input"
-            placeholder="请输入事件标题"
-          />
-        </view>
-
-        <view class="form-item">
-          <text class="form-label">描述</text>
-          <textarea
-            v-model="form.description"
-            class="form-textarea"
-            placeholder="请输入描述（可选）"
-          />
-        </view>
-
-        <view class="form-item">
-          <text class="form-label">日期 *</text>
-          <picker mode="date" :value="form.eventDate" @change="onDateChange">
-            <view class="form-picker">
-              <text :class="form.eventDate ? '' : 'placeholder-text'">
-                {{ form.eventDate || '请选择日期' }}
-              </text>
-            </view>
-          </picker>
-        </view>
-
-        <view class="form-item">
-          <text class="form-label">类型 *</text>
-          <picker :range="eventTypeOptions" range-key="label" :value="eventTypeIndex" @change="onTypeChange">
-            <view class="form-picker">
-              <text :class="form.eventType ? '' : 'placeholder-text'">
-                {{ form.eventType ? typeLabel(form.eventType) : '请选择类型' }}
-              </text>
-            </view>
-          </picker>
-        </view>
-
-        <view class="form-item form-item--row">
-          <text class="form-label">开启提醒</text>
-          <switch :checked="form.reminderEnabled" @change="onReminderChange" />
-        </view>
-
-        <view class="modal-actions">
-          <view class="modal-btn modal-btn--cancel" @tap="closeModal">
-            <text class="modal-btn-text">取消</text>
+      <!-- 核心待办 Todo -->
+      <view class="info-card todo-card" v-if="parsedContent.todo && parsedContent.todo.length > 0">
+        <view class="card-header">
+          <view class="header-left">
+            <text class="card-icon">📌</text>
+            <text class="card-title">核心待办</text>
           </view>
-          <view class="modal-btn modal-btn--confirm" @tap="onSubmit">
-            <text class="modal-btn-text modal-btn-text--white">确定</text>
+        </view>
+        <view class="card-body">
+          <view class="todo-item" v-for="(todo, index) in parsedContent.todo" :key="index">
+            <view class="todo-type" :class="'type-' + todo.type">{{ todo.type === 'checkup' ? '产检' : '事项' }}</view>
+            <view class="todo-content">
+              <text class="todo-title">{{ todo.title }}</text>
+              <text class="todo-desc">{{ todo.desc }}</text>
+            </view>
           </view>
         </view>
       </view>
     </view>
+
+    <!-- 我的记录 内容 -->
+    <view class="content-section" v-if="activeTab === 'diary'">
+      <view class="diary-empty" v-if="!currentDiary">
+        <text class="empty-emoji">📝</text>
+        <text class="empty-text">这周还没有记录哦，写下你的孕期感受吧！</text>
+        <button class="add-diary-btn" @tap="openDiaryModal">添加本周记录</button>
+      </view>
+
+      <view class="diary-card" v-else>
+        <view class="diary-header">
+          <text class="diary-date">{{ currentDiary.date }}</text>
+          <text class="edit-btn" @tap="openDiaryModal">编辑</text>
+        </view>
+        <view class="diary-content">
+          <text>{{ currentDiary.content }}</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 浮动操作按钮 (仅在孕周指南下显示快捷记录) -->
+    <view class="fab-button" v-if="activeTab === 'guide'" @tap="openDiaryModal">
+      <text class="fab-icon">✏️</text>
+    </view>
+
+    <!-- 编辑记录弹窗 -->
+    <view class="modal-mask" v-if="showDiaryModal" @tap="closeDiaryModal">
+      <view class="modal-content" @tap.stop>
+        <view class="modal-header">
+          <text class="modal-title">记录 {{ currentWeekData.title }}</text>
+          <text class="close-icon" @tap="closeDiaryModal">×</text>
+        </view>
+        <textarea 
+          class="diary-textarea" 
+          v-model="diaryInput" 
+          placeholder="今天宝宝动了吗？有没有觉得哪里不舒服？记下来吧..." 
+          :maxlength="500"
+        />
+        <button class="save-btn" @tap="saveDiary">保存记录</button>
+      </view>
+    </view>
+
   </view>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { onShow } from '@dcloudio/uni-app'
-import { useCalendarStore } from '@/stores/calendar'
-import type { CalendarEvent } from '@/api/modules'
-import dayjs from 'dayjs'
+import { ref, computed } from 'vue'
+import mockDataArray from './mockData.json'
 
-const calendarStore = useCalendarStore()
+const weeksList = ref(Array.from({ length: 40 }, (_, i) => ({ num: i + 1 })))
+const currentSelectedWeek = ref(Number(uni.getStorageSync('userPregnancyWeek')) || 12)
+const activeTab = ref('guide') // 'guide' | 'diary'
 
-const weekdays = ['日', '一', '二', '三', '四', '五', '六']
-const selectedDate = ref('')
-const showModal = ref(false)
-const editingEvent = ref<CalendarEvent | null>(null)
+// 模拟日记数据库
+const userDiaries = ref<Record<number, { date: string, content: string }>>({})
 
-const form = ref({
-  title: '',
-  description: '',
-  eventDate: '',
-  eventType: '' as CalendarEvent['eventType'] | '',
-  reminderEnabled: false,
+// 日记弹窗状态
+const showDiaryModal = ref(false)
+const diaryInput = ref('')
+
+const fallbackData = {
+  title: '数据未收录',
+  summary: '这周的详细科普数据还在采集中，敬请期待！',
+  babySizeEmoji: '✨',
+  babySizeText: '不断成长中',
+  babyWeight: '',
+  content: { baby: '暂无数据', mom: '暂无数据', tips: [], todo: [] }
+}
+
+const currentWeekData = computed(() => {
+  const found = mockDataArray.find((item: any) => item.week === currentSelectedWeek.value)
+  return found || fallbackData
 })
 
-const eventTypeOptions = [
-  { label: '产检', value: 'checkup' },
-  { label: '疫苗', value: 'vaccine' },
-  { label: '提醒', value: 'reminder' },
-  { label: '其他', value: 'other' },
-]
+const parsedContent = computed(() => currentWeekData.value.content)
+const currentDiary = computed(() => userDiaries.value[currentSelectedWeek.value])
 
-const eventTypeIndex = computed(() => {
-  const idx = eventTypeOptions.findIndex(o => o.value === form.value.eventType)
-  return idx >= 0 ? idx : 0
-})
-
-const typeColor = (type: string) => {
-  const map: Record<string, string> = {
-    checkup: '#f5a623',
-    vaccine: '#52c41a',
-    reminder: '#1890ff',
-    other: '#999999',
+const handleSelectWeek = (e: any) => {
+  const weekNum = e.currentTarget.dataset.week
+  if (weekNum) {
+    currentSelectedWeek.value = Number(weekNum)
   }
-  return map[type] || '#999999'
 }
 
-const typeLabel = (type: string) => {
-  const map: Record<string, string> = {
-    checkup: '产检',
-    vaccine: '疫苗',
-    reminder: '提醒',
-    other: '其他',
-  }
-  return map[type] || '其他'
+// 弹窗与记录逻辑
+const openDiaryModal = () => {
+  const existing = userDiaries.value[currentSelectedWeek.value]
+  diaryInput.value = existing ? existing.content : ''
+  showDiaryModal.value = true
 }
 
-const formatDate = (date: string) => dayjs(date).format('YYYY-MM-DD')
-
-const currentMonthLabel = computed(() => {
-  return dayjs(calendarStore.currentMonth).format('YYYY年MM月')
-})
-
-interface CalendarCell {
-  day: number
-  dateStr: string
-  currentMonth: boolean
-  isToday: boolean
-  hasEvent: boolean
+const closeDiaryModal = () => {
+  showDiaryModal.value = false
 }
 
-const calendarCells = computed<CalendarCell[]>(() => {
-  const month = dayjs(calendarStore.currentMonth)
-  const startOfMonth = month.startOf('month')
-  const endOfMonth = month.endOf('month')
-  const startDay = startOfMonth.day()
-  const daysInMonth = endOfMonth.date()
-  const today = dayjs().format('YYYY-MM-DD')
-
-  const eventDates = new Set(calendarStore.events.map(e => e.eventDate))
-  const cells: CalendarCell[] = []
-
-  // Previous month fill
-  const prevMonth = month.subtract(1, 'month')
-  const prevDays = prevMonth.daysInMonth()
-  for (let i = startDay - 1; i >= 0; i--) {
-    const d = prevDays - i
-    const dateStr = prevMonth.date(d).format('YYYY-MM-DD')
-    cells.push({ day: d, dateStr, currentMonth: false, isToday: dateStr === today, hasEvent: eventDates.has(dateStr) })
-  }
-
-  // Current month
-  for (let d = 1; d <= daysInMonth; d++) {
-    const dateStr = month.date(d).format('YYYY-MM-DD')
-    cells.push({ day: d, dateStr, currentMonth: true, isToday: dateStr === today, hasEvent: eventDates.has(dateStr) })
-  }
-
-  // Next month fill
-  const remaining = 42 - cells.length
-  const nextMonth = month.add(1, 'month')
-  for (let d = 1; d <= remaining; d++) {
-    const dateStr = nextMonth.date(d).format('YYYY-MM-DD')
-    cells.push({ day: d, dateStr, currentMonth: false, isToday: dateStr === today, hasEvent: eventDates.has(dateStr) })
-  }
-
-  return cells
-})
-
-const displayEvents = computed(() => {
-  if (selectedDate.value) {
-    return calendarStore.events.filter(e => e.eventDate === selectedDate.value)
-  }
-  return [...calendarStore.events].sort((a, b) => dayjs(a.eventDate).unix() - dayjs(b.eventDate).unix())
-})
-
-const prevMonth = () => {
-  const m = dayjs(calendarStore.currentMonth).subtract(1, 'month').format('YYYY-MM')
-  calendarStore.setCurrentMonth(m)
-}
-
-const nextMonth = () => {
-  const m = dayjs(calendarStore.currentMonth).add(1, 'month').format('YYYY-MM')
-  calendarStore.setCurrentMonth(m)
-}
-
-const onDateTap = (cell: CalendarCell) => {
-  selectedDate.value = selectedDate.value === cell.dateStr ? '' : cell.dateStr
-}
-
-const openAddModal = () => {
-  editingEvent.value = null
-  form.value = {
-    title: '',
-    description: '',
-    eventDate: selectedDate.value || dayjs().format('YYYY-MM-DD'),
-    eventType: '',
-    reminderEnabled: false,
-  }
-  showModal.value = true
-}
-
-const openEditModal = (event: CalendarEvent) => {
-  editingEvent.value = event
-  form.value = {
-    title: event.title,
-    description: event.description || '',
-    eventDate: event.eventDate,
-    eventType: event.eventType,
-    reminderEnabled: event.reminderEnabled,
-  }
-  showModal.value = true
-}
-
-const closeModal = () => {
-  showModal.value = false
-  editingEvent.value = null
-}
-
-const onDateChange = (e: any) => {
-  form.value.eventDate = e.detail.value
-}
-
-const onTypeChange = (e: any) => {
-  form.value.eventType = eventTypeOptions[e.detail.value].value as CalendarEvent['eventType']
-}
-
-const onReminderChange = (e: any) => {
-  form.value.reminderEnabled = e.detail.value
-}
-
-const onSubmit = async () => {
-  if (!form.value.title.trim()) {
-    uni.showToast({ title: '请输入标题', icon: 'none' })
+const saveDiary = () => {
+  if (!diaryInput.value.trim()) {
+    uni.showToast({ title: '内容不能为空', icon: 'none' })
     return
   }
-  if (!form.value.eventDate) {
-    uni.showToast({ title: '请选择日期', icon: 'none' })
-    return
+  const today = new Date()
+  userDiaries.value[currentSelectedWeek.value] = {
+    date: `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`,
+    content: diaryInput.value.trim()
   }
-  if (!form.value.eventType) {
-    uni.showToast({ title: '请选择类型', icon: 'none' })
-    return
-  }
-
-  const data = {
-    title: form.value.title.trim(),
-    description: form.value.description.trim() || undefined,
-    eventDate: form.value.eventDate,
-    eventType: form.value.eventType,
-    reminderEnabled: form.value.reminderEnabled,
-  }
-
-  const isEditing = !!editingEvent.value
-  if (editingEvent.value) {
-    await calendarStore.updateEvent(editingEvent.value.id, data)
-  } else {
-    await calendarStore.createEvent(data)
-  }
-
-  closeModal()
-  uni.showToast({ title: isEditing ? '更新成功' : '创建成功', icon: 'success' })
+  closeDiaryModal()
+  activeTab.value = 'diary'
+  uni.showToast({ title: '记录已保存', icon: 'success' })
 }
-
-const onComplete = async (event: CalendarEvent) => {
-  if (event.isCompleted) return
-  await calendarStore.completeEvent(event.id)
-  uni.showToast({ title: '已标记完成', icon: 'success' })
-}
-
-const onDelete = (event: CalendarEvent) => {
-  uni.showModal({
-    title: '确认删除',
-    content: `确定要删除"${event.title}"吗？`,
-    success: async (res) => {
-      if (res.confirm) {
-        await calendarStore.deleteEvent(event.id)
-        uni.showToast({ title: '已删除', icon: 'success' })
-      }
-    },
-  })
-}
-
-function refreshEvents() {
-  const month = calendarStore.currentMonth
-  const start = dayjs(month).startOf('month').format('YYYY-MM-DD')
-  const end = dayjs(month).endOf('month').format('YYYY-MM-DD')
-  calendarStore.fetchEvents(start, end)
-}
-
-onMounted(() => {
-  refreshEvents()
-})
-
-onShow(() => {
-  refreshEvents()
-})
 </script>
 
 <style scoped>
-.calendar-page {
+.calendar-timeline-page {
   min-height: 100vh;
-  background-color: #f5f5f5;
-  padding-bottom: 40rpx;
+  background-color: #f7f9fa;
+  padding-bottom: 120rpx;
 }
 
-.header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 24rpx 32rpx;
-  background-color: #ffffff;
-}
-
-.header-title {
-  font-size: 36rpx;
-  font-weight: bold;
-  color: #333333;
-}
-
-.header-btn {
-  background-color: #1890ff;
-  border-radius: 32rpx;
-  padding: 12rpx 28rpx;
-}
-
-.header-btn-text {
-  color: #ffffff;
-  font-size: 26rpx;
-}
-
-.month-nav {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 20rpx 0;
-  background-color: #ffffff;
-}
-
-.nav-arrow {
-  padding: 10rpx 30rpx;
-}
-
-.arrow-text {
-  font-size: 32rpx;
-  color: #1890ff;
-  font-weight: bold;
-}
-
-.month-text {
-  font-size: 32rpx;
-  font-weight: bold;
-  color: #333333;
-  margin: 0 40rpx;
-}
-
-.weekday-row {
-  display: flex;
-  background-color: #ffffff;
-  padding: 12rpx 0;
-  border-bottom: 1rpx solid #f0f0f0;
-}
-
-.weekday-cell {
-  flex: 1;
-  text-align: center;
-  font-size: 24rpx;
-  color: #999999;
-}
-
-.date-grid {
-  display: flex;
-  flex-wrap: wrap;
-  background-color: #ffffff;
-  padding-bottom: 12rpx;
-}
-
-.date-cell {
-  width: 14.2857%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 80rpx;
+/* 顶部 Hero Section */
+.hero-section {
+  background: linear-gradient(180deg, #ffe5ec 0%, #fff0f5 60%, #f7f9fa 100%);
+  padding-top: 100rpx;
   position: relative;
+  overflow: hidden;
 }
 
-.date-num {
-  font-size: 28rpx;
-  color: #333333;
+.header-nav {
+  text-align: center;
+  margin-bottom: 40rpx;
 }
 
-.date-cell--other .date-num {
-  color: #cccccc;
+.hero-title {
+  font-size: 44rpx;
+  font-weight: 800;
+  color: #333;
 }
 
-.date-cell--today {
-  background-color: #e6f7ff;
-  border-radius: 50%;
-}
-
-.date-cell--today .date-num {
-  color: #1890ff;
-  font-weight: bold;
-}
-
-.date-cell--selected {
-  background-color: #1890ff;
-  border-radius: 50%;
-}
-
-.date-cell--selected .date-num {
-  color: #ffffff;
-}
-
-.event-dot {
-  width: 10rpx;
-  height: 10rpx;
-  border-radius: 50%;
-  background-color: #f5a623;
-  position: absolute;
-  bottom: 6rpx;
-}
-
-.date-cell--selected .event-dot {
-  background-color: #ffffff;
-}
-
-.event-section {
-  padding: 24rpx 32rpx;
-}
-
-.section-title {
-  font-size: 30rpx;
-  font-weight: bold;
-  color: #333333;
-  margin-bottom: 20rpx;
-}
-
-.loading-box,
-.empty-box {
-  display: flex;
-  justify-content: center;
-  padding: 60rpx 0;
-}
-
-.loading-text,
-.empty-text {
-  font-size: 28rpx;
-  color: #999999;
-}
-
-.event-list {
+/* 宝宝动态展示区 */
+.baby-animation-container {
   display: flex;
   flex-direction: column;
-  gap: 20rpx;
-}
-
-.event-card {
-  background-color: #ffffff;
-  border-radius: 16rpx;
-  padding: 24rpx;
-  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.05);
-}
-
-.event-card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 12rpx;
-}
-
-.event-title-row {
-  display: flex;
   align-items: center;
-  flex: 1;
-  gap: 12rpx;
-}
-
-.event-title {
-  font-size: 30rpx;
-  font-weight: bold;
-  color: #333333;
-}
-
-.event-tag {
-  border-radius: 8rpx;
-  padding: 4rpx 12rpx;
-}
-
-.event-tag-text {
-  font-size: 22rpx;
-  color: #ffffff;
-}
-
-.event-date {
-  font-size: 24rpx;
-  color: #999999;
-  flex-shrink: 0;
-}
-
-.event-desc {
-  font-size: 26rpx;
-  color: #666666;
-  margin-bottom: 16rpx;
-  line-height: 1.5;
-}
-
-.event-actions {
-  display: flex;
-  gap: 16rpx;
-  margin-top: 12rpx;
-}
-
-.action-btn {
-  border-radius: 24rpx;
-  padding: 8rpx 24rpx;
-  border: 1rpx solid #d9d9d9;
-}
-
-.action-btn--complete {
-  border-color: #52c41a;
-}
-
-.action-btn--completed {
-  background-color: #f6ffed;
-  border-color: #b7eb8f;
-}
-
-.action-btn--edit {
-  border-color: #1890ff;
-}
-
-.action-btn--delete {
-  border-color: #ff4d4f;
-}
-
-.action-btn-text {
-  font-size: 24rpx;
-  color: #666666;
-}
-
-.action-btn--complete .action-btn-text {
-  color: #52c41a;
-}
-
-.action-btn--completed .action-btn-text {
-  color: #b7eb8f;
-}
-
-.action-btn--edit .action-btn-text {
-  color: #1890ff;
-}
-
-.action-btn--delete .action-btn-text {
-  color: #ff4d4f;
-}
-
-/* Modal */
-.modal-mask {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: flex;
   justify-content: center;
-  align-items: center;
-  z-index: 999;
+  height: 300rpx;
+  position: relative;
+  margin-bottom: 40rpx;
 }
 
-.modal-content {
-  width: 640rpx;
-  background-color: #ffffff;
-  border-radius: 20rpx;
-  padding: 40rpx;
-  max-height: 80vh;
-  overflow-y: auto;
+.breathing-glow {
+  position: absolute;
+  width: 200rpx;
+  height: 200rpx;
+  background: radial-gradient(circle, rgba(255,107,157,0.3) 0%, rgba(255,255,255,0) 70%);
+  border-radius: 50%;
+  animation: pulse 3s infinite ease-in-out;
+  z-index: 1;
 }
 
-.modal-title {
-  font-size: 34rpx;
-  font-weight: bold;
-  color: #333333;
-  text-align: center;
-  margin-bottom: 32rpx;
+@keyframes pulse {
+  0% { transform: scale(1); opacity: 0.8; }
+  50% { transform: scale(1.5); opacity: 0.3; }
+  100% { transform: scale(1); opacity: 0.8; }
 }
 
-.form-item {
-  margin-bottom: 24rpx;
-}
-
-.form-item--row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.form-label {
-  font-size: 28rpx;
-  color: #333333;
-  margin-bottom: 8rpx;
-}
-
-.form-input {
-  border: 1rpx solid #d9d9d9;
-  border-radius: 12rpx;
-  padding: 16rpx 20rpx;
-  font-size: 28rpx;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.form-textarea {
-  border: 1rpx solid #d9d9d9;
-  border-radius: 12rpx;
-  padding: 16rpx 20rpx;
-  font-size: 28rpx;
-  width: 100%;
+.baby-visual {
+  z-index: 2;
+  font-size: 100rpx;
+  background: #ffffff;
+  width: 160rpx;
   height: 160rpx;
-  box-sizing: border-box;
-}
-
-.form-picker {
-  border: 1rpx solid #d9d9d9;
-  border-radius: 12rpx;
-  padding: 16rpx 20rpx;
-}
-
-.placeholder-text {
-  color: #cccccc;
-  font-size: 28rpx;
-}
-
-.modal-actions {
+  border-radius: 50%;
   display: flex;
-  gap: 20rpx;
-  margin-top: 32rpx;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8rpx 30rpx rgba(255, 107, 157, 0.2);
+  animation: float 4s infinite ease-in-out;
 }
 
-.modal-btn {
-  flex: 1;
-  border-radius: 12rpx;
-  padding: 18rpx 0;
-  text-align: center;
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+  100% { transform: translateY(0px); }
 }
 
-.modal-btn--cancel {
-  background-color: #f5f5f5;
+.baby-size-info {
+  z-index: 2;
+  margin-top: 20rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.8);
+  padding: 10rpx 30rpx;
+  border-radius: 40rpx;
+  box-shadow: 0 4rpx 10rpx rgba(0,0,0,0.02);
 }
 
-.modal-btn--confirm {
-  background-color: #1890ff;
+.size-text { font-size: 28rpx; color: #ff6b9d; font-weight: bold; }
+.size-desc { font-size: 22rpx; color: #888; margin-top: 4rpx; }
+
+/* 时间轴 */
+.week-timeline-scroll {
+  width: 100%;
+  white-space: nowrap;
+  padding-bottom: 20rpx;
 }
 
-.modal-btn-text {
-  font-size: 30rpx;
-  color: #666666;
-  text-align: center;
+.timeline-container { display: inline-flex; padding: 0 30rpx; }
+.timeline-item {
+  display: flex; flex-direction: column; align-items: center;
+  margin-right: 36rpx; opacity: 0.6; transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+.timeline-item.active { opacity: 1; transform: scale(1.15) translateY(-5rpx); }
+
+.week-circle {
+  width: 70rpx; height: 70rpx; border-radius: 35rpx;
+  background-color: #ffffff; color: #666; display: flex;
+  justify-content: center; align-items: center; font-size: 28rpx;
+  font-weight: bold; margin-bottom: 8rpx; box-shadow: 0 4rpx 10rpx rgba(0,0,0,0.05);
+}
+.timeline-item.active .week-circle {
+  background: linear-gradient(135deg, #ff6b9d 0%, #ff9a9e 100%);
+  color: #fff; box-shadow: 0 8rpx 20rpx rgba(255, 107, 157, 0.4);
 }
 
-.modal-btn-text--white {
-  color: #ffffff;
+.week-label { font-size: 22rpx; color: #999; }
+.timeline-item.active .week-label { color: #ff6b9d; font-weight: bold; }
+
+/* Tabs */
+.tabs-container {
+  display: flex; justify-content: space-around; background-color: #fff;
+  border-radius: 40rpx 40rpx 0 0; padding: 30rpx 40rpx 0; margin-top: -20rpx;
+  position: relative; z-index: 10; box-shadow: 0 -4rpx 20rpx rgba(0,0,0,0.02);
 }
+.tab-item { position: relative; padding-bottom: 20rpx; }
+.tab-text { font-size: 32rpx; color: #888; font-weight: 500; transition: color 0.3s; }
+.tab-item.active .tab-text { color: #333; font-weight: bold; }
+.tab-line {
+  position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
+  width: 40rpx; height: 8rpx; border-radius: 4rpx; background: #ff6b9d;
+}
+
+/* 内容区 */
+.content-section { padding: 30rpx; background-color: #f7f9fa; }
+.summary-card {
+  background: linear-gradient(135deg, #ffffff 0%, #fff5f8 100%);
+  padding: 40rpx 30rpx; border-radius: 24rpx; margin-bottom: 30rpx;
+  position: relative; box-shadow: 0 4rpx 20rpx rgba(255, 107, 157, 0.1);
+}
+.quote-mark {
+  font-size: 80rpx; color: rgba(255, 107, 157, 0.2); position: absolute;
+  font-family: Georgia, serif; line-height: 1;
+}
+.quote-mark { left: 20rpx; top: 10rpx; }
+.quote-mark.right { right: 20rpx; bottom: -20rpx; transform: rotate(180deg); }
+.summary-text { font-size: 30rpx; color: #444; line-height: 1.6; text-indent: 2em; position: relative; z-index: 2; }
+
+.info-card { background-color: #fff; border-radius: 24rpx; padding: 30rpx; margin-bottom: 30rpx; box-shadow: 0 4rpx 15rpx rgba(0,0,0,0.03); }
+.card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20rpx; }
+.header-left { display: flex; align-items: center; }
+.card-icon { font-size: 36rpx; margin-right: 12rpx; }
+.card-title { font-size: 32rpx; font-weight: bold; color: #333; }
+.card-body { font-size: 28rpx; color: #555; line-height: 1.7; }
+.card-text { white-space: pre-wrap; display: block; margin-bottom: 12rpx; }
+
+.tip-item { display: flex; margin-bottom: 12rpx; align-items: flex-start; }
+.tip-dot { width: 10rpx; height: 10rpx; background-color: #ff9a9e; border-radius: 50%; margin-top: 16rpx; margin-right: 16rpx; flex-shrink: 0; }
+.tip-text { flex: 1; }
+
+.todo-item {
+  display: flex; background-color: #f8f9fa; border-radius: 16rpx; padding: 24rpx;
+  margin-bottom: 16rpx; border-left: 8rpx solid transparent;
+}
+.todo-item:nth-child(odd) { border-left-color: #4caf50; }
+.todo-item:nth-child(even) { border-left-color: #ff9800; }
+.todo-type { font-size: 22rpx; padding: 4rpx 12rpx; border-radius: 8rpx; height: fit-content; margin-right: 20rpx; white-space: nowrap; }
+.type-checkup { background-color: #e8f5e9; color: #4caf50; }
+.type-action { background-color: #fff3e0; color: #ff9800; }
+.todo-title { display: block; font-size: 28rpx; font-weight: bold; color: #333; margin-bottom: 8rpx; }
+.todo-desc { font-size: 24rpx; color: #777; }
+
+.diary-empty { display: flex; flex-direction: column; align-items: center; padding: 100rpx 0; }
+.empty-emoji { font-size: 80rpx; margin-bottom: 20rpx; }
+.empty-text { font-size: 28rpx; color: #999; margin-bottom: 40rpx; }
+.add-diary-btn { background: linear-gradient(135deg, #ff6b9d 0%, #ff9a9e 100%); color: white; border-radius: 40rpx; padding: 0 60rpx; height: 80rpx; line-height: 80rpx; font-size: 30rpx; box-shadow: 0 8rpx 20rpx rgba(255, 107, 157, 0.3); }
+
+.diary-card { background-color: #fff; border-radius: 24rpx; padding: 40rpx; box-shadow: 0 4rpx 20rpx rgba(0,0,0,0.04); }
+.diary-header { display: flex; justify-content: space-between; margin-bottom: 20rpx; border-bottom: 2rpx dashed #eee; padding-bottom: 15rpx; }
+.diary-date { font-size: 24rpx; color: #999; }
+.edit-btn { font-size: 24rpx; color: #ff6b9d; }
+.diary-content { font-size: 30rpx; color: #333; line-height: 1.8; }
+
+.fab-button {
+  position: fixed; bottom: 60rpx; right: 40rpx; width: 100rpx; height: 100rpx;
+  background: linear-gradient(135deg, #ff6b9d 0%, #ff9a9e 100%); border-radius: 50%;
+  display: flex; justify-content: center; align-items: center; box-shadow: 0 8rpx 20rpx rgba(255, 107, 157, 0.4); z-index: 100;
+}
+.fab-icon { font-size: 40rpx; }
+
+.modal-mask { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 999; }
+.modal-content { width: 85%; background-color: #fff; border-radius: 30rpx; padding: 40rpx; }
+.modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30rpx; }
+.modal-title { font-size: 34rpx; font-weight: bold; }
+.close-icon { font-size: 44rpx; color: #999; padding: 10rpx; }
+.diary-textarea { width: 100%; height: 300rpx; background-color: #f7f9fa; border-radius: 16rpx; padding: 20rpx; font-size: 28rpx; box-sizing: border-box; margin-bottom: 30rpx; }
+.save-btn { background: linear-gradient(135deg, #ff6b9d 0%, #ff9a9e 100%); color: white; border-radius: 40rpx; height: 80rpx; line-height: 80rpx; font-size: 32rpx; }
 </style>

@@ -29,13 +29,23 @@
       </view>
 
       <!-- Register-only fields -->
-      <template v-if="isRegister">
+      <!-- 注册专有字段 -->
+      <view v-if="isRegister" class="register-fields">
+        <view class="form-item">
+          <text class="form-label">当前孕周 (可选)</text>
+          <picker mode="selector" :range="weekOptions" @change="onWeekChange" class="form-picker">
+            <view class="picker-value">
+              <text :class="{'placeholder': !form.pregnancyWeek}">{{ form.pregnancyWeek ? '第 ' + form.pregnancyWeek + ' 周' : '请选择当前孕周' }}</text>
+            </view>
+          </picker>
+        </view>
+
         <view class="form-item">
           <text class="form-label">手机号</text>
           <input
             v-model="form.phone"
             class="form-input"
-            placeholder="请输入手机号（选填）"
+            placeholder="请输入手机号"
             type="number"
           />
         </view>
@@ -44,12 +54,11 @@
           <input
             v-model="form.email"
             class="form-input"
-            placeholder="请输入邮箱（选填）"
+            placeholder="请输入邮箱"
             type="text"
           />
         </view>
-      </template>
-
+      </view>
       <!-- Submit -->
       <view
         :class="['submit-btn', submitting ? 'submit-btn-disabled' : '']"
@@ -66,34 +75,53 @@
           {{ isRegister ? '已有账号？去登录' : '没有账号？去注册' }}
         </text>
       </view>
-    </view>
-  </view>
-</template>
 
-<script setup lang="ts">
-import { ref, reactive } from 'vue'
-import { authApi } from '@/api/modules'
-import type { User } from '@/api/modules'
-import { useAppStore } from '@/stores/app'
+      <!-- 体验通道 -->
+      <view class="submit-btn skip-btn" @tap="skipLogin" style="background: #f0f0f0; margin-top: 30rpx;">
+        <text class="btn-text" style="color: #666;">🌟 免登录直接体验</text>
+      </view>
+      </view>
+      </view>
+      </template>
 
-const appStore = useAppStore()
+      <script setup lang="ts">
+      import { ref, reactive } from 'vue'
+      import { authApi } from '@/api/modules'
+      import { useAppStore } from '@/stores/app'
+      import type { User } from '@/api/types'
 
-const isRegister = ref(false)
-const submitting = ref(false)
+      const appStore = useAppStore()
 
-const form = reactive({
-  username: '',
-  password: '',
-  phone: '',
-  email: '',
-})
+      const isRegister = ref(false)
+      const submitting = ref(false)
 
-function toggleMode() {
-  isRegister.value = !isRegister.value
-  form.phone = ''
-  form.email = ''
-}
+      const form = reactive({
+        username: '',
+        password: '',
+        phone: '',
+        email: '',
+        pregnancyWeek: '',
+      })
 
+      const weekOptions = Array.from({ length: 40 }, (_, i) => `第 ${i + 1} 周`)
+
+      const onWeekChange = (e: any) => {
+        form.pregnancyWeek = String(e.detail.value + 1)
+      }
+
+      function toggleMode() {
+        isRegister.value = !isRegister.value
+        form.phone = ''
+        form.email = ''
+        form.pregnancyWeek = ''
+      }
+      // 快速体验模式
+      function skipLogin() {
+        uni.showToast({ title: '已进入体验模式', icon: 'success' })
+        setTimeout(() => {
+          uni.switchTab({ url: '/pages/home/index' })
+        }, 500)
+      }
 async function handleSubmit() {
   if (submitting.value) return
 
@@ -118,6 +146,10 @@ async function handleSubmit() {
         phone: form.phone.trim() || undefined,
         email: form.email.trim() || undefined,
       }) as { user: User; token: string }
+      
+      if (form.pregnancyWeek) {
+        uni.setStorageSync('userPregnancyWeek', form.pregnancyWeek)
+      }
     } else {
       result = await authApi.login({
         username: form.username.trim(),
@@ -203,8 +235,29 @@ async function handleSubmit() {
   font-size: 28rpx;
   border: 1rpx solid #e0e0e0;
   border-radius: 12rpx;
-  background-color: #fafafa;
+  background-color: #f9f9f9;
   box-sizing: border-box;
+}
+
+.form-picker {
+  width: 100%;
+  height: 80rpx;
+  padding: 0 24rpx;
+  border: 1rpx solid #e0e0e0;
+  border-radius: 12rpx;
+  background-color: #f9f9f9;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+}
+
+.picker-value {
+  font-size: 28rpx;
+  color: #333333;
+}
+
+.picker-value .placeholder {
+  color: #999999;
 }
 
 /* Submit */
