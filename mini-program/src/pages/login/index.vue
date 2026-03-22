@@ -31,7 +31,7 @@
 import { ref } from 'vue'
 import { authApi } from '@/api/modules'
 import { useAppStore } from '@/stores/app'
-import type { User } from '@/api/types'
+import type { User } from '@/api/modules'
 
 const appStore = useAppStore()
 const pregnancyWeek = ref('')

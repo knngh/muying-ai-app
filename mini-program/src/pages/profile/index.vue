@@ -447,6 +447,9 @@ onMounted(async () => {
   padding: 40rpx;
   max-height: 80vh;
   overflow-y: auto;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
 }
 
 .modal-title {
@@ -462,6 +465,7 @@ onMounted(async () => {
 }
 
 .form-label {
+  display: block;
   font-size: 28rpx;
   color: #333333;
   margin-bottom: 8rpx;
@@ -473,6 +477,7 @@ onMounted(async () => {
   padding: 16rpx 20rpx;
   font-size: 28rpx;
   width: 100%;
+  height: 72rpx;
   box-sizing: border-box;
 }
 
@@ -480,6 +485,11 @@ onMounted(async () => {
   border: 1rpx solid #d9d9d9;
   border-radius: 12rpx;
   padding: 16rpx 20rpx;
+  box-sizing: border-box;
+  width: 100%;
+  height: 72rpx;
+  display: flex;
+  align-items: center;
 }
 
 .placeholder-text {

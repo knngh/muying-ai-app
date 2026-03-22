@@ -6,9 +6,10 @@
   "versionCode": "100",
   "transformPx": false,
   "mp-weixin": {
-    "appid": "wx7dc7122059051c05",
+    "appid": "wx77c66576e02a48dc",
     "setting": { "urlCheck": false },
-    "usingComponents": true
+    "usingComponents": true,
+    "lazyCodeLoading": "requiredComponents"
   },
   "mp-alipay": {
     "usingComponents": true
