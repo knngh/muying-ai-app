@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { PrismaClient } from '@prisma/client';
 import { successResponse, AppError, ErrorCodes } from '../middlewares/error.middleware';
+import { calculateDueDateFromPregnancyWeek, normalizeGender, normalizePregnancyStatus } from '../utils/pregnancy';
 
 const prisma = new PrismaClient();
 
@@ -49,17 +50,8 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
     // 加密密码
     const passwordHash = await bcrypt.hash(password, 10);
 
-    let dueDate = undefined;
-    let pregnancyStatus = 0;
-    if (pregnancyWeek) {
-      pregnancyStatus = 2; // 怀孕中
-      const week = parseInt(pregnancyWeek);
-      if (!isNaN(week) && week > 0 && week <= 40) {
-        const remainingWeeks = 40 - week;
-        const now = new Date();
-        dueDate = new Date(now.getTime() + remainingWeeks * 7 * 24 * 60 * 60 * 1000);
-      }
-    }
+    const dueDate = calculateDueDateFromPregnancyWeek(pregnancyWeek);
+    const pregnancyStatus = dueDate ? 2 : 0;
 
     // 创建用户
     const user = await prisma.user.create({
@@ -79,8 +71,12 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
         avatar: true,
         phone: true,
         email: true,
+        gender: true,
+        birthday: true,
         pregnancyStatus: true,
         dueDate: true,
+        babyBirthday: true,
+        babyGender: true,
         createdAt: true
       }
     });
@@ -229,26 +225,33 @@ export const updateProfile = async (req: Request, res: Response, next: NextFunct
   try {
     const userId = req.userId;
     const { nickname, avatar, pregnancyStatus, dueDate, babyBirthday, babyGender } = req.body;
+    const normalizedPregnancyStatus = normalizePregnancyStatus(pregnancyStatus);
+    const normalizedBabyGender = normalizeGender(babyGender);
 
     const user = await prisma.user.update({
       where: { id: BigInt(userId!) },
       data: {
         nickname,
         avatar,
-        pregnancyStatus,
+        pregnancyStatus: normalizedPregnancyStatus,
         dueDate: dueDate ? new Date(dueDate) : undefined,
         babyBirthday: babyBirthday ? new Date(babyBirthday) : undefined,
-        babyGender
+        babyGender: normalizedBabyGender
       },
       select: {
         id: true,
         username: true,
         nickname: true,
         avatar: true,
+        phone: true,
+        email: true,
+        gender: true,
+        birthday: true,
         pregnancyStatus: true,
         dueDate: true,
         babyBirthday: true,
-        babyGender: true
+        babyGender: true,
+        createdAt: true
       }
     });
 

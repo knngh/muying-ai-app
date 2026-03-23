@@ -43,6 +43,10 @@
           <text class="info-value">{{ user.dueDate ? formatDate(user.dueDate) : '未设置' }}</text>
         </view>
         <view class="info-row">
+          <text class="info-label">当前孕周</text>
+          <text class="info-value">{{ currentPregnancyWeekText }}</text>
+        </view>
+        <view class="info-row">
           <text class="info-label">宝宝生日</text>
           <text class="info-value">{{ user.babyBirthday ? formatDate(user.babyBirthday) : '未设置' }}</text>
         </view>
@@ -83,7 +87,7 @@
 
         <view class="form-item">
           <text class="form-label">孕育状态</text>
-          <picker :range="pregnancyOptions" :value="pregnancyIndex" @change="onPregnancyChange">
+          <picker :range="pregnancyOptions" range-key="label" :value="pregnancyIndex" @change="onPregnancyChange">
             <view class="form-picker">
               <text :class="editForm.pregnancyStatus ? '' : 'placeholder-text'">
                 {{ editForm.pregnancyStatus ? pregnancyStatusLabel(editForm.pregnancyStatus) : '请选择' }}
@@ -116,10 +120,10 @@
 
         <view class="form-item">
           <text class="form-label">宝宝性别</text>
-          <picker :range="genderOptions" :value="genderIndex" @change="onGenderChange">
+          <picker :range="genderOptions" range-key="label" :value="genderIndex" @change="onGenderChange">
             <view class="form-picker">
-              <text :class="editForm.babyGender ? '' : 'placeholder-text'">
-                {{ editForm.babyGender ? genderLabel(editForm.babyGender) : '请选择' }}
+              <text :class="editForm.babyGender !== undefined ? '' : 'placeholder-text'">
+                {{ editForm.babyGender !== undefined ? genderLabel(editForm.babyGender) : '请选择' }}
               </text>
             </view>
           </picker>
@@ -144,56 +148,106 @@ import { useAppStore } from '@/stores/app'
 import { authApi } from '@/api/modules'
 import { wsManager } from '@/utils/websocket'
 import dayjs from 'dayjs'
+import { calculatePregnancyWeekFromDueDate } from '@/utils'
 
 const appStore = useAppStore()
 
 const user = computed(() => appStore.user)
 const showEditModal = ref(false)
 
-const pregnancyOptions = ['备孕中', '孕期中', '产后']
-const pregnancyValueMap: Record<string, string> = {
-  '备孕中': 'preparing',
-  '孕期中': 'pregnant',
-  '产后': 'postpartum',
+const pregnancyOptions = [
+  { label: '备孕中', value: 1 },
+  { label: '孕期中', value: 2 },
+  { label: '产后', value: 3 },
+]
+const pregnancyLabelMap: Record<number, string> = {
+  1: '备孕中',
+  2: '孕期中',
+  3: '产后',
 }
-const pregnancyLabelMap: Record<string, string> = {
-  preparing: '备孕中',
-  pregnant: '孕期中',
-  postpartum: '产后',
-}
-
-const genderOptions = ['男', '女', '未知']
-const genderValueMap: Record<string, string> = {
-  '男': 'male',
-  '女': 'female',
-  '未知': 'unknown',
-}
-const genderLabelMap: Record<string, string> = {
-  male: '男',
-  female: '女',
-  unknown: '未知',
+const legacyPregnancyValueMap: Record<string, number> = {
+  preparing: 1,
+  pregnant: 2,
+  postpartum: 3,
 }
 
-const editForm = reactive({
+const genderOptions = [
+  { label: '男', value: 1 },
+  { label: '女', value: 2 },
+  { label: '未知', value: 0 },
+]
+const genderLabelMap: Record<number, string> = {
+  0: '未知',
+  1: '男',
+  2: '女',
+}
+const legacyGenderValueMap: Record<string, number> = {
+  unknown: 0,
+  male: 1,
+  female: 2,
+}
+
+const normalizeCode = (value: unknown, legacyMap: Record<string, number>, min: number, max: number) => {
+  if (typeof value === 'number' && value >= min && value <= max) {
+    return value
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) return undefined
+
+    const numericValue = Number.parseInt(trimmed, 10)
+    if (!Number.isNaN(numericValue) && numericValue >= min && numericValue <= max) {
+      return numericValue
+    }
+
+    return legacyMap[trimmed.toLowerCase()]
+  }
+
+  return undefined
+}
+
+const normalizePregnancyStatus = (value: unknown) => normalizeCode(value, legacyPregnancyValueMap, 1, 3)
+const normalizeGender = (value: unknown) => normalizeCode(value, legacyGenderValueMap, 0, 2)
+
+const editForm = reactive<{
+  nickname: string
+  pregnancyStatus?: number
+  dueDate: string
+  babyBirthday: string
+  babyGender?: number
+}>({
   nickname: '',
-  pregnancyStatus: '',
+  pregnancyStatus: undefined,
   dueDate: '',
   babyBirthday: '',
-  babyGender: '',
+  babyGender: undefined,
 })
 
 const pregnancyIndex = computed(() => {
-  const idx = pregnancyOptions.findIndex(o => pregnancyValueMap[o] === editForm.pregnancyStatus)
+  const idx = pregnancyOptions.findIndex(option => option.value === editForm.pregnancyStatus)
   return idx >= 0 ? idx : 0
 })
 
 const genderIndex = computed(() => {
-  const idx = genderOptions.findIndex(o => genderValueMap[o] === editForm.babyGender)
+  const idx = genderOptions.findIndex(option => option.value === editForm.babyGender)
   return idx >= 0 ? idx : 0
 })
 
-const pregnancyStatusLabel = (status: string) => pregnancyLabelMap[status] || status
-const genderLabel = (gender?: string) => (gender ? genderLabelMap[gender] || gender : '未设置')
+const currentPregnancyWeekText = computed(() => {
+  if (!user.value?.dueDate || normalizePregnancyStatus(user.value.pregnancyStatus) !== 2) return '未设置'
+  const currentWeek = calculatePregnancyWeekFromDueDate(user.value.dueDate)
+  return currentWeek ? `第 ${currentWeek} 周` : '未设置'
+})
+
+const pregnancyStatusLabel = (status?: number | string) => {
+  const normalizedStatus = normalizePregnancyStatus(status)
+  return normalizedStatus ? pregnancyLabelMap[normalizedStatus] : '未设置'
+}
+const genderLabel = (gender?: number | string) => {
+  const normalizedGender = normalizeGender(gender)
+  return normalizedGender !== undefined ? genderLabelMap[normalizedGender] : '未设置'
+}
 const formatDate = (date: string) => dayjs(date).format('YYYY-MM-DD')
 
 const maskPhone = (phone?: string) => {
@@ -211,15 +265,15 @@ const goLogin = () => {
 const openEditModal = () => {
   if (!user.value) return
   editForm.nickname = user.value.nickname || ''
-  editForm.pregnancyStatus = user.value.pregnancyStatus || ''
+  editForm.pregnancyStatus = normalizePregnancyStatus(user.value.pregnancyStatus)
   editForm.dueDate = user.value.dueDate ? dayjs(user.value.dueDate).format('YYYY-MM-DD') : ''
   editForm.babyBirthday = user.value.babyBirthday ? dayjs(user.value.babyBirthday).format('YYYY-MM-DD') : ''
-  editForm.babyGender = user.value.babyGender || ''
+  editForm.babyGender = normalizeGender(user.value.babyGender)
   showEditModal.value = true
 }
 
 const onPregnancyChange = (e: any) => {
-  editForm.pregnancyStatus = pregnancyValueMap[pregnancyOptions[e.detail.value]] || ''
+  editForm.pregnancyStatus = pregnancyOptions[e.detail.value]?.value
 }
 
 const onDueDateChange = (e: any) => {
@@ -231,19 +285,26 @@ const onBabyBirthdayChange = (e: any) => {
 }
 
 const onGenderChange = (e: any) => {
-  editForm.babyGender = genderValueMap[genderOptions[e.detail.value]] || ''
+  editForm.babyGender = genderOptions[e.detail.value]?.value
 }
 
 const submitEdit = async () => {
   try {
-    const data: Record<string, string | undefined> = {}
+    const data: {
+      nickname?: string
+      pregnancyStatus?: number
+      dueDate?: string
+      babyBirthday?: string
+      babyGender?: number
+    } = {}
+
     if (editForm.nickname.trim()) data.nickname = editForm.nickname.trim()
-    if (editForm.pregnancyStatus) data.pregnancyStatus = editForm.pregnancyStatus
+    if (editForm.pregnancyStatus !== undefined) data.pregnancyStatus = editForm.pregnancyStatus
     if (editForm.dueDate) data.dueDate = editForm.dueDate
     if (editForm.babyBirthday) data.babyBirthday = editForm.babyBirthday
-    if (editForm.babyGender) data.babyGender = editForm.babyGender
+    if (editForm.babyGender !== undefined) data.babyGender = editForm.babyGender
 
-    const updatedUser = await authApi.updateProfile(data as any) as any
+    const updatedUser = await authApi.updateProfile(data)
     appStore.setUser(updatedUser)
     showEditModal.value = false
     uni.showToast({ title: '保存成功', icon: 'success' })

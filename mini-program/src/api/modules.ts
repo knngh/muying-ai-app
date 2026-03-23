@@ -75,8 +75,8 @@ export const authApi = {
   me: () => api.get<User>('/auth/me'),
   refresh: () => api.post<{ token: string }>('/auth/refresh'),
   updateProfile: (data: {
-    nickname?: string; avatar?: string; pregnancyStatus?: string;
-    dueDate?: string; babyBirthday?: string; babyGender?: string
+    nickname?: string; avatar?: string; pregnancyStatus?: number;
+    dueDate?: string; babyBirthday?: string; babyGender?: number
   }) => api.put<User>('/auth/profile', data),
   changePassword: (data: { oldPassword: string; newPassword: string }) => api.put('/auth/password', data),
   logout: () => api.post('/auth/logout'),

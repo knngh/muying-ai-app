@@ -74,12 +74,12 @@ export interface User {
   avatar?: string
   phone?: string
   email?: string
-  gender?: string
+  gender?: number | string
   birthday?: string
-  pregnancyStatus?: string
+  pregnancyStatus?: number | string
   dueDate?: string
   babyBirthday?: string
-  babyGender?: string
+  babyGender?: number | string
   createdAt: string
 }
 

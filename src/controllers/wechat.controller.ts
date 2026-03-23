@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import axios from 'axios';
 import jwt from 'jsonwebtoken';
 import { successResponse, AppError, ErrorCodes } from '../middlewares/error.middleware';
+import { calculateDueDateFromPregnancyWeek } from '../utils/pregnancy';
 
 const prisma = new PrismaClient();
 
@@ -31,17 +32,8 @@ export const wechatLogin = async (req: Request, res: Response, next: NextFunctio
       const mockOpenid = 'mock_openid_' + code.substring(0, 10);
       let user = await prisma.user.findUnique({ where: { openid: mockOpenid } });
 
-      let dueDate = undefined;
-      let pregnancyStatus = 0;
-      if (pregnancyWeek) {
-        pregnancyStatus = 2; // 怀孕中
-        const week = parseInt(pregnancyWeek);
-        if (!isNaN(week) && week > 0 && week <= 40) {
-          const remainingWeeks = 40 - week;
-          const now = new Date();
-          dueDate = new Date(now.getTime() + remainingWeeks * 7 * 24 * 60 * 60 * 1000);
-        }
-      }
+      const dueDate = calculateDueDateFromPregnancyWeek(pregnancyWeek);
+      const pregnancyStatus = dueDate ? 2 : 0;
 
       if (user) {
         user = await prisma.user.update({
@@ -95,17 +87,8 @@ export const wechatLogin = async (req: Request, res: Response, next: NextFunctio
 
     const { openid } = wxResponse.data;
 
-    let dueDate = undefined;
-    let pregnancyStatus = 0;
-    if (pregnancyWeek) {
-      pregnancyStatus = 2; // 怀孕中
-      const week = parseInt(pregnancyWeek);
-      if (!isNaN(week) && week > 0 && week <= 40) {
-        const remainingWeeks = 40 - week;
-        const now = new Date();
-        dueDate = new Date(now.getTime() + remainingWeeks * 7 * 24 * 60 * 60 * 1000);
-      }
-    }
+    const dueDate = calculateDueDateFromPregnancyWeek(pregnancyWeek);
+    const pregnancyStatus = dueDate ? 2 : 0;
 
     let user = await prisma.user.findUnique({ where: { openid } });
 

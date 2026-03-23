@@ -32,6 +32,7 @@ import { ref } from 'vue'
 import { authApi } from '@/api/modules'
 import { useAppStore } from '@/stores/app'
 import type { User } from '@/api/modules'
+import { syncPregnancyWeekStorage } from '@/utils'
 
 const appStore = useAppStore()
 const pregnancyWeek = ref('')
@@ -67,9 +68,10 @@ async function handleWechatLogin() {
           return
         }
 
-        uni.setStorageSync('userPregnancyWeek', pregnancyWeek.value)
         uni.setStorageSync('token', res.token)
+        syncPregnancyWeekStorage(res.user?.dueDate, pregnancyWeek.value)
         appStore.setUser(res.user)
+        await appStore.fetchUser()
 
         // 验证 token 是否成功写入
         const savedToken = uni.getStorageSync('token')
