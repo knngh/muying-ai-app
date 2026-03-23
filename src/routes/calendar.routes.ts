@@ -9,6 +9,8 @@ import {
   savePregnancyDiary,
   getCustomTodos,
   createCustomTodo,
+  updateCustomTodo,
+  deleteCustomTodo,
   createEvent,
   updateEvent,
   dragEvent,
@@ -45,6 +47,8 @@ router.put('/diaries', savePregnancyDiary);
 // 自定义待办
 router.get('/custom-todos', getCustomTodos);
 router.post('/custom-todos', createCustomTodo);
+router.put('/custom-todos/:id', updateCustomTodo);
+router.delete('/custom-todos/:id', deleteCustomTodo);
 
 // 事件列表（按日期范围）
 router.get('/events', getEvents);

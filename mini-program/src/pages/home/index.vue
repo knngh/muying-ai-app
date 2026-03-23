@@ -108,7 +108,6 @@ const navigateTo = (url: string) => {
 }
 
 const handleAITap = () => {
-  if (!checkLogin()) return
   uni.switchTab({ url: '/pages/chat/index' })
 }
 </script>

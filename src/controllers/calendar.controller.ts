@@ -89,6 +89,19 @@ const parseCustomTodoContent = (value: unknown): string => {
   return content;
 };
 
+const parseCustomTodoId = (value: unknown): bigint => {
+  const rawId = String(value ?? '').trim();
+  if (!/^\d+$/.test(rawId)) {
+    throw new AppError('待办不存在', ErrorCodes.PARAM_ERROR, 400);
+  }
+
+  const id = BigInt(rawId);
+  if (id <= 0) {
+    throw new AppError('待办不存在', ErrorCodes.PARAM_ERROR, 400);
+  }
+  return id;
+};
+
 // 辅助函数：获取周的唯一标识（YYYY-WW）
 const getWeekId = (date: Date): string => {
   const year = date.getFullYear();
@@ -427,6 +440,89 @@ export const createCustomTodo = async (req: Request, res: Response, next: NextFu
       createdAt: customTodo.createdAt.toISOString(),
       updatedAt: customTodo.updatedAt.toISOString()
     }, '创建成功'));
+  } catch (error) {
+    next(error);
+  }
+};
+
+// 更新自定义待办
+export const updateCustomTodo = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.userId!;
+    const customTodoId = parseCustomTodoId(req.params.id);
+    const content = parseCustomTodoContent(req.body.content);
+
+    const existingTodo = await prisma.userPregnancyCustomTodo.findFirst({
+      where: {
+        id: customTodoId,
+        userId: BigInt(userId)
+      }
+    });
+
+    if (!existingTodo) {
+      throw new AppError('待办不存在', ErrorCodes.PARAM_ERROR, 404);
+    }
+
+    const updatedTodo = await prisma.userPregnancyCustomTodo.update({
+      where: {
+        id: customTodoId
+      },
+      data: {
+        content
+      }
+    });
+
+    res.json(successResponse({
+      id: updatedTodo.id.toString(),
+      week: updatedTodo.week,
+      content: updatedTodo.content,
+      createdAt: updatedTodo.createdAt.toISOString(),
+      updatedAt: updatedTodo.updatedAt.toISOString()
+    }, '更新成功'));
+  } catch (error) {
+    next(error);
+  }
+};
+
+// 删除自定义待办
+export const deleteCustomTodo = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.userId!;
+    const customTodoId = parseCustomTodoId(req.params.id);
+
+    const existingTodo = await prisma.userPregnancyCustomTodo.findFirst({
+      where: {
+        id: customTodoId,
+        userId: BigInt(userId)
+      }
+    });
+
+    if (!existingTodo) {
+      throw new AppError('待办不存在', ErrorCodes.PARAM_ERROR, 404);
+    }
+
+    const todoKey = `custom-${existingTodo.id.toString()}`;
+
+    await prisma.$transaction([
+      prisma.userPregnancyCustomTodo.delete({
+        where: {
+          id: customTodoId
+        }
+      }),
+      prisma.userPregnancyTodoProgress.deleteMany({
+        where: {
+          userId: BigInt(userId),
+          week: existingTodo.week,
+          todoKey
+        }
+      })
+    ]);
+
+    res.json(successResponse({
+      id: existingTodo.id.toString(),
+      week: existingTodo.week,
+      todoKey
+    }, '删除成功'));
   } catch (error) {
     next(error);
   }

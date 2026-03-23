@@ -59,6 +59,10 @@ export const calendarApi = {
       .then(res => (res as { list: PregnancyCustomTodo[] }).list),
   createCustomTodo: (data: { week: number; content: string }) =>
     api.post<PregnancyCustomTodo>('/calendar/custom-todos', data),
+  updateCustomTodo: (id: string, data: { content: string }) =>
+    api.put<PregnancyCustomTodo>(`/calendar/custom-todos/${id}`, data),
+  deleteCustomTodo: (id: string) =>
+    api.delete<{ id: string; week: number; todoKey: string }>(`/calendar/custom-todos/${id}`),
   createEvent: (data: Partial<CalendarEvent>) => api.post<CalendarEvent>('/calendar/events', data),
   updateEvent: (id: number, data: Partial<CalendarEvent>) => api.put<CalendarEvent>(`/calendar/events/${id}`, data),
   deleteEvent: (id: number) => api.delete(`/calendar/events/${id}`),

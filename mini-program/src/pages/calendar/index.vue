@@ -158,6 +158,15 @@
               </view>
               <text class="todo-title">{{ todo.title }}</text>
               <text class="todo-desc">{{ todo.desc }}</text>
+              <view
+                v-if="todo.type === 'custom' && canUseTodoActions"
+                class="todo-actions"
+                @tap.stop
+              >
+                <text class="todo-action-btn" @tap.stop="openEditCustomTodoModal(todo)">编辑</text>
+                <text class="todo-action-divider">|</text>
+                <text class="todo-action-btn todo-action-btn--danger" @tap.stop="removeCustomTodo(todo)">删除</text>
+              </view>
             </view>
           </view>
         </view>
@@ -209,7 +218,7 @@
     <view class="modal-mask" v-if="showCustomTodoModal" @tap="closeCustomTodoModal">
       <view class="modal-content" @tap.stop>
         <view class="modal-header">
-          <text class="modal-title">添加待办</text>
+          <text class="modal-title">{{ customTodoModalTitle }}</text>
           <text class="close-icon" @tap="closeCustomTodoModal">×</text>
         </view>
         <textarea
@@ -218,7 +227,7 @@
           placeholder="请输入本周待办，例如：预约产检、购买营养品..."
           :maxlength="200"
         />
-        <button class="save-btn" @tap="saveCustomTodo">添加待办</button>
+        <button class="save-btn" @tap="saveCustomTodo">{{ customTodoSubmitText }}</button>
       </view>
     </view>
 
@@ -258,6 +267,7 @@ const showDiaryModal = ref(false)
 const diaryInput = ref('')
 const showCustomTodoModal = ref(false)
 const customTodoInput = ref('')
+const editingCustomTodoId = ref('')
 
 const fallbackData = {
   title: '数据未收录',
@@ -370,6 +380,8 @@ const syncCustomTodoContext = async () => {
 const parsedContent = computed(() => currentWeekData.value.content)
 const currentDiary = computed(() => userDiaries.value[currentSelectedWeek.value])
 const canUseTodoActions = computed(() => !!loginUserId.value)
+const customTodoModalTitle = computed(() => editingCustomTodoId.value ? '编辑待办' : '添加待办')
+const customTodoSubmitText = computed(() => editingCustomTodoId.value ? '保存修改' : '添加待办')
 const customTodoList = computed(() =>
   (customTodos.value[currentSelectedWeek.value] || []).map((todo) => {
     const todoKey = `custom-${todo.id}`
@@ -439,12 +451,22 @@ const closeDiaryModal = () => {
 
 const openCustomTodoModal = () => {
   if (!checkLogin('请先登录后添加待办', false)) return
+  editingCustomTodoId.value = ''
   customTodoInput.value = ''
   showCustomTodoModal.value = true
 }
 
 const closeCustomTodoModal = () => {
+  editingCustomTodoId.value = ''
+  customTodoInput.value = ''
   showCustomTodoModal.value = false
+}
+
+const openEditCustomTodoModal = (todo: { id: string; desc: string }) => {
+  if (!checkLogin('请先登录后编辑待办', false)) return
+  editingCustomTodoId.value = todo.id
+  customTodoInput.value = todo.desc
+  showCustomTodoModal.value = true
 }
 
 const saveDiary = () => {
@@ -498,22 +520,70 @@ const saveCustomTodo = () => {
 
   void (async () => {
     try {
-      const savedTodo = await calendarApi.createCustomTodo({
-        week: currentSelectedWeek.value,
-        content: trimmedContent,
-      })
+      const currentWeekTodos = customTodos.value[currentSelectedWeek.value] || []
+      const isEditing = !!editingCustomTodoId.value
+      if (isEditing) {
+        const updatedTodo = await calendarApi.updateCustomTodo(editingCustomTodoId.value, {
+          content: trimmedContent,
+        })
 
-      customTodos.value = {
-        ...customTodos.value,
-        [currentSelectedWeek.value]: [...(customTodos.value[currentSelectedWeek.value] || []), savedTodo],
+        customTodos.value = {
+          ...customTodos.value,
+          [currentSelectedWeek.value]: currentWeekTodos.map(item => (
+            item.id === updatedTodo.id ? updatedTodo : item
+          )),
+        }
+      } else {
+        const savedTodo = await calendarApi.createCustomTodo({
+          week: currentSelectedWeek.value,
+          content: trimmedContent,
+        })
+
+        customTodos.value = {
+          ...customTodos.value,
+          [currentSelectedWeek.value]: [...currentWeekTodos, savedTodo],
+        }
       }
       closeCustomTodoModal()
-      uni.showToast({ title: '待办已添加', icon: 'success' })
+      uni.showToast({ title: isEditing ? '待办已更新' : '待办已添加', icon: 'success' })
     } catch (err: any) {
-      console.error('[Calendar] 添加自定义待办失败:', err)
-      uni.showToast({ title: err?.message || '添加失败，请稍后重试', icon: 'none' })
+      console.error('[Calendar] 保存自定义待办失败:', err)
+      uni.showToast({ title: err?.message || '保存失败，请稍后重试', icon: 'none' })
     }
   })()
+}
+
+const removeCustomTodo = (todo: { id: string; stateKey: string }) => {
+  if (!checkLogin('请先登录后删除待办', false)) return
+
+  uni.showModal({
+    title: '删除待办',
+    content: '确认删除这条自定义待办吗？',
+    success: (res) => {
+      if (!res.confirm) return
+
+      void (async () => {
+        try {
+          await calendarApi.deleteCustomTodo(todo.id)
+
+          customTodos.value = {
+            ...customTodos.value,
+            [currentSelectedWeek.value]: (customTodos.value[currentSelectedWeek.value] || [])
+              .filter(item => item.id !== todo.id),
+          }
+
+          const nextState = { ...todoState.value }
+          delete nextState[todo.stateKey]
+          todoState.value = nextState
+
+          uni.showToast({ title: '待办已删除', icon: 'success' })
+        } catch (err: any) {
+          console.error('[Calendar] 删除自定义待办失败:', err)
+          uni.showToast({ title: err?.message || '删除失败，请稍后重试', icon: 'none' })
+        }
+      })()
+    },
+  })
 }
 
 const toggleTodo = async (todo: { todoKey: string; stateKey: string; completed: boolean }) => {
@@ -742,6 +812,15 @@ onShow(() => {
 .todo-desc { font-size: 24rpx; color: #777; }
 .todo-item--done .todo-title { color: #7e8b84; text-decoration: line-through; }
 .todo-item--done .todo-desc { color: #98a49d; }
+.todo-actions {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  margin-top: 16rpx;
+}
+.todo-action-btn { font-size: 24rpx; color: #6274ff; font-weight: 600; }
+.todo-action-btn--danger { color: #ff7875; }
+.todo-action-divider { font-size: 22rpx; color: #c2c8d0; }
 
 .diary-empty { display: flex; flex-direction: column; align-items: center; padding: 100rpx 0; }
 .empty-emoji { font-size: 80rpx; margin-bottom: 20rpx; }
