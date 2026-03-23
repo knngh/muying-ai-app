@@ -122,26 +122,20 @@
             <text class="card-icon">📌</text>
             <text class="card-title">核心待办</text>
           </view>
-          <text class="todo-progress">{{ completedTodoCount }}/{{ todoList.length }} 完成</text>
+          <view class="todo-header-actions">
+            <text class="todo-progress">{{ completedTodoCount }}/{{ todoList.length }} 完成</text>
+            <view
+              class="todo-add-chip"
+              :class="{ 'todo-add-chip--disabled': !canUseTodoActions }"
+              @tap="openCustomTodoModal"
+            >
+              <text class="todo-add-chip-icon">+</text>
+              <text class="todo-add-chip-text">添加</text>
+            </view>
+          </view>
         </view>
         <text v-if="!canUseTodoActions" class="todo-login-hint">登录后可勾选并保存待办进度</text>
         <view class="card-body">
-          <view
-            class="todo-item todo-item--add"
-            :class="{ 'todo-item--disabled': !canUseTodoActions }"
-            @tap="openCustomTodoModal"
-          >
-            <view class="todo-check todo-check--add">
-              <text class="todo-check-add">+</text>
-            </view>
-            <view class="todo-content">
-              <view class="todo-meta">
-                <view class="todo-type type-custom">自定义</view>
-              </view>
-              <text class="todo-title">添加待办</text>
-              <text class="todo-desc">添加你本周自己的提醒事项</text>
-            </view>
-          </view>
           <view
             class="todo-item"
             :class="{
@@ -707,7 +701,15 @@ onShow(() => {
 .card-title { font-size: 32rpx; font-weight: bold; color: #333; }
 .card-body { font-size: 28rpx; color: #555; line-height: 1.7; }
 .card-text { white-space: pre-wrap; display: block; margin-bottom: 12rpx; }
+.todo-header-actions { display: flex; align-items: center; gap: 16rpx; }
 .todo-progress { font-size: 22rpx; color: #999; }
+.todo-add-chip {
+  display: inline-flex; align-items: center; gap: 8rpx; padding: 10rpx 18rpx;
+  border-radius: 999rpx; background: #eef1ff; border: 2rpx solid #d9e0ff;
+}
+.todo-add-chip--disabled { opacity: 0.72; }
+.todo-add-chip-icon { color: #6274ff; font-size: 24rpx; font-weight: bold; line-height: 1; }
+.todo-add-chip-text { color: #6274ff; font-size: 22rpx; font-weight: 600; }
 .todo-login-hint { display: block; margin-bottom: 16rpx; font-size: 24rpx; color: #8c8c8c; }
 
 .tip-item { display: flex; margin-bottom: 12rpx; align-items: flex-start; }
@@ -718,7 +720,6 @@ onShow(() => {
   display: flex; align-items: flex-start; background-color: #f8f9fa; border-radius: 16rpx; padding: 24rpx;
   margin-bottom: 16rpx; border-left: 8rpx solid transparent; transition: all 0.2s ease;
 }
-.todo-item--add { border-left-color: #7b8cff !important; background-color: #f4f6ff; }
 .todo-item:nth-child(odd) { border-left-color: #4caf50; }
 .todo-item:nth-child(even) { border-left-color: #ff9800; }
 .todo-item--done { background-color: #eef7f1; border-left-color: #5dbb7f !important; }
@@ -729,9 +730,7 @@ onShow(() => {
   margin-right: 20rpx; margin-top: 8rpx; flex-shrink: 0;
 }
 .todo-check--done { border-color: #5dbb7f; background: #5dbb7f; }
-.todo-check--add { border-color: #7b8cff; background: #eef1ff; }
 .todo-check-icon { color: #fff; font-size: 24rpx; font-weight: bold; }
-.todo-check-add { color: #6274ff; font-size: 30rpx; font-weight: bold; line-height: 1; }
 .todo-content { flex: 1; }
 .todo-meta { display: flex; align-items: center; gap: 12rpx; margin-bottom: 8rpx; }
 .todo-type { font-size: 22rpx; padding: 4rpx 12rpx; border-radius: 8rpx; height: fit-content; white-space: nowrap; }
