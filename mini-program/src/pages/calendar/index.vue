@@ -201,7 +201,7 @@ import { ref, computed } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import mockDataArray from './mockData.json'
 import { useAppStore } from '@/stores/app'
-import { calendarApi, type PregnancyTodoProgress } from '@/api/modules'
+import { calendarApi, type PregnancyTodoProgress, type PregnancyDiary } from '@/api/modules'
 
 const weeksList = ref(Array.from({ length: 40 }, (_, i) => ({ num: i + 1 })))
 const appStore = useAppStore()
@@ -219,7 +219,7 @@ const currentSelectedWeek = ref(resolveInitialWeek())
 const activeTab = ref('guide') // 'guide' | 'diary'
 
 // 模拟日记数据库
-const userDiaries = ref<Record<number, { date: string, content: string }>>({})
+const userDiaries = ref<Record<number, PregnancyDiary>>({})
 const loginUserId = ref('')
 const todoState = ref<Record<string, boolean>>({})
 
@@ -270,6 +270,14 @@ const mapTodoProgressToState = (progressList: PregnancyTodoProgress[]) => {
   return nextState
 }
 
+const mapDiariesToState = (diaries: PregnancyDiary[]) => {
+  const nextState: Record<number, PregnancyDiary> = {}
+  diaries.forEach((item) => {
+    nextState[item.week] = item
+  })
+  return nextState
+}
+
 const syncTodoContext = async () => {
   loginUserId.value = resolveLoginUserId()
   if (!loginUserId.value) {
@@ -283,6 +291,21 @@ const syncTodoContext = async () => {
   } catch (err) {
     console.error('[Calendar] 获取待办进度失败:', err)
     todoState.value = {}
+  }
+}
+
+const syncDiaryContext = async () => {
+  if (!loginUserId.value) {
+    userDiaries.value = {}
+    return
+  }
+
+  try {
+    const diaries = await calendarApi.getDiaries()
+    userDiaries.value = mapDiariesToState(diaries)
+  } catch (err) {
+    console.error('[Calendar] 获取孕周记录失败:', err)
+    userDiaries.value = {}
   }
 }
 
@@ -341,18 +364,38 @@ const closeDiaryModal = () => {
 }
 
 const saveDiary = () => {
-  if (!diaryInput.value.trim()) {
+  if (!checkLogin()) return
+
+  const trimmedContent = diaryInput.value.trim()
+  if (!trimmedContent) {
     uni.showToast({ title: '内容不能为空', icon: 'none' })
     return
   }
-  const today = new Date()
-  userDiaries.value[currentSelectedWeek.value] = {
-    date: `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`,
-    content: diaryInput.value.trim()
+
+  if (trimmedContent.length > 500) {
+    uni.showToast({ title: '内容不能超过500字', icon: 'none' })
+    return
   }
-  closeDiaryModal()
-  activeTab.value = 'diary'
-  uni.showToast({ title: '记录已保存', icon: 'success' })
+
+  void (async () => {
+    try {
+      const savedDiary = await calendarApi.saveDiary({
+        week: currentSelectedWeek.value,
+        content: trimmedContent,
+      })
+
+      userDiaries.value = {
+        ...userDiaries.value,
+        [currentSelectedWeek.value]: savedDiary,
+      }
+      closeDiaryModal()
+      activeTab.value = 'diary'
+      uni.showToast({ title: '记录已保存', icon: 'success' })
+    } catch (err: any) {
+      console.error('[Calendar] 保存孕周记录失败:', err)
+      uni.showToast({ title: err?.message || '保存失败，请稍后重试', icon: 'none' })
+    }
+  })()
 }
 
 const toggleTodo = async (todo: { todoKey: string; stateKey: string; completed: boolean }) => {
@@ -382,7 +425,8 @@ const toggleTodo = async (todo: { todoKey: string; stateKey: string; completed: 
 
 onShow(() => {
   currentSelectedWeek.value = resolveInitialWeek()
-  void syncTodoContext()
+  loginUserId.value = resolveLoginUserId()
+  void Promise.all([syncTodoContext(), syncDiaryContext()])
 })
 </script>
 

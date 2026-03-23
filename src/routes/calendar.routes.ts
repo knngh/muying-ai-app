@@ -5,6 +5,8 @@ import {
   getDayEvents,
   getTodoProgress,
   updateTodoProgress,
+  getPregnancyDiaries,
+  savePregnancyDiary,
   createEvent,
   updateEvent,
   dragEvent,
@@ -33,6 +35,10 @@ router.get('/day/:date', getDayEvents);
 // 孕周待办进度
 router.get('/todo-progress', getTodoProgress);
 router.put('/todo-progress', updateTodoProgress);
+
+// 孕周记录
+router.get('/diaries', getPregnancyDiaries);
+router.put('/diaries', savePregnancyDiary);
 
 // 事件列表（按日期范围）
 router.get('/events', getEvents);

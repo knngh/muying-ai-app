@@ -90,6 +90,14 @@ export interface PregnancyTodoProgress {
   completedAt?: string
 }
 
+export interface PregnancyDiary {
+  week: number
+  content: string
+  date: string
+  createdAt?: string
+  updatedAt?: string
+}
+
 export interface PaginationMeta {
   page: number
   pageSize: number

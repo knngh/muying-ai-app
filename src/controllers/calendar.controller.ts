@@ -27,6 +27,13 @@ const formatDate = (date: Date): string => {
   return date.toISOString().split('T')[0];
 };
 
+const formatLocalDate = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 const parseTodoWeek = (value: unknown): number => {
   const week = Number.parseInt(String(value ?? ''), 10);
   if (!Number.isInteger(week) || week < 1 || week > 40) {
@@ -46,6 +53,23 @@ const parseTodoKey = (value: unknown): string => {
   }
 
   return todoKey;
+};
+
+const parseDiaryContent = (value: unknown): string => {
+  if (typeof value !== 'string') {
+    throw new AppError('记录内容不能为空', ErrorCodes.PARAM_ERROR, 400);
+  }
+
+  const content = value.trim();
+  if (!content) {
+    throw new AppError('记录内容不能为空', ErrorCodes.PARAM_ERROR, 400);
+  }
+
+  if (content.length > 500) {
+    throw new AppError('记录内容不能超过500字', ErrorCodes.PARAM_ERROR, 400);
+  }
+
+  return content;
 };
 
 // 辅助函数：获取周的唯一标识（YYYY-WW）
@@ -254,6 +278,75 @@ export const updateTodoProgress = async (req: Request, res: Response, next: Next
       todoKey,
       completed: false
     }, '已取消完成'));
+  } catch (error) {
+    next(error);
+  }
+};
+
+// 获取孕周记录
+export const getPregnancyDiaries = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.userId!;
+    const { week } = req.query;
+
+    const where: { userId: bigint; week?: number } = {
+      userId: BigInt(userId)
+    };
+
+    if (week !== undefined) {
+      where.week = parseTodoWeek(week);
+    }
+
+    const diaries = await prisma.userPregnancyDiary.findMany({
+      where,
+      orderBy: { week: 'asc' }
+    });
+
+    res.json(successResponse({
+      list: diaries.map((item) => ({
+        week: item.week,
+        content: item.content,
+        date: formatLocalDate(item.updatedAt),
+        createdAt: item.createdAt.toISOString(),
+        updatedAt: item.updatedAt.toISOString()
+      }))
+    }));
+  } catch (error) {
+    next(error);
+  }
+};
+
+// 保存孕周记录
+export const savePregnancyDiary = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.userId!;
+    const week = parseTodoWeek(req.body.week);
+    const content = parseDiaryContent(req.body.content);
+
+    const diary = await prisma.userPregnancyDiary.upsert({
+      where: {
+        userId_week: {
+          userId: BigInt(userId),
+          week
+        }
+      },
+      create: {
+        userId: BigInt(userId),
+        week,
+        content
+      },
+      update: {
+        content
+      }
+    });
+
+    res.json(successResponse({
+      week: diary.week,
+      content: diary.content,
+      date: formatLocalDate(diary.updatedAt),
+      createdAt: diary.createdAt.toISOString(),
+      updatedAt: diary.updatedAt.toISOString()
+    }, '保存成功'));
   } catch (error) {
     next(error);
   }
