@@ -116,17 +116,34 @@
       </view>
 
       <!-- 核心待办 Todo -->
-      <view class="info-card todo-card" v-if="parsedContent.todo && parsedContent.todo.length > 0">
+      <view class="info-card todo-card" v-if="todoList.length > 0">
         <view class="card-header">
           <view class="header-left">
             <text class="card-icon">📌</text>
             <text class="card-title">核心待办</text>
           </view>
+          <text class="todo-progress">{{ completedTodoCount }}/{{ todoList.length }} 完成</text>
         </view>
+        <text v-if="!canUseTodoActions" class="todo-login-hint">登录后可勾选并保存待办进度</text>
         <view class="card-body">
-          <view class="todo-item" v-for="(todo, index) in parsedContent.todo" :key="index">
-            <view class="todo-type" :class="'type-' + todo.type">{{ todo.type === 'checkup' ? '产检' : '事项' }}</view>
+          <view
+            class="todo-item"
+            :class="{
+              'todo-item--done': todo.completed,
+              'todo-item--disabled': !canUseTodoActions,
+            }"
+            v-for="todo in todoList"
+            :key="todo.storageKey"
+            @tap="toggleTodo(todo.storageKey)"
+          >
+            <view class="todo-check" :class="{ 'todo-check--done': todo.completed }">
+              <text class="todo-check-icon">{{ todo.completed ? '✓' : '' }}</text>
+            </view>
             <view class="todo-content">
+              <view class="todo-meta">
+                <view class="todo-type" :class="'type-' + todo.type">{{ todo.type === 'checkup' ? '产检' : '事项' }}</view>
+                <text v-if="todo.completed" class="todo-state">已完成</text>
+              </view>
               <text class="todo-title">{{ todo.title }}</text>
               <text class="todo-desc">{{ todo.desc }}</text>
             </view>
@@ -181,14 +198,30 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { onShow } from '@dcloudio/uni-app'
 import mockDataArray from './mockData.json'
+import { useAppStore } from '@/stores/app'
 
+const TODO_STORAGE_KEY = 'calendarTodoState'
 const weeksList = ref(Array.from({ length: 40 }, (_, i) => ({ num: i + 1 })))
-const currentSelectedWeek = ref(Number(uni.getStorageSync('userPregnancyWeek')) || 12)
+const appStore = useAppStore()
+
+const resolveInitialWeek = () => {
+  const token = uni.getStorageSync('token')
+  const storedWeek = Number(uni.getStorageSync('userPregnancyWeek'))
+
+  if (!token) return 1
+  if (storedWeek >= 1 && storedWeek <= 40) return storedWeek
+  return 1
+}
+
+const currentSelectedWeek = ref(resolveInitialWeek())
 const activeTab = ref('guide') // 'guide' | 'diary'
 
 // 模拟日记数据库
 const userDiaries = ref<Record<number, { date: string, content: string }>>({})
+const loginUserId = ref('')
+const todoState = ref<Record<string, boolean>>({})
 
 // 日记弹窗状态
 const showDiaryModal = ref(false)
@@ -208,8 +241,63 @@ const currentWeekData = computed(() => {
   return found || fallbackData
 })
 
+const resolveLoginUserId = () => {
+  const token = uni.getStorageSync('token')
+  if (!token) return ''
+
+  if (appStore.user?.id) {
+    return String(appStore.user.id)
+  }
+
+  const storedUser = uni.getStorageSync('user')
+  if (storedUser && typeof storedUser === 'object' && 'id' in storedUser && storedUser.id) {
+    return String(storedUser.id)
+  }
+
+  return ''
+}
+
+const getTodoStorageKey = () => {
+  if (!loginUserId.value) return ''
+  return `${TODO_STORAGE_KEY}:${loginUserId.value}`
+}
+
+const loadTodoState = () => {
+  const storageKey = getTodoStorageKey()
+  if (!storageKey) {
+    todoState.value = {}
+    return
+  }
+
+  const savedState = uni.getStorageSync(storageKey)
+  todoState.value = savedState && typeof savedState === 'object' ? savedState : {}
+}
+
+const persistTodoState = () => {
+  const storageKey = getTodoStorageKey()
+  if (!storageKey) return
+  uni.setStorageSync(storageKey, todoState.value)
+}
+
+const syncTodoContext = () => {
+  loginUserId.value = resolveLoginUserId()
+  loadTodoState()
+}
+
 const parsedContent = computed(() => currentWeekData.value.content)
 const currentDiary = computed(() => userDiaries.value[currentSelectedWeek.value])
+const canUseTodoActions = computed(() => !!loginUserId.value)
+const todoList = computed(() =>
+  (parsedContent.value.todo || []).map((todo: any, index: number) => {
+    const storageKey = `${currentSelectedWeek.value}-${index}`
+    return {
+      ...todo,
+      storageKey,
+      completed: !!todoState.value[storageKey],
+    }
+  }),
+)
+const completedTodoCount = computed(() => todoList.value.filter(todo => todo.completed).length)
 
 const handleSelectWeek = (e: any) => {
   const weekNum = e.currentTarget.dataset.week
@@ -218,8 +306,27 @@ const handleSelectWeek = (e: any) => {
   }
 }
 
+// 登录检查（编辑功能需要登录）
+const checkLogin = (
+  toastTitle = '请先登录后再记录',
+  shouldRedirect = true,
+): boolean => {
+  const token = uni.getStorageSync('token')
+  if (!token) {
+    uni.showToast({ title: toastTitle, icon: 'none' })
+    if (shouldRedirect) {
+      setTimeout(() => {
+        uni.navigateTo({ url: '/pages/login/index' })
+      }, 1000)
+    }
+    return false
+  }
+  return true
+}
+
 // 弹窗与记录逻辑
 const openDiaryModal = () => {
+  if (!checkLogin()) return
   const existing = userDiaries.value[currentSelectedWeek.value]
   diaryInput.value = existing ? existing.content : ''
   showDiaryModal.value = true
@@ -243,6 +350,21 @@ const saveDiary = () => {
   activeTab.value = 'diary'
   uni.showToast({ title: '记录已保存', icon: 'success' })
 }
+
+const toggleTodo = (storageKey: string) => {
+  if (!checkLogin('请先登录后使用待办', false) || !canUseTodoActions.value) return
+
+  todoState.value = {
+    ...todoState.value,
+    [storageKey]: !todoState.value[storageKey],
+  }
+  persistTodoState()
+}
+
+onShow(() => {
+  currentSelectedWeek.value = resolveInitialWeek()
+  syncTodoContext()
+})
 </script>
 
 <style scoped>
@@ -338,6 +460,7 @@ const saveDiary = () => {
   width: 100%;
   white-space: nowrap;
   padding-bottom: 20rpx;
+  -webkit-overflow-scrolling: touch;
 }
 
 .timeline-container { display: inline-flex; padding: 0 30rpx; }
@@ -397,22 +520,38 @@ const saveDiary = () => {
 .card-title { font-size: 32rpx; font-weight: bold; color: #333; }
 .card-body { font-size: 28rpx; color: #555; line-height: 1.7; }
 .card-text { white-space: pre-wrap; display: block; margin-bottom: 12rpx; }
+.todo-progress { font-size: 22rpx; color: #999; }
+.todo-login-hint { display: block; margin-bottom: 16rpx; font-size: 24rpx; color: #8c8c8c; }
 
 .tip-item { display: flex; margin-bottom: 12rpx; align-items: flex-start; }
 .tip-dot { width: 10rpx; height: 10rpx; background-color: #ff9a9e; border-radius: 50%; margin-top: 16rpx; margin-right: 16rpx; flex-shrink: 0; }
 .tip-text { flex: 1; }
 
 .todo-item {
-  display: flex; background-color: #f8f9fa; border-radius: 16rpx; padding: 24rpx;
-  margin-bottom: 16rpx; border-left: 8rpx solid transparent;
+  display: flex; align-items: flex-start; background-color: #f8f9fa; border-radius: 16rpx; padding: 24rpx;
+  margin-bottom: 16rpx; border-left: 8rpx solid transparent; transition: all 0.2s ease;
 }
 .todo-item:nth-child(odd) { border-left-color: #4caf50; }
 .todo-item:nth-child(even) { border-left-color: #ff9800; }
-.todo-type { font-size: 22rpx; padding: 4rpx 12rpx; border-radius: 8rpx; height: fit-content; margin-right: 20rpx; white-space: nowrap; }
+.todo-item--done { background-color: #eef7f1; border-left-color: #5dbb7f !important; }
+.todo-item--disabled { opacity: 0.78; }
+.todo-check {
+  width: 40rpx; height: 40rpx; border-radius: 20rpx; border: 2rpx solid #d7dbe2;
+  background: #fff; display: flex; align-items: center; justify-content: center;
+  margin-right: 20rpx; margin-top: 8rpx; flex-shrink: 0;
+}
+.todo-check--done { border-color: #5dbb7f; background: #5dbb7f; }
+.todo-check-icon { color: #fff; font-size: 24rpx; font-weight: bold; }
+.todo-content { flex: 1; }
+.todo-meta { display: flex; align-items: center; gap: 12rpx; margin-bottom: 8rpx; }
+.todo-type { font-size: 22rpx; padding: 4rpx 12rpx; border-radius: 8rpx; height: fit-content; white-space: nowrap; }
 .type-checkup { background-color: #e8f5e9; color: #4caf50; }
 .type-action { background-color: #fff3e0; color: #ff9800; }
+.todo-state { font-size: 22rpx; color: #5dbb7f; }
 .todo-title { display: block; font-size: 28rpx; font-weight: bold; color: #333; margin-bottom: 8rpx; }
 .todo-desc { font-size: 24rpx; color: #777; }
+.todo-item--done .todo-title { color: #7e8b84; text-decoration: line-through; }
+.todo-item--done .todo-desc { color: #98a49d; }
 
 .diary-empty { display: flex; flex-direction: column; align-items: center; padding: 100rpx 0; }
 .empty-emoji { font-size: 80rpx; margin-bottom: 20rpx; }

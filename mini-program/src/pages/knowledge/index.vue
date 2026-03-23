@@ -298,6 +298,7 @@ function goToDetail(slug: string) {
   background-color: #ffffff;
   padding: 16rpx 24rpx;
   border-bottom: 1rpx solid #f0f0f0;
+  -webkit-overflow-scrolling: touch;
 }
 
 .tags-inner {

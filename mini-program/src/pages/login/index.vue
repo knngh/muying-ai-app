@@ -20,7 +20,13 @@
       </view>
 
       <!-- 微信登录 -->
-      <view class="submit-btn wechat-btn" @tap="handleWechatLogin">
+      <view
+        class="submit-btn wechat-btn"
+        hover-class="wechat-btn--hover"
+        hover-start-time="20"
+        hover-stay-time="80"
+        @tap="handleWechatLogin"
+      >
         <text class="btn-text">微信一键登录</text>
       </view>
     </view>
@@ -39,7 +45,8 @@ const pregnancyWeek = ref('')
 const weekOptions = Array.from({ length: 40 }, (_, i) => `第 ${i + 1} 周`)
 
 const onWeekChange = (e: any) => {
-  pregnancyWeek.value = String(e.detail.value + 1)
+  const selectedOption = weekOptions[Number(e.detail.value)] || ''
+  pregnancyWeek.value = selectedOption.replace(/\D/g, '')
 }
 
 // 微信登录逻辑
@@ -189,7 +196,7 @@ async function handleWechatLogin() {
   transition: opacity 0.2s;
 }
 
-.wechat-btn:active {
+.wechat-btn--hover {
   opacity: 0.8;
 }
 

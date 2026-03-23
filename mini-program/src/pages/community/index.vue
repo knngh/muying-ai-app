@@ -598,6 +598,7 @@ onShow(() => {
   padding: 40rpx;
   max-height: 80vh;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .modal-title {

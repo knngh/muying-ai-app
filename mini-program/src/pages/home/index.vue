@@ -13,7 +13,13 @@
     <view class="cards-container">
       
       <!-- 孕育日历卡片 (主打功能) -->
-      <view class="feature-card calendar-card" @tap="navigateTo('/pages/calendar/index')">
+      <view
+        class="feature-card calendar-card"
+        hover-class="feature-card--hover"
+        hover-start-time="20"
+        hover-stay-time="80"
+        @tap="navigateTo('/pages/calendar/index')"
+      >
         <view class="card-bg-circle"></view>
         <view class="card-content">
           <view class="card-info">
@@ -34,7 +40,13 @@
       </view>
 
       <!-- AI 问答卡片 (即将上线) -->
-      <view class="feature-card ai-card disabled" @tap="handleAITap">
+      <view
+        class="feature-card ai-card disabled"
+        hover-class="feature-card--hover"
+        hover-start-time="20"
+        hover-stay-time="80"
+        @tap="handleAITap"
+      >
         <view class="card-bg-shape"></view>
         <view class="card-content">
           <view class="card-info">
@@ -85,7 +97,9 @@ const checkLogin = (): boolean => {
 }
 
 const navigateTo = (url: string) => {
-  if (!checkLogin()) return
+  // 时间轴页面允许未登录访问（微信公众平台审核要求）
+  const PUBLIC_PAGES = new Set(['/pages/calendar/index'])
+  if (!PUBLIC_PAGES.has(url) && !checkLogin()) return
   if (TAB_PAGES.has(url)) {
     uni.switchTab({ url })
   } else {
@@ -169,7 +183,7 @@ const handleAITap = () => {
   transition: transform 0.2s, box-shadow 0.2s;
 }
 
-.feature-card:active {
+.feature-card--hover {
   transform: scale(0.97);
   box-shadow: 0 8rpx 20rpx rgba(0, 0, 0, 0.04);
 }

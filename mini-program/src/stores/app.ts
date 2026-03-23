@@ -12,6 +12,7 @@ export const useAppStore = defineStore('app', {
     setUser(user: User | null) {
       this.user = user
       if (user) {
+        uni.setStorageSync('user', user)
         const isPregnant = user.pregnancyStatus === 2 || user.pregnancyStatus === '2' || user.pregnancyStatus === 'pregnant'
         if (isPregnant && user.dueDate) {
           syncPregnancyWeekStorage(user.dueDate)
@@ -19,6 +20,7 @@ export const useAppStore = defineStore('app', {
           uni.removeStorageSync('userPregnancyWeek')
         }
       } else {
+        uni.removeStorageSync('user')
         uni.removeStorageSync('userPregnancyWeek')
       }
     },

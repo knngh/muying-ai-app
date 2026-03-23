@@ -26,7 +26,9 @@
 
       <!-- 底部装饰按钮 -->
       <view class="action-container" @tap="goBack">
-        <button class="back-btn">先去看看孕育时间轴</button>
+        <button class="back-btn" hover-class="back-btn--hover" hover-start-time="20" hover-stay-time="80">
+          先去看看孕育时间轴
+        </button>
       </view>
     </view>
   </view>
@@ -184,7 +186,7 @@ const goBack = () => {
   transition: all 0.2s;
 }
 
-.back-btn:active {
+.back-btn--hover {
   background-color: #f0f4ff;
   transform: scale(0.98);
 }
