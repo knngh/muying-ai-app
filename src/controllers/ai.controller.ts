@@ -10,7 +10,7 @@ import {
   healthCheck,
   SUPPORTED_MODELS,
 } from '../services/ai-gateway.service';
-import { getRelatedContext, getKnowledgeStats } from '../services/knowledge.service';
+import { getRelatedContext, getKnowledgeStats, getHotQuestions, getCategories, searchQA } from '../services/knowledge.service';
 
 // 用户提问（单轮）- 非流式
 export const askQuestion = async (req: Request, res: Response, next: NextFunction) => {
@@ -282,6 +282,57 @@ export const submitFeedback = async (req: Request, res: Response, next: NextFunc
     console.log(`[AI QA Feedback] User: ${userId}, QA: ${qaId}, Feedback: ${feedback}, Comment: ${comment || 'N/A'}`);
 
     res.json(successResponse({ received: true }, '感谢您的反馈'));
+  } catch (error) {
+    next(error);
+  }
+};
+
+// 热门推荐问题
+export const getRecommendedQuestions = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit as string) || 8, 20);
+    const questions = getHotQuestions(limit);
+    res.json(successResponse({ questions }));
+  } catch (error) {
+    next(error);
+  }
+};
+
+// 知识库分类列表
+export const getKnowledgeCategories = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const categories = getCategories();
+    res.json(successResponse({ categories }));
+  } catch (error) {
+    next(error);
+  }
+};
+
+// 知识库搜索（增强版 - 基于关键词）
+export const searchKnowledgeBase = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { q, category, limit = 10 } = req.query;
+
+    if (!q) {
+      throw new AppError('请输入搜索关键词', ErrorCodes.PARAM_ERROR, 400);
+    }
+
+    const results = searchQA(q as string, {
+      category: category as string | undefined,
+      limit: parseInt(limit as string) || 10,
+    });
+
+    res.json(successResponse({
+      results: results.map(r => ({
+        id: r.id,
+        question: r.question,
+        answer: r.answer.substring(0, 200) + (r.answer.length > 200 ? '...' : ''),
+        category: r.category,
+        source: r.source,
+      })),
+      total: results.length,
+      query: q,
+    }));
   } catch (error) {
     next(error);
   }

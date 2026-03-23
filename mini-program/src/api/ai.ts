@@ -5,16 +5,62 @@ export type { AIMessage, AskResponse, ChatResponse }
 export type { SourceReference } from '../../../shared/types'
 
 export const aiApi = {
+  // 单轮问答
   ask: (data: { question: string; context?: string; model?: string }) =>
     api.post<AskResponse>('/ai/ask', data),
+
+  // 多轮对话
   chat: (data: { messages: Array<{ role: string; content: string }>; model?: string }) =>
     api.post<ChatResponse>('/ai/chat', data),
+
+  // 获取历史对话
   getHistory: (conversationId: string) =>
     api.get(`/ai/conversations/${conversationId}`),
+
+  // 获取对话列表
   getConversations: () =>
     api.get('/ai/conversations'),
+
+  // 删除对话
   deleteConversation: (conversationId: string) =>
     api.delete(`/ai/conversations/${conversationId}`),
+
+  // 热门推荐问题
+  getRecommendedQuestions: (limit = 8) =>
+    api.get<{ questions: Array<{ id: string; question: string; category: string }> }>(
+      '/ai/knowledge/recommended',
+      { limit },
+    ),
+
+  // 知识库分类
+  getCategories: () =>
+    api.get<{ categories: Array<{ key: string; label: string; count: number }> }>(
+      '/ai/knowledge/categories',
+    ),
+
+  // 知识库搜索
+  searchKnowledge: (q: string, options?: { category?: string; limit?: number }) =>
+    api.get<{
+      results: Array<{
+        id: string
+        question: string
+        answer: string
+        category: string
+        source: string
+      }>
+      total: number
+      query: string
+    }>('/ai/knowledge/search', { q, ...options }),
+
+  // 知识库统计
+  getStats: () =>
+    api.get<{ total: number; categories: Record<string, number>; isLoaded: boolean }>(
+      '/ai/knowledge/stats',
+    ),
+
+  // 用户反馈
+  submitFeedback: (data: { qaId: string; feedback: 'helpful' | 'unhelpful'; comment?: string }) =>
+    api.post('/ai/feedback', data),
 }
 
 // 紧急关键词检测

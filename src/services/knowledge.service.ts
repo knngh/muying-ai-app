@@ -113,6 +113,89 @@ export function getRelatedContext(question: string, topK: number = 3): string {
   }).join('\n\n');
 }
 
+// 获取热门/推荐问题（按浏览量排序，每个分类取一些）
+export function getHotQuestions(limit: number = 8): Array<{
+  id: string;
+  question: string;
+  category: string;
+}> {
+  if (!isLoaded) {
+    loadKnowledgeBase();
+  }
+
+  // 安全上限
+  const safeLimit = Math.min(Math.max(1, limit), 20);
+
+  // 按分类分组，每个分类预排序（使用 slice 避免修改原数组）
+  const categoryMap = new Map<string, QAPair[]>();
+  qaData.forEach(qa => {
+    if (!categoryMap.has(qa.category)) {
+      categoryMap.set(qa.category, []);
+    }
+    categoryMap.get(qa.category)!.push(qa);
+  });
+
+  // 每个分类取浏览量最高的，预排序一次
+  const sortedByCategory = new Map<string, QAPair[]>();
+  for (const [cat, items] of categoryMap) {
+    sortedByCategory.set(cat, [...items].sort((a, b) => b.view_count - a.view_count));
+  }
+
+  const results: QAPair[] = [];
+  const categories = Array.from(sortedByCategory.keys());
+  let round = 0;
+  const maxRounds = Math.ceil(safeLimit / Math.max(categories.length, 1));
+
+  // 轮询每个分类，确保多样性
+  while (results.length < safeLimit && round < maxRounds) {
+    for (const cat of categories) {
+      if (results.length >= safeLimit) break;
+      const sorted = sortedByCategory.get(cat)!;
+      if (round < sorted.length) {
+        results.push(sorted[round]);
+      }
+    }
+    round++;
+  }
+
+  return results.map(qa => ({
+    id: qa.id,
+    question: qa.question.length > 40 ? qa.question.substring(0, 40) + '...' : qa.question,
+    category: qa.category,
+  }));
+}
+
+// 获取分类列表
+export function getCategories(): Array<{ key: string; label: string; count: number }> {
+  if (!isLoaded) {
+    loadKnowledgeBase();
+  }
+
+  const categoryLabels: Record<string, string> = {
+    'pregnancy-early': '孕早期',
+    'pregnancy-mid': '孕中期',
+    'pregnancy-late': '孕晚期',
+    'delivery': '分娩',
+    'postpartum': '产后恢复',
+    'newborn': '新生儿',
+    'infant-care': '婴儿护理',
+    'nutrition': '营养饮食',
+    'mental-health': '心理健康',
+    'general': '综合',
+  };
+
+  const counts: Record<string, number> = {};
+  qaData.forEach(qa => {
+    counts[qa.category] = (counts[qa.category] || 0) + 1;
+  });
+
+  return Object.entries(counts).map(([key, count]) => ({
+    key,
+    label: categoryLabels[key] || key,
+    count,
+  }));
+}
+
 // 获取统计信息
 export function getKnowledgeStats(): {
   total: number;

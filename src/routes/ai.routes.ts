@@ -6,9 +6,11 @@ import {
   chatStream,
   getModels,
   checkHealth,
-  searchKnowledge,
+  searchKnowledgeBase,
   submitFeedback,
   getKnowledgeBaseStats,
+  getRecommendedQuestions,
+  getKnowledgeCategories,
 } from '../controllers/ai.controller';
 import { authMiddleware } from '../middlewares/auth.middleware';
 import { aiRateLimiter } from '../middlewares/rateLimiter.middleware';
@@ -24,6 +26,15 @@ router.get('/models', getModels);
 // 知识库统计（无需认证）
 router.get('/knowledge/stats', getKnowledgeBaseStats);
 
+// 热门推荐问题（无需认证）
+router.get('/knowledge/recommended', getRecommendedQuestions);
+
+// 知识库分类（无需认证）
+router.get('/knowledge/categories', getKnowledgeCategories);
+
+// 知识库搜索（无需认证）
+router.get('/knowledge/search', searchKnowledgeBase);
+
 // 以下路由需要认证
 router.use(authMiddleware);
 
@@ -38,9 +49,6 @@ router.post('/chat', aiRateLimiter, chat);
 
 // 多轮对话（流式响应）
 router.post('/chat/stream', aiRateLimiter, chatStream);
-
-// 知识库检索
-router.get('/knowledge/search', aiRateLimiter, searchKnowledge);
 
 // 用户反馈
 router.post('/feedback', submitFeedback);

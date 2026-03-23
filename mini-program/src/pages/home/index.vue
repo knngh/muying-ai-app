@@ -33,18 +33,16 @@
         </view>
       </view>
 
-      <!-- AI 问答卡片 (即将上线) -->
-      <view class="feature-card ai-card disabled" @tap="handleAITap">
+      <!-- AI 问答卡片 -->
+      <view class="feature-card ai-card" @tap="handleAITap">
         <view class="card-bg-shape"></view>
         <view class="card-content">
           <view class="card-info">
-            <view class="title-row">
-              <text class="card-title">AI 答疑</text>
-              <view class="badge-coming-soon">即将上线</view>
-            </view>
-            <text class="card-desc">基于顶级专家知识库\n随时解答您的孕产疑惑</text>
-            <view class="card-btn disabled-btn">
-              <text class="btn-text">敬请期待</text>
+            <text class="card-title">AI 答疑</text>
+            <text class="card-desc">基于专业母婴知识库\n随时解答您的孕产疑惑</text>
+            <view class="card-btn">
+              <text class="btn-text">立即提问</text>
+              <text class="btn-icon">→</text>
             </view>
           </view>
           <view class="card-illustration">
@@ -294,42 +292,6 @@ const handleAITap = () => {
   transform: rotate(45deg);
   border-radius: 40rpx;
   z-index: 1;
-}
-
-.title-row {
-  display: flex;
-  align-items: center;
-  margin-bottom: 16rpx;
-}
-
-.ai-card .card-title {
-  margin-bottom: 0;
-  margin-right: 16rpx;
-}
-
-.badge-coming-soon {
-  background: linear-gradient(90deg, #ffb347, #ff7b54);
-  color: white;
-  font-size: 20rpx;
-  padding: 4rpx 16rpx;
-  border-radius: 20rpx;
-  font-weight: bold;
-  box-shadow: 0 4rpx 10rpx rgba(255, 123, 84, 0.4);
-  animation: pulse-badge 2s infinite;
-}
-
-@keyframes pulse-badge {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.05); }
-  100% { transform: scale(1); }
-}
-
-.disabled-btn {
-  background: rgba(255, 255, 255, 0.15);
-}
-
-.disabled-btn .btn-text {
-  color: rgba(255, 255, 255, 0.9);
 }
 
 /* 底部标语 */

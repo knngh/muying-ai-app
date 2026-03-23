@@ -4,9 +4,14 @@ import { aiApi, detectEmergency, getEmergencyWarning } from '@/api/ai'
 import { wsManager } from '@/utils/websocket'
 import type { AIMessage } from '@/api/ai'
 
-// 使用 utils 中的 v4
 function generateId() {
   return uuidv4()
+}
+
+export interface RecommendedQuestion {
+  id: string
+  question: string
+  category: string
 }
 
 export const useChatStore = defineStore('chat', {
@@ -16,9 +21,44 @@ export const useChatStore = defineStore('chat', {
     loading: false,
     error: null as string | null,
     streamingContent: '',
+    // 推荐问题
+    recommendedQuestions: [] as RecommendedQuestion[],
+    recommendedLoading: false,
   }),
 
+  getters: {
+    hasMessages: (state) => state.messages.length > 0,
+    lastAssistantMessage: (state) => {
+      for (let i = state.messages.length - 1; i >= 0; i--) {
+        if (state.messages[i].role === 'assistant') return state.messages[i]
+      }
+      return null
+    },
+  },
+
   actions: {
+    // 获取推荐问题
+    async fetchRecommendedQuestions() {
+      this.recommendedLoading = true
+      try {
+        const res = await aiApi.getRecommendedQuestions(6) as any
+        this.recommendedQuestions = res.questions || []
+      } catch (error) {
+        console.error('获取推荐问题失败:', error)
+        // 使用本地默认推荐
+        this.recommendedQuestions = [
+          { id: '1', question: '怀孕初期需要注意什么？', category: 'pregnancy-early' },
+          { id: '2', question: '孕期可以运动吗？', category: 'pregnancy-mid' },
+          { id: '3', question: '宝宝什么时候开始添加辅食？', category: 'infant-care' },
+          { id: '4', question: '产后多久可以恢复运动？', category: 'postpartum' },
+          { id: '5', question: '新生儿黄疸怎么办？', category: 'newborn' },
+          { id: '6', question: '孕期饮食有哪些禁忌？', category: 'nutrition' },
+        ]
+      } finally {
+        this.recommendedLoading = false
+      }
+    },
+
     async sendMessage(content: string) {
       const userMessage: AIMessage = {
         id: generateId(),
@@ -53,12 +93,12 @@ export const useChatStore = defineStore('chat', {
 
         const history = this.messages.map(m => ({ role: m.role, content: m.content }))
 
-        // Race condition guard: prevent both WS and HTTP fallback from producing messages
+        // Race condition guard
         let wsResolved = false
         let httpFallbackFired = false
 
         wsManager.send('chat_stream', requestId, { messages: history }, (msg) => {
-          if (httpFallbackFired) return // HTTP fallback already handled this request
+          if (httpFallbackFired) return
           if (msg.type === 'chunk' && msg.data.content) {
             this.streamingContent += msg.data.content
           } else if (msg.type === 'done') {
@@ -91,9 +131,9 @@ export const useChatStore = defineStore('chat', {
           }
         })
 
-        // 如果 WebSocket 发送失败，降级为 HTTP
+        // HTTP 降级
         setTimeout(() => {
-          if (wsResolved) return // WS already completed, no fallback needed
+          if (wsResolved) return
           if (this.loading && !this.streamingContent) {
             httpFallbackFired = true
             this.fallbackToHttp(content)
