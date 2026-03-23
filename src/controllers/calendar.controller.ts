@@ -27,6 +27,27 @@ const formatDate = (date: Date): string => {
   return date.toISOString().split('T')[0];
 };
 
+const parseTodoWeek = (value: unknown): number => {
+  const week = Number.parseInt(String(value ?? ''), 10);
+  if (!Number.isInteger(week) || week < 1 || week > 40) {
+    throw new AppError('孕周参数无效', ErrorCodes.PARAM_ERROR, 400);
+  }
+  return week;
+};
+
+const parseTodoKey = (value: unknown): string => {
+  if (typeof value !== 'string') {
+    throw new AppError('待办标识不能为空', ErrorCodes.PARAM_ERROR, 400);
+  }
+
+  const todoKey = value.trim();
+  if (!todoKey || todoKey.length > 100) {
+    throw new AppError('待办标识无效', ErrorCodes.PARAM_ERROR, 400);
+  }
+
+  return todoKey;
+};
+
 // 辅助函数：获取周的唯一标识（YYYY-WW）
 const getWeekId = (date: Date): string => {
   const year = date.getFullYear();
@@ -139,6 +160,100 @@ export const getEvents = async (req: Request, res: Response, next: NextFunction)
     });
 
     res.json(successResponse({ list: events }));
+  } catch (error) {
+    next(error);
+  }
+};
+
+// 获取孕周待办进度
+export const getTodoProgress = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.userId!;
+    const { week } = req.query;
+
+    const where: { userId: bigint; week?: number } = {
+      userId: BigInt(userId)
+    };
+
+    if (week !== undefined) {
+      where.week = parseTodoWeek(week);
+    }
+
+    const progressList = await prisma.userPregnancyTodoProgress.findMany({
+      where,
+      orderBy: [
+        { week: 'asc' },
+        { todoKey: 'asc' }
+      ]
+    });
+
+    res.json(successResponse({
+      list: progressList.map((item) => ({
+        week: item.week,
+        todoKey: item.todoKey,
+        completed: true,
+        completedAt: item.completedAt.toISOString()
+      }))
+    }));
+  } catch (error) {
+    next(error);
+  }
+};
+
+// 保存孕周待办进度
+export const updateTodoProgress = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.userId!;
+    const week = parseTodoWeek(req.body.week);
+    const todoKey = parseTodoKey(req.body.todoKey);
+    const { completed } = req.body;
+
+    if (typeof completed !== 'boolean') {
+      throw new AppError('待办完成状态无效', ErrorCodes.PARAM_ERROR, 400);
+    }
+
+    if (completed) {
+      const progress = await prisma.userPregnancyTodoProgress.upsert({
+        where: {
+          userId_week_todoKey: {
+            userId: BigInt(userId),
+            week,
+            todoKey
+          }
+        },
+        create: {
+          userId: BigInt(userId),
+          week,
+          todoKey,
+          completedAt: new Date()
+        },
+        update: {
+          completedAt: new Date()
+        }
+      });
+
+      res.json(successResponse({
+        week: progress.week,
+        todoKey: progress.todoKey,
+        completed: true,
+        completedAt: progress.completedAt.toISOString()
+      }, '保存成功'));
+      return;
+    }
+
+    await prisma.userPregnancyTodoProgress.deleteMany({
+      where: {
+        userId: BigInt(userId),
+        week,
+        todoKey
+      }
+    });
+
+    res.json(successResponse({
+      week,
+      todoKey,
+      completed: false
+    }, '已取消完成'));
   } catch (error) {
     next(error);
   }

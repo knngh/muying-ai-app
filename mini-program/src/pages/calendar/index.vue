@@ -133,8 +133,8 @@
               'todo-item--disabled': !canUseTodoActions,
             }"
             v-for="todo in todoList"
-            :key="todo.storageKey"
-            @tap="toggleTodo(todo.storageKey)"
+            :key="todo.stateKey"
+            @tap="toggleTodo(todo)"
           >
             <view class="todo-check" :class="{ 'todo-check--done': todo.completed }">
               <text class="todo-check-icon">{{ todo.completed ? '✓' : '' }}</text>
@@ -201,8 +201,8 @@ import { ref, computed } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import mockDataArray from './mockData.json'
 import { useAppStore } from '@/stores/app'
+import { calendarApi, type PregnancyTodoProgress } from '@/api/modules'
 
-const TODO_STORAGE_KEY = 'calendarTodoState'
 const weeksList = ref(Array.from({ length: 40 }, (_, i) => ({ num: i + 1 })))
 const appStore = useAppStore()
 
@@ -241,6 +241,9 @@ const currentWeekData = computed(() => {
   return found || fallbackData
 })
 
+const buildTodoKey = (index: number) => `todo-${index}`
+const buildTodoStateKey = (week: number, todoKey: string) => `${week}:${todoKey}`
+
 const resolveLoginUserId = () => {
   const token = uni.getStorageSync('token')
   if (!token) return ''
@@ -257,31 +260,30 @@ const resolveLoginUserId = () => {
   return ''
 }
 
-const getTodoStorageKey = () => {
-  if (!loginUserId.value) return ''
-  return `${TODO_STORAGE_KEY}:${loginUserId.value}`
+const mapTodoProgressToState = (progressList: PregnancyTodoProgress[]) => {
+  const nextState: Record<string, boolean> = {}
+  progressList.forEach((item) => {
+    if (item.completed) {
+      nextState[buildTodoStateKey(item.week, item.todoKey)] = true
+    }
+  })
+  return nextState
 }
 
-const loadTodoState = () => {
-  const storageKey = getTodoStorageKey()
-  if (!storageKey) {
+const syncTodoContext = async () => {
+  loginUserId.value = resolveLoginUserId()
+  if (!loginUserId.value) {
     todoState.value = {}
     return
   }
 
-  const savedState = uni.getStorageSync(storageKey)
-  todoState.value = savedState && typeof savedState === 'object' ? savedState : {}
-}
-
-const persistTodoState = () => {
-  const storageKey = getTodoStorageKey()
-  if (!storageKey) return
-  uni.setStorageSync(storageKey, todoState.value)
-}
-
-const syncTodoContext = () => {
-  loginUserId.value = resolveLoginUserId()
-  loadTodoState()
+  try {
+    const progressList = await calendarApi.getTodoProgress()
+    todoState.value = mapTodoProgressToState(progressList)
+  } catch (err) {
+    console.error('[Calendar] 获取待办进度失败:', err)
+    todoState.value = {}
+  }
 }
 
 const parsedContent = computed(() => currentWeekData.value.content)
@@ -289,11 +291,13 @@ const currentDiary = computed(() => userDiaries.value[currentSelectedWeek.value]
 const canUseTodoActions = computed(() => !!loginUserId.value)
 const todoList = computed(() =>
   (parsedContent.value.todo || []).map((todo: any, index: number) => {
-    const storageKey = `${currentSelectedWeek.value}-${index}`
+    const todoKey = buildTodoKey(index)
+    const stateKey = buildTodoStateKey(currentSelectedWeek.value, todoKey)
     return {
       ...todo,
-      storageKey,
-      completed: !!todoState.value[storageKey],
+      todoKey,
+      stateKey,
+      completed: !!todoState.value[stateKey],
     }
   }),
 )
@@ -351,19 +355,34 @@ const saveDiary = () => {
   uni.showToast({ title: '记录已保存', icon: 'success' })
 }
 
-const toggleTodo = (storageKey: string) => {
+const toggleTodo = async (todo: { todoKey: string; stateKey: string; completed: boolean }) => {
   if (!checkLogin('请先登录后使用待办', false) || !canUseTodoActions.value) return
 
-  todoState.value = {
-    ...todoState.value,
-    [storageKey]: !todoState.value[storageKey],
+  const nextCompleted = !todo.completed
+
+  try {
+    await calendarApi.updateTodoProgress({
+      week: currentSelectedWeek.value,
+      todoKey: todo.todoKey,
+      completed: nextCompleted,
+    })
+
+    const nextState = { ...todoState.value }
+    if (nextCompleted) {
+      nextState[todo.stateKey] = true
+    } else {
+      delete nextState[todo.stateKey]
+    }
+    todoState.value = nextState
+  } catch (err: any) {
+    console.error('[Calendar] 保存待办进度失败:', err)
+    uni.showToast({ title: err?.message || '保存失败，请稍后重试', icon: 'none' })
   }
-  persistTodoState()
 }
 
 onShow(() => {
   currentSelectedWeek.value = resolveInitialWeek()
-  syncTodoContext()
+  void syncTodoContext()
 })
 </script>
 

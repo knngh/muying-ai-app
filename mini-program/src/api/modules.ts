@@ -1,9 +1,9 @@
 import api from './request'
 import type {
-  Category, Tag, Article, CalendarEvent, User, PaginatedResponse,
+  Category, Tag, Article, CalendarEvent, User, PaginatedResponse, PregnancyTodoProgress,
 } from '../../../shared/types'
 
-export type { Category, Tag, Article, CalendarEvent, User, PaginatedResponse }
+export type { Category, Tag, Article, CalendarEvent, User, PaginatedResponse, PregnancyTodoProgress }
 
 // ==================== 分类 API ====================
 export const categoryApi = {
@@ -44,6 +44,11 @@ export const calendarApi = {
   getWeek: (params?: { date?: string }) => api.get('/calendar/week', params as Record<string, unknown>),
   getDay: (date: string) => api.get(`/calendar/day/${date}`),
   getEventTypes: () => api.get('/calendar/event-types'),
+  getTodoProgress: (params?: { week?: number }) =>
+    api.get<{ list: PregnancyTodoProgress[] }>('/calendar/todo-progress', params as Record<string, unknown>)
+      .then(res => (res as { list: PregnancyTodoProgress[] }).list),
+  updateTodoProgress: (data: { week: number; todoKey: string; completed: boolean }) =>
+    api.put<PregnancyTodoProgress>('/calendar/todo-progress', data),
   createEvent: (data: Partial<CalendarEvent>) => api.post<CalendarEvent>('/calendar/events', data),
   updateEvent: (id: number, data: Partial<CalendarEvent>) => api.put<CalendarEvent>(`/calendar/events/${id}`, data),
   deleteEvent: (id: number) => api.delete(`/calendar/events/${id}`),

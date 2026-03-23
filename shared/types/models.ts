@@ -83,6 +83,13 @@ export interface User {
   createdAt: string
 }
 
+export interface PregnancyTodoProgress {
+  week: number
+  todoKey: string
+  completed: boolean
+  completedAt?: string
+}
+
 export interface PaginationMeta {
   page: number
   pageSize: number

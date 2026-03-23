@@ -3,6 +3,8 @@ import {
   getEvents,
   getWeekEvents,
   getDayEvents,
+  getTodoProgress,
+  updateTodoProgress,
   createEvent,
   updateEvent,
   dragEvent,
@@ -27,6 +29,10 @@ router.get('/week', getWeekEvents);
 
 // 单日数据
 router.get('/day/:date', getDayEvents);
+
+// 孕周待办进度
+router.get('/todo-progress', getTodoProgress);
+router.put('/todo-progress', updateTodoProgress);
 
 // 事件列表（按日期范围）
 router.get('/events', getEvents);
