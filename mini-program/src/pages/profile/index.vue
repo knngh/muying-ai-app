@@ -120,6 +120,20 @@
           <view class="form-section">
             <text class="section-title">孕育信息</text>
 
+            <view class="form-item">
+              <text class="form-label">当前孕周</text>
+              <view class="form-main">
+                <picker mode="selector" :range="weekOptions" @change="onPregnancyWeekChange">
+                  <view class="form-picker">
+                    <text :class="editForm.pregnancyWeek ? '' : 'placeholder-text'">
+                      {{ editForm.pregnancyWeek ? `第 ${editForm.pregnancyWeek} 周` : '请选择当前孕周' }}
+                    </text>
+                  </view>
+                </picker>
+                <text class="form-hint">选择孕周后会自动换算预产期</text>
+              </view>
+            </view>
+
             <view class="form-item form-item--last">
               <text class="form-label">预产期</text>
               <view class="form-main">
@@ -154,7 +168,7 @@ import { useAppStore } from '@/stores/app'
 import { authApi } from '@/api/modules'
 import { wsManager } from '@/utils/websocket'
 import dayjs from 'dayjs'
-import { calculatePregnancyWeekFromDueDate } from '@/utils'
+import { calculateDueDateFromPregnancyWeek, calculatePregnancyWeekFromDueDate } from '@/utils'
 
 const appStore = useAppStore()
 
@@ -198,13 +212,17 @@ const editForm = reactive<{
   nickname: string
   phone: string
   email: string
+  pregnancyWeek: string
   dueDate: string
 }>({
   nickname: '',
   phone: '',
   email: '',
+  pregnancyWeek: '',
   dueDate: '',
 })
+
+const weekOptions = Array.from({ length: 40 }, (_, i) => `第 ${i + 1} 周`)
 
 const currentPregnancyWeekText = computed(() => {
   if (!user.value?.dueDate || normalizePregnancyStatus(user.value.pregnancyStatus) !== 2) return '未设置'
@@ -243,11 +261,24 @@ const openEditModal = () => {
   editForm.phone = user.value.phone || ''
   editForm.email = user.value.email || ''
   editForm.dueDate = user.value.dueDate ? dayjs(user.value.dueDate).format('YYYY-MM-DD') : ''
+  editForm.pregnancyWeek = user.value.dueDate ? String(calculatePregnancyWeekFromDueDate(user.value.dueDate) || '') : ''
   showEditModal.value = true
 }
 
 const onDueDateChange = (e: any) => {
   editForm.dueDate = e.detail.value
+  editForm.pregnancyWeek = editForm.dueDate
+    ? String(calculatePregnancyWeekFromDueDate(editForm.dueDate) || '')
+    : ''
+}
+
+const onPregnancyWeekChange = (e: any) => {
+  const selectedOption = weekOptions[Number(e.detail.value)] || ''
+  const selectedWeek = selectedOption.replace(/\D/g, '')
+  editForm.pregnancyWeek = selectedWeek
+
+  const dueDate = calculateDueDateFromPregnancyWeek(selectedWeek)
+  editForm.dueDate = dueDate ? dayjs(dueDate).format('YYYY-MM-DD') : ''
 }
 
 const submitEdit = async () => {
@@ -256,6 +287,7 @@ const submitEdit = async () => {
       nickname?: string
       phone?: string
       email?: string
+      pregnancyStatus?: number
       dueDate?: string
     } = {}
 
@@ -279,7 +311,10 @@ const submitEdit = async () => {
       data.email = trimmedEmail
     }
 
-    if (editForm.dueDate) data.dueDate = editForm.dueDate
+    if (editForm.dueDate) {
+      data.dueDate = editForm.dueDate
+      data.pregnancyStatus = 2
+    }
 
     const updatedUser = await authApi.updateProfile(data)
     appStore.setUser(updatedUser)

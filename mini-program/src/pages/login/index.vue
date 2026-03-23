@@ -7,10 +7,14 @@
 
     <view class="login-form">
       <view class="form-title">
-        <text>请完善您的孕期信息</text>
+        <text>{{ loginStep === 'auth' ? '先完成登录' : '请选择当前孕周' }}</text>
       </view>
 
-      <view class="form-item">
+      <text class="form-desc">
+        {{ loginStep === 'auth' ? '首次登录后再完善孕周信息，之后登录无需重复选择。' : '仅首次登录需要选择一次，后续可在编辑资料里修改。' }}
+      </text>
+
+      <view v-if="loginStep === 'week'" class="form-item">
         <text class="form-label">当前孕周 <text class="required">*</text></text>
         <picker mode="selector" :range="weekOptions" @change="onWeekChange" class="form-picker">
           <view class="picker-value">
@@ -19,28 +23,29 @@
         </picker>
       </view>
 
-      <!-- 微信登录 -->
       <view
         class="submit-btn wechat-btn"
         hover-class="wechat-btn--hover"
         hover-start-time="20"
         hover-stay-time="80"
-        @tap="handleWechatLogin"
+        @tap="loginStep === 'auth' ? handleWechatLogin() : savePregnancyWeek()"
       >
-        <text class="btn-text">微信一键登录</text>
+        <text class="btn-text">{{ loginStep === 'auth' ? '微信一键登录' : '保存并进入' }}</text>
       </view>
     </view>
   </view>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { authApi } from '@/api/modules'
 import { useAppStore } from '@/stores/app'
 import type { User } from '@/api/modules'
-import { syncPregnancyWeekStorage } from '@/utils'
+import { calculateDueDateFromPregnancyWeek, syncPregnancyWeekStorage } from '@/utils'
+import dayjs from 'dayjs'
 
 const appStore = useAppStore()
+const loginStep = ref<'auth' | 'week'>('auth')
 const pregnancyWeek = ref('')
 const weekOptions = Array.from({ length: 40 }, (_, i) => `第 ${i + 1} 周`)
 
@@ -49,13 +54,20 @@ const onWeekChange = (e: any) => {
   pregnancyWeek.value = selectedOption.replace(/\D/g, '')
 }
 
+const navigateHome = () => {
+  uni.showToast({ title: '登录成功', icon: 'success' })
+  setTimeout(() => {
+    uni.switchTab({ url: '/pages/home/index' })
+  }, 500)
+}
+
+const shouldSelectPregnancyWeek = (targetUser?: User | null) => {
+  if (!targetUser) return true
+  return !targetUser.dueDate
+}
+
 // 微信登录逻辑
 async function handleWechatLogin() {
-  if (!pregnancyWeek.value) {
-    uni.showToast({ title: '请先选择当前孕周', icon: 'none' })
-    return
-  }
-
   uni.showLoading({ title: '登录中...' })
   uni.login({
     provider: 'weixin',
@@ -63,7 +75,6 @@ async function handleWechatLogin() {
       try {
         const res = await authApi.wechatLogin({
           code: loginRes.code,
-          pregnancyWeek: pregnancyWeek.value
         }) as unknown as { user: User; token: string }
 
         console.log('[Login] API 返回:', JSON.stringify(res))
@@ -76,19 +87,23 @@ async function handleWechatLogin() {
         }
 
         uni.setStorageSync('token', res.token)
-        syncPregnancyWeekStorage(res.user?.dueDate, pregnancyWeek.value)
         appStore.setUser(res.user)
         await appStore.fetchUser()
+        const latestUser = appStore.user || res.user
 
-        // 验证 token 是否成功写入
         const savedToken = uni.getStorageSync('token')
         console.log('[Login] token 已保存, 验证读取:', savedToken ? '成功' : '失败')
 
         uni.hideLoading()
-        uni.showToast({ title: '登录成功', icon: 'success' })
-        setTimeout(() => {
-          uni.switchTab({ url: '/pages/home/index' })
-        }, 500)
+
+        if (shouldSelectPregnancyWeek(latestUser)) {
+          loginStep.value = 'week'
+          uni.showToast({ title: '请选择当前孕周', icon: 'none' })
+          return
+        }
+
+        syncPregnancyWeekStorage(latestUser?.dueDate)
+        navigateHome()
       } catch (err: any) {
         uni.hideLoading()
         console.error('WeChat login API failed:', err)
@@ -102,6 +117,54 @@ async function handleWechatLogin() {
     }
   })
 }
+
+async function savePregnancyWeek() {
+  if (!pregnancyWeek.value) {
+    uni.showToast({ title: '请先选择当前孕周', icon: 'none' })
+    return
+  }
+
+  const dueDate = calculateDueDateFromPregnancyWeek(pregnancyWeek.value)
+  if (!dueDate) {
+    uni.showToast({ title: '孕周无效，请重新选择', icon: 'none' })
+    return
+  }
+
+  try {
+    uni.showLoading({ title: '保存中...' })
+    const updatedUser = await authApi.updateProfile({
+      pregnancyStatus: 2,
+      dueDate: dayjs(dueDate).format('YYYY-MM-DD'),
+    })
+
+    appStore.setUser(updatedUser)
+    await appStore.fetchUser()
+    syncPregnancyWeekStorage(appStore.user?.dueDate, pregnancyWeek.value)
+    uni.hideLoading()
+    navigateHome()
+  } catch (err: any) {
+    uni.hideLoading()
+    console.error('[Login] 保存孕周失败:', err)
+    uni.showToast({ title: err?.message || '保存失败', icon: 'none' })
+  }
+}
+
+onMounted(async () => {
+  const token = uni.getStorageSync('token')
+  if (!token) return
+
+  await appStore.fetchUser()
+  const latestUser = appStore.user
+  if (!latestUser) return
+
+  if (shouldSelectPregnancyWeek(latestUser)) {
+    loginStep.value = 'week'
+    return
+  }
+
+  syncPregnancyWeekStorage(latestUser.dueDate)
+  uni.switchTab({ url: '/pages/home/index' })
+})
 </script>
 
 <style scoped>
@@ -140,10 +203,19 @@ async function handleWechatLogin() {
 
 .form-title {
   text-align: center;
-  margin-bottom: 40rpx;
+  margin-bottom: 20rpx;
   font-size: 32rpx;
   font-weight: bold;
   color: #333;
+}
+
+.form-desc {
+  display: block;
+  margin-bottom: 36rpx;
+  text-align: center;
+  font-size: 24rpx;
+  line-height: 1.6;
+  color: #8c8c8c;
 }
 
 .form-item {
