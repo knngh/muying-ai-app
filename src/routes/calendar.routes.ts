@@ -7,6 +7,8 @@ import {
   updateTodoProgress,
   getPregnancyDiaries,
   savePregnancyDiary,
+  getCustomTodos,
+  createCustomTodo,
   createEvent,
   updateEvent,
   dragEvent,
@@ -39,6 +41,10 @@ router.put('/todo-progress', updateTodoProgress);
 // 孕周记录
 router.get('/diaries', getPregnancyDiaries);
 router.put('/diaries', savePregnancyDiary);
+
+// 自定义待办
+router.get('/custom-todos', getCustomTodos);
+router.post('/custom-todos', createCustomTodo);
 
 // 事件列表（按日期范围）
 router.get('/events', getEvents);

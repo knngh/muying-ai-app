@@ -116,7 +116,7 @@
       </view>
 
       <!-- 核心待办 Todo -->
-      <view class="info-card todo-card" v-if="todoList.length > 0">
+      <view class="info-card todo-card">
         <view class="card-header">
           <view class="header-left">
             <text class="card-icon">📌</text>
@@ -126,6 +126,22 @@
         </view>
         <text v-if="!canUseTodoActions" class="todo-login-hint">登录后可勾选并保存待办进度</text>
         <view class="card-body">
+          <view
+            class="todo-item todo-item--add"
+            :class="{ 'todo-item--disabled': !canUseTodoActions }"
+            @tap="openCustomTodoModal"
+          >
+            <view class="todo-check todo-check--add">
+              <text class="todo-check-add">+</text>
+            </view>
+            <view class="todo-content">
+              <view class="todo-meta">
+                <view class="todo-type type-custom">自定义</view>
+              </view>
+              <text class="todo-title">添加待办</text>
+              <text class="todo-desc">添加你本周自己的提醒事项</text>
+            </view>
+          </view>
           <view
             class="todo-item"
             :class="{
@@ -141,7 +157,9 @@
             </view>
             <view class="todo-content">
               <view class="todo-meta">
-                <view class="todo-type" :class="'type-' + todo.type">{{ todo.type === 'checkup' ? '产检' : '事项' }}</view>
+                <view class="todo-type" :class="'type-' + todo.type">
+                  {{ todo.type === 'checkup' ? '产检' : todo.type === 'custom' ? '自定义' : '事项' }}
+                </view>
                 <text v-if="todo.completed" class="todo-state">已完成</text>
               </view>
               <text class="todo-title">{{ todo.title }}</text>
@@ -193,6 +211,23 @@
       </view>
     </view>
 
+    <!-- 添加待办弹窗 -->
+    <view class="modal-mask" v-if="showCustomTodoModal" @tap="closeCustomTodoModal">
+      <view class="modal-content" @tap.stop>
+        <view class="modal-header">
+          <text class="modal-title">添加待办</text>
+          <text class="close-icon" @tap="closeCustomTodoModal">×</text>
+        </view>
+        <textarea
+          class="diary-textarea"
+          v-model="customTodoInput"
+          placeholder="请输入本周待办，例如：预约产检、购买营养品..."
+          :maxlength="200"
+        />
+        <button class="save-btn" @tap="saveCustomTodo">添加待办</button>
+      </view>
+    </view>
+
   </view>
 </template>
 
@@ -201,7 +236,7 @@ import { ref, computed } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import mockDataArray from './mockData.json'
 import { useAppStore } from '@/stores/app'
-import { calendarApi, type PregnancyTodoProgress, type PregnancyDiary } from '@/api/modules'
+import { calendarApi, type PregnancyTodoProgress, type PregnancyDiary, type PregnancyCustomTodo } from '@/api/modules'
 
 const weeksList = ref(Array.from({ length: 40 }, (_, i) => ({ num: i + 1 })))
 const appStore = useAppStore()
@@ -220,12 +255,15 @@ const activeTab = ref('guide') // 'guide' | 'diary'
 
 // 模拟日记数据库
 const userDiaries = ref<Record<number, PregnancyDiary>>({})
+const customTodos = ref<Record<number, PregnancyCustomTodo[]>>({})
 const loginUserId = ref('')
 const todoState = ref<Record<string, boolean>>({})
 
 // 日记弹窗状态
 const showDiaryModal = ref(false)
 const diaryInput = ref('')
+const showCustomTodoModal = ref(false)
+const customTodoInput = ref('')
 
 const fallbackData = {
   title: '数据未收录',
@@ -278,6 +316,17 @@ const mapDiariesToState = (diaries: PregnancyDiary[]) => {
   return nextState
 }
 
+const mapCustomTodosToState = (todoList: PregnancyCustomTodo[]) => {
+  const nextState: Record<number, PregnancyCustomTodo[]> = {}
+  todoList.forEach((item) => {
+    if (!nextState[item.week]) {
+      nextState[item.week] = []
+    }
+    nextState[item.week].push(item)
+  })
+  return nextState
+}
+
 const syncTodoContext = async () => {
   loginUserId.value = resolveLoginUserId()
   if (!loginUserId.value) {
@@ -309,10 +358,40 @@ const syncDiaryContext = async () => {
   }
 }
 
+const syncCustomTodoContext = async () => {
+  if (!loginUserId.value) {
+    customTodos.value = {}
+    return
+  }
+
+  try {
+    const todoList = await calendarApi.getCustomTodos()
+    customTodos.value = mapCustomTodosToState(todoList)
+  } catch (err) {
+    console.error('[Calendar] 获取自定义待办失败:', err)
+    customTodos.value = {}
+  }
+}
+
 const parsedContent = computed(() => currentWeekData.value.content)
 const currentDiary = computed(() => userDiaries.value[currentSelectedWeek.value])
 const canUseTodoActions = computed(() => !!loginUserId.value)
-const todoList = computed(() =>
+const customTodoList = computed(() =>
+  (customTodos.value[currentSelectedWeek.value] || []).map((todo) => {
+    const todoKey = `custom-${todo.id}`
+    const stateKey = buildTodoStateKey(currentSelectedWeek.value, todoKey)
+    return {
+      id: todo.id,
+      type: 'custom',
+      title: '我的待办',
+      desc: todo.content,
+      todoKey,
+      stateKey,
+      completed: !!todoState.value[stateKey],
+    }
+  }),
+)
+const defaultTodoList = computed(() =>
   (parsedContent.value.todo || []).map((todo: any, index: number) => {
     const todoKey = buildTodoKey(index)
     const stateKey = buildTodoStateKey(currentSelectedWeek.value, todoKey)
@@ -324,6 +403,7 @@ const todoList = computed(() =>
     }
   }),
 )
+const todoList = computed(() => [...customTodoList.value, ...defaultTodoList.value])
 const completedTodoCount = computed(() => todoList.value.filter(todo => todo.completed).length)
 
 const handleSelectWeek = (e: any) => {
@@ -363,6 +443,16 @@ const closeDiaryModal = () => {
   showDiaryModal.value = false
 }
 
+const openCustomTodoModal = () => {
+  if (!checkLogin('请先登录后添加待办', false)) return
+  customTodoInput.value = ''
+  showCustomTodoModal.value = true
+}
+
+const closeCustomTodoModal = () => {
+  showCustomTodoModal.value = false
+}
+
 const saveDiary = () => {
   if (!checkLogin()) return
 
@@ -398,6 +488,40 @@ const saveDiary = () => {
   })()
 }
 
+const saveCustomTodo = () => {
+  if (!checkLogin('请先登录后添加待办', false)) return
+
+  const trimmedContent = customTodoInput.value.trim()
+  if (!trimmedContent) {
+    uni.showToast({ title: '待办内容不能为空', icon: 'none' })
+    return
+  }
+
+  if (trimmedContent.length > 200) {
+    uni.showToast({ title: '待办内容不能超过200字', icon: 'none' })
+    return
+  }
+
+  void (async () => {
+    try {
+      const savedTodo = await calendarApi.createCustomTodo({
+        week: currentSelectedWeek.value,
+        content: trimmedContent,
+      })
+
+      customTodos.value = {
+        ...customTodos.value,
+        [currentSelectedWeek.value]: [...(customTodos.value[currentSelectedWeek.value] || []), savedTodo],
+      }
+      closeCustomTodoModal()
+      uni.showToast({ title: '待办已添加', icon: 'success' })
+    } catch (err: any) {
+      console.error('[Calendar] 添加自定义待办失败:', err)
+      uni.showToast({ title: err?.message || '添加失败，请稍后重试', icon: 'none' })
+    }
+  })()
+}
+
 const toggleTodo = async (todo: { todoKey: string; stateKey: string; completed: boolean }) => {
   if (!checkLogin('请先登录后使用待办', false) || !canUseTodoActions.value) return
 
@@ -426,7 +550,7 @@ const toggleTodo = async (todo: { todoKey: string; stateKey: string; completed: 
 onShow(() => {
   currentSelectedWeek.value = resolveInitialWeek()
   loginUserId.value = resolveLoginUserId()
-  void Promise.all([syncTodoContext(), syncDiaryContext()])
+  void Promise.all([syncTodoContext(), syncDiaryContext(), syncCustomTodoContext()])
 })
 </script>
 
@@ -594,6 +718,7 @@ onShow(() => {
   display: flex; align-items: flex-start; background-color: #f8f9fa; border-radius: 16rpx; padding: 24rpx;
   margin-bottom: 16rpx; border-left: 8rpx solid transparent; transition: all 0.2s ease;
 }
+.todo-item--add { border-left-color: #7b8cff !important; background-color: #f4f6ff; }
 .todo-item:nth-child(odd) { border-left-color: #4caf50; }
 .todo-item:nth-child(even) { border-left-color: #ff9800; }
 .todo-item--done { background-color: #eef7f1; border-left-color: #5dbb7f !important; }
@@ -604,12 +729,15 @@ onShow(() => {
   margin-right: 20rpx; margin-top: 8rpx; flex-shrink: 0;
 }
 .todo-check--done { border-color: #5dbb7f; background: #5dbb7f; }
+.todo-check--add { border-color: #7b8cff; background: #eef1ff; }
 .todo-check-icon { color: #fff; font-size: 24rpx; font-weight: bold; }
+.todo-check-add { color: #6274ff; font-size: 30rpx; font-weight: bold; line-height: 1; }
 .todo-content { flex: 1; }
 .todo-meta { display: flex; align-items: center; gap: 12rpx; margin-bottom: 8rpx; }
 .todo-type { font-size: 22rpx; padding: 4rpx 12rpx; border-radius: 8rpx; height: fit-content; white-space: nowrap; }
 .type-checkup { background-color: #e8f5e9; color: #4caf50; }
 .type-action { background-color: #fff3e0; color: #ff9800; }
+.type-custom { background-color: #eef1ff; color: #6274ff; }
 .todo-state { font-size: 22rpx; color: #5dbb7f; }
 .todo-title { display: block; font-size: 28rpx; font-weight: bold; color: #333; margin-bottom: 8rpx; }
 .todo-desc { font-size: 24rpx; color: #777; }

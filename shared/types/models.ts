@@ -98,6 +98,14 @@ export interface PregnancyDiary {
   updatedAt?: string
 }
 
+export interface PregnancyCustomTodo {
+  id: string
+  week: number
+  content: string
+  createdAt?: string
+  updatedAt?: string
+}
+
 export interface PaginationMeta {
   page: number
   pageSize: number

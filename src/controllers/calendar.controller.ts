@@ -72,6 +72,23 @@ const parseDiaryContent = (value: unknown): string => {
   return content;
 };
 
+const parseCustomTodoContent = (value: unknown): string => {
+  if (typeof value !== 'string') {
+    throw new AppError('待办内容不能为空', ErrorCodes.PARAM_ERROR, 400);
+  }
+
+  const content = value.trim();
+  if (!content) {
+    throw new AppError('待办内容不能为空', ErrorCodes.PARAM_ERROR, 400);
+  }
+
+  if (content.length > 200) {
+    throw new AppError('待办内容不能超过200字', ErrorCodes.PARAM_ERROR, 400);
+  }
+
+  return content;
+};
+
 // 辅助函数：获取周的唯一标识（YYYY-WW）
 const getWeekId = (date: Date): string => {
   const year = date.getFullYear();
@@ -347,6 +364,69 @@ export const savePregnancyDiary = async (req: Request, res: Response, next: Next
       createdAt: diary.createdAt.toISOString(),
       updatedAt: diary.updatedAt.toISOString()
     }, '保存成功'));
+  } catch (error) {
+    next(error);
+  }
+};
+
+// 获取自定义待办
+export const getCustomTodos = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.userId!;
+    const { week } = req.query;
+
+    const where: { userId: bigint; week?: number } = {
+      userId: BigInt(userId)
+    };
+
+    if (week !== undefined) {
+      where.week = parseTodoWeek(week);
+    }
+
+    const customTodos = await prisma.userPregnancyCustomTodo.findMany({
+      where,
+      orderBy: [
+        { week: 'asc' },
+        { createdAt: 'asc' }
+      ]
+    });
+
+    res.json(successResponse({
+      list: customTodos.map((item) => ({
+        id: item.id.toString(),
+        week: item.week,
+        content: item.content,
+        createdAt: item.createdAt.toISOString(),
+        updatedAt: item.updatedAt.toISOString()
+      }))
+    }));
+  } catch (error) {
+    next(error);
+  }
+};
+
+// 创建自定义待办
+export const createCustomTodo = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.userId!;
+    const week = parseTodoWeek(req.body.week);
+    const content = parseCustomTodoContent(req.body.content);
+
+    const customTodo = await prisma.userPregnancyCustomTodo.create({
+      data: {
+        userId: BigInt(userId),
+        week,
+        content
+      }
+    });
+
+    res.status(201).json(successResponse({
+      id: customTodo.id.toString(),
+      week: customTodo.week,
+      content: customTodo.content,
+      createdAt: customTodo.createdAt.toISOString(),
+      updatedAt: customTodo.updatedAt.toISOString()
+    }, '创建成功'));
   } catch (error) {
     next(error);
   }
