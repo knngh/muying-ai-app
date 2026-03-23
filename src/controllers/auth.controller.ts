@@ -224,14 +224,56 @@ export const refreshToken = async (req: Request, res: Response, next: NextFuncti
 export const updateProfile = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.userId;
-    const { nickname, avatar, pregnancyStatus, dueDate, babyBirthday, babyGender } = req.body;
+    const { nickname, phone, email, avatar, pregnancyStatus, dueDate, babyBirthday, babyGender } = req.body;
     const normalizedPregnancyStatus = normalizePregnancyStatus(pregnancyStatus);
     const normalizedBabyGender = normalizeGender(babyGender);
+    const normalizedPhone = typeof phone === 'string' ? phone.trim() : undefined;
+    const normalizedEmail = typeof email === 'string' ? email.trim() : undefined;
+    const phonePattern = /^1\d{10}$/;
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (normalizedPhone && !phonePattern.test(normalizedPhone)) {
+      throw new AppError('请输入11位手机号', ErrorCodes.PARAM_FORMAT_ERROR, 400);
+    }
+
+    if (normalizedEmail && !emailPattern.test(normalizedEmail)) {
+      throw new AppError('请输入正确的邮箱地址', ErrorCodes.PARAM_FORMAT_ERROR, 400);
+    }
+
+    if (normalizedPhone) {
+      const existingPhoneUser = await prisma.user.findFirst({
+        where: {
+          phone: normalizedPhone,
+          NOT: { id: BigInt(userId!) }
+        },
+        select: { id: true }
+      });
+
+      if (existingPhoneUser) {
+        throw new AppError('手机号已注册', ErrorCodes.PHONE_REGISTERED, 400);
+      }
+    }
+
+    if (normalizedEmail) {
+      const existingEmailUser = await prisma.user.findFirst({
+        where: {
+          email: normalizedEmail,
+          NOT: { id: BigInt(userId!) }
+        },
+        select: { id: true }
+      });
+
+      if (existingEmailUser) {
+        throw new AppError('邮箱已注册', ErrorCodes.USER_EXISTS, 400);
+      }
+    }
 
     const user = await prisma.user.update({
       where: { id: BigInt(userId!) },
       data: {
         nickname,
+        phone: normalizedPhone,
+        email: normalizedEmail,
         avatar,
         pregnancyStatus: normalizedPregnancyStatus,
         dueDate: dueDate ? new Date(dueDate) : undefined,
