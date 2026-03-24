@@ -3,6 +3,7 @@ import { Server as HttpServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import jwt from 'jsonwebtoken';
 import type { JwtPayload } from '../middlewares/auth.middleware';
+import { env } from '../config/env';
 import {
   isEmergencyQuestion,
   getEmergencyResponse,
@@ -61,13 +62,9 @@ export function setupWebSocket(server: HttpServer): WebSocketServer {
           return;
         }
 
-        if (!process.env.JWT_SECRET) {
-          throw new Error('JWT_SECRET environment variable is not set');
-        }
-
         const decoded = jwt.verify(
           token,
-          process.env.JWT_SECRET
+          env.JWT_SECRET
         ) as JwtPayload;
 
         // 将 userId 附加到请求上，后续在 connection 事件中读取

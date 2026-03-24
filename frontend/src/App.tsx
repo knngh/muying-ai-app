@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate, Outlet } from 'react-router-dom'
 import { Layout } from './components/Layout'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { Home } from './pages/Home'
 import { Knowledge } from './pages/Knowledge'
 import { KnowledgeDetail } from './pages/KnowledgeDetail'
@@ -7,12 +8,13 @@ import { Calendar } from './pages/Calendar'
 import { Profile } from './pages/Profile'
 import { Chat } from './pages/Chat'
 import { Login } from './pages/Login'
+import { storage } from './utils/storage'
 // import { Community } from './pages/Community'
 // import { PostDetail } from './pages/Community/PostDetail'
 
 // 需要登录的路由守卫
 const ProtectedRoute = () => {
-  const token = localStorage.getItem('token')
+  const token = storage.getItem('token')
   if (!token) {
     return <Navigate to="/login" replace />
   }
@@ -30,6 +32,7 @@ const LayoutRoute = () => {
 
 function App() {
   return (
+    <ErrorBoundary>
     <Routes>
       <Route path="/login" element={<Login />} />
 
@@ -53,6 +56,7 @@ function App() {
       {/* 兜底路由 */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </ErrorBoundary>
   )
 }
 

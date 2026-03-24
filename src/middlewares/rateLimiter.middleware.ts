@@ -65,6 +65,18 @@ export const writeRateLimiter = rateLimit({
   legacyHeaders: false
 });
 
+// 信息检查限流：15分钟10次（防止用户枚举攻击）
+export const checkRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: {
+    code: 4001,
+    message: '请求过于频繁，请稍后再试'
+  },
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
 // AI 接口限流：1分钟10次（AI查询消耗大）
 export const aiRateLimiter = rateLimit({
   windowMs: 60 * 1000,

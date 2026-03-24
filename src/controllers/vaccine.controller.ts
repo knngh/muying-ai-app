@@ -1,8 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
-import { successResponse, paginatedResponse } from '../middlewares/error.middleware';
-
-const prisma = new PrismaClient();
+import prisma from '../config/database';
+import { successResponse, AppError, ErrorCodes } from '../middlewares/error.middleware';
 
 // 获取疫苗列表
 export const getVaccines = async (req: Request, res: Response, next: NextFunction) => {
@@ -46,10 +44,7 @@ export const getVaccineById = async (req: Request, res: Response, next: NextFunc
     });
 
     if (!vaccine) {
-      return res.status(404).json({
-        code: 3001,
-        message: '疫苗信息不存在'
-      });
+      throw new AppError('疫苗信息不存在', ErrorCodes.ARTICLE_NOT_FOUND, 404);
     }
 
     res.json(successResponse(vaccine));

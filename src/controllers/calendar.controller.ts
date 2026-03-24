@@ -1,8 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../config/database';
 import { successResponse, AppError, ErrorCodes } from '../middlewares/error.middleware';
-
-const prisma = new PrismaClient();
 
 // 辅助函数：获取一周的开始和结束日期（周一到周日）
 const getWeekRange = (dateStr: string): { start: Date; end: Date } => {
@@ -594,9 +592,28 @@ export const updateEvent = async (req: Request, res: Response, next: NextFunctio
       throw new AppError('事件不存在', ErrorCodes.PARAM_ERROR, 404);
     }
 
+    // 只允许更新安全字段，防止覆盖 userId 等敏感字段
+    const { title, description, eventType, eventDate, eventTime, endDate, endTime,
+            isAllDay, isRecurring, recurrenceRule, reminderMinutes, reminderType,
+            status } = req.body;
+
     const event = await prisma.calendarEvent.update({
       where: { id: BigInt(id) },
-      data: req.body
+      data: {
+        ...(title !== undefined && { title }),
+        ...(description !== undefined && { description }),
+        ...(eventType !== undefined && { eventType }),
+        ...(eventDate !== undefined && { eventDate: new Date(eventDate) }),
+        ...(eventTime !== undefined && { eventTime: eventTime ? new Date(`1970-01-01T${eventTime}`) : null }),
+        ...(endDate !== undefined && { endDate: endDate ? new Date(endDate) : null }),
+        ...(endTime !== undefined && { endTime: endTime ? new Date(`1970-01-01T${endTime}`) : null }),
+        ...(isAllDay !== undefined && { isAllDay: isAllDay ? 1 : 0 }),
+        ...(isRecurring !== undefined && { isRecurring: isRecurring ? 1 : 0 }),
+        ...(recurrenceRule !== undefined && { recurrenceRule }),
+        ...(reminderMinutes !== undefined && { reminderMinutes }),
+        ...(reminderType !== undefined && { reminderType }),
+        ...(status !== undefined && { status }),
+      }
     });
 
     res.json(successResponse(event, '更新成功'));
@@ -657,7 +674,7 @@ export const batchUpdateEvents = async (req: Request, res: Response, next: NextF
     const results = [];
 
     for (const eventUpdate of events) {
-      const { id, ...updateData } = eventUpdate;
+      const { id, title, description, eventDate, eventTime, status } = eventUpdate;
 
       // 验证事件所有权
       const existingEvent = await prisma.calendarEvent.findFirst({
@@ -668,17 +685,17 @@ export const batchUpdateEvents = async (req: Request, res: Response, next: NextF
         continue; // 跳过不存在的事件
       }
 
-      // 处理日期字段
-      if (updateData.eventDate) {
-        updateData.eventDate = new Date(updateData.eventDate);
-      }
-      if (updateData.eventTime) {
-        updateData.eventTime = new Date(`1970-01-01T${updateData.eventTime}`);
-      }
+      // 只允许更新安全字段
+      const safeData: Record<string, any> = {};
+      if (title !== undefined) safeData.title = title;
+      if (description !== undefined) safeData.description = description;
+      if (eventDate !== undefined) safeData.eventDate = new Date(eventDate);
+      if (eventTime !== undefined) safeData.eventTime = new Date(`1970-01-01T${eventTime}`);
+      if (status !== undefined) safeData.status = status;
 
       const updated = await prisma.calendarEvent.update({
         where: { id: BigInt(id) },
-        data: updateData
+        data: safeData
       });
 
       results.push(updated);

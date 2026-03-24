@@ -1,18 +1,17 @@
 import { Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../config/database';
 import { successResponse, AppError, ErrorCodes } from '../middlewares/error.middleware';
 import { calculateDueDateFromPregnancyWeek, normalizeGender, normalizePregnancyStatus } from '../utils/pregnancy';
-
-const prisma = new PrismaClient();
+import { env } from '../config/env';
 
 // 生成 JWT Token
 const generateToken = (userId: string): string => {
   return jwt.sign(
     { userId },
-    process.env.JWT_SECRET || 'default-secret',
-    { expiresIn: (process.env.JWT_EXPIRES_IN || '7d') } as any
+    env.JWT_SECRET,
+    { expiresIn: env.JWT_EXPIRES_IN } as any
   );
 };
 
@@ -21,65 +20,58 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
   try {
     const { username, password, phone, email, pregnancyWeek } = req.body;
 
-    // 验证必填字段
-    if (!username || !password) {
-      throw new AppError('用户名和密码不能为空', ErrorCodes.PARAM_ERROR, 400);
-    }
-
-    // 检查用户名是否已存在
-    const existingUser = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { username },
-          ...(phone ? [{ phone }] : []),
-          ...(email ? [{ email }] : [])
-        ]
-      }
-    });
-
-    if (existingUser) {
-      if (existingUser.username === username) {
-        throw new AppError('用户名已存在', ErrorCodes.USER_EXISTS, 400);
-      }
-      if (existingUser.phone === phone) {
-        throw new AppError('手机号已注册', ErrorCodes.PHONE_REGISTERED, 400);
-      }
-      throw new AppError('邮箱已注册', ErrorCodes.USER_EXISTS, 400);
-    }
-
     // 加密密码
     const passwordHash = await bcrypt.hash(password, 10);
 
     const dueDate = calculateDueDateFromPregnancyWeek(pregnancyWeek);
     const pregnancyStatus = dueDate ? 2 : 0;
 
-    // 创建用户
-    const user = await prisma.user.create({
-      data: {
-        username,
-        passwordHash,
-        nickname: username,
-        phone,
-        email,
-        pregnancyStatus,
-        dueDate
-      },
-      select: {
-        id: true,
-        username: true,
-        nickname: true,
-        avatar: true,
-        phone: true,
-        email: true,
-        gender: true,
-        birthday: true,
-        pregnancyStatus: true,
-        dueDate: true,
-        babyBirthday: true,
-        babyGender: true,
-        createdAt: true
+    // 直接创建用户，依赖数据库唯一约束处理竞态条件
+    let user;
+    try {
+      user = await prisma.user.create({
+        data: {
+          username,
+          passwordHash,
+          nickname: username,
+          phone,
+          email,
+          pregnancyStatus,
+          dueDate
+        },
+        select: {
+          id: true,
+          username: true,
+          nickname: true,
+          avatar: true,
+          phone: true,
+          email: true,
+          gender: true,
+          birthday: true,
+          pregnancyStatus: true,
+          dueDate: true,
+          babyBirthday: true,
+          babyGender: true,
+          createdAt: true
+        }
+      });
+    } catch (err: any) {
+      if (err.code === 'P2002') {
+        // 唯一约束冲突，给出具体字段提示
+        const target = err.meta?.target;
+        if (Array.isArray(target) && target.includes('username')) {
+          throw new AppError('用户名已存在', ErrorCodes.USER_EXISTS, 400);
+        }
+        if (Array.isArray(target) && target.includes('phone')) {
+          throw new AppError('手机号已注册', ErrorCodes.PHONE_REGISTERED, 400);
+        }
+        if (Array.isArray(target) && target.includes('email')) {
+          throw new AppError('邮箱已注册', ErrorCodes.USER_EXISTS, 400);
+        }
+        throw new AppError('用户信息已存在', ErrorCodes.USER_EXISTS, 400);
       }
-    });
+      throw err;
+    }
 
     const token = generateToken(user.id.toString());
 

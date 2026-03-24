@@ -12,12 +12,14 @@ import {
 } from '../controllers/article.controller';
 import { authMiddleware } from '../middlewares/auth.middleware';
 import { queryRateLimiter, searchRateLimiter, writeRateLimiter } from '../middlewares/rateLimiter.middleware';
+import { validate } from '../middlewares/validate.middleware';
+import { getArticlesQuery, searchArticlesQuery } from '../schemas/article.schema';
 
 const router = Router();
 
 // 公开路由 - 查询（宽松限流）
-router.get('/', queryRateLimiter, getArticles);
-router.get('/search', searchRateLimiter, searchArticles);
+router.get('/', queryRateLimiter, validate({ query: getArticlesQuery }), getArticles);
+router.get('/search', searchRateLimiter, validate({ query: searchArticlesQuery }), searchArticles);
 router.get('/:slug', queryRateLimiter, getArticleBySlug);
 router.get('/:id/related', queryRateLimiter, getRelatedArticles);
 

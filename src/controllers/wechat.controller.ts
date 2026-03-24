@@ -1,17 +1,17 @@
 import { Request, Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 import axios from 'axios';
 import jwt from 'jsonwebtoken';
+import prisma from '../config/database';
 import { successResponse, AppError, ErrorCodes } from '../middlewares/error.middleware';
 import { calculateDueDateFromPregnancyWeek } from '../utils/pregnancy';
-
-const prisma = new PrismaClient();
+import { env } from '../config/env';
 
 const generateToken = (userId: string): string => {
   return jwt.sign(
     { userId },
-    process.env.JWT_SECRET || 'default-secret',
-    { expiresIn: (process.env.JWT_EXPIRES_IN || '7d') } as any
+    env.JWT_SECRET,
+    { expiresIn: env.JWT_EXPIRES_IN } as any
   );
 };
 
@@ -47,7 +47,7 @@ export const wechatLogin = async (req: Request, res: Response, next: NextFunctio
         });
       } else {
         const randomPassword = Math.random().toString(36).slice(-8);
-        const passwordHash = await require('bcryptjs').hash(randomPassword, 10);
+        const passwordHash = await bcrypt.hash(randomPassword, 10);
         const randomUsername = `wxuser_${Math.random().toString(36).slice(2, 8)}`;
 
         user = await prisma.user.create({
@@ -104,7 +104,7 @@ export const wechatLogin = async (req: Request, res: Response, next: NextFunctio
       });
     } else {
       const randomPassword = Math.random().toString(36).slice(-8);
-      const passwordHash = await require('bcryptjs').hash(randomPassword, 10);
+      const passwordHash = await bcrypt.hash(randomPassword, 10);
       const randomUsername = `wxuser_${Math.random().toString(36).slice(2, 8)}`;
 
       user = await prisma.user.create({

@@ -21,6 +21,8 @@ import {
   getEventTypes
 } from '../controllers/calendar.controller';
 import { authMiddleware } from '../middlewares/auth.middleware';
+import { validate } from '../middlewares/validate.middleware';
+import { createEventBody, getEventsQuery } from '../schemas/calendar.schema';
 
 const router = Router();
 
@@ -51,10 +53,10 @@ router.put('/custom-todos/:id', updateCustomTodo);
 router.delete('/custom-todos/:id', deleteCustomTodo);
 
 // 事件列表（按日期范围）
-router.get('/events', getEvents);
+router.get('/events', validate({ query: getEventsQuery }), getEvents);
 
 // 创建事件
-router.post('/events', createEvent);
+router.post('/events', validate({ body: createEventBody }), createEvent);
 
 // 更新事件
 router.put('/events/:id', updateEvent);

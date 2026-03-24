@@ -80,7 +80,10 @@
 ```
 muying-ai-app/
 ├── src/                          # 后端源码
-│   ├── app.ts                    # Express 入口 + 中间件 + 路由挂载
+│   ├── app.ts                    # Express 入口 + 中间件 + 路由挂载 + 优雅关机
+│   ├── config/                   # 配置
+│   │   ├── env.ts                # 环境变量集中管理 + 启动校验
+│   │   └── database.ts           # PrismaClient 全局单例
 │   ├── controllers/              # 控制器
 │   │   ├── auth.controller.ts    # 认证（注册/登录/刷新Token/资料管理）
 │   │   ├── ai.controller.ts      # AI 问答（单轮/多轮/流式）
@@ -90,46 +93,55 @@ muying-ai-app/
 │   │   ├── category.controller.ts# 分类管理
 │   │   ├── tag.controller.ts     # 标签管理
 │   │   ├── user.controller.ts    # 用户收藏/阅读历史/统计
-│   │   └── vaccine.controller.ts # 疫苗信息
-│   ├── routes/                   # 路由定义（RESTful）
+│   │   ├── vaccine.controller.ts # 疫苗信息
+│   │   └── wechat.controller.ts  # 微信登录
+│   ├── schemas/                  # Zod 输入校验 Schema
+│   │   ├── common.schema.ts      # 通用分页/ID/slug 校验
+│   │   ├── auth.schema.ts        # 注册/登录/改密码
+│   │   ├── article.schema.ts     # 文章列表/搜索
+│   │   ├── calendar.schema.ts    # 日历事件
+│   │   ├── community.schema.ts   # 社区帖子/评论
+│   │   └── ai.schema.ts          # AI 问答/反馈
+│   ├── routes/                   # 路由定义（RESTful + 校验中间件）
 │   ├── middlewares/              # 中间件
 │   │   ├── auth.middleware.ts    # JWT 验证 + 可选认证
-│   │   ├── error.middleware.ts   # 统一错误处理 + 响应格式
-│   │   └── rateLimiter.middleware.ts # 速率限制
+│   │   ├── error.middleware.ts   # 统一错误处理 + 响应格式 + 错误追踪ID
+│   │   ├── rateLimiter.middleware.ts # 分级速率限制
+│   │   └── validate.middleware.ts# Zod 统一输入校验
 │   ├── services/                 # 业务服务
-│   │   ├── ai-gateway.service.ts # AI 网关（多模型 + 流式）
+│   │   ├── ai-gateway.service.ts # AI 网关（多模型 + 流式 + buffer 限制）
 │   │   ├── knowledge.service.ts  # 知识库（5000 QA 检索）
 │   │   ├── rag.service.ts        # RAG 增强服务
-│   │   └── cache.service.ts      # 内存缓存（LRU + TTL）
-│   └── config/                   # 配置
+│   │   ├── cache.service.ts      # 内存缓存（LRU + TTL）
+│   │   └── websocket.service.ts  # WebSocket（小程序/App 流式对话）
+│   ├── types/                    # 类型定义
+│   │   └── enums.ts              # 业务枚举（Gender/PregnancyStatus/...）
+│   └── utils/                    # 工具函数
+│       ├── pregnancy.ts          # 孕期计算
+│       └── ownership.ts          # 资源所有权校验
 ├── frontend/                     # 前端源码
 │   ├── src/
 │   │   ├── api/                  # API 客户端
-│   │   │   ├── index.ts          # Axios 实例 + 拦截器 + 401 刷新
+│   │   │   ├── index.ts          # Axios 实例 + 拦截器 + Token 刷新（Promise 锁）
 │   │   │   ├── modules.ts        # 文章/日历/用户/认证 API
 │   │   │   ├── community.ts      # 社区 API
 │   │   │   └── ai.ts             # AI 问答 API + 紧急检测
 │   │   ├── stores/               # Zustand 状态管理
-│   │   │   ├── appStore.ts       # 全局用户状态
-│   │   │   ├── chatStore.ts      # AI 对话状态
-│   │   │   ├── calendarStore.ts  # 日历事件状态
-│   │   │   └── knowledgeStore.ts # 知识库状态
 │   │   ├── pages/                # 页面组件
-│   │   │   ├── Home/             # 首页
-│   │   │   ├── Login/            # 登录/注册
-│   │   │   ├── Chat/             # AI 问答
-│   │   │   ├── Knowledge/        # 知识库列表
-│   │   │   ├── KnowledgeDetail/  # 知识库详情
-│   │   │   ├── Calendar/         # 孕育日历
-│   │   │   ├── Community/        # 社区（列表 + 详情）
-│   │   │   └── Profile/          # 个人中心
 │   │   ├── components/           # 公共组件
-│   │   └── App.tsx               # 路由配置 + 路由守卫
+│   │   │   ├── Layout/           # 导航布局
+│   │   │   ├── ErrorBoundary.tsx # 全局错误边界（防白屏）
+│   │   │   └── ChatMessage/      # 聊天消息
+│   │   ├── utils/
+│   │   │   └── storage.ts        # 安全 localStorage 封装
+│   │   └── App.tsx               # 路由配置 + 路由守卫 + ErrorBoundary
 │   └── vite.config.ts
 ├── prisma/
 │   └── schema.prisma             # 数据库模型（16 张表）
 ├── data/
 │   └── expanded-qa-data-5000.json # AI 知识库数据
+├── docs/
+│   └── REMEDIATION-PLAN.md       # 安全整改方案
 ├── Dockerfile                    # 后端 Docker 镜像
 └── .env.example                  # 环境变量模板
 ```
@@ -309,19 +321,25 @@ Prisma 定义了 16 张核心表：
 
 ## 安全策略
 
+- **环境变量校验**: 启动时强制校验 `JWT_SECRET`、`DATABASE_URL`，缺失则拒绝启动
 - **认证**: JWT Bearer Token，7 天过期，支持自动刷新
 - **密码**: bcrypt 加密（10 轮 salt）
-- **速率限制**: 认证 20次/15分钟、AI 10次/分钟、写操作 50次/15分钟
+- **输入验证**: 全端点 Zod Schema 校验（分页上限 100、请求体上限 1MB）
+- **速率限制**: 认证 20次/15分钟、AI 10次/分钟、用户枚举检查 10次/15分钟
 - **安全头**: Helmet（XSS、CSRF、Clickjacking 防护）
-- **输入验证**: Zod schema 验证
-- **权限控制**: 帖子/评论仅作者可编辑删除
+- **权限控制**: 资源所有权校验，事件更新字段白名单，帖子/评论仅作者可编辑删除
+- **数据库**: PrismaClient 全局单例，唯一约束防竞态注册
 - **软删除**: 帖子和评论使用 deletedAt 软删除
+- **错误处理**: 统一响应格式，生产环境错误 ID 追踪（不泄露堆栈）
+- **运维**: SIGTERM/SIGINT 优雅关机，健康检查覆盖数据库连通性，SSE buffer 512KB 上限
+- **前端**: ErrorBoundary 防白屏，Token 刷新 Promise 锁防竞态，安全 localStorage 封装
 
 ## 开发规范
 
 - TypeScript strict mode
 - RESTful API 设计
 - 统一错误码体系（1xxx 参数、2xxx 用户、3xxx 内容、4xxx 权限、5xxx 服务器）
+- Zod Schema 集中定义于 `src/schemas/`，路由层统一挂载校验
 - 响应拦截器自动解包 `{ code, data }` 格式
 - ESLint + Prettier 代码规范
 - 函数式组件 + Hooks + Zustand

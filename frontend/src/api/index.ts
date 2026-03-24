@@ -1,4 +1,5 @@
 import axios, { AxiosRequestConfig, InternalAxiosRequestConfig } from 'axios'
+import { storage } from '../utils/storage'
 
 // 创建主 axios 实例
 const api = axios.create({
@@ -15,28 +16,36 @@ const refreshClient = axios.create({
   timeout: 10000,
 })
 
-// Token 刷新队列
-let isRefreshing = false
-let failedQueue: Array<{
-  resolve: (token: string) => void
-  reject: (error: unknown) => void
-}> = []
+// Token 刷新：使用 Promise 锁避免竞态条件
+let refreshPromise: Promise<string> | null = null
 
-const processQueue = (error: unknown, token: string | null = null) => {
-  failedQueue.forEach(({ resolve, reject }) => {
-    if (token) {
-      resolve(token)
-    } else {
-      reject(error)
-    }
+async function doRefreshToken(): Promise<string> {
+  const currentToken = storage.getItem('token')
+  if (!currentToken) throw new Error('No token')
+
+  const res = await refreshClient.post('/auth/refresh', null, {
+    headers: { Authorization: `Bearer ${currentToken}` },
   })
-  failedQueue = []
+  const newToken = res.data?.data?.token
+  if (!newToken) throw new Error('Refresh failed')
+
+  storage.setItem('token', newToken)
+  return newToken
+}
+
+function refreshToken(): Promise<string> {
+  if (!refreshPromise) {
+    refreshPromise = doRefreshToken().finally(() => {
+      refreshPromise = null
+    })
+  }
+  return refreshPromise
 }
 
 // 请求拦截器
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token')
+    const token = storage.getItem('token')
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
@@ -68,46 +77,18 @@ api.interceptors.response.use(
 
     // 401 处理：尝试刷新 token
     if (error.response?.status === 401 && !originalRequest._retry) {
-      if (isRefreshing) {
-        // 正在刷新中，加入队列等待
-        return new Promise((resolve, reject) => {
-          failedQueue.push({
-            resolve: (token: string) => {
-              originalRequest.headers.Authorization = `Bearer ${token}`
-              resolve(api(originalRequest))
-            },
-            reject,
-          })
-        })
-      }
-
       originalRequest._retry = true
-      isRefreshing = true
 
-      const currentToken = localStorage.getItem('token')
-      if (currentToken) {
-        try {
-          const res = await refreshClient.post('/auth/refresh', null, {
-            headers: { Authorization: `Bearer ${currentToken}` },
-          })
-          const newToken = res.data?.data?.token
-          if (newToken) {
-            localStorage.setItem('token', newToken)
-            originalRequest.headers.Authorization = `Bearer ${newToken}`
-            processQueue(null, newToken)
-            return api(originalRequest)
-          }
-        } catch (_refreshError) {
-          processQueue(_refreshError, null)
-        } finally {
-          isRefreshing = false
-        }
+      try {
+        const newToken = await refreshToken()
+        originalRequest.headers.Authorization = `Bearer ${newToken}`
+        return api(originalRequest)
+      } catch {
+        // 刷新失败，清除 token 跳转登录
+        storage.removeItem('token')
+        window.location.href = '/login'
+        return Promise.reject(error)
       }
-
-      // 刷新失败，清除 token 跳转登录
-      localStorage.removeItem('token')
-      window.location.href = '/login'
-      return Promise.reject(error)
     }
 
     // 其他错误

@@ -1,9 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../config/database';
 import { successResponse, AppError, ErrorCodes } from '../middlewares/error.middleware';
 import { cache, CacheKeys, CacheTTL } from '../services/cache.service';
-
-const prisma = new PrismaClient();
 
 /**
  * 获取分类列表（带缓存）

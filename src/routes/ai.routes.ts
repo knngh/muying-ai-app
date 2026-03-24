@@ -12,6 +12,8 @@ import {
 } from '../controllers/ai.controller';
 import { authMiddleware } from '../middlewares/auth.middleware';
 import { aiRateLimiter } from '../middlewares/rateLimiter.middleware';
+import { validate } from '../middlewares/validate.middleware';
+import { askQuestionBody, chatBody, feedbackBody } from '../schemas/ai.schema';
 
 const router = Router();
 
@@ -28,21 +30,21 @@ router.get('/knowledge/stats', getKnowledgeBaseStats);
 router.use(authMiddleware);
 
 // 用户提问（非流式）
-router.post('/ask', aiRateLimiter, askQuestion);
+router.post('/ask', aiRateLimiter, validate({ body: askQuestionBody }), askQuestion);
 
 // 用户提问（流式响应）
-router.post('/ask/stream', aiRateLimiter, askQuestionStream);
+router.post('/ask/stream', aiRateLimiter, validate({ body: askQuestionBody }), askQuestionStream);
 
 // 多轮对话（非流式）
-router.post('/chat', aiRateLimiter, chat);
+router.post('/chat', aiRateLimiter, validate({ body: chatBody }), chat);
 
 // 多轮对话（流式响应）
-router.post('/chat/stream', aiRateLimiter, chatStream);
+router.post('/chat/stream', aiRateLimiter, validate({ body: chatBody }), chatStream);
 
 // 知识库检索
 router.get('/knowledge/search', aiRateLimiter, searchKnowledge);
 
 // 用户反馈
-router.post('/feedback', submitFeedback);
+router.post('/feedback', validate({ body: feedbackBody }), submitFeedback);
 
 export default router;

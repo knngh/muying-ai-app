@@ -1,13 +1,14 @@
 import { PrismaClient } from '@prisma/client';
+import { env } from './env';
 
 /**
- * 数据库配置优化
+ * 数据库配置优化（全局单例）
  * - 连接池管理
  * - 日志级别控制
  * - 连接超时设置
  */
 const prisma = new PrismaClient({
-  log: process.env.NODE_ENV === 'development' 
+  log: env.isDev
     ? ['query', 'info', 'warn', 'error']
     : ['error'],
   // 数据源配置在 DATABASE_URL 中设置
@@ -15,7 +16,7 @@ const prisma = new PrismaClient({
 });
 
 // 连接池状态监控（仅开发环境）
-if (process.env.NODE_ENV === 'development') {
+if (env.isDev) {
   setInterval(async () => {
     try {
       await prisma.$queryRaw`SELECT 1`;

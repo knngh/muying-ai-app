@@ -1,13 +1,14 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { AppError, ErrorCodes } from './error.middleware';
+import { env } from '../config/env';
 
 // 扩展 Request 类型
 declare global {
   namespace Express {
     interface Request {
       userId?: string;
-      user?: any;
+      user?: JwtPayload;
     }
   }
 }
@@ -39,7 +40,7 @@ export const authMiddleware = async (
 
     const decoded = jwt.verify(
       token,
-      process.env.JWT_SECRET || 'default-secret'
+      env.JWT_SECRET
     ) as JwtPayload;
 
     req.userId = decoded.userId;
@@ -70,7 +71,7 @@ export const optionalAuthMiddleware = async (
       if (token) {
         const decoded = jwt.verify(
           token,
-          process.env.JWT_SECRET || 'default-secret'
+          env.JWT_SECRET
         ) as JwtPayload;
         req.userId = decoded.userId;
       }

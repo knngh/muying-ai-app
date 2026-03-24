@@ -4,10 +4,10 @@ import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 import morgan from 'morgan';
-import dotenv from 'dotenv';
 
-// 加载环境变量
-dotenv.config();
+// 环境变量校验（必须在所有业务模块之前）
+import { validateEnv, env } from './config/env';
+validateEnv();
 
 // BigInt JSON 序列化支持（Prisma 使用 BigInt ID）
 (BigInt.prototype as unknown as { toJSON: () => string }).toJSON = function () {
@@ -29,28 +29,29 @@ import communityRoutes from './routes/community.routes';
 import { errorHandler, notFoundHandler } from './middlewares/error.middleware';
 import { cache } from './services/cache.service';
 import { setupWebSocket } from './services/websocket.service';
+import prisma from './config/database';
 
 const app: Express = express();
-const PORT = process.env.PORT || 3000;
-const HOST = process.env.HOST || 'localhost';
+const PORT = env.PORT;
+const HOST = env.HOST;
 
 // ============================================
 // 基础中间件
 // ============================================
 app.use(helmet()); // 安全头部
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+  origin: env.CORS_ORIGIN,
   credentials: true
 }));
 app.use(compression({
   level: 6, // 压缩级别 (0-9)
   threshold: 1024 // 大于1KB才压缩
 })); 
-app.use(express.json({ limit: '10mb' })); // JSON 解析
+app.use(express.json({ limit: '1mb' })); // JSON 解析（收紧默认限制）
 app.use(express.urlencoded({ extended: true })); // URL 编码解析
 
 // 日志中间件
-if (process.env.NODE_ENV === 'development') {
+if (env.isDev) {
   app.use(morgan('dev'));
 } else {
   app.use(morgan('combined'));
@@ -61,13 +62,25 @@ if (process.env.NODE_ENV === 'development') {
 // ============================================
 const API_PREFIX = '/api/v1';
 
-// 健康检查（增强版）
-app.get('/health', (req: Request, res: Response) => {
+// 健康检查（增强版 - 覆盖数据库和缓存状态）
+app.get('/health', async (req: Request, res: Response) => {
   const cacheStats = cache.getStats();
-  res.json({
-    status: 'ok',
+
+  let dbStatus = 'unknown';
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    dbStatus = 'ok';
+  } catch {
+    dbStatus = 'error';
+  }
+
+  const healthy = dbStatus === 'ok';
+
+  res.status(healthy ? 200 : 503).json({
+    status: healthy ? 'ok' : 'degraded',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
+    database: dbStatus,
     cache: {
       keys: cacheStats.keys,
       hitRate: `${cache.getHitRate().toFixed(2)}%`,
@@ -102,9 +115,34 @@ const server = createServer(app);
 setupWebSocket(server);
 
 server.listen(Number(PORT), HOST, () => {
-  console.log(`🚀 Server is running on http://${HOST}:${PORT}`);
-  console.log(`📚 API docs available at http://${HOST}:${PORT}${API_PREFIX}`);
-  console.log(`🏥 Health check at http://${HOST}:${PORT}/health`);
+  console.log(`Server is running on http://${HOST}:${PORT}`);
+  console.log(`API prefix: ${API_PREFIX}`);
+  console.log(`Health check at http://${HOST}:${PORT}/health`);
 });
+
+// ============================================
+// 优雅关机
+// ============================================
+async function gracefulShutdown(signal: string) {
+  console.log(`\n收到 ${signal}，开始优雅关机...`);
+  server.close(async () => {
+    try {
+      await prisma.$disconnect();
+      console.log('数据库连接已关闭');
+    } catch (err) {
+      console.error('关闭数据库连接失败:', err);
+    }
+    console.log('服务已停止');
+    process.exit(0);
+  });
+  // 10 秒后强制退出
+  setTimeout(() => {
+    console.error('强制退出（超时）');
+    process.exit(1);
+  }, 10000);
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 export default app;

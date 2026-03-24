@@ -211,15 +211,20 @@ export async function* streamAIGateway(
 
     const decoder = new TextDecoder();
     let buffer = '';
+    const MAX_BUFFER_SIZE = 512 * 1024; // 512KB 防止 OOM
 
     while (true) {
       const { done, value } = await reader.read();
-      
+
       if (done) {
         break;
       }
 
       buffer += decoder.decode(value, { stream: true });
+
+      if (buffer.length > MAX_BUFFER_SIZE) {
+        throw new Error('AI 响应超出大小限制');
+      }
       
       // 解析 SSE 格式
       const lines = buffer.split('\n');

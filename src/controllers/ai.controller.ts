@@ -74,13 +74,10 @@ export const askQuestionStream = async (req: Request, res: Response, next: NextF
     // 检测紧急问题
     if (isEmergencyQuestion(question)) {
       // 紧急情况不使用流式，直接返回
-      return res.json({
-        code: 0,
-        data: {
-          answer: getEmergencyResponse(),
-          isEmergency: true,
-        },
-      });
+      return res.json(successResponse({
+        answer: getEmergencyResponse(),
+        isEmergency: true,
+      }));
     }
 
     // 设置 SSE 响应头

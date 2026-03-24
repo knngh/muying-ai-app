@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import crypto from 'crypto';
 
 // 统一响应格式
 export interface ApiResponse<T = any> {
@@ -61,7 +62,7 @@ export const errorHandler = (
   res: Response,
   next: NextFunction
 ) => {
-  console.error('Error:', err);
+  console.error(`[${req.method} ${req.path}] Error:`, err);
 
   if (err instanceof AppError) {
     const response: ApiResponse = {
@@ -74,10 +75,13 @@ export const errorHandler = (
     return res.status(err.statusCode).json(response);
   }
 
-  // 未知错误
+  // 未知错误 — 生产环境返回错误 ID 供追踪，不泄露细节
+  const errorId = crypto.randomUUID().slice(0, 8);
   return res.status(500).json({
     code: ErrorCodes.SERVER_ERROR,
-    message: process.env.NODE_ENV === 'production' ? '服务器内部错误' : err.message
+    message: process.env.NODE_ENV === 'production'
+      ? `服务器内部错误 (ID: ${errorId})`
+      : err.message
   });
 };
 

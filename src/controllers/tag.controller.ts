@@ -1,8 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
-import { successResponse } from '../middlewares/error.middleware';
-
-const prisma = new PrismaClient();
+import prisma from '../config/database';
+import { successResponse, paginatedResponse, AppError, ErrorCodes } from '../middlewares/error.middleware';
 
 // 获取标签列表
 export const getTags = async (req: Request, res: Response, next: NextFunction) => {
@@ -36,10 +34,7 @@ export const getArticlesByTag = async (req: Request, res: Response, next: NextFu
     });
 
     if (!tag) {
-      return res.status(404).json({
-        code: 3003,
-        message: '标签不存在'
-      });
+      throw new AppError('标签不存在', ErrorCodes.TAG_NOT_FOUND, 404);
     }
 
     const skip = (Number(page) - 1) * Number(pageSize);
@@ -72,22 +67,18 @@ export const getArticlesByTag = async (req: Request, res: Response, next: NextFu
       })
     ]);
 
-    res.json({
-      code: 0,
-      message: 'success',
-      data: {
-        tag,
-        articles: {
-          list: articles,
-          pagination: {
-            page: Number(page),
-            pageSize: Number(pageSize),
-            total,
-            totalPages: Math.ceil(total / Number(pageSize))
-          }
+    res.json(successResponse({
+      tag,
+      articles: {
+        list: articles,
+        pagination: {
+          page: Number(page),
+          pageSize: Number(pageSize),
+          total,
+          totalPages: Math.ceil(total / Number(pageSize))
         }
       }
-    });
+    }));
   } catch (error) {
     next(error);
   }
