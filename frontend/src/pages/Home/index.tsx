@@ -4,18 +4,13 @@ import { RocketOutlined, HeartOutlined, SafetyOutlined, BookOutlined, RightOutli
 import { useNavigate } from 'react-router-dom'
 import { articleApi } from '@/api/modules'
 import type { Article } from '@/api/modules'
-import { useAppStore } from '@/stores/appStore'
-import { BirthCard } from '@/components/BirthCard'
-import dayjs from 'dayjs'
 
 const { Title, Paragraph, Text } = Typography
 
 export function Home() {
   const navigate = useNavigate()
-  const { user } = useAppStore()
   const [recommendedArticles, setRecommendedArticles] = useState<Article[]>([])
   const [loading, setLoading] = useState(false)
-  const [birthCardOpen, setBirthCardOpen] = useState(false)
 
   useEffect(() => {
     // 获取推荐文章
@@ -83,43 +78,6 @@ export function Home() {
           开始咨询
         </Button>
       </Card>
-
-      {/* 宝宝出生卡片入口 */}
-      {user?.babyBirthday && (
-        <Card
-          style={{
-            marginBottom: 24,
-            background: 'linear-gradient(135deg, #fff0f6 0%, #fff7e6 100%)',
-            border: '1px solid #ffadd2',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div>
-              <Text strong style={{ fontSize: 16 }}>
-                👶 宝宝已于 {dayjs(user.babyBirthday).format('YYYY年MM月DD日')} 出生
-              </Text>
-              <br />
-              <Text type="secondary" style={{ fontSize: 13 }}>
-                回顾这段美好的孕育旅程
-              </Text>
-            </div>
-            <Button
-              type="primary"
-              style={{ background: '#eb2f96', borderColor: '#eb2f96' }}
-              icon={<HeartOutlined />}
-              onClick={() => setBirthCardOpen(true)}
-            >
-              查看出生卡片
-            </Button>
-          </div>
-        </Card>
-      )}
-
-      <BirthCard
-        open={birthCardOpen}
-        onClose={() => setBirthCardOpen(false)}
-        user={user}
-      />
 
       {/* 功能卡片 */}
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>

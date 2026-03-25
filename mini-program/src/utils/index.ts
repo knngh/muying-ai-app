@@ -125,39 +125,3 @@ function normalizePregnancyStatus(value: unknown): number | undefined {
 
   return undefined
 }
-
-export function shouldPromptBirthCardByDueDate(
-  dueDate?: string | null,
-  baseDate = new Date(),
-  leadDays = BIRTH_CARD_PROMPT_LEAD_DAYS,
-): boolean {
-  if (!dueDate) return false
-
-  const due = normalizeDate(new Date(dueDate))
-  if (Number.isNaN(due.getTime())) return false
-
-  const today = normalizeDate(baseDate)
-  const promptStart = new Date(due.getTime() - leadDays * DAY_IN_MS)
-  return today.getTime() >= promptStart.getTime()
-}
-
-export function getBirthCardEntryMode(
-  user: {
-    pregnancyStatus?: number | string
-    dueDate?: string
-    babyBirthday?: string
-  } | null | undefined,
-  variant: 'home' | 'profile' = 'home',
-): 'hidden' | 'prompt' | 'recorded' {
-  if (!user) return 'hidden'
-  if (user.babyBirthday) return 'recorded'
-
-  const normalizedStatus = normalizePregnancyStatus(user.pregnancyStatus)
-  if (normalizedStatus === 3) return 'prompt'
-
-  if (variant === 'profile') {
-    return user.dueDate ? 'prompt' : 'hidden'
-  }
-
-  return shouldPromptBirthCardByDueDate(user.dueDate) ? 'prompt' : 'hidden'
-}
