@@ -17,7 +17,8 @@ export const categoryApi = {
 export const tagApi = {
   getAll: () => api.get<{ list: Tag[] }>('/tags').then(res => (res as { list: Tag[] }).list),
   getArticlesByTag: (slug: string, params?: { page?: number; pageSize?: number }) =>
-    api.get<PaginatedResponse<Article>>(`/tags/${slug}/articles`, params as Record<string, unknown>),
+    api.get<{ tag: Tag; articles: PaginatedResponse<Article> }>(`/tags/${slug}/articles`, params as Record<string, unknown>)
+      .then(res => (res as { tag: Tag; articles: PaginatedResponse<Article> }).articles),
 }
 
 // ==================== 文章 API ====================

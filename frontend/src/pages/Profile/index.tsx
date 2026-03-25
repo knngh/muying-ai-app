@@ -23,6 +23,40 @@ import dayjs from 'dayjs'
 
 const { Title } = Typography
 
+const PREGNANCY_STATUS_OPTIONS = [
+  { label: '备孕中', value: 1 },
+  { label: '孕期中', value: 2 },
+  { label: '产后', value: 3 },
+]
+
+const BABY_GENDER_OPTIONS = [
+  { label: '男', value: 1 },
+  { label: '女', value: 2 },
+  { label: '未知', value: 0 },
+]
+
+function normalizePregnancyStatus(value?: number | string) {
+  if (value === 1 || value === '1' || value === 'preparing') return 1
+  if (value === 2 || value === '2' || value === 'pregnant') return 2
+  if (value === 3 || value === '3' || value === 'postpartum') return 3
+  return undefined
+}
+
+function normalizeBabyGender(value?: number | string) {
+  if (value === 1 || value === '1' || value === 'male') return 1
+  if (value === 2 || value === '2' || value === 'female') return 2
+  if (value === 0 || value === '0' || value === 'unknown') return 0
+  return undefined
+}
+
+function getBabyGenderLabel(value?: number | string) {
+  const normalized = normalizeBabyGender(value)
+  if (normalized === 1) return '男'
+  if (normalized === 2) return '女'
+  if (normalized === 0) return '未知'
+  return '-'
+}
+
 export function Profile() {
   const navigate = useNavigate()
   const { user, setUser } = useAppStore()
@@ -62,20 +96,20 @@ export function Profile() {
   const handleEdit = () => {
     form.setFieldsValue({
       nickname: user?.nickname || '',
-      pregnancyStatus: user?.pregnancyStatus || undefined,
+      pregnancyStatus: normalizePregnancyStatus(user?.pregnancyStatus),
       dueDate: user?.dueDate ? dayjs(user.dueDate) : undefined,
       babyBirthday: user?.babyBirthday ? dayjs(user.babyBirthday) : undefined,
-      babyGender: user?.babyGender || undefined,
+      babyGender: normalizeBabyGender(user?.babyGender),
     })
     setEditModalOpen(true)
   }
 
   const handleEditSubmit = async (values: {
     nickname?: string
-    pregnancyStatus?: string
+    pregnancyStatus?: number
     dueDate?: dayjs.Dayjs
     babyBirthday?: dayjs.Dayjs
-    babyGender?: string
+    babyGender?: number
   }) => {
     setEditLoading(true)
     try {
@@ -163,9 +197,9 @@ export function Profile() {
               {dayjs(user.babyBirthday).format('YYYY年MM月DD日')}
             </Descriptions.Item>
           )}
-          {user?.babyGender && (
+          {user?.babyGender !== undefined && user?.babyGender !== null && (
             <Descriptions.Item label="宝宝性别">
-              {user.babyGender === 'male' ? '男' : user.babyGender === 'female' ? '女' : '未知'}
+              {getBabyGenderLabel(user.babyGender)}
             </Descriptions.Item>
           )}
           <Descriptions.Item label="注册时间">
@@ -200,11 +234,7 @@ export function Profile() {
             <Select
               placeholder="请选择"
               allowClear
-              options={[
-                { label: '备孕中', value: 'preparing' },
-                { label: '孕期中', value: 'pregnant' },
-                { label: '产后', value: 'postpartum' },
-              ]}
+              options={PREGNANCY_STATUS_OPTIONS}
             />
           </Form.Item>
           <Form.Item name="dueDate" label="预产期">
@@ -217,11 +247,7 @@ export function Profile() {
             <Select
               placeholder="请选择"
               allowClear
-              options={[
-                { label: '男', value: 'male' },
-                { label: '女', value: 'female' },
-                { label: '未知', value: 'unknown' },
-              ]}
+              options={BABY_GENDER_OPTIONS}
             />
           </Form.Item>
           <Form.Item>

@@ -121,8 +121,12 @@ export const communityApi = {
     api.get<PaginatedComments>(`/community/posts/${postId}/comments`, { params }),
 
   // 创建评论
-  createComment: (postId: number, data: { content: string; parentId?: number; replyToId?: number }) =>
-    api.post<CommunityComment>(`/community/posts/${postId}/comments`, data),
+  createComment: (postId: number, data: { content: string; parentId?: number | string; replyToId?: number | string }) =>
+    api.post<CommunityComment>(`/community/posts/${postId}/comments`, {
+      content: data.content,
+      parentId: data.parentId !== undefined ? String(data.parentId) : undefined,
+      replyToId: data.replyToId !== undefined ? String(data.replyToId) : undefined,
+    }),
 
   // 删除评论
   deleteComment: (id: number) =>

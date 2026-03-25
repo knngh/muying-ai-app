@@ -37,8 +37,12 @@ export const communityApi = {
   getComments: (postId: number, params?: { page?: number; pageSize?: number }) =>
     api.get<PaginatedResponse<CommunityComment>>(`/community/posts/${postId}/comments`, { params }),
 
-  createComment: (postId: number, data: { content: string; parentId?: number; replyToId?: number }) =>
-    api.post<CommunityComment>(`/community/posts/${postId}/comments`, data),
+  createComment: (postId: number, data: { content: string; parentId?: number | string; replyToId?: number | string }) =>
+    api.post<CommunityComment>(`/community/posts/${postId}/comments`, {
+      content: data.content,
+      parentId: data.parentId !== undefined ? String(data.parentId) : undefined,
+      replyToId: data.replyToId !== undefined ? String(data.replyToId) : undefined,
+    }),
 
   deleteComment: (id: number) => api.delete(`/community/comments/${id}`),
 }

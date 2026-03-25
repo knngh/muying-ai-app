@@ -79,10 +79,10 @@ export interface User {
   email?: string
   gender?: string
   birthday?: string
-  pregnancyStatus?: string
+  pregnancyStatus?: number | string
   dueDate?: string
   babyBirthday?: string
-  babyGender?: string
+  babyGender?: number | string
   createdAt: string
 }
 
@@ -279,10 +279,10 @@ export const authApi = {
   updateProfile: (data: {
     nickname?: string
     avatar?: string
-    pregnancyStatus?: string
+    pregnancyStatus?: number
     dueDate?: string
     babyBirthday?: string
-    babyGender?: string
+    babyGender?: number
   }) => api.put<User>('/auth/profile', data),
 
   // 修改密码
