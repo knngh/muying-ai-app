@@ -19,9 +19,6 @@
           <text class="profile-avatar-text">{{ (user.nickname || user.username || '用')[0] }}</text>
         </view>
         <text class="profile-nickname">{{ user.nickname || user.username }}</text>
-        <text v-if="user.pregnancyStatus" class="profile-status">
-          {{ pregnancyStatusLabel(user.pregnancyStatus) }}
-        </text>
       </view>
 
       <!-- Info List -->
@@ -430,15 +427,6 @@ onMounted(async () => {
   font-weight: bold;
   color: #333333;
   margin-bottom: 8rpx;
-}
-
-.profile-status {
-  font-size: 26rpx;
-  color: #1890ff;
-  background-color: #e6f7ff;
-  padding: 6rpx 20rpx;
-  border-radius: 20rpx;
-  margin-top: 8rpx;
 }
 
 /* Info Section */

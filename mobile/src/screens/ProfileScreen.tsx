@@ -15,7 +15,6 @@ import {
   Modal,
   Portal,
   TextInput,
-  Chip,
   Divider,
 } from 'react-native-paper';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -176,11 +175,6 @@ const ProfileScreen: React.FC = () => {
           <Text style={styles.nickname}>
             {user?.nickname ?? '未设置昵称'}
           </Text>
-          {!!user?.pregnancyStatus && (
-            <Chip compact style={styles.statusBadge} textStyle={styles.statusBadgeText}>
-              {getPregnancyStatusLabel(user.pregnancyStatus)}
-            </Chip>
-          )}
         </View>
 
         <Card style={styles.infoCard}>
@@ -345,14 +339,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#333',
     marginTop: 12,
-  },
-  statusBadge: {
-    marginTop: 8,
-    backgroundColor: '#e6f7ff',
-  },
-  statusBadgeText: {
-    color: THEME_PRIMARY,
-    fontSize: 12,
   },
   infoCard: {
     margin: 16,

@@ -21,7 +21,7 @@ import { authApi } from '@/api/modules'
 import type { User } from '@/api/modules'
 import dayjs from 'dayjs'
 
-const { Title, Text } = Typography
+const { Title } = Typography
 
 export function Profile() {
   const navigate = useNavigate()
@@ -143,17 +143,6 @@ export function Profile() {
           <Title level={4} style={{ marginTop: 16, marginBottom: 4 }}>
             {user?.nickname || user?.username || '用户'}
           </Title>
-          {user?.pregnancyStatus && (
-            <Text type="secondary">
-              {user.pregnancyStatus === 'pregnant'
-                ? '孕期中'
-                : user.pregnancyStatus === 'postpartum'
-                  ? '产后'
-                  : user.pregnancyStatus === 'preparing'
-                    ? '备孕中'
-                    : user.pregnancyStatus}
-            </Text>
-          )}
         </div>
 
         <Descriptions column={1} bordered>
