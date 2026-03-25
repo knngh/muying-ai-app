@@ -32,7 +32,7 @@ export interface AskResponse {
   answer: string
   sources: SourceReference[]
   isEmergency: boolean
-  conversationId: string
+  conversationId?: string
   disclaimer: string
 }
 
@@ -46,7 +46,7 @@ export interface ChatResponse {
   response: string
   sources: SourceReference[]
   isEmergency: boolean
-  conversationId: string
+  conversationId?: string
   disclaimer: string
 }
 

@@ -32,15 +32,6 @@ const SORT_OPTIONS = [
   { key: 'popular', label: '最受欢迎' },
 ];
 
-const CATEGORIES = [
-  '全部',
-  '孕期生活',
-  '育儿交流',
-  '营养健康',
-  '分娩经验',
-  '宝宝成长',
-];
-
 interface Post {
   id: number;
   title: string;
@@ -70,12 +61,10 @@ const CommunityScreen: React.FC = () => {
   const [hasMore, setHasMore] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('latest');
-  const [category, setCategory] = useState('全部');
   const [modalVisible, setModalVisible] = useState(false);
 
   const [formTitle, setFormTitle] = useState('');
   const [formContent, setFormContent] = useState('');
-  const [formCategory, setFormCategory] = useState('孕期生活');
 
   const loadingMore = useRef(false);
 
@@ -87,7 +76,6 @@ const CommunityScreen: React.FC = () => {
         else setLoading(true);
 
         const params: any = { page: pageNum, sort: sortBy };
-        if (category !== '全部') params.category = category;
         if (searchQuery.trim()) params.keyword = searchQuery.trim();
 
         const res = await communityApi.getPosts(params);
@@ -108,12 +96,12 @@ const CommunityScreen: React.FC = () => {
         loadingMore.current = false;
       }
     },
-    [sortBy, category, searchQuery, loading],
+    [sortBy, searchQuery, loading],
   );
 
   useEffect(() => {
     fetchPosts(1, true);
-  }, [sortBy, category]);
+  }, [sortBy]);
 
   const handleSearch = useCallback(() => {
     fetchPosts(1, true);
@@ -163,7 +151,6 @@ const CommunityScreen: React.FC = () => {
     }
     setFormTitle('');
     setFormContent('');
-    setFormCategory('孕期生活');
     setModalVisible(true);
   }, []);
 
@@ -180,14 +167,13 @@ const CommunityScreen: React.FC = () => {
       await communityApi.createPost({
         title: formTitle.trim(),
         content: formContent.trim(),
-        category: formCategory,
       });
       setModalVisible(false);
       fetchPosts(1, true);
     } catch (err) {
       Alert.alert('错误', '发帖失败，请稍后重试');
     }
-  }, [formTitle, formContent, formCategory, fetchPosts]);
+  }, [formTitle, formContent, fetchPosts]);
 
   const renderPostItem = useCallback(
     ({ item }: { item: Post }) => (
@@ -291,33 +277,6 @@ const CommunityScreen: React.FC = () => {
         style={styles.searchBar}
       />
 
-      <View style={styles.filterRow}>
-        <FlatList
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          data={CATEGORIES}
-          keyExtractor={(item) => item}
-          renderItem={({ item }) => (
-            <Chip
-              selected={category === item}
-              onPress={() => setCategory(item)}
-              style={[
-                styles.filterChip,
-                category === item && styles.filterChipSelected,
-              ]}
-              textStyle={
-                category === item
-                  ? styles.filterChipTextSelected
-                  : styles.filterChipText
-              }
-            >
-              {item}
-            </Chip>
-          )}
-          contentContainerStyle={styles.filterList}
-        />
-      </View>
-
       <View style={styles.sortRow}>
         {SORT_OPTIONS.map((opt) => (
           <Chip
@@ -388,29 +347,6 @@ const CommunityScreen: React.FC = () => {
             activeOutlineColor={THEME_PRIMARY}
           />
 
-          <Text style={styles.fieldLabel}>分类</Text>
-          <View style={styles.categoryPicker}>
-            {CATEGORIES.filter((c) => c !== '全部').map((c) => (
-              <TouchableOpacity
-                key={c}
-                onPress={() => setFormCategory(c)}
-                style={[
-                  styles.categoryOption,
-                  formCategory === c && styles.categoryOptionSelected,
-                ]}
-              >
-                <Text
-                  style={{
-                    color: formCategory === c ? '#fff' : '#333',
-                    fontSize: 13,
-                  }}
-                >
-                  {c}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
           <Button
             mode="contained"
             onPress={handleSubmitPost}
@@ -450,25 +386,6 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginTop: 8,
     elevation: 1,
-  },
-  filterRow: {
-    marginTop: 8,
-  },
-  filterList: {
-    paddingHorizontal: 16,
-    gap: 8,
-  },
-  filterChip: {
-    backgroundColor: '#f0f0f0',
-  },
-  filterChipSelected: {
-    backgroundColor: THEME_PRIMARY,
-  },
-  filterChipText: {
-    color: '#666',
-  },
-  filterChipTextSelected: {
-    color: '#fff',
   },
   sortRow: {
     flexDirection: 'row',
@@ -587,26 +504,6 @@ const styles = StyleSheet.create({
   input: {
     marginBottom: 12,
     backgroundColor: '#fff',
-  },
-  fieldLabel: {
-    fontSize: 14,
-    color: '#333',
-    marginBottom: 8,
-  },
-  categoryPicker: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 16,
-  },
-  categoryOption: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 14,
-    backgroundColor: '#f0f0f0',
-  },
-  categoryOptionSelected: {
-    backgroundColor: THEME_PRIMARY,
   },
   submitButton: {
     marginBottom: 8,

@@ -21,12 +21,6 @@
 
     <!-- Filters -->
     <view class="filter-row">
-      <picker :range="categories" range-key="label" :value="categoryIndex" @change="onCategoryChange">
-        <view class="filter-picker">
-          <text class="filter-text">{{ categories[categoryIndex].label }}</text>
-          <text class="filter-arrow">▼</text>
-        </view>
-      </picker>
       <picker :range="sortOptions" range-key="label" :value="sortIndex" @change="onSortChange">
         <view class="filter-picker">
           <text class="filter-text">{{ sortOptions[sortIndex].label }}</text>
@@ -78,7 +72,7 @@
         <!-- Footer -->
         <view class="post-footer">
           <view v-if="post.category" class="category-tag">
-            <text class="category-tag-text">{{ getCategoryLabel(post.category) }}</text>
+            <text class="category-tag-text">{{ post.category }}</text>
           </view>
           <view class="post-stats">
             <view class="stat-item" @tap.stop="onToggleLike(post)">
@@ -139,18 +133,6 @@
             placeholder="分享你的经验和想法..."
           />
         </view>
-
-        <view class="form-item">
-          <text class="form-label">分类</text>
-          <picker :range="categories.slice(1)" range-key="label" :value="postCategoryIndex" @change="onPostCategoryChange">
-            <view class="form-picker">
-              <text :class="postForm.category ? '' : 'placeholder-text'">
-                {{ postForm.category ? getCategoryLabel(postForm.category) : '请选择分类' }}
-              </text>
-            </view>
-          </picker>
-        </view>
-
         <view class="modal-actions">
           <view class="modal-btn modal-btn--cancel" @tap="showCreateModal = false">
             <text class="modal-btn-text">取消</text>
@@ -171,15 +153,6 @@ import { communityApi } from '@/api/community'
 import type { CommunityPost } from '@/api/community'
 import dayjs from 'dayjs'
 
-const categories = [
-  { label: '全部', value: '' },
-  { label: '孕期生活', value: 'pregnancy-life' },
-  { label: '育儿交流', value: 'parenting' },
-  { label: '营养健康', value: 'nutrition' },
-  { label: '分娩经验', value: 'delivery' },
-  { label: '宝宝成长', value: 'baby-growth' },
-]
-
 const sortOptions = [
   { label: '最新', value: 'latest' },
   { label: '最热', value: 'hot' },
@@ -187,19 +160,12 @@ const sortOptions = [
 ]
 
 const keyword = ref('')
-const categoryIndex = ref(0)
 const sortIndex = ref(0)
 const loading = ref(false)
 const posts = ref<CommunityPost[]>([])
 const pagination = reactive({ page: 1, pageSize: 10, total: 0, totalPages: 0 })
 const showCreateModal = ref(false)
-const postCategoryIndex = ref(0)
-const postForm = reactive({ title: '', content: '', category: '' })
-
-const getCategoryLabel = (value: string) => {
-  const cat = categories.find(c => c.value === value)
-  return cat ? cat.label : value
-}
+const postForm = reactive({ title: '', content: '' })
 
 const formatDate = (date: string) => dayjs(date).format('YYYY-MM-DD HH:mm')
 
@@ -210,9 +176,6 @@ const fetchPosts = async () => {
       page: pagination.page,
       pageSize: pagination.pageSize,
       sort: sortOptions[sortIndex.value].value,
-    }
-    if (categories[categoryIndex.value].value) {
-      params.category = categories[categoryIndex.value].value
     }
     if (keyword.value.trim()) {
       params.keyword = keyword.value.trim()
@@ -232,12 +195,6 @@ const fetchPosts = async () => {
 }
 
 const onSearch = () => {
-  pagination.page = 1
-  fetchPosts()
-}
-
-const onCategoryChange = (e: any) => {
-  categoryIndex.value = e.detail.value
   pagination.page = 1
   fetchPosts()
 }
@@ -287,14 +244,7 @@ const onCreatePost = () => {
   if (!checkLogin()) return
   postForm.title = ''
   postForm.content = ''
-  postForm.category = ''
-  postCategoryIndex.value = 0
   showCreateModal.value = true
-}
-
-const onPostCategoryChange = (e: any) => {
-  postCategoryIndex.value = e.detail.value
-  postForm.category = categories[Number(e.detail.value) + 1].value
 }
 
 const submitPost = async () => {
@@ -310,7 +260,6 @@ const submitPost = async () => {
     await communityApi.createPost({
       title: postForm.title.trim(),
       content: postForm.content.trim(),
-      category: postForm.category || undefined,
     })
     showCreateModal.value = false
     uni.showToast({ title: '发布成功', icon: 'success' })

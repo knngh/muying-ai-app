@@ -14,7 +14,7 @@ export const categoryApi = {
 export const tagApi = {
   getAll: () => api.get<{ list: Tag[] }>('/tags').then(res => (res as { list: Tag[] }).list),
   getArticlesByTag: (slug: string, params?: { page?: number; pageSize?: number }) =>
-    api.get<PaginatedResponse<Article>>(`/tags/${slug}/articles`, { params }),
+    api.get<{ tag: Tag; articles: PaginatedResponse<Article> }>(`/tags/${slug}/articles`, { params }).then(res => (res as { tag: Tag; articles: PaginatedResponse<Article> }).articles),
 }
 
 export const articleApi = {
@@ -25,7 +25,8 @@ export const articleApi = {
   getBySlug: (slug: string) => api.get<Article>(`/articles/${slug}`),
   search: (keyword: string, params?: { page?: number; pageSize?: number }) =>
     api.get<PaginatedResponse<Article>>('/articles/search', { params: { q: keyword, ...params } }),
-  getRelated: (id: number, limit = 5) => api.get<Article[]>(`/articles/${id}/related`, { params: { limit } }),
+  getRelated: (id: number, limit = 5) =>
+    api.get<{ list: Article[] }>(`/articles/${id}/related`, { params: { limit } }).then(res => (res as { list: Article[] }).list),
   like: (id: number) => api.post<{ liked: boolean }>(`/articles/${id}/like`),
   unlike: (id: number) => api.delete<{ liked: boolean }>(`/articles/${id}/like`),
   favorite: (id: number) => api.post<{ favorited: boolean }>(`/articles/${id}/favorite`),
@@ -34,23 +35,42 @@ export const articleApi = {
 
 export const calendarApi = {
   getEvents: (params?: { startDate?: string; endDate?: string; eventType?: string }) =>
-    api.get<{ list: CalendarEvent[] }>('/calendar/events', { params }).then(res => (res as { list: CalendarEvent[] }).list),
+    api.get<{ list: CalendarEvent[] }>('/calendar/events', {
+      params: {
+        startDate: params?.startDate,
+        endDate: params?.endDate,
+        type: params?.eventType,
+      },
+    }).then(res => (res as { list: CalendarEvent[] }).list),
   getWeek: (params?: { date?: string }) => api.get('/calendar/week', { params }),
   getDay: (date: string) => api.get(`/calendar/day/${date}`),
   getEventTypes: () => api.get('/calendar/event-types'),
-  createEvent: (data: Partial<CalendarEvent>) => api.post<CalendarEvent>('/calendar/events', data),
-  updateEvent: (id: number, data: Partial<CalendarEvent>) => api.put<CalendarEvent>(`/calendar/events/${id}`, data),
+  createEvent: (data: Partial<CalendarEvent>) => api.post<CalendarEvent>('/calendar/events', {
+    ...data,
+    eventTime: data.startTime,
+  }),
+  updateEvent: (id: number, data: Partial<CalendarEvent>) => api.put<CalendarEvent>(`/calendar/events/${id}`, {
+    ...data,
+    eventTime: data.startTime,
+  }),
   deleteEvent: (id: number) => api.delete(`/calendar/events/${id}`),
   completeEvent: (id: number) => api.post<CalendarEvent>(`/calendar/events/${id}/complete`),
-  dragEvent: (id: number, data: { newDate: string }) => api.patch<CalendarEvent>(`/calendar/events/${id}/drag`, data),
+  dragEvent: (id: number, data: { newDate: string; newStartTime?: string }) => api.patch<CalendarEvent>(`/calendar/events/${id}/drag`, {
+    newDate: data.newDate,
+    newTime: data.newStartTime,
+  }),
 }
 
 export const userApi = {
   getFavorites: (params?: { page?: number; pageSize?: number }) => api.get('/user/favorites', { params }),
-  addFavorite: (data: { targetId: number; targetType: string }) => api.post('/user/favorites', data),
+  addFavorite: (data: { targetId: number; targetType: string }) => api.post('/user/favorites', { articleId: data.targetId }),
   removeFavorite: (articleId: number) => api.delete(`/user/favorites/${articleId}`),
   getReadHistory: (params?: { page?: number; pageSize?: number }) => api.get('/user/read-history', { params }),
-  recordRead: (data: { articleId: number; duration?: number; progress?: number }) => api.post('/user/read-history', data),
+  recordRead: (data: { articleId: number; duration?: number; progress?: number }) => api.post('/user/read-history', {
+    articleId: data.articleId,
+    readDuration: data.duration,
+    progress: data.progress,
+  }),
   getStats: () => api.get('/user/stats'),
 }
 
@@ -62,8 +82,8 @@ export const authApi = {
   me: () => api.get<User>('/auth/me'),
   refresh: () => api.post<{ token: string }>('/auth/refresh'),
   updateProfile: (data: {
-    nickname?: string; avatar?: string; pregnancyStatus?: string;
-    dueDate?: string; babyBirthday?: string; babyGender?: string
+    nickname?: string; avatar?: string; pregnancyStatus?: number;
+    dueDate?: string; babyBirthday?: string; babyGender?: number
   }) => api.put<User>('/auth/profile', data),
   changePassword: (data: { oldPassword: string; newPassword: string }) => api.put('/auth/password', data),
   logout: () => api.post('/auth/logout'),

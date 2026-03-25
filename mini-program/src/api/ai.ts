@@ -5,16 +5,44 @@ export type { AIMessage, AskResponse, ChatResponse }
 export type { SourceReference } from '../../../shared/types'
 
 export const aiApi = {
-  ask: (data: { question: string; context?: string; model?: string }) =>
-    api.post<AskResponse>('/ai/ask', data),
-  chat: (data: { messages: Array<{ role: string; content: string }>; model?: string }) =>
-    api.post<ChatResponse>('/ai/chat', data),
-  getHistory: (conversationId: string) =>
-    api.get(`/ai/conversations/${conversationId}`),
-  getConversations: () =>
-    api.get('/ai/conversations'),
-  deleteConversation: (conversationId: string) =>
-    api.delete(`/ai/conversations/${conversationId}`),
+  ask: async (data: { question: string; context?: string; model?: string }) => {
+    const res = await api.post<{
+      answer: string
+      sources?: AskResponse['sources']
+      isEmergency: boolean
+      disclaimer: string
+    }>('/ai/ask', {
+      question: data.question,
+      context: data.context,
+      model: data.model,
+    })
+
+    return {
+      answer: res.answer,
+      sources: res.sources || [],
+      isEmergency: res.isEmergency,
+      disclaimer: res.disclaimer,
+    } as AskResponse
+  },
+  chat: async (data: { messages: Array<{ role: string; content: string }>; model?: string }) => {
+    const res = await api.post<{
+      message?: { content?: string }
+      isEmergency: boolean
+      disclaimer: string
+    }>('/ai/chat', data)
+
+    return {
+      response: res.message?.content || '',
+      sources: [],
+      isEmergency: res.isEmergency,
+      disclaimer: res.disclaimer,
+    } as ChatResponse
+  },
+  getHistory: async (_conversationId: string) => {
+    throw new Error('当前后端未提供对话历史接口')
+  },
+  getConversations: async () => [],
+  deleteConversation: async (_conversationId: string) => undefined,
 }
 
 // 紧急关键词检测

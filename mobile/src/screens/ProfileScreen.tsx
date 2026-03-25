@@ -28,6 +28,30 @@ const THEME_PRIMARY = '#1890ff';
 
 const PREGNANCY_STATUSES = ['备孕中', '孕期中', '产后'];
 const GENDER_OPTIONS = ['男', '女', '未知'];
+const PREGNANCY_STATUS_TO_CODE: Record<string, number> = {
+  备孕中: 1,
+  孕期中: 2,
+  产后: 3,
+}
+const BABY_GENDER_TO_CODE: Record<string, number> = {
+  男: 1,
+  女: 2,
+  未知: 0,
+}
+
+function getPregnancyStatusLabel(value?: string | number | null): string {
+  if (value === 1 || value === '1' || value === 'preparing') return '备孕中'
+  if (value === 2 || value === '2' || value === 'pregnant') return '孕期中'
+  if (value === 3 || value === '3' || value === 'postpartum') return '产后'
+  return '未设置'
+}
+
+function getBabyGenderLabel(value?: string | number | null): string {
+  if (value === 1 || value === '1' || value === 'male') return '男'
+  if (value === 2 || value === '2' || value === 'female') return '女'
+  if (value === 0 || value === '0' || value === 'unknown') return '未知'
+  return '未设置'
+}
 
 const ProfileScreen: React.FC = () => {
   const navigation = useNavigation<any>();
@@ -65,7 +89,7 @@ const ProfileScreen: React.FC = () => {
           ? dayjs(user.babyBirthday).format('YYYY-MM-DD')
           : '未设置',
       },
-      { label: '宝宝性别', value: user?.babyGender ?? '未设置' },
+      { label: '宝宝性别', value: getBabyGenderLabel(user?.babyGender) },
       {
         label: '注册时间',
         value: user?.createdAt
@@ -77,15 +101,17 @@ const ProfileScreen: React.FC = () => {
   );
 
   const openEditModal = useCallback(() => {
+    const statusLabel = getPregnancyStatusLabel(user?.pregnancyStatus);
+    const genderLabel = getBabyGenderLabel(user?.babyGender);
     setFormNickname(user?.nickname ?? '');
-    setFormPregnancyStatus(user?.pregnancyStatus ?? '备孕中');
+    setFormPregnancyStatus(statusLabel === '未设置' ? '备孕中' : statusLabel);
     setFormDueDate(
       user?.dueDate ? dayjs(user.dueDate).format('YYYY-MM-DD') : '',
     );
     setFormBabyBirthday(
       user?.babyBirthday ? dayjs(user.babyBirthday).format('YYYY-MM-DD') : '',
     );
-    setFormBabyGender(user?.babyGender ?? '未知');
+    setFormBabyGender(genderLabel === '未设置' ? '未知' : genderLabel);
     setEditModalVisible(true);
   }, [user]);
 
@@ -93,8 +119,8 @@ const ProfileScreen: React.FC = () => {
     try {
       const payload: any = {
         nickname: formNickname.trim(),
-        pregnancyStatus: formPregnancyStatus,
-        babyGender: formBabyGender,
+        pregnancyStatus: PREGNANCY_STATUS_TO_CODE[formPregnancyStatus],
+        babyGender: BABY_GENDER_TO_CODE[formBabyGender],
       };
       if (formDueDate) payload.dueDate = formDueDate;
       if (formBabyBirthday) payload.babyBirthday = formBabyBirthday;
@@ -152,7 +178,7 @@ const ProfileScreen: React.FC = () => {
           </Text>
           {!!user?.pregnancyStatus && (
             <Chip compact style={styles.statusBadge} textStyle={styles.statusBadgeText}>
-              {user.pregnancyStatus}
+              {getPregnancyStatusLabel(user.pregnancyStatus)}
             </Chip>
           )}
         </View>

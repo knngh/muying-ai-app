@@ -31,11 +31,6 @@ const { Search } = Input
 
 const categoryOptions = [
   { label: '全部', value: '' },
-  { label: '孕期生活', value: 'pregnancy-life' },
-  { label: '育儿交流', value: 'parenting' },
-  { label: '营养健康', value: 'nutrition' },
-  { label: '分娩经验', value: 'delivery' },
-  { label: '宝宝成长', value: 'baby-growth' },
 ]
 
 const sortOptions = [
@@ -68,7 +63,6 @@ export function Community() {
         page,
         pageSize: 10,
         sort,
-        category: category || undefined,
         keyword: keyword || undefined,
       })
       const data = result as unknown as { list: CommunityPost[]; pagination: { total: number } }
@@ -252,12 +246,6 @@ export function Community() {
           </Form.Item>
           <Form.Item name="content" label="内容" rules={[{ required: true, message: '请输入内容' }]}>
             <Input.TextArea rows={6} placeholder="分享您的经验..." maxLength={5000} showCount />
-          </Form.Item>
-          <Form.Item name="category" label="分类">
-            <Select
-              placeholder="选择分类"
-              options={categoryOptions.filter((o) => o.value)}
-            />
           </Form.Item>
           <Form.Item>
             <Button type="primary" htmlType="submit" block loading={createLoading}>

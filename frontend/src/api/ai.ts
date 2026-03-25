@@ -34,7 +34,7 @@ export interface AskResponse {
   answer: string
   sources: SourceReference[]
   isEmergency: boolean
-  conversationId: string
+  conversationId?: string
   disclaimer: string
 }
 
@@ -48,7 +48,7 @@ export interface ChatResponse {
   response: string
   sources: SourceReference[]
   isEmergency: boolean
-  conversationId: string
+  conversationId?: string
   disclaimer: string
 }
 
@@ -57,27 +57,56 @@ export interface ChatResponse {
 export const aiApi = {
   // 单轮问答
   ask: async (data: AskRequest): Promise<AskResponse> => {
-    return api.post('/ai/ask', data) as Promise<AskResponse>
+    const res = await api.post<{
+      answer: string
+      sources?: SourceReference[]
+      isEmergency: boolean
+      disclaimer: string
+    }>('/ai/ask', { question: data.question })
+
+    return {
+      answer: res.answer,
+      sources: res.sources || [],
+      isEmergency: res.isEmergency,
+      conversationId: data.conversationId,
+      disclaimer: res.disclaimer,
+    }
   },
 
   // 多轮对话
   chat: async (data: ChatRequest): Promise<ChatResponse> => {
-    return api.post('/ai/chat', data) as Promise<ChatResponse>
+    const messages = [
+      ...(data.history || []),
+      { role: 'user', content: data.message },
+    ]
+    const res = await api.post<{
+      message?: { content?: string }
+      isEmergency: boolean
+      disclaimer: string
+    }>('/ai/chat', { messages })
+
+    return {
+      response: res.message?.content || '',
+      sources: [],
+      isEmergency: res.isEmergency,
+      conversationId: data.conversationId,
+      disclaimer: res.disclaimer,
+    }
   },
 
   // 获取对话历史
-  getHistory: async (conversationId: string): Promise<ChatSession> => {
-    return api.get(`/ai/conversations/${conversationId}`) as Promise<ChatSession>
+  getHistory: async (_conversationId: string): Promise<ChatSession> => {
+    throw new Error('当前后端未提供对话历史接口')
   },
 
   // 获取所有对话列表
   getConversations: async (): Promise<ChatSession[]> => {
-    return api.get('/ai/conversations') as Promise<ChatSession[]>
+    return []
   },
 
   // 删除对话
-  deleteConversation: async (conversationId: string): Promise<void> => {
-    return api.delete(`/ai/conversations/${conversationId}`) as Promise<void>
+  deleteConversation: async (_conversationId: string): Promise<void> => {
+    return
   },
 }
 
