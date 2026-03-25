@@ -1,19 +1,17 @@
 <template>
   <view class="profile-page">
-    <!-- Loading -->
     <view v-if="appStore.isLoading" class="loading-box">
       <text class="loading-text">加载中...</text>
     </view>
 
-    <view v-else-if="!user" class="empty-box">
+    <view v-if="!appStore.isLoading && !user" class="empty-box">
       <text class="empty-text">请先登录</text>
       <view class="login-btn" @tap="goLogin">
         <text class="login-btn-text">去登录</text>
       </view>
     </view>
 
-    <view v-else class="profile-content">
-      <!-- Avatar Section -->
+    <view v-if="!appStore.isLoading && user" class="profile-content">
       <view class="avatar-section">
         <view class="profile-avatar profile-avatar-fallback">
           <text class="profile-avatar-text">{{ (user.nickname || user.username || '用')[0] }}</text>
@@ -21,7 +19,6 @@
         <text class="profile-nickname">{{ user.nickname || user.username }}</text>
       </view>
 
-      <!-- Info List -->
       <view class="info-section">
         <view class="info-row">
           <text class="info-label">昵称</text>
@@ -49,7 +46,6 @@
         </view>
       </view>
 
-      <!-- Actions -->
       <view class="action-section">
         <view class="edit-btn" @tap="openEditModal">
           <text class="edit-btn-text">编辑资料</text>

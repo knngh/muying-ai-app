@@ -1,6 +1,6 @@
 {
   "pages": [
-    { "path": "pages/home/index", "style": { "navigationBarTitleText": "母婴助手" } },
+    { "path": "pages/home/index", "style": { "navigationBarTitleText": "贝护妈妈" } },
     { "path": "pages/login/index", "style": { "navigationBarTitleText": "登录" } },
     { "path": "pages/calendar/index", "style": { "navigationBarTitleText": "孕育时间轴" } },
     { "path": "pages/chat/index", "style": { "navigationBarTitleText": "AI答疑" } },
@@ -8,7 +8,7 @@
   ],
   "globalStyle": {
     "navigationBarTextStyle": "black",
-    "navigationBarTitleText": "母婴AI助手",
+    "navigationBarTitleText": "贝护妈妈",
     "navigationBarBackgroundColor": "#ffffff",
     "backgroundColor": "#f7f9fa"
   },

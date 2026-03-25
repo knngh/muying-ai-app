@@ -1,7 +1,7 @@
 <template>
   <view class="login-page">
     <view class="login-header">
-      <text class="login-logo">母婴AI助手</text>
+      <text class="login-logo">贝护妈妈</text>
       <text class="login-subtitle">欢迎来到专属您的孕产空间</text>
     </view>
 
