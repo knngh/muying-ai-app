@@ -93,12 +93,6 @@ export const useKnowledgeStore = defineStore('knowledge', {
       this.fetchArticles({ reset: true })
     },
 
-    setStageAndNavigate(stage: string) {
-      this.selectedStage = stage
-      this.page = 1
-      uni.switchTab({ url: '/pages/knowledge/index' })
-    },
-
     setKeyword(keyword: string) {
       this.keyword = keyword
     },

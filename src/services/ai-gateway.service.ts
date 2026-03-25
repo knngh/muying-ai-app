@@ -125,6 +125,29 @@ interface ChatResponse {
   };
 }
 
+function buildMessagesWithKnowledgeContext(
+  messages: ChatMessage[],
+  context?: string
+): ChatMessage[] {
+  const fullMessages: ChatMessage[] = [
+    { role: 'system', content: MATERNAL_HEALTH_SYSTEM_PROMPT },
+  ];
+
+  if (context) {
+    fullMessages.push({
+      role: 'system',
+      content: `以下是相关知识库内容，请参考：
+
+${context}
+
+请优先基于以上知识回答用户问题；若知识库未覆盖，再给出审慎的通用建议。`,
+    });
+  }
+
+  fullMessages.push(...messages);
+  return fullMessages;
+}
+
 // 非流式调用 AI Gateway
 export async function callAIGateway(
   messages: ChatMessage[],
@@ -311,13 +334,10 @@ export async function multiTurnChat(
   options: {
     model?: string;
     temperature?: number;
+    context?: string;
   } = {}
 ): Promise<string> {
-  // 在消息开头添加系统提示
-  const fullMessages: ChatMessage[] = [
-    { role: 'system', content: MATERNAL_HEALTH_SYSTEM_PROMPT },
-    ...messages,
-  ];
+  const fullMessages = buildMessagesWithKnowledgeContext(messages, options.context);
 
   return callAIGateway(fullMessages, options);
 }
@@ -328,12 +348,10 @@ export async function* streamMultiTurnChat(
   options: {
     model?: string;
     temperature?: number;
+    context?: string;
   } = {}
 ): AsyncGenerator<string, void, unknown> {
-  const fullMessages: ChatMessage[] = [
-    { role: 'system', content: MATERNAL_HEALTH_SYSTEM_PROMPT },
-    ...messages,
-  ];
+  const fullMessages = buildMessagesWithKnowledgeContext(messages, options.context);
 
   yield* streamAIGateway(fullMessages, options);
 }

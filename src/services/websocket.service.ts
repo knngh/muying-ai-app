@@ -194,21 +194,16 @@ async function handleAskStream(
   const knowledgeContext = getRelatedContext(question, 3);
   const finalContext = context || knowledgeContext;
 
-  // 构建消息
-  const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [];
-
-  if (finalContext) {
-    messages.push({
-      role: 'system' as const,
-      content: `以下是相关知识库内容，请参考：\n\n${finalContext}\n\n请基于以上知识回答用户问题。`,
-    });
-  }
-
-  messages.push({ role: 'user' as const, content: question });
+  const messages: Array<{ role: 'user' | 'assistant'; content: string }> = [
+    { role: 'user' as const, content: question },
+  ];
 
   // 流式输出
   try {
-    for await (const chunk of streamMultiTurnChat(messages, { model })) {
+    for await (const chunk of streamMultiTurnChat(messages, {
+      model,
+      context: finalContext,
+    })) {
       if (ws.readyState !== WebSocket.OPEN) break;
       sendMessage(ws, {
         type: 'chunk',
@@ -270,9 +265,15 @@ async function handleChatStream(
     content: m.content,
   }));
 
+  const knowledgeContext =
+    lastMessage.role === 'user' ? getRelatedContext(lastMessage.content, 3) : '';
+
   // 流式输出
   try {
-    for await (const chunk of streamMultiTurnChat(formattedMessages, { model })) {
+    for await (const chunk of streamMultiTurnChat(formattedMessages, {
+      model,
+      context: knowledgeContext,
+    })) {
       if (ws.readyState !== WebSocket.OPEN) break;
       sendMessage(ws, {
         type: 'chunk',

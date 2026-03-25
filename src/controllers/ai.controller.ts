@@ -86,12 +86,15 @@ export const askQuestionStream = async (req: Request, res: Response, next: NextF
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Accel-Buffering', 'no');
 
+    const knowledgeContext = getRelatedContext(question, 3);
+    const finalContext = context || knowledgeContext;
+
     // 构建消息
     const messages = [{ role: 'user' as const, content: question }];
 
     // 流式输出
     try {
-      for await (const chunk of streamMultiTurnChat(messages, { model })) {
+      for await (const chunk of streamMultiTurnChat(messages, { model, context: finalContext })) {
         res.write(`data: ${JSON.stringify({ content: chunk })}\n\n`);
       }
 
@@ -140,8 +143,14 @@ export const chat = async (req: Request, res: Response, next: NextFunction) => {
       content: m.content,
     }));
 
+    const knowledgeContext =
+      lastMessage.role === 'user' ? getRelatedContext(lastMessage.content, 3) : '';
+
     // 调用多轮对话
-    const answer = await multiTurnChat(formattedMessages, { model });
+    const answer = await multiTurnChat(formattedMessages, {
+      model,
+      context: knowledgeContext,
+    });
 
     const response = {
       message: {
@@ -191,9 +200,15 @@ export const chatStream = async (req: Request, res: Response, next: NextFunction
       content: m.content,
     }));
 
+    const knowledgeContext =
+      lastMessage.role === 'user' ? getRelatedContext(lastMessage.content, 3) : '';
+
     // 流式输出
     try {
-      for await (const chunk of streamMultiTurnChat(formattedMessages, { model })) {
+      for await (const chunk of streamMultiTurnChat(formattedMessages, {
+        model,
+        context: knowledgeContext,
+      })) {
         res.write(`data: ${JSON.stringify({ content: chunk })}\n\n`);
       }
 
