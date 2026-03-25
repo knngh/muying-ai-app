@@ -104,7 +104,7 @@ export interface PaginatedResponse<T> {
 
 export const categoryApi = {
   getAll: (params?: { parentId?: number }) =>
-    api.get<Category[]>('/categories', { params }),
+    api.get<{ list: Category[] }>('/categories', { params }).then((res) => res.list),
 
   getBySlug: (slug: string) =>
     api.get<Category>(`/categories/${slug}`),
@@ -113,10 +113,10 @@ export const categoryApi = {
 // ==================== 标签 API ====================
 
 export const tagApi = {
-  getAll: () => api.get<Tag[]>('/tags'),
+  getAll: () => api.get<{ list: Tag[] }>('/tags').then((res) => res.list),
 
   getArticlesByTag: (slug: string, params?: { page?: number; pageSize?: number }) =>
-    api.get<PaginatedResponse<Article>>(`/tags/${slug}/articles`, { params }),
+    api.get<{ tag: Tag; articles: PaginatedResponse<Article> }>(`/tags/${slug}/articles`, { params }).then((res) => res.articles),
 }
 
 // ==================== 文章 API ====================
@@ -142,28 +142,28 @@ export const articleApi = {
   // 搜索文章
   search: (keyword: string, params?: { page?: number; pageSize?: number }) =>
     api.get<PaginatedResponse<Article>>('/articles/search', {
-      params: { keyword, ...params },
+      params: { q: keyword, ...params },
     }),
 
   // 获取相关文章
   getRelated: (id: number, limit = 5) =>
-    api.get<Article[]>(`/articles/${id}/related`, { params: { limit } }),
+    api.get<{ list: Article[] }>(`/articles/${id}/related`, { params: { limit } }).then((res) => res.list),
 
   // 点赞文章
   like: (id: number) =>
-    api.post<{ likeCount: number }>(`/articles/${id}/like`),
+    api.post<{ liked: boolean }>(`/articles/${id}/like`),
 
   // 取消点赞
   unlike: (id: number) =>
-    api.delete<{ likeCount: number }>(`/articles/${id}/like`),
+    api.delete<{ liked: boolean }>(`/articles/${id}/like`),
 
   // 收藏文章
   favorite: (id: number) =>
-    api.post<{ collectCount: number }>(`/articles/${id}/favorite`),
+    api.post<{ favorited: boolean }>(`/articles/${id}/favorite`),
 
   // 取消收藏
   unfavorite: (id: number) =>
-    api.delete<{ collectCount: number }>(`/articles/${id}/favorite`),
+    api.delete<{ favorited: boolean }>(`/articles/${id}/favorite`),
 }
 
 // ==================== 日历事件 API ====================
@@ -174,7 +174,13 @@ export const calendarApi = {
     startDate?: string
     endDate?: string
     eventType?: string
-  }) => api.get<CalendarEvent[]>('/calendar/events', { params }),
+  }) => api.get<{ list: CalendarEvent[] }>('/calendar/events', {
+    params: {
+      startDate: params?.startDate,
+      endDate: params?.endDate,
+      type: params?.eventType,
+    },
+  }).then((res) => res.list),
 
   // 获取周视图
   getWeek: (params?: { date?: string }) =>
@@ -190,11 +196,17 @@ export const calendarApi = {
 
   // 创建事件
   createEvent: (data: Omit<CalendarEvent, 'id' | 'userId' | 'createdAt' | 'updatedAt' | 'status'>) =>
-    api.post<CalendarEvent>('/calendar/events', data),
+    api.post<CalendarEvent>('/calendar/events', {
+      ...data,
+      eventTime: data.startTime,
+    }),
 
   // 更新事件
   updateEvent: (id: number, data: Partial<CalendarEvent>) =>
-    api.put<CalendarEvent>(`/calendar/events/${id}`, data),
+    api.put<CalendarEvent>(`/calendar/events/${id}`, {
+      ...data,
+      eventTime: data.startTime,
+    }),
 
   // 删除事件
   deleteEvent: (id: number) =>
@@ -206,7 +218,10 @@ export const calendarApi = {
 
   // 拖拽更新
   dragEvent: (id: number, data: { newDate: string; newStartTime?: string; newEndTime?: string }) =>
-    api.patch<CalendarEvent>(`/calendar/events/${id}/drag`, data),
+    api.patch<CalendarEvent>(`/calendar/events/${id}/drag`, {
+      newDate: data.newDate,
+      newTime: data.newStartTime,
+    }),
 }
 
 // ==================== 用户 API ====================
@@ -218,7 +233,7 @@ export const userApi = {
 
   // 添加收藏
   addFavorite: (data: { targetId: number; targetType: string }) =>
-    api.post('/user/favorites', data),
+    api.post('/user/favorites', { articleId: data.targetId }),
 
   // 删除收藏
   removeFavorite: (articleId: number) =>
@@ -230,7 +245,11 @@ export const userApi = {
 
   // 记录阅读
   recordRead: (data: { articleId: number; duration?: number; progress?: number }) =>
-    api.post('/user/read-history', data),
+    api.post('/user/read-history', {
+      articleId: data.articleId,
+      readDuration: data.duration,
+      progress: data.progress,
+    }),
 
   // 获取用户统计
   getStats: () =>

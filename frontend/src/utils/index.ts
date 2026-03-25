@@ -41,6 +41,16 @@ export function calculateDueDate(lastMenstrualPeriod: Date | string): Date {
 }
 
 /**
+ * 从预产期反推末次月经日期（-280天）
+ */
+export function calculatePregnancyStartFromDueDate(dueDate: Date | string): Date {
+  const dd = new Date(dueDate)
+  const start = new Date(dd)
+  start.setDate(start.getDate() - 280)
+  return start
+}
+
+/**
  * 防抖函数
  */
 export function debounce<T extends (...args: unknown[]) => unknown>(

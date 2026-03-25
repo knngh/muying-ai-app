@@ -160,9 +160,11 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
 
   likeArticle: async (id: number) => {
     try {
-      const result = (await articleApi.like(id)) as { likeCount: number }
+      const result = (await articleApi.like(id)) as { liked: boolean }
       const articles = get().articles.map((a) =>
-        a.id === id ? { ...a, likeCount: result.likeCount } : a
+        a.id === id
+          ? { ...a, isLiked: result.liked, likeCount: a.likeCount + (result.liked ? 1 : 0) }
+          : a
       )
       set({ articles })
     } catch (error: unknown) {
@@ -172,9 +174,9 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
 
   favoriteArticle: async (id: number) => {
     try {
-      const result = (await articleApi.favorite(id)) as { collectCount: number }
+      const result = (await articleApi.favorite(id)) as { favorited: boolean }
       const articles = get().articles.map((a) =>
-        a.id === id ? { ...a, collectCount: result.collectCount } : a
+        a.id === id ? { ...a, isFavorited: result.favorited } : a
       )
       set({ articles })
     } catch (error: unknown) {

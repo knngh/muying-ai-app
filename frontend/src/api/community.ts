@@ -85,13 +85,24 @@ export const communityApi = {
     title: string
     content: string
     category?: string
+    categoryId?: string
     tags?: string[]
     isAnonymous?: boolean
-  }) => api.post<CommunityPost>('/community/posts', data),
+  }) => api.post<CommunityPost>('/community/posts', {
+    title: data.title,
+    content: data.content,
+    categoryId: data.categoryId ?? data.category,
+    tags: data.tags,
+    anonymous: data.isAnonymous,
+  }),
 
   // 更新帖子
-  updatePost: (id: number, data: { title?: string; content?: string; category?: string }) =>
-    api.put<CommunityPost>(`/community/posts/${id}`, data),
+  updatePost: (id: number, data: { title?: string; content?: string; category?: string; categoryId?: string }) =>
+    api.put<CommunityPost>(`/community/posts/${id}`, {
+      title: data.title,
+      content: data.content,
+      categoryId: data.categoryId ?? data.category,
+    }),
 
   // 删除帖子
   deletePost: (id: number) =>

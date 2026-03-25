@@ -14,7 +14,8 @@ import {
   Spin,
   Space,
 } from 'antd'
-import { UserOutlined, EditOutlined, LogoutOutlined } from '@ant-design/icons'
+import { UserOutlined, EditOutlined, LogoutOutlined, HeartOutlined } from '@ant-design/icons'
+import { BirthCard } from '@/components/BirthCard'
 import { useNavigate } from 'react-router-dom'
 import { useAppStore } from '@/stores/appStore'
 import { authApi } from '@/api/modules'
@@ -28,6 +29,7 @@ export function Profile() {
   const { user, setUser } = useAppStore()
   const [loading, setLoading] = useState(false)
   const [editModalOpen, setEditModalOpen] = useState(false)
+  const [birthCardOpen, setBirthCardOpen] = useState(false)
   const [editLoading, setEditLoading] = useState(false)
   const [form] = Form.useForm()
 
@@ -190,11 +192,28 @@ export function Profile() {
           <Button icon={<EditOutlined />} block onClick={handleEdit}>
             编辑资料
           </Button>
+          {(user?.babyBirthday || user?.pregnancyStatus === 'postpartum') && (
+            <Button
+              icon={<HeartOutlined />}
+              block
+              style={{ color: '#eb2f96', borderColor: '#ffadd2' }}
+              onClick={() => setBirthCardOpen(true)}
+            >
+              生成出生卡片
+            </Button>
+          )}
           <Button icon={<LogoutOutlined />} block danger onClick={handleLogout}>
             退出登录
           </Button>
         </Space>
       </Card>
+
+      {/* 出生卡片弹窗 */}
+      <BirthCard
+        open={birthCardOpen}
+        onClose={() => setBirthCardOpen(false)}
+        user={user}
+      />
 
       {/* 编辑资料弹窗 */}
       <Modal

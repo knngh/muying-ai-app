@@ -126,7 +126,7 @@ export const useKnowledgeStore = defineStore('knowledge', {
       try {
         const result = await articleApi.like(id) as { liked: boolean }
         this.articles = this.articles.map(a =>
-          a.id === id ? { ...a, liked: result.liked } : a
+          a.id === id ? { ...a, isLiked: result.liked, likeCount: a.likeCount + (result.liked ? 1 : 0) } : a
         )
       } catch (_error) {
         console.error('点赞失败:', _error)
@@ -137,7 +137,7 @@ export const useKnowledgeStore = defineStore('knowledge', {
       try {
         const result = await articleApi.favorite(id) as { favorited: boolean }
         this.articles = this.articles.map(a =>
-          a.id === id ? { ...a, favorited: result.favorited } : a
+          a.id === id ? { ...a, isFavorited: result.favorited } : a
         )
       } catch (_error) {
         console.error('收藏失败:', _error)
