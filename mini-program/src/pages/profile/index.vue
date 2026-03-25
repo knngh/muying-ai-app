@@ -57,6 +57,21 @@
         <view class="edit-btn" @tap="openEditModal">
           <text class="edit-btn-text">编辑资料</text>
         </view>
+        <view
+          v-if="birthCardActionMode !== 'hidden'"
+          class="birth-card-panel"
+          :class="{ 'birth-card-panel--recorded': birthCardActionMode === 'recorded' }"
+          @tap="goBirthCard"
+        >
+          <view class="birth-card-panel-icon">
+            <text class="birth-card-panel-icon-text">{{ birthCardActionMode === 'recorded' ? '👶' : '🍼' }}</text>
+          </view>
+          <view class="birth-card-panel-content">
+            <text class="birth-card-panel-title">{{ birthCardActionTitle }}</text>
+            <text class="birth-card-panel-subtitle">{{ birthCardActionSubtitle }}</text>
+          </view>
+          <text class="birth-card-panel-arrow">{{ birthCardActionText }} →</text>
+        </view>
         <view class="logout-btn" @tap="onLogout">
           <text class="logout-btn-text">退出登录</text>
         </view>
@@ -168,7 +183,7 @@ import { useAppStore } from '@/stores/app'
 import { authApi } from '@/api/modules'
 import { wsManager } from '@/utils/websocket'
 import dayjs from 'dayjs'
-import { calculateDueDateFromPregnancyWeek, calculatePregnancyWeekFromDueDate } from '@/utils'
+import { calculateDueDateFromPregnancyWeek, calculatePregnancyWeekFromDueDate, getBirthCardEntryMode } from '@/utils'
 
 const appStore = useAppStore()
 
@@ -247,6 +262,30 @@ const maskPhone = (phone?: string) => {
   return phone
 }
 
+const birthCardActionMode = computed(() => getBirthCardEntryMode(user.value, 'profile'))
+
+const birthCardActionTitle = computed(() => (
+  birthCardActionMode.value === 'recorded' ? '查看宝宝出生卡片' : '补充宝宝出生信息'
+))
+
+const birthCardActionSubtitle = computed(() => (
+  birthCardActionMode.value === 'recorded'
+    ? '出生日期已保存，可以随时回看这段孕育旅程'
+    : '填写出生日期后，会自动生成卡片并同步为产后状态'
+))
+
+const birthCardActionText = computed(() => (
+  birthCardActionMode.value === 'recorded' ? '查看' : '填写'
+))
+
+const shouldPreservePostpartumStatus = computed(() => (
+  normalizePregnancyStatus(user.value?.pregnancyStatus) === 3 || !!user.value?.babyBirthday
+))
+
+const goBirthCard = () => {
+  uni.navigateTo({ url: '/pages/birth-card/index' })
+}
+
 const goLogin = () => {
   uni.navigateTo({ url: '/pages/login/index' })
 }
@@ -313,7 +352,7 @@ const submitEdit = async () => {
 
     if (editForm.dueDate) {
       data.dueDate = editForm.dueDate
-      data.pregnancyStatus = 2
+      data.pregnancyStatus = shouldPreservePostpartumStatus.value ? 3 : 2
     }
 
     const updatedUser = await authApi.updateProfile(data)
@@ -485,6 +524,65 @@ onMounted(async () => {
   color: #ffffff;
   font-size: 30rpx;
   font-weight: 500;
+}
+
+.birth-card-panel {
+  background: linear-gradient(135deg, #fff9eb 0%, #fff0f6 100%);
+  border: 2rpx solid #ffd591;
+  border-radius: 24rpx;
+  padding: 24rpx 28rpx;
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+  box-shadow: 0 16rpx 30rpx rgba(255, 197, 61, 0.12);
+}
+
+.birth-card-panel--recorded {
+  background: linear-gradient(135deg, #fff0f6 0%, #fff8e8 100%);
+  border-color: #ffadd2;
+  box-shadow: 0 16rpx 30rpx rgba(235, 47, 150, 0.12);
+}
+
+.birth-card-panel-icon {
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: 24rpx;
+  background: rgba(255, 255, 255, 0.82);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.birth-card-panel-icon-text {
+  font-size: 36rpx;
+}
+
+.birth-card-panel-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.birth-card-panel-title {
+  display: block;
+  color: #7a284f;
+  font-size: 30rpx;
+  font-weight: 700;
+  margin-bottom: 8rpx;
+}
+
+.birth-card-panel-subtitle {
+  display: block;
+  color: #9b6b7f;
+  font-size: 24rpx;
+  line-height: 1.5;
+}
+
+.birth-card-panel-arrow {
+  color: #eb2f96;
+  font-size: 26rpx;
+  font-weight: 700;
+  flex-shrink: 0;
 }
 
 .logout-btn {

@@ -1,4 +1,4 @@
-# Backend 测试配置
+// Backend 测试配置
 import request from 'supertest';
 import app from '../src/app';
 

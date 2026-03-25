@@ -1,5 +1,19 @@
 import { z } from 'zod';
 
+const dateString = z.string().refine((value) => {
+  const normalized = value.trim();
+  if (!normalized) {
+    return false;
+  }
+
+  const isDateOnly = /^\d{4}-\d{2}-\d{2}$/.test(normalized);
+  if (isDateOnly) {
+    return !Number.isNaN(new Date(`${normalized}T00:00:00.000Z`).getTime());
+  }
+
+  return !Number.isNaN(new Date(normalized).getTime());
+}, '日期格式错误');
+
 export const registerBody = z.object({
   username: z.string().min(2, '用户名至少2个字符').max(20, '用户名最多20个字符'),
   password: z.string()
@@ -21,8 +35,8 @@ export const updateProfileBody = z.object({
   email: z.string().email('邮箱格式错误').optional().nullable(),
   avatar: z.string().url().optional().nullable(),
   pregnancyStatus: z.coerce.number().int().min(0).max(3).optional(),
-  dueDate: z.string().datetime().optional().nullable(),
-  babyBirthday: z.string().datetime().optional().nullable(),
+  dueDate: dateString.optional().nullable(),
+  babyBirthday: dateString.optional().nullable(),
   babyGender: z.coerce.number().int().min(0).max(2).optional(),
 }).refine(data => Object.keys(data).length > 0, {
   message: '请提供至少一个需要更新的字段',

@@ -1,10 +1,5 @@
-# Backend 部署配置
-
-# 测试用户数据
-const testUser = {
-  username: 'test_user_' + Date.now(),
-  password: 'Test123456'
-};
+import request from 'supertest';
+import app from '../src/app';
 
 let authToken: string;
 

@@ -1,6 +1,12 @@
 // UUID v4 生成
 const DAY_IN_MS = 24 * 60 * 60 * 1000
 const FULL_TERM_WEEKS = 40
+const BIRTH_CARD_PROMPT_LEAD_DAYS = 14
+const PREGNANCY_STATUS_MAP: Record<string, number> = {
+  preparing: 1,
+  pregnant: 2,
+  postpartum: 3,
+}
 
 export function v4(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
@@ -58,6 +64,14 @@ export function calculateDueDate(lastMenstrualPeriod: Date | string): Date {
   return dueDate
 }
 
+// 从预产期反推末次月经日期（-280天）
+export function calculatePregnancyStartFromDueDate(dueDate: Date | string): Date {
+  const dd = new Date(dueDate)
+  const start = new Date(dd)
+  start.setDate(start.getDate() - 280)
+  return start
+}
+
 export function calculateDueDateFromPregnancyWeek(value: unknown, baseDate = new Date()): Date | null {
   const week = parseWeek(value)
   if (!week) return null
@@ -92,4 +106,58 @@ export function syncPregnancyWeekStorage(dueDate?: Date | string | null, fallbac
 
   uni.removeStorageSync('userPregnancyWeek')
   return null
+}
+
+function normalizePregnancyStatus(value: unknown): number | undefined {
+  if (typeof value === 'number' && value >= 1 && value <= 3) return value
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) return undefined
+
+    const numericValue = Number.parseInt(trimmed, 10)
+    if (!Number.isNaN(numericValue) && numericValue >= 1 && numericValue <= 3) {
+      return numericValue
+    }
+
+    return PREGNANCY_STATUS_MAP[trimmed.toLowerCase()]
+  }
+
+  return undefined
+}
+
+export function shouldPromptBirthCardByDueDate(
+  dueDate?: string | null,
+  baseDate = new Date(),
+  leadDays = BIRTH_CARD_PROMPT_LEAD_DAYS,
+): boolean {
+  if (!dueDate) return false
+
+  const due = normalizeDate(new Date(dueDate))
+  if (Number.isNaN(due.getTime())) return false
+
+  const today = normalizeDate(baseDate)
+  const promptStart = new Date(due.getTime() - leadDays * DAY_IN_MS)
+  return today.getTime() >= promptStart.getTime()
+}
+
+export function getBirthCardEntryMode(
+  user: {
+    pregnancyStatus?: number | string
+    dueDate?: string
+    babyBirthday?: string
+  } | null | undefined,
+  variant: 'home' | 'profile' = 'home',
+): 'hidden' | 'prompt' | 'recorded' {
+  if (!user) return 'hidden'
+  if (user.babyBirthday) return 'recorded'
+
+  const normalizedStatus = normalizePregnancyStatus(user.pregnancyStatus)
+  if (normalizedStatus === 3) return 'prompt'
+
+  if (variant === 'profile') {
+    return user.dueDate ? 'prompt' : 'hidden'
+  }
+
+  return shouldPromptBirthCardByDueDate(user.dueDate) ? 'prompt' : 'hidden'
 }

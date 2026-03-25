@@ -4,7 +4,8 @@
     { "path": "pages/login/index", "style": { "navigationBarTitleText": "登录" } },
     { "path": "pages/calendar/index", "style": { "navigationBarTitleText": "孕育时间轴" } },
     { "path": "pages/chat/index", "style": { "navigationBarTitleText": "AI答疑" } },
-    { "path": "pages/profile/index", "style": { "navigationBarTitleText": "我的" } }
+    { "path": "pages/profile/index", "style": { "navigationBarTitleText": "我的" } },
+    { "path": "pages/birth-card/index", "style": { "navigationBarTitleText": "宝宝出生卡片" } }
   ],
   "globalStyle": {
     "navigationBarTextStyle": "black",
@@ -37,6 +38,5 @@
         "selectedIconPath": "static/tab-user-active.png"
       }
     ]
-  },
-  "subPackages": []
+  }
 }

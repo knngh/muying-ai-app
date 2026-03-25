@@ -34,6 +34,7 @@ import prisma from './config/database';
 const app: Express = express();
 const PORT = env.PORT;
 const HOST = env.HOST;
+const isTestEnv = env.NODE_ENV === 'test' || typeof process.env.JEST_WORKER_ID !== 'undefined';
 
 // ============================================
 // 基础中间件
@@ -114,11 +115,13 @@ const server = createServer(app);
 // 挂载 WebSocket 服务（供小程序和 App 使用）
 setupWebSocket(server);
 
-server.listen(Number(PORT), HOST, () => {
-  console.log(`Server is running on http://${HOST}:${PORT}`);
-  console.log(`API prefix: ${API_PREFIX}`);
-  console.log(`Health check at http://${HOST}:${PORT}/health`);
-});
+if (!isTestEnv) {
+  server.listen(Number(PORT), HOST, () => {
+    console.log(`Server is running on http://${HOST}:${PORT}`);
+    console.log(`API prefix: ${API_PREFIX}`);
+    console.log(`Health check at http://${HOST}:${PORT}/health`);
+  });
+}
 
 // ============================================
 // 优雅关机
@@ -142,7 +145,9 @@ async function gracefulShutdown(signal: string) {
   }, 10000);
 }
 
-process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+if (!isTestEnv) {
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+  process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+}
 
 export default app;

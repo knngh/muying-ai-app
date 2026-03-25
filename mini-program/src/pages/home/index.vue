@@ -9,6 +9,25 @@
       <image class="header-decoration" src="/static/header-decoration.png" mode="aspectFit" />
     </view>
 
+    <!-- 宝宝出生卡片入口 -->
+    <view
+      v-if="birthCardEntryMode !== 'hidden'"
+      class="birth-card-entry"
+      :class="{ 'birth-card-entry--prompt': birthCardEntryMode === 'prompt' }"
+      @tap="goBirthCard"
+    >
+      <view class="birth-card-entry-info">
+        <view class="birth-card-entry-headline">
+          <text class="birth-card-entry-title">{{ birthCardEntryTitle }}</text>
+          <text v-if="birthCardEntryBadge" class="birth-card-entry-badge">{{ birthCardEntryBadge }}</text>
+        </view>
+        <text class="birth-card-entry-subtitle">{{ birthCardEntrySubtitle }}</text>
+      </view>
+      <view class="birth-card-entry-btn">
+        <text class="birth-card-entry-btn-text">{{ birthCardEntryActionText }} →</text>
+      </view>
+    </view>
+
     <!-- 核心功能卡片区 -->
     <view class="cards-container">
       
@@ -77,6 +96,43 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
+import { useAppStore } from '@/stores/app'
+import dayjs from 'dayjs'
+import { getBirthCardEntryMode } from '@/utils'
+
+const appStore = useAppStore()
+const user = computed(() => appStore.user)
+const birthCardEntryMode = computed(() => getBirthCardEntryMode(user.value, 'home'))
+
+const formatBirthday = (date: string) => dayjs(date).format('YYYY年MM月DD日')
+
+const birthCardEntryTitle = computed(() => {
+  if (birthCardEntryMode.value === 'recorded' && user.value?.babyBirthday) {
+    return `👶 宝宝已于 ${formatBirthday(user.value.babyBirthday)} 出生`
+  }
+
+  return '🍼 宝宝已经出生了吗？'
+})
+
+const birthCardEntrySubtitle = computed(() => (
+  birthCardEntryMode.value === 'recorded'
+    ? '回顾这段美好的孕育旅程'
+    : '补充出生日期后，会自动生成一张专属出生卡片'
+))
+
+const birthCardEntryActionText = computed(() => (
+  birthCardEntryMode.value === 'recorded' ? '查看' : '去填写'
+))
+
+const birthCardEntryBadge = computed(() => (
+  birthCardEntryMode.value === 'prompt' ? '待补充' : ''
+))
+
+const goBirthCard = () => {
+  uni.navigateTo({ url: '/pages/birth-card/index' })
+}
+
 // tabBar 页面路径集合，用于区分导航方式
 const TAB_PAGES = new Set([
   '/pages/home/index',
@@ -161,6 +217,72 @@ const handleAITap = () => {
   height: 240rpx;
   opacity: 0.1;
   z-index: 1;
+}
+
+/* 出生卡片入口 */
+.birth-card-entry {
+  margin: 0 32rpx 8rpx;
+  background: linear-gradient(135deg, #fff0f6 0%, #fff7e6 100%);
+  border: 2rpx solid #ffadd2;
+  border-radius: 24rpx;
+  padding: 28rpx 32rpx;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.birth-card-entry--prompt {
+  background: linear-gradient(135deg, #fff8e8 0%, #fff0f6 100%);
+  border-color: #ffc069;
+  box-shadow: 0 16rpx 28rpx rgba(255, 192, 105, 0.18);
+}
+
+.birth-card-entry-info {
+  flex: 1;
+}
+
+.birth-card-entry-headline {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  margin-bottom: 8rpx;
+  flex-wrap: wrap;
+}
+
+.birth-card-entry-title {
+  display: block;
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #333;
+}
+
+.birth-card-entry-badge {
+  font-size: 20rpx;
+  color: #ad6800;
+  background: rgba(255, 214, 102, 0.32);
+  border-radius: 999rpx;
+  padding: 6rpx 16rpx;
+  font-weight: 600;
+}
+
+.birth-card-entry-subtitle {
+  display: block;
+  font-size: 24rpx;
+  color: #999;
+}
+
+.birth-card-entry-btn {
+  background: linear-gradient(135deg, #ff85c0, #eb2f96);
+  border-radius: 32rpx;
+  padding: 12rpx 28rpx;
+  flex-shrink: 0;
+  margin-left: 16rpx;
+}
+
+.birth-card-entry-btn-text {
+  font-size: 24rpx;
+  color: #fff;
+  font-weight: 600;
 }
 
 /* 卡片容器 */
