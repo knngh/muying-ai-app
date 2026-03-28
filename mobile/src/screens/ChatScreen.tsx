@@ -6,7 +6,6 @@ import {
   SafeAreaView,
   KeyboardAvoidingView,
   Platform,
-  TouchableOpacity,
 } from 'react-native'
 import { Text, TextInput, IconButton, Chip, Banner } from 'react-native-paper'
 import { useNavigation } from '@react-navigation/native'
@@ -28,7 +27,11 @@ export default function ChatScreen() {
   const [inputText, setInputText] = useState('')
   const [showBanner, setShowBanner] = useState(true)
 
-  const { messages, loading, streamingContent, error, sendMessage, clearMessages } = useChatStore()
+  const { messages, loading, streamingContent, error, initialize, sendMessage, clearMessages } = useChatStore()
+
+  useEffect(() => {
+    initialize()
+  }, [initialize])
 
   useEffect(() => {
     navigation.setOptions({
@@ -92,6 +95,23 @@ export default function ChatScreen() {
           >
             {item.content}
           </Text>
+
+          {!isUser && item.sources?.length ? (
+            <View style={styles.sourcesWrap}>
+              <Text style={styles.sourcesTitle}>参考来源</Text>
+              {item.sources.map((source) => (
+                <View key={`${item.id}-${source.title}`} style={styles.sourceCard}>
+                  <Text style={styles.sourceName}>{source.title}</Text>
+                  <Text style={styles.sourceMeta}>
+                    {source.source} · 相关度 {Math.round(source.relevance * 100)}%
+                  </Text>
+                  {source.excerpt ? (
+                    <Text style={styles.sourceExcerpt}>{source.excerpt}</Text>
+                  ) : null}
+                </View>
+              ))}
+            </View>
+          ) : null}
         </View>
       </View>
     )
@@ -297,6 +317,39 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: fontSize.md,
     fontStyle: 'italic',
+  },
+  sourcesWrap: {
+    marginTop: spacing.sm,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: '#E7EBF3',
+  },
+  sourcesTitle: {
+    color: colors.textSecondary,
+    fontSize: fontSize.sm,
+    marginBottom: spacing.xs,
+  },
+  sourceCard: {
+    marginTop: spacing.xs,
+    padding: spacing.sm,
+    borderRadius: 12,
+    backgroundColor: '#F5F7FD',
+  },
+  sourceName: {
+    color: colors.text,
+    fontSize: fontSize.sm,
+    fontWeight: '700',
+  },
+  sourceMeta: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    marginTop: 2,
+  },
+  sourceExcerpt: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: spacing.xs,
   },
   emptyContainer: {
     alignItems: 'center',

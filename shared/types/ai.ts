@@ -14,10 +14,16 @@ export interface SourceReference {
   url?: string
   source: string
   relevance: number
+  excerpt?: string
+  category?: string
 }
 
 export interface ChatSession {
   id: string
+  title?: string
+  summary?: string
+  messageCount?: number
+  lastMessagePreview?: string
   messages: AIMessage[]
   createdAt: string
   updatedAt: string
@@ -26,6 +32,7 @@ export interface ChatSession {
 export interface AskRequest {
   question: string
   conversationId?: string
+  context?: string | Record<string, string | number | boolean | null>
 }
 
 export interface AskResponse {
@@ -40,6 +47,7 @@ export interface ChatRequest {
   message: string
   conversationId?: string
   history?: Array<{ role: string; content: string }>
+  context?: string | Record<string, string | number | boolean | null>
 }
 
 export interface ChatResponse {
@@ -57,6 +65,7 @@ export interface WsClientMessage {
   payload: {
     question?: string
     messages?: Array<{ role: string; content: string }>
+    conversationId?: string
     model?: string
     context?: string
   }
@@ -69,7 +78,8 @@ export interface WsServerMessage {
     content?: string
     isEmergency?: boolean
     error?: string
-    sources?: Array<{ title: string; content: string }>
+    sources?: SourceReference[]
     disclaimer?: string
+    conversationId?: string
   }
 }

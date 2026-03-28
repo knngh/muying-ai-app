@@ -4,6 +4,9 @@ import {
   askQuestionStream,
   chat,
   chatStream,
+  getConversations,
+  getConversationHistory,
+  deleteConversation,
   getModels,
   checkHealth,
   searchKnowledge,
@@ -28,6 +31,11 @@ router.get('/knowledge/stats', getKnowledgeBaseStats);
 
 // 以下路由需要认证
 router.use(authMiddleware);
+
+// 对话历史
+router.get('/conversations', getConversations);
+router.get('/conversations/:conversationId', getConversationHistory);
+router.delete('/conversations/:conversationId', deleteConversation);
 
 // 用户提问（非流式）
 router.post('/ask', aiRateLimiter, validate({ body: askQuestionBody }), askQuestion);

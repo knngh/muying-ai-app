@@ -88,21 +88,21 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
 export const login = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { username, password } = req.body;
+    const normalizedUsername = typeof username === 'string' ? username.trim() : '';
 
-    if (!username || !password) {
+    if (!normalizedUsername || !password) {
       throw new AppError('用户名和密码不能为空', ErrorCodes.PARAM_ERROR, 400);
     }
 
-    // 查找用户
-    const user = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { username },
-          { phone: username },
-          { email: username }
-        ]
-      }
-    });
+    const isPhone = /^1[3-9]\d{9}$/.test(normalizedUsername);
+    const isEmail = normalizedUsername.includes('@');
+
+    // 显式分支查询，避免 OR + nullable 字段在不同环境下表现不一致
+    const user = isPhone
+      ? await prisma.user.findUnique({ where: { phone: normalizedUsername } })
+      : isEmail
+        ? await prisma.user.findUnique({ where: { email: normalizedUsername } })
+        : await prisma.user.findUnique({ where: { username: normalizedUsername } });
 
     if (!user) {
       throw new AppError('用户不存在', ErrorCodes.USER_NOT_FOUND, 401);

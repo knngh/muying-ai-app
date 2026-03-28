@@ -16,10 +16,16 @@ export interface SourceReference {
   url?: string
   source: string
   relevance: number
+  excerpt?: string
+  category?: string
 }
 
 export interface ChatSession {
   id: string
+  title?: string
+  summary?: string
+  messageCount?: number
+  lastMessagePreview?: string
   messages: AIMessage[]
   createdAt: string
   updatedAt: string
@@ -28,6 +34,7 @@ export interface ChatSession {
 export interface AskRequest {
   question: string
   conversationId?: string
+  context?: string | Record<string, string | number | boolean | null>
 }
 
 export interface AskResponse {
@@ -42,6 +49,7 @@ export interface ChatRequest {
   message: string
   conversationId?: string
   history?: Array<{ role: string; content: string }>
+  context?: string | Record<string, string | number | boolean | null>
 }
 
 export interface ChatResponse {
@@ -62,13 +70,14 @@ export const aiApi = {
       sources?: SourceReference[]
       isEmergency: boolean
       disclaimer: string
-    }>('/ai/ask', { question: data.question })
+      conversationId?: string
+    }>('/ai/ask', { question: data.question, context: data.context, conversationId: data.conversationId })
 
     return {
       answer: res.answer,
       sources: res.sources || [],
       isEmergency: res.isEmergency,
-      conversationId: data.conversationId,
+      conversationId: res.conversationId,
       disclaimer: res.disclaimer,
     }
   },
@@ -81,32 +90,35 @@ export const aiApi = {
     ]
     const res = await api.post<{
       message?: { content?: string }
+      sources?: SourceReference[]
       isEmergency: boolean
       disclaimer: string
-    }>('/ai/chat', { messages })
+      conversationId?: string
+    }>('/ai/chat', { messages, context: data.context, conversationId: data.conversationId })
 
     return {
       response: res.message?.content || '',
-      sources: [],
+      sources: res.sources || [],
       isEmergency: res.isEmergency,
-      conversationId: data.conversationId,
+      conversationId: res.conversationId,
       disclaimer: res.disclaimer,
     }
   },
 
   // 获取对话历史
-  getHistory: async (_conversationId: string): Promise<ChatSession> => {
-    throw new Error('当前后端未提供对话历史接口')
+  getHistory: async (conversationId: string): Promise<ChatSession> => {
+    return api.get<ChatSession>(`/ai/conversations/${conversationId}`)
   },
 
   // 获取所有对话列表
   getConversations: async (): Promise<ChatSession[]> => {
-    return []
+    const res = await api.get<{ conversations: ChatSession[] }>('/ai/conversations')
+    return res.conversations || []
   },
 
   // 删除对话
-  deleteConversation: async (_conversationId: string): Promise<void> => {
-    return
+  deleteConversation: async (conversationId: string): Promise<void> => {
+    await api.delete(`/ai/conversations/${conversationId}`)
   },
 }
 

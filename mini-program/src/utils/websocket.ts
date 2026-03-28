@@ -1,5 +1,18 @@
 // WebSocket 管理器 - 用于 AI 流式对话
-type MessageHandler = (data: { type: string; requestId: string; data: { content?: string; isEmergency?: boolean; error?: string; disclaimer?: string } }) => void
+import type { SourceReference } from '@/api/ai'
+
+type MessageHandler = (data: {
+  type: string
+  requestId: string
+  data: {
+    content?: string
+    isEmergency?: boolean
+    error?: string
+    disclaimer?: string
+    sources?: SourceReference[]
+    conversationId?: string
+  }
+}) => void
 
 class AIWebSocketManager {
   private socket: UniApp.SocketTask | null = null

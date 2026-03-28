@@ -2,11 +2,19 @@
 // RN 有内置 WebSocket 全局对象，API 与浏览器相同
 
 import { config } from '../config'
+import type { SourceReference } from '../api/ai'
 
 type WsServerMessage = {
   type: 'chunk' | 'done' | 'error' | 'emergency'
   requestId: string
-  data: { content?: string; isEmergency?: boolean; error?: string; disclaimer?: string }
+  data: {
+    content?: string
+    isEmergency?: boolean
+    error?: string
+    disclaimer?: string
+    sources?: SourceReference[]
+    conversationId?: string
+  }
 }
 type MessageHandler = (msg: WsServerMessage) => void
 

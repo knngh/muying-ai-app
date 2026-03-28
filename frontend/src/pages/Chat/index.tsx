@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
-import { Card, Input, Button, Space, Typography, Alert, Spin, Empty } from 'antd'
-import { SendOutlined, ClearOutlined, QuestionCircleOutlined, WarningOutlined } from '@ant-design/icons'
+import { Card, Input, Button, Space, Typography, Alert, Spin, Empty, List, Popconfirm } from 'antd'
+import { SendOutlined, ClearOutlined, QuestionCircleOutlined, WarningOutlined, HistoryOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useChatStore } from '@/stores/chatStore'
 import { ChatMessage } from '@/components/ChatMessage'
 import { getDisclaimer } from '@/api/ai'
@@ -13,7 +13,22 @@ export function Chat() {
   const [inputValue, setInputValue] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
   
-  const { messages, loading, error, sendMessage, clearMessages } = useChatStore()
+  const {
+    messages,
+    conversations,
+    loading,
+    loadingHistory,
+    error,
+    initialize,
+    sendMessage,
+    clearMessages,
+    loadHistory,
+    deleteConversation,
+  } = useChatStore()
+
+  useEffect(() => {
+    initialize()
+  }, [initialize])
 
   // 自动滚动到底部
   useEffect(() => {
@@ -70,6 +85,45 @@ export function Chat() {
 
       {/* 消息列表 */}
       <Card className={styles.messagesCard}>
+        <div className={styles.historyBar}>
+          <Space align="center">
+            <HistoryOutlined />
+            <Text strong>最近对话</Text>
+          </Space>
+
+          <List
+            className={styles.historyList}
+            loading={loadingHistory}
+            locale={{ emptyText: '还没有历史对话' }}
+            dataSource={conversations}
+            renderItem={(item) => (
+              <List.Item
+                className={styles.historyItem}
+                actions={[
+                  <Popconfirm
+                    key="delete"
+                    title="删除这段对话？"
+                    okText="删除"
+                    cancelText="取消"
+                    onConfirm={() => deleteConversation(item.id)}
+                  >
+                    <Button type="text" size="small" icon={<DeleteOutlined />} />
+                  </Popconfirm>,
+                ]}
+              >
+                <button
+                  type="button"
+                  className={styles.historyButton}
+                  onClick={() => loadHistory(item.id)}
+                >
+                  <span className={styles.historyTitle}>{item.title || '新的对话'}</span>
+                  <span className={styles.historySummary}>{item.summary || '暂无摘要'}</span>
+                </button>
+              </List.Item>
+            )}
+          />
+        </div>
+
         {messages.length === 0 ? (
           <div className={styles.emptyState}>
             <Empty
@@ -151,9 +205,8 @@ export function Chat() {
             type="text" 
             icon={<ClearOutlined />} 
             onClick={clearMessages}
-            disabled={messages.length === 0}
           >
-            清空对话
+            新对话
           </Button>
         </div>
       </Card>

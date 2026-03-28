@@ -39,9 +39,9 @@
         </view>
       </view>
 
-      <!-- AI 问答卡片 (即将上线) -->
+      <!-- AI 问答卡片 -->
       <view
-        class="feature-card ai-card disabled"
+        class="feature-card ai-card"
         hover-class="feature-card--hover"
         hover-start-time="20"
         hover-stay-time="80"
@@ -52,11 +52,11 @@
           <view class="card-info">
             <view class="title-row">
               <text class="card-title">AI 答疑</text>
-              <view class="badge-coming-soon">即将上线</view>
+              <view class="badge-coming-soon badge-beta">Beta</view>
             </view>
             <text class="card-desc">基于顶级专家知识库\n随时解答您的孕产疑惑</text>
-            <view class="card-btn disabled-btn">
-              <text class="btn-text">敬请期待</text>
+            <view class="card-btn">
+              <text class="btn-text">立即体验</text>
             </view>
           </view>
           <view class="card-illustration">
@@ -109,6 +109,7 @@ const navigateTo = (url: string) => {
 }
 
 const handleAITap = () => {
+  if (!checkLogin()) return
   uni.switchTab({ url: '/pages/chat/index' })
 }
 </script>

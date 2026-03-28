@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { v4 as uuidv4 } from '../utils'
 import type { AIMessage } from '../api/ai'
-import { aiApi, detectEmergency, getEmergencyWarning } from '../api/ai'
+import { aiApi, getEmergencyWarning } from '../api/ai'
 import { wsManager } from '../utils/websocket'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 
@@ -9,8 +9,11 @@ interface ChatState {
   messages: AIMessage[]
   conversationId: string | null
   loading: boolean
+  loadingHistory: boolean
+  initialized: boolean
   error: string | null
   streamingContent: string
+  initialize: () => Promise<void>
   sendMessage: (content: string) => Promise<void>
   clearMessages: () => void
 }
@@ -19,8 +22,43 @@ export const useChatStore = create<ChatState>((set, get) => ({
   messages: [],
   conversationId: null,
   loading: false,
+  loadingHistory: false,
+  initialized: false,
   error: null,
   streamingContent: '',
+
+  initialize: async () => {
+    if (get().initialized) {
+      return
+    }
+
+    set({ loadingHistory: true, error: null })
+
+    try {
+      const conversations = await aiApi.getConversations()
+      const latest = conversations[0]
+
+      if (latest?.id) {
+        const session = await aiApi.getHistory(latest.id)
+        set({
+          messages: session.messages,
+          conversationId: session.id,
+          initialized: true,
+          loadingHistory: false,
+        })
+        return
+      }
+
+      set({ initialized: true, loadingHistory: false })
+    } catch (error: unknown) {
+      const err = error as { message?: string }
+      set({
+        initialized: true,
+        loadingHistory: false,
+        error: err.message || '加载历史对话失败',
+      })
+    }
+  },
 
   sendMessage: async (content: string) => {
     const userMessage: AIMessage = {
@@ -30,8 +68,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
       createdAt: new Date().toISOString(),
     }
 
-    const isEmergency = detectEmergency(content)
-
     set(state => ({
       messages: [...state.messages, userMessage],
       loading: true,
@@ -39,30 +75,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }))
 
     try {
-      if (isEmergency) {
-        const emergencyMessage: AIMessage = {
-          id: uuidv4(),
-          role: 'assistant',
-          content: getEmergencyWarning(),
-          isEmergency: true,
-          createdAt: new Date().toISOString(),
-        }
-        set(state => ({ messages: [...state.messages, emergencyMessage], loading: false }))
-        return
-      }
-
-      // WebSocket 流式
       const requestId = uuidv4()
       set({ streamingContent: '' })
       const history = get().messages.map(m => ({ role: m.role, content: m.content }))
       const token = await AsyncStorage.getItem('token')
 
-      // Race condition guard: prevent both WS and HTTP fallback from producing messages
       let wsResolved = false
       let httpFallbackFired = false
 
-      wsManager.send('chat_stream', requestId, { messages: history }, (msg) => {
-        if (httpFallbackFired) return // HTTP fallback already handled this request
+      wsManager.send('chat_stream', requestId, {
+        messages: history,
+        conversationId: get().conversationId || undefined,
+      }, (msg) => {
+        if (httpFallbackFired) return
         if (msg.type === 'chunk' && msg.data.content) {
           set(state => ({ streamingContent: state.streamingContent + msg.data.content }))
         } else if (msg.type === 'done') {
@@ -71,10 +96,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
             id: uuidv4(),
             role: 'assistant',
             content: get().streamingContent,
+            sources: msg.data.sources,
             createdAt: new Date().toISOString(),
           }
           set(state => ({
             messages: [...state.messages, assistantMessage],
+            conversationId: msg.data.conversationId || state.conversationId,
             streamingContent: '',
             loading: false,
           }))
@@ -87,31 +114,38 @@ export const useChatStore = create<ChatState>((set, get) => ({
             isEmergency: true,
             createdAt: new Date().toISOString(),
           }
-          set(state => ({ messages: [...state.messages, emMsg], streamingContent: '', loading: false }))
+          set(state => ({
+            messages: [...state.messages, emMsg],
+            conversationId: msg.data.conversationId || state.conversationId,
+            streamingContent: '',
+            loading: false,
+          }))
         } else if (msg.type === 'error') {
           wsResolved = true
           set({ error: msg.data.error || '服务暂时不可用', loading: false })
         }
       }, token || undefined)
 
-      // 超时降级到 HTTP
       setTimeout(async () => {
-        if (wsResolved) return // WS already completed, no fallback needed
+        if (wsResolved) return
         if (get().loading && !get().streamingContent) {
           httpFallbackFired = true
           try {
             const response = await aiApi.chat({
               messages: get().messages.map(m => ({ role: m.role, content: m.content })),
+              conversationId: get().conversationId || undefined,
             }) as any
             const assistantMessage: AIMessage = {
               id: uuidv4(),
               role: 'assistant',
               content: response.message?.content || response.response || '',
+              sources: response.sources,
               isEmergency: response.isEmergency,
               createdAt: new Date().toISOString(),
             }
             set(state => ({
               messages: [...state.messages, assistantMessage],
+              conversationId: response.conversationId || state.conversationId,
               loading: false,
             }))
           } catch (error: unknown) {

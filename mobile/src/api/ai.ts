@@ -1,7 +1,7 @@
 import api from './index'
-import type { AIMessage, AskResponse, ChatResponse, SourceReference } from '../../../shared/types'
+import type { AIMessage, AskResponse, ChatResponse, ChatSession, SourceReference } from '../../../shared/types'
 
-export type { AIMessage, AskResponse, ChatResponse, SourceReference }
+export type { AIMessage, AskResponse, ChatResponse, ChatSession, SourceReference }
 
 export const aiApi = {
   ask: async (data: { question: string; context?: string; model?: string }) => {
@@ -10,6 +10,7 @@ export const aiApi = {
       sources?: AskResponse['sources']
       isEmergency: boolean
       disclaimer: string
+      conversationId?: string
     }>('/ai/ask', {
       question: data.question,
       context: data.context,
@@ -20,28 +21,37 @@ export const aiApi = {
       answer: res.answer,
       sources: res.sources || [],
       isEmergency: res.isEmergency,
+      conversationId: res.conversationId,
       disclaimer: res.disclaimer,
     } as AskResponse
   },
-  chat: async (data: { messages: Array<{ role: string; content: string }>; model?: string }) => {
+  chat: async (data: { messages: Array<{ role: string; content: string }>; conversationId?: string; context?: string; model?: string }) => {
     const res = await api.post<{
       message?: { content?: string }
+      sources?: ChatResponse['sources']
       isEmergency: boolean
       disclaimer: string
+      conversationId?: string
     }>('/ai/chat', data)
 
     return {
       response: res.message?.content || '',
-      sources: [],
+      sources: res.sources || [],
       isEmergency: res.isEmergency,
+      conversationId: res.conversationId,
       disclaimer: res.disclaimer,
     } as ChatResponse
   },
-  getHistory: async (_conversationId: string) => {
-    throw new Error('当前后端未提供对话历史接口')
+  getHistory: async (conversationId: string): Promise<ChatSession> => {
+    return api.get<ChatSession>(`/ai/conversations/${conversationId}`)
   },
-  getConversations: async () => [],
-  deleteConversation: async (_conversationId: string) => undefined,
+  getConversations: async (): Promise<ChatSession[]> => {
+    const res = await api.get<{ conversations: ChatSession[] }>('/ai/conversations')
+    return res.conversations || []
+  },
+  deleteConversation: async (conversationId: string) => {
+    await api.delete(`/ai/conversations/${conversationId}`)
+  },
 }
 
 export const emergencyKeywords = [

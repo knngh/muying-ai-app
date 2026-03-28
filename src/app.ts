@@ -39,6 +39,7 @@ const isTestEnv = env.NODE_ENV === 'test' || typeof process.env.JEST_WORKER_ID !
 // ============================================
 // 基础中间件
 // ============================================
+app.set('trust proxy', 1);
 app.use(helmet()); // 安全头部
 app.use(cors({
   origin: env.CORS_ORIGIN,

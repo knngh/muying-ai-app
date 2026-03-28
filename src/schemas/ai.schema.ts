@@ -1,8 +1,14 @@
 import { z } from 'zod';
 
+const contextSchema = z.union([
+  z.string().max(5000),
+  z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
+]);
+
 export const askQuestionBody = z.object({
   question: z.string().min(1, '请输入问题').max(2000, '问题过长'),
-  context: z.string().max(5000).optional(),
+  context: contextSchema.optional(),
+  conversationId: z.string().optional(),
   model: z.string().optional(),
 });
 
@@ -11,6 +17,8 @@ export const chatBody = z.object({
     role: z.enum(['user', 'assistant']),
     content: z.string().min(1).max(5000),
   })).min(1, '消息不能为空').max(50, '消息轮次过多'),
+  context: contextSchema.optional(),
+  conversationId: z.string().optional(),
   model: z.string().optional(),
 });
 

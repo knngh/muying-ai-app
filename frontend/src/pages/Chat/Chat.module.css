@@ -19,6 +19,50 @@
   margin-bottom: 16px;
 }
 
+.historyBar {
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.historyList :global(.ant-list-items) {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.historyItem {
+  padding: 0 !important;
+  border-block-end: none !important;
+  background: #fafafa;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.historyButton {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.historyTitle {
+  display: block;
+  font-weight: 600;
+  color: #262626;
+  margin-bottom: 4px;
+}
+
+.historySummary {
+  display: block;
+  font-size: 12px;
+  color: #8c8c8c;
+  line-height: 1.5;
+}
+
 .messagesList {
   height: 100%;
   overflow-y: auto;
@@ -74,5 +118,9 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
+  }
+
+  .historyList :global(.ant-list-items) {
+    grid-template-columns: 1fr;
   }
 }

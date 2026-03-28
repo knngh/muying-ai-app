@@ -5,9 +5,20 @@ import { EventEmitter } from 'events';
 // AI Gateway 配置
 const AI_GATEWAY_URL = process.env.AI_GATEWAY_URL || 'http://localhost:8080/v1';
 const AI_GATEWAY_KEY = process.env.AI_GATEWAY_KEY || '';
+const MODEL_ALIASES: Record<string, string> = {
+  'Baichuan-M3': 'baichuan-m3',
+};
+
+interface SupportedModel {
+  id: string;
+  apiModel?: string;
+  name: string;
+  provider: string;
+  maxTokens: number;
+}
 
 // 支持的模型列表
-export const SUPPORTED_MODELS = {
+export const SUPPORTED_MODELS: Record<string, SupportedModel> = {
   'glm-4': {
     id: 'glm-4',
     name: 'GLM-4',
@@ -37,6 +48,13 @@ export const SUPPORTED_MODELS = {
     name: 'DeepSeek Chat',
     provider: 'deepseek',
     maxTokens: 4096,
+  },
+  'baichuan-m3': {
+    id: 'baichuan-m3',
+    apiModel: 'Baichuan-M3',
+    name: 'Baichuan M3',
+    provider: 'baichuan',
+    maxTokens: 8192,
   },
 };
 
@@ -125,27 +143,66 @@ interface ChatResponse {
   };
 }
 
+function resolveGatewayChatCompletionsUrl(): string {
+  const trimmed = AI_GATEWAY_URL.replace(/\/+$/, '');
+  if (trimmed.endsWith('/chat/completions')) {
+    return trimmed;
+  }
+
+  return `${trimmed}/chat/completions`;
+}
+
+function resolveModelName(model?: string): string {
+  const selectedModel = MODEL_ALIASES[model || DEFAULT_MODEL] || model || DEFAULT_MODEL;
+  return SUPPORTED_MODELS[selectedModel]?.apiModel || selectedModel;
+}
+
+function resolveModelConfig(model?: string): SupportedModel | undefined {
+  const selectedModel = MODEL_ALIASES[model || DEFAULT_MODEL] || model || DEFAULT_MODEL;
+  return SUPPORTED_MODELS[selectedModel];
+}
+
+function getUniqueSupportedModels(): SupportedModel[] {
+  return Object.values(SUPPORTED_MODELS)
+    .filter((model, index, models) => {
+      const identity = model.apiModel || model.id;
+      return models.findIndex(item => (item.apiModel || item.id) === identity) === index;
+    });
+}
+
+function buildGatewayHeaders(stream = false): Record<string, string> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (stream) {
+    headers.Accept = 'text/event-stream';
+  }
+
+  if (AI_GATEWAY_KEY) {
+    headers.Authorization = `Bearer ${AI_GATEWAY_KEY}`;
+  }
+
+  return headers;
+}
+
 function buildMessagesWithKnowledgeContext(
   messages: ChatMessage[],
   context?: string
 ): ChatMessage[] {
-  const fullMessages: ChatMessage[] = [
-    { role: 'system', content: MATERNAL_HEALTH_SYSTEM_PROMPT },
-  ];
-
+  const systemParts = [MATERNAL_HEALTH_SYSTEM_PROMPT];
   if (context) {
-    fullMessages.push({
-      role: 'system',
-      content: `以下是相关知识库内容，请参考：
+    systemParts.push(`以下是相关知识库内容，请参考：
 
 ${context}
 
-请优先基于以上知识回答用户问题；若知识库未覆盖，再给出审慎的通用建议。`,
-    });
+请优先基于以上知识回答用户问题；若知识库未覆盖，再给出审慎的通用建议。`);
   }
 
-  fullMessages.push(...messages);
-  return fullMessages;
+  return [
+    { role: 'system', content: systemParts.join('\n\n') },
+    ...messages.filter(message => message.role !== 'system'),
+  ];
 }
 
 // 非流式调用 AI Gateway
@@ -157,7 +214,7 @@ export async function callAIGateway(
     maxTokens?: number;
   } = {}
 ): Promise<string> {
-  const model = options.model || DEFAULT_MODEL;
+  const model = resolveModelName(options.model);
   
   const request: ChatRequest = {
     model,
@@ -168,12 +225,9 @@ export async function callAIGateway(
   };
 
   try {
-    const response = await fetch(`${AI_GATEWAY_URL}/chat/completions`, {
+    const response = await fetch(resolveGatewayChatCompletionsUrl(), {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${AI_GATEWAY_KEY}`,
-      },
+      headers: buildGatewayHeaders(),
       body: JSON.stringify(request),
     });
 
@@ -200,7 +254,16 @@ export async function* streamAIGateway(
     maxTokens?: number;
   } = {}
 ): AsyncGenerator<string, void, unknown> {
-  const model = options.model || DEFAULT_MODEL;
+  const modelConfig = resolveModelConfig(options.model);
+  if (modelConfig?.provider === 'baichuan') {
+    const finalAnswer = await callAIGateway(messages, options);
+    if (finalAnswer) {
+      yield finalAnswer;
+    }
+    return;
+  }
+
+  const model = resolveModelName(options.model);
   
   const request: ChatRequest = {
     model,
@@ -211,13 +274,9 @@ export async function* streamAIGateway(
   };
 
   try {
-    const response = await fetch(`${AI_GATEWAY_URL}/chat/completions`, {
+    const response = await fetch(resolveGatewayChatCompletionsUrl(), {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${AI_GATEWAY_KEY}`,
-        'Accept': 'text/event-stream',
-      },
+      headers: buildGatewayHeaders(true),
       body: JSON.stringify(request),
     });
 
@@ -288,24 +347,9 @@ export async function ragEnhancedAnswer(
   sources: Array<{ title: string; content: string }>;
   confidence: number;
 }> {
-  // 构建消息
-  const messages: ChatMessage[] = [
-    { role: 'system', content: MATERNAL_HEALTH_SYSTEM_PROMPT },
-  ];
-
-  // 如果有上下文，添加知识库信息
-  if (context) {
-    messages.push({
-      role: 'system',
-      content: `以下是相关知识库内容，请参考：
-
-${context}
-
-请基于以上知识回答用户问题。`,
-    });
-  }
-
-  messages.push({ role: 'user', content: question });
+  const messages = buildMessagesWithKnowledgeContext([
+    { role: 'user', content: question },
+  ], context);
 
   try {
     const answer = await callAIGateway(messages, {
@@ -358,11 +402,17 @@ export async function* streamMultiTurnChat(
 
 // 获取可用模型列表
 export function getAvailableModels(): Array<{ id: string; name: string; provider: string }> {
-  return Object.values(SUPPORTED_MODELS).map(({ id, name, provider }) => ({
+  return getUniqueSupportedModels()
+    .map(({ id, name, provider }) => ({
     id,
     name,
     provider,
-  }));
+    }));
+}
+
+export function getDefaultModel(): string {
+  const selectedModel = MODEL_ALIASES[DEFAULT_MODEL] || DEFAULT_MODEL;
+  return SUPPORTED_MODELS[selectedModel]?.id || selectedModel;
 }
 
 // 健康检查
@@ -379,14 +429,14 @@ export async function healthCheck(): Promise<{
 
     return {
       status: response ? 'ok' : 'error',
-      gateway: AI_GATEWAY_URL,
-      models: Object.keys(SUPPORTED_MODELS),
+      gateway: resolveGatewayChatCompletionsUrl(),
+      models: getUniqueSupportedModels().map(model => model.id),
     };
   } catch (error) {
     return {
       status: 'error',
-      gateway: AI_GATEWAY_URL,
-      models: Object.keys(SUPPORTED_MODELS),
+      gateway: resolveGatewayChatCompletionsUrl(),
+      models: getUniqueSupportedModels().map(model => model.id),
     };
   }
 }

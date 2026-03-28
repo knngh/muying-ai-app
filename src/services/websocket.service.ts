@@ -9,14 +9,17 @@ import {
   getEmergencyResponse,
   streamMultiTurnChat,
 } from './ai-gateway.service';
-import { getRelatedContext } from './knowledge.service';
+import { buildKnowledgePack, type SourceReference } from './knowledge.service';
+import { buildUserProfileContext } from './ai-user-context.service';
+import { saveConversationExchange } from './ai-session.service';
 // WebSocket 消息协议类型（与 shared/types/ai.ts 保持一致）
 interface WsClientMessage {
-  type: 'ask_stream' | 'chat_stream'
+  type: 'ask_stream' | 'chat_stream' | 'ping'
   requestId: string
   payload: {
     question?: string
     messages?: Array<{ role: string; content: string }>
+    conversationId?: string
     model?: string
     context?: string
   }
@@ -29,8 +32,9 @@ interface WsServerMessage {
     content?: string
     isEmergency?: boolean
     error?: string
-    sources?: Array<{ title: string; content: string }>
+    sources?: SourceReference[]
     disclaimer?: string
+    conversationId?: string
   }
 }
 
@@ -45,6 +49,59 @@ interface AuthenticatedWebSocket extends WebSocket {
 // Rate limiting constants
 const RATE_LIMIT_MAX_REQUESTS = 10;
 const RATE_LIMIT_WINDOW_MS = 60_000; // 60 seconds
+const EXPLICIT_STAGE_PATTERNS = [
+  /孕早期|怀孕早期|怀孕初期|刚怀孕/u,
+  /孕中期|怀孕中期/u,
+  /孕晚期|怀孕晚期|怀孕后期/u,
+  /备孕/u,
+  /产后|月子/u,
+  /新生儿/u,
+  /\d{1,2}\s*周/u,
+  /怀孕\d{1,2}\s*个?月/u,
+  /\d{1,2}\s*个?月龄/u,
+  /\d{1,2}\s*个?月宝宝/u,
+];
+
+function hasExplicitStageSignal(text?: string): boolean {
+  if (!text) {
+    return false;
+  }
+
+  return EXPLICIT_STAGE_PATTERNS.some((pattern) => pattern.test(text));
+}
+
+function shouldUseProfileHints(question: string, context?: string): boolean {
+  return !hasExplicitStageSignal(question) && !hasExplicitStageSignal(context);
+}
+
+function buildAnswerPolicy(question: string, context?: string): string {
+  const explicitStage = hasExplicitStageSignal(question) || hasExplicitStageSignal(context);
+  const lines = [
+    '回答策略：',
+    '- 以用户当前问题和本轮补充信息为优先。',
+    '- 用户历史档案仅作辅助参考，可能不是最新状态。',
+  ];
+
+  if (explicitStage) {
+    lines.push('- 本轮问题中已明确给出阶段、孕周或月龄时，请以本轮描述为准，不要被历史档案覆盖。');
+    lines.push('- 如果本轮描述和历史档案不一致，先回答当前问题，只在结尾用一句话提醒用户确认最新阶段。');
+  } else {
+    lines.push('- 若用户未明确说明阶段、孕周或月龄，可谨慎参考历史档案补充建议。');
+  }
+
+  return lines.join('\n');
+}
+
+function buildPromptContext(question: string, context: string | undefined, profilePrompt?: string, knowledgeContext?: string): string {
+  const explicitStage = hasExplicitStageSignal(question) || hasExplicitStageSignal(context);
+
+  return [
+    buildAnswerPolicy(question, context),
+    explicitStage ? undefined : profilePrompt,
+    context?.trim() ? `用户补充背景：\n${context.trim()}` : undefined,
+    knowledgeContext,
+  ].filter(Boolean).join('\n\n');
+}
 
 export function setupWebSocket(server: HttpServer): WebSocketServer {
   const wss = new WebSocketServer({
@@ -116,6 +173,11 @@ export function setupWebSocket(server: HttpServer): WebSocketServer {
 
       const { type, requestId, payload } = msg;
 
+      if (type === 'ping') {
+        ws.isAlive = true;
+        return;
+      }
+
       if (!requestId) {
         sendError(ws, 'unknown', '缺少 requestId');
         return;
@@ -169,7 +231,7 @@ async function handleAskStream(
   requestId: string,
   payload: WsClientMessage['payload']
 ) {
-  const { question, model, context } = payload;
+  const { question, model, context, conversationId } = payload;
 
   if (!question) {
     sendError(ws, requestId, '请输入问题');
@@ -178,6 +240,16 @@ async function handleAskStream(
 
   // 紧急问题检测
   if (isEmergencyQuestion(question)) {
+    const persistedConversationId = ws.userId
+      ? await saveConversationExchange({
+        userId: ws.userId,
+        conversationId,
+        userQuestion: question,
+        assistantAnswer: getEmergencyResponse(),
+        isEmergency: true,
+      })
+      : conversationId;
+
     sendMessage(ws, {
       type: 'emergency',
       requestId,
@@ -185,14 +257,18 @@ async function handleAskStream(
         content: getEmergencyResponse(),
         isEmergency: true,
         disclaimer: '🚨 重要提示：如遇紧急情况，请立即就医！',
+        conversationId: persistedConversationId,
       },
     });
     return;
   }
 
-  // 从知识库获取上下文
-  const knowledgeContext = getRelatedContext(question, 3);
-  const finalContext = context || knowledgeContext;
+  const profileContext = await buildUserProfileContext(ws.userId);
+  const retrievalQuery = shouldUseProfileHints(question, context)
+    ? [question, ...profileContext.retrievalHints].filter(Boolean).join(' ')
+    : question;
+  const knowledgePack = buildKnowledgePack(retrievalQuery, { limit: 3 });
+  const finalContext = buildPromptContext(question, context, profileContext.prompt, knowledgePack.context);
 
   const messages: Array<{ role: 'user' | 'assistant'; content: string }> = [
     { role: 'user' as const, content: question },
@@ -200,10 +276,12 @@ async function handleAskStream(
 
   // 流式输出
   try {
+    let answer = '';
     for await (const chunk of streamMultiTurnChat(messages, {
       model,
       context: finalContext,
     })) {
+      answer += chunk;
       if (ws.readyState !== WebSocket.OPEN) break;
       sendMessage(ws, {
         type: 'chunk',
@@ -213,11 +291,23 @@ async function handleAskStream(
     }
 
     if (ws.readyState === WebSocket.OPEN) {
+      const persistedConversationId = ws.userId
+        ? await saveConversationExchange({
+          userId: ws.userId,
+          conversationId,
+          userQuestion: question,
+          assistantAnswer: answer,
+          sources: knowledgePack.sources,
+        })
+        : conversationId;
+
       sendMessage(ws, {
         type: 'done',
         requestId,
         data: {
+          sources: knowledgePack.sources,
           disclaimer: '⚠️ 免责声明：本回答由 AI 生成，仅供参考，不构成医疗建议。如有健康问题，请咨询专业医生。',
+          conversationId: persistedConversationId,
         },
       });
     }
@@ -235,7 +325,7 @@ async function handleChatStream(
   requestId: string,
   payload: WsClientMessage['payload']
 ) {
-  const { messages, model } = payload;
+  const { messages, model, context, conversationId } = payload;
 
   if (!messages || !Array.isArray(messages) || messages.length === 0) {
     sendError(ws, requestId, '消息不能为空');
@@ -245,6 +335,16 @@ async function handleChatStream(
   // 检测最后一条消息是否为紧急问题
   const lastMessage = messages[messages.length - 1];
   if (lastMessage.role === 'user' && isEmergencyQuestion(lastMessage.content)) {
+    const persistedConversationId = ws.userId
+      ? await saveConversationExchange({
+        userId: ws.userId,
+        conversationId,
+        userQuestion: lastMessage.content,
+        assistantAnswer: getEmergencyResponse(),
+        isEmergency: true,
+      })
+      : conversationId;
+
     sendMessage(ws, {
       type: 'emergency',
       requestId,
@@ -252,6 +352,7 @@ async function handleChatStream(
         content: getEmergencyResponse(),
         isEmergency: true,
         disclaimer: '🚨 重要提示：如遇紧急情况，请立即就医！',
+        conversationId: persistedConversationId,
       },
     });
     return;
@@ -265,15 +366,25 @@ async function handleChatStream(
     content: m.content,
   }));
 
-  const knowledgeContext =
-    lastMessage.role === 'user' ? getRelatedContext(lastMessage.content, 3) : '';
+  const profileContext = await buildUserProfileContext(ws.userId);
+  const retrievalQuery = lastMessage.role === 'user'
+    ? shouldUseProfileHints(lastMessage.content, context)
+      ? [lastMessage.content, ...profileContext.retrievalHints].filter(Boolean).join(' ')
+      : lastMessage.content
+    : lastMessage.content;
+  const knowledgePack = lastMessage.role === 'user'
+    ? buildKnowledgePack(retrievalQuery, { limit: 3 })
+    : { context: '', sources: [], followUpQuestions: [], results: [] };
+  const finalContext = buildPromptContext(lastMessage.content, context, profileContext.prompt, knowledgePack.context);
 
   // 流式输出
   try {
+    let answer = '';
     for await (const chunk of streamMultiTurnChat(formattedMessages, {
       model,
-      context: knowledgeContext,
+      context: finalContext,
     })) {
+      answer += chunk;
       if (ws.readyState !== WebSocket.OPEN) break;
       sendMessage(ws, {
         type: 'chunk',
@@ -283,11 +394,23 @@ async function handleChatStream(
     }
 
     if (ws.readyState === WebSocket.OPEN) {
+      const persistedConversationId = ws.userId && lastMessage.role === 'user'
+        ? await saveConversationExchange({
+          userId: ws.userId,
+          conversationId,
+          userQuestion: lastMessage.content,
+          assistantAnswer: answer,
+          sources: knowledgePack.sources,
+        })
+        : conversationId;
+
       sendMessage(ws, {
         type: 'done',
         requestId,
         data: {
+          sources: knowledgePack.sources,
           disclaimer: '⚠️ 免责声明：本回答由 AI 生成，仅供参考，不构成医疗建议。',
+          conversationId: persistedConversationId,
         },
       });
     }

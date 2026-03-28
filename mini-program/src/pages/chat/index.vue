@@ -1,193 +1,536 @@
 <template>
-  <view class="coming-soon-page">
-    <view class="content-wrapper">
-      <!-- 动态插画区域 -->
-      <view class="illustration-container">
-        <view class="glow-circle"></view>
-        <view class="icon-wrapper">
-          <text class="main-emoji">🤖</text>
+  <view class="chat-page">
+    <view class="hero">
+      <view class="hero-copy">
+        <text class="hero-title">AI 母婴答疑</text>
+        <text class="hero-subtitle">围绕孕产、喂养、护理和常见症状，给你一版更快落地的智能问答。</text>
+      </view>
+      <view class="hero-badge">Beta</view>
+    </view>
+
+    <view class="notice-card">
+      <text class="notice-title">使用提醒</text>
+      <text class="notice-text">{{ disclaimer }}</text>
+    </view>
+
+    <scroll-view
+      class="chat-scroll"
+      scroll-y
+      :scroll-into-view="scrollAnchor"
+      scroll-with-animation
+    >
+      <view v-if="messages.length === 0" class="empty-state">
+        <text v-if="loadingHistory" class="empty-subtitle">正在恢复最近一次对话...</text>
+        <view class="empty-illustration">
+          <text class="empty-emoji">🍼</text>
         </view>
-        <!-- 悬浮装饰 -->
-        <text class="float-item float-1">💬</text>
-        <text class="float-item float-2">✨</text>
-        <text class="float-item float-3">🩺</text>
+        <text class="empty-title">先问我一个具体问题</text>
+        <text class="empty-subtitle">例如孕吐、发热、辅食、湿疹、新生儿护理。</text>
+
+        <view class="quick-list">
+          <view
+            v-for="question in quickQuestions"
+            :key="question"
+            class="quick-chip"
+            hover-class="quick-chip--hover"
+            @tap="handleQuickQuestion(question)"
+          >
+            <text class="quick-chip-text">{{ question }}</text>
+          </view>
+        </view>
       </view>
 
-      <!-- 文字信息区 -->
-      <view class="text-container">
-        <text class="title">AI 专属母婴答疑</text>
-        <text class="subtitle">即将上线</text>
-        
-        <view class="desc-box">
-          <text class="desc-text">我们正在紧急接入顶级三甲医院专家知识库与强大的 RAG 检索模型。</text>
-          <text class="desc-text">很快，您就可以随时随地获得精准、安全、贴心的孕产育儿解答。</text>
+      <view v-else class="message-list">
+        <view
+          v-for="item in messages"
+          :id="`msg-${item.id}`"
+          :key="item.id"
+          class="message-row"
+          :class="item.role === 'user' ? 'message-row--user' : 'message-row--assistant'"
+        >
+          <view class="avatar" :class="item.role === 'user' ? 'avatar--user' : 'avatar--assistant'">
+            <text class="avatar-text">{{ item.role === 'user' ? '我' : 'AI' }}</text>
+          </view>
+
+          <view
+            class="bubble"
+            :class="[
+              item.role === 'user' ? 'bubble--user' : 'bubble--assistant',
+              item.isEmergency ? 'bubble--emergency' : '',
+            ]"
+          >
+            <text class="bubble-text">{{ item.content }}</text>
+
+            <view v-if="item.sources?.length" class="source-list">
+              <text class="source-title">参考来源</text>
+              <view
+                v-for="source in item.sources"
+                :key="`${item.id}-${source.title}`"
+                class="source-card"
+              >
+                <text class="source-name">{{ source.title }}</text>
+                <text class="source-meta">{{ source.source }} · 相关度 {{ Math.round(source.relevance * 100) }}%</text>
+                <text v-if="source.excerpt" class="source-excerpt">{{ source.excerpt }}</text>
+              </view>
+            </view>
+          </view>
+        </view>
+
+        <view v-if="loading && streamingContent" class="message-row message-row--assistant">
+          <view class="avatar avatar--assistant">
+            <text class="avatar-text">AI</text>
+          </view>
+          <view class="bubble bubble--assistant bubble--streaming">
+            <text class="bubble-text">{{ streamingContent }}</text>
+          </view>
+        </view>
+
+        <view v-else-if="loading" class="message-row message-row--assistant">
+          <view class="avatar avatar--assistant">
+            <text class="avatar-text">AI</text>
+          </view>
+          <view class="bubble bubble--assistant bubble--loading">
+            <text class="loading-dot">正在整理回答...</text>
+          </view>
         </view>
       </view>
 
-      <!-- 底部装饰按钮 -->
-      <view class="action-container" @tap="goBack">
-        <button class="back-btn" hover-class="back-btn--hover" hover-start-time="20" hover-stay-time="80">
-          先去看看孕育时间轴
-        </button>
+      <view v-if="error" class="error-bar">
+        <text class="error-text">{{ error }}</text>
+      </view>
+
+      <view id="chat-bottom" class="bottom-anchor"></view>
+    </scroll-view>
+
+    <view class="composer">
+      <textarea
+        v-model="inputValue"
+        class="composer-input"
+        auto-height
+        maxlength="2000"
+        :disabled="loading"
+        confirm-type="send"
+        placeholder="请输入你的问题，越具体越容易得到有用回答"
+        @confirm="handleSend"
+      />
+      <view
+        class="send-button"
+        :class="{ 'send-button--disabled': !canSend }"
+        hover-class="send-button--hover"
+        @tap="handleSend"
+      >
+        <text class="send-button-text">发送</text>
       </view>
     </view>
   </view>
 </template>
 
 <script setup lang="ts">
-const goBack = () => {
-  uni.navigateTo({ url: '/pages/calendar/index' })
+import { computed, nextTick, ref, watch } from 'vue'
+import { storeToRefs } from 'pinia'
+import { onShow } from '@dcloudio/uni-app'
+import { useChatStore } from '@/stores/chat'
+import { getDisclaimer } from '@/api/ai'
+
+const quickQuestions = [
+  '孕早期有哪些注意事项？',
+  '宝宝发烧先怎么处理？',
+  '母乳喂养常见问题有哪些？',
+  '新生儿黄疸需要注意什么？',
+]
+
+const chatStore = useChatStore()
+const { messages, loading, loadingHistory, error, streamingContent } = storeToRefs(chatStore)
+
+const inputValue = ref('')
+const disclaimer = getDisclaimer()
+const scrollAnchor = ref('chat-bottom')
+
+const canSend = computed(() => inputValue.value.trim().length > 0 && !loading.value)
+
+function syncScrollAnchor() {
+  nextTick(() => {
+    scrollAnchor.value = 'chat-bottom'
+  })
 }
+
+async function handleSend() {
+  const content = inputValue.value.trim()
+  if (!content || loading.value) {
+    return
+  }
+
+  inputValue.value = ''
+  await chatStore.sendMessage(content)
+  syncScrollAnchor()
+}
+
+function handleQuickQuestion(question: string) {
+  inputValue.value = question
+  handleSend()
+}
+
+onShow(() => {
+  const token = uni.getStorageSync('token')
+  if (!token) {
+    uni.showToast({ title: '请先登录后使用 AI 答疑', icon: 'none' })
+    setTimeout(() => {
+      uni.switchTab({ url: '/pages/home/index' })
+    }, 900)
+    return
+  }
+
+  chatStore.initialize()
+})
+
+watch([messages, streamingContent], () => {
+  syncScrollAnchor()
+}, { deep: true })
 </script>
 
 <style scoped>
-.coming-soon-page {
+.chat-page {
   min-height: 100vh;
-  background: linear-gradient(180deg, #f0f4ff 0%, #ffffff 100%);
+  background:
+    radial-gradient(circle at top right, rgba(255, 196, 157, 0.28), transparent 30%),
+    linear-gradient(180deg, #fff8f2 0%, #fffdf9 42%, #f9fbff 100%);
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
 }
 
-.content-wrapper {
+.hero {
+  padding: 112rpx 36rpx 28rpx;
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 60rpx;
-  margin-top: -100rpx; /* 稍微往上偏移居中 */
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24rpx;
 }
 
-/* === 动态插画 === */
-.illustration-container {
-  position: relative;
-  width: 400rpx;
-  height: 400rpx;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  margin-bottom: 60rpx;
+.hero-copy {
+  flex: 1;
 }
 
-.glow-circle {
-  position: absolute;
-  width: 280rpx;
-  height: 280rpx;
-  background: radial-gradient(circle, rgba(123, 156, 255, 0.2) 0%, rgba(123, 156, 255, 0) 70%);
-  border-radius: 50%;
-  animation: pulse 3s infinite ease-in-out;
-}
-
-.icon-wrapper {
-  z-index: 2;
-  font-size: 160rpx;
-  width: 220rpx;
-  height: 220rpx;
-  background: #ffffff;
-  border-radius: 60rpx;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  box-shadow: 0 20rpx 40rpx rgba(123, 156, 255, 0.2);
-  transform: rotate(-5deg);
-  animation: float-main 4s infinite ease-in-out;
-}
-
-.float-item {
-  position: absolute;
-  font-size: 60rpx;
-  opacity: 0.9;
-  z-index: 3;
-}
-
-.float-1 { top: 20rpx; right: 20rpx; animation: float-sub 3s infinite ease-in-out; }
-.float-2 { bottom: 40rpx; left: 0rpx; animation: float-sub 3.5s infinite ease-in-out reverse; }
-.float-3 { top: 100rpx; left: 20rpx; font-size: 50rpx; animation: float-sub 4s infinite ease-in-out 1s; }
-
-/* === 动画定义 === */
-@keyframes pulse {
-  0% { transform: scale(1); opacity: 0.6; }
-  50% { transform: scale(1.4); opacity: 1; }
-  100% { transform: scale(1); opacity: 0.6; }
-}
-
-@keyframes float-main {
-  0% { transform: translateY(0) rotate(-5deg); }
-  50% { transform: translateY(-20rpx) rotate(0deg); }
-  100% { transform: translateY(0) rotate(-5deg); }
-}
-
-@keyframes float-sub {
-  0% { transform: translateY(0) scale(1); }
-  50% { transform: translateY(-15rpx) scale(1.1); }
-  100% { transform: translateY(0) scale(1); }
-}
-
-/* === 文字信息 === */
-.text-container {
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.title {
-  font-size: 52rpx;
+.hero-title {
+  display: block;
+  font-size: 54rpx;
+  line-height: 1.1;
   font-weight: 900;
-  color: #333;
-  margin-bottom: 16rpx;
-  letter-spacing: 2rpx;
+  color: #2f2a26;
+  letter-spacing: 1rpx;
 }
 
-.subtitle {
-  font-size: 28rpx;
+.hero-subtitle {
+  display: block;
+  margin-top: 16rpx;
+  font-size: 27rpx;
+  line-height: 1.6;
+  color: #75685d;
+}
+
+.hero-badge {
+  padding: 12rpx 20rpx;
+  border-radius: 999rpx;
+  background: #ff8f5a;
   color: #fff;
-  background: linear-gradient(90deg, #7b9cff 0%, #5a80ff 100%);
-  padding: 8rpx 30rpx;
-  border-radius: 30rpx;
-  font-weight: bold;
-  margin-bottom: 60rpx;
-  box-shadow: 0 8rpx 20rpx rgba(123, 156, 255, 0.3);
+  font-size: 24rpx;
+  font-weight: 700;
+  box-shadow: 0 10rpx 20rpx rgba(255, 143, 90, 0.22);
 }
 
-.desc-box {
-  background: rgba(255, 255, 255, 0.6);
-  backdrop-filter: blur(10px);
-  padding: 40rpx;
-  border-radius: 30rpx;
-  width: 100%;
+.notice-card {
+  margin: 0 28rpx 20rpx;
+  padding: 24rpx 28rpx;
+  border-radius: 28rpx;
+  background: rgba(255, 255, 255, 0.72);
+  border: 2rpx solid rgba(255, 173, 122, 0.18);
+  backdrop-filter: blur(12px);
+}
+
+.notice-title {
+  display: block;
+  margin-bottom: 12rpx;
+  font-size: 24rpx;
+  font-weight: 700;
+  color: #6f4b2f;
+}
+
+.notice-text {
+  font-size: 24rpx;
+  line-height: 1.7;
+  color: #7c6958;
+}
+
+.chat-scroll {
+  flex: 1;
+  padding: 0 28rpx 12rpx;
   box-sizing: border-box;
 }
 
-.desc-text {
-  display: block;
-  font-size: 28rpx;
-  color: #666;
-  line-height: 1.8;
-  margin-bottom: 10rpx;
+.empty-state {
+  min-height: 780rpx;
+  padding: 48rpx 16rpx 24rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }
 
-/* === 按钮 === */
-.action-container {
-  margin-top: 80rpx;
+.empty-illustration {
+  width: 160rpx;
+  height: 160rpx;
+  border-radius: 44rpx;
+  background: linear-gradient(135deg, #fff0e4 0%, #ffe4cf 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 20rpx 40rpx rgba(255, 165, 116, 0.14);
+}
+
+.empty-emoji {
+  font-size: 86rpx;
+}
+
+.empty-title {
+  margin-top: 32rpx;
+  font-size: 38rpx;
+  font-weight: 800;
+  color: #2f2a26;
+}
+
+.empty-subtitle {
+  margin-top: 14rpx;
+  font-size: 26rpx;
+  line-height: 1.7;
+  color: #7f746b;
+  text-align: center;
+}
+
+.quick-list {
   width: 100%;
+  margin-top: 30rpx;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18rpx;
+  justify-content: center;
 }
 
-.back-btn {
-  background-color: #ffffff;
-  color: #7b9cff;
-  border: 2rpx solid #e0e8ff;
-  border-radius: 50rpx;
-  font-size: 32rpx;
-  font-weight: bold;
-  height: 90rpx;
-  line-height: 86rpx;
-  box-shadow: 0 10rpx 20rpx rgba(0,0,0,0.03);
-  transition: all 0.2s;
+.quick-chip {
+  max-width: 100%;
+  padding: 18rpx 24rpx;
+  border-radius: 999rpx;
+  background: #fff;
+  border: 2rpx solid rgba(255, 143, 90, 0.18);
+  box-shadow: 0 8rpx 18rpx rgba(46, 38, 30, 0.04);
 }
 
-.back-btn--hover {
-  background-color: #f0f4ff;
-  transform: scale(0.98);
+.quick-chip--hover {
+  transform: scale(0.97);
+}
+
+.quick-chip-text {
+  font-size: 25rpx;
+  line-height: 1.4;
+  color: #805f4b;
+}
+
+.message-list {
+  padding-top: 10rpx;
+}
+
+.message-row {
+  margin-bottom: 24rpx;
+  display: flex;
+  align-items: flex-start;
+  gap: 16rpx;
+}
+
+.message-row--user {
+  flex-direction: row-reverse;
+}
+
+.avatar {
+  width: 60rpx;
+  height: 60rpx;
+  border-radius: 20rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.avatar--assistant {
+  background: linear-gradient(135deg, #ffbf86 0%, #ff8f5a 100%);
+  box-shadow: 0 12rpx 24rpx rgba(255, 143, 90, 0.22);
+}
+
+.avatar--user {
+  background: linear-gradient(135deg, #87aaf7 0%, #5f85e5 100%);
+  box-shadow: 0 12rpx 24rpx rgba(95, 133, 229, 0.2);
+}
+
+.avatar-text {
+  color: #fff;
+  font-size: 22rpx;
+  font-weight: 700;
+}
+
+.bubble {
+  max-width: 78%;
+  padding: 24rpx 24rpx 20rpx;
+  border-radius: 30rpx;
+  box-sizing: border-box;
+}
+
+.bubble--assistant {
+  background: rgba(255, 255, 255, 0.9);
+  border-top-left-radius: 12rpx;
+  box-shadow: 0 14rpx 36rpx rgba(46, 38, 30, 0.05);
+}
+
+.bubble--user {
+  background: linear-gradient(135deg, #5f85e5 0%, #7fa4ff 100%);
+  border-top-right-radius: 12rpx;
+  box-shadow: 0 14rpx 36rpx rgba(95, 133, 229, 0.16);
+}
+
+.bubble--emergency {
+  border: 2rpx solid rgba(225, 87, 89, 0.28);
+  background: #fff1f0;
+}
+
+.bubble--streaming {
+  border: 2rpx solid rgba(255, 143, 90, 0.12);
+}
+
+.bubble--loading {
+  opacity: 0.82;
+}
+
+.bubble-text {
+  display: block;
+  white-space: pre-wrap;
+  font-size: 28rpx;
+  line-height: 1.72;
+  color: #43352c;
+}
+
+.message-row--user .bubble-text {
+  color: #fff;
+}
+
+.loading-dot {
+  font-size: 27rpx;
+  color: #8d7868;
+}
+
+.source-list {
+  margin-top: 18rpx;
+  padding-top: 18rpx;
+  border-top: 2rpx solid rgba(95, 133, 229, 0.08);
+}
+
+.source-title {
+  display: block;
+  margin-bottom: 12rpx;
+  font-size: 23rpx;
+  font-weight: 700;
+  color: #7f6958;
+}
+
+.source-card {
+  padding: 18rpx;
+  margin-top: 12rpx;
+  border-radius: 22rpx;
+  background: #f7f8ff;
+}
+
+.source-name {
+  display: block;
+  font-size: 24rpx;
+  line-height: 1.5;
+  font-weight: 700;
+  color: #35405a;
+}
+
+.source-meta {
+  display: block;
+  margin-top: 6rpx;
+  font-size: 22rpx;
+  color: #6c7593;
+}
+
+.source-excerpt {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 23rpx;
+  line-height: 1.6;
+  color: #666b7d;
+}
+
+.error-bar {
+  margin: 16rpx 0 6rpx;
+  padding: 20rpx 24rpx;
+  border-radius: 20rpx;
+  background: #fff1f0;
+  border: 2rpx solid rgba(225, 87, 89, 0.12);
+}
+
+.error-text {
+  color: #cf4f4c;
+  font-size: 25rpx;
+  line-height: 1.5;
+}
+
+.bottom-anchor {
+  height: 12rpx;
+}
+
+.composer {
+  padding: 18rpx 22rpx calc(env(safe-area-inset-bottom) + 18rpx);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(14px);
+  border-top: 2rpx solid rgba(92, 113, 173, 0.08);
+  display: flex;
+  align-items: flex-end;
+  gap: 16rpx;
+}
+
+.composer-input {
+  flex: 1;
+  min-height: 88rpx;
+  max-height: 240rpx;
+  padding: 20rpx 22rpx;
+  border-radius: 28rpx;
+  background: #f6f7fb;
+  font-size: 28rpx;
+  line-height: 1.6;
+  color: #2f2a26;
+  box-sizing: border-box;
+}
+
+.send-button {
+  height: 88rpx;
+  padding: 0 30rpx;
+  border-radius: 28rpx;
+  background: linear-gradient(135deg, #ff945f 0%, #ff7845 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 14rpx 28rpx rgba(255, 120, 69, 0.22);
+}
+
+.send-button--hover {
+  transform: translateY(2rpx);
+}
+
+.send-button--disabled {
+  opacity: 0.45;
+}
+
+.send-button-text {
+  color: #fff;
+  font-size: 28rpx;
+  font-weight: 800;
+  letter-spacing: 1rpx;
 }
 </style>
