@@ -188,8 +188,13 @@ export const refreshToken = async (req: Request, res: Response, next: NextFuncti
 
     const oldToken = authHeader.split(' ')[1];
     
-    // 验证旧 token（即使过期也尝试解码）
-    const decoded = jwt.decode(oldToken) as any;
+    // 验证旧 token（允许过期但必须验证签名，防止伪造）
+    let decoded: any;
+    try {
+      decoded = jwt.verify(oldToken, env.JWT_SECRET, { ignoreExpiration: true });
+    } catch {
+      throw new AppError('Token 无效', ErrorCodes.TOKEN_INVALID, 401);
+    }
     
     if (!decoded || !decoded.userId) {
       throw new AppError('Token 无效', ErrorCodes.TOKEN_INVALID, 401);

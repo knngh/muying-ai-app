@@ -22,7 +22,12 @@ import {
 } from '../controllers/calendar.controller';
 import { authMiddleware } from '../middlewares/auth.middleware';
 import { validate } from '../middlewares/validate.middleware';
-import { createEventBody, getEventsQuery } from '../schemas/calendar.schema';
+import { queryRateLimiter, writeRateLimiter } from '../middlewares/rateLimiter.middleware';
+import {
+  createEventBody, getEventsQuery,
+  updateEventBody, dragEventBody, batchUpdateEventsBody, batchDeleteEventsBody,
+  updateTodoProgressBody, saveDiaryBody, createCustomTodoBody, updateCustomTodoBody,
+} from '../schemas/calendar.schema';
 
 const router = Router();
 
@@ -30,50 +35,50 @@ const router = Router();
 router.use(authMiddleware);
 
 // 事件类型
-router.get('/event-types', getEventTypes);
+router.get('/event-types', queryRateLimiter, getEventTypes);
 
 // 周历数据
-router.get('/week', getWeekEvents);
+router.get('/week', queryRateLimiter, getWeekEvents);
 
 // 单日数据
-router.get('/day/:date', getDayEvents);
+router.get('/day/:date', queryRateLimiter, getDayEvents);
 
 // 孕周待办进度
-router.get('/todo-progress', getTodoProgress);
-router.put('/todo-progress', updateTodoProgress);
+router.get('/todo-progress', queryRateLimiter, getTodoProgress);
+router.put('/todo-progress', writeRateLimiter, validate({ body: updateTodoProgressBody }), updateTodoProgress);
 
 // 孕周记录
-router.get('/diaries', getPregnancyDiaries);
-router.put('/diaries', savePregnancyDiary);
+router.get('/diaries', queryRateLimiter, getPregnancyDiaries);
+router.put('/diaries', writeRateLimiter, validate({ body: saveDiaryBody }), savePregnancyDiary);
 
 // 自定义待办
-router.get('/custom-todos', getCustomTodos);
-router.post('/custom-todos', createCustomTodo);
-router.put('/custom-todos/:id', updateCustomTodo);
-router.delete('/custom-todos/:id', deleteCustomTodo);
+router.get('/custom-todos', queryRateLimiter, getCustomTodos);
+router.post('/custom-todos', writeRateLimiter, validate({ body: createCustomTodoBody }), createCustomTodo);
+router.put('/custom-todos/:id', writeRateLimiter, validate({ body: updateCustomTodoBody }), updateCustomTodo);
+router.delete('/custom-todos/:id', writeRateLimiter, deleteCustomTodo);
 
 // 事件列表（按日期范围）
-router.get('/events', validate({ query: getEventsQuery }), getEvents);
+router.get('/events', queryRateLimiter, validate({ query: getEventsQuery }), getEvents);
 
 // 创建事件
-router.post('/events', validate({ body: createEventBody }), createEvent);
+router.post('/events', writeRateLimiter, validate({ body: createEventBody }), createEvent);
 
 // 更新事件
-router.put('/events/:id', updateEvent);
+router.put('/events/:id', writeRateLimiter, validate({ body: updateEventBody }), updateEvent);
 
 // 拖拽更新事件日期
-router.patch('/events/:id/drag', dragEvent);
+router.patch('/events/:id/drag', writeRateLimiter, validate({ body: dragEventBody }), dragEvent);
 
 // 批量更新事件
-router.patch('/events/batch', batchUpdateEvents);
+router.patch('/events/batch', writeRateLimiter, validate({ body: batchUpdateEventsBody }), batchUpdateEvents);
 
 // 删除事件
-router.delete('/events/:id', deleteEvent);
+router.delete('/events/:id', writeRateLimiter, deleteEvent);
 
 // 批量删除事件
-router.delete('/events/batch', batchDeleteEvents);
+router.delete('/events/batch', writeRateLimiter, validate({ body: batchDeleteEventsBody }), batchDeleteEvents);
 
 // 标记完成
-router.post('/events/:id/complete', completeEvent);
+router.post('/events/:id/complete', writeRateLimiter, completeEvent);
 
 export default router;

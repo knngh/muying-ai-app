@@ -14,6 +14,12 @@ mobile/ios/build/
 .env
 .env.local
 .env.*.local
+.env.production
+.env.development
+frontend/.env.production
+frontend/.env.development
+mini-program/.env.production
+mini-program/.env.development
 
 # IDE
 .vscode/
