@@ -401,6 +401,40 @@ export const savePregnancyDiary = async (req: Request, res: Response, next: Next
   }
 };
 
+// 删除孕周记录
+export const deletePregnancyDiary = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.userId!;
+    const week = parseTodoWeek(req.params.week);
+
+    const existingDiary = await prisma.userPregnancyDiary.findUnique({
+      where: {
+        userId_week: {
+          userId: BigInt(userId),
+          week
+        }
+      }
+    });
+
+    if (!existingDiary) {
+      throw new AppError('记录不存在', ErrorCodes.PARAM_ERROR, 404);
+    }
+
+    await prisma.userPregnancyDiary.delete({
+      where: {
+        userId_week: {
+          userId: BigInt(userId),
+          week
+        }
+      }
+    });
+
+    res.json(successResponse({ week }, '删除成功'));
+  } catch (error) {
+    next(error);
+  }
+};
+
 // 获取自定义待办
 export const getCustomTodos = async (req: Request, res: Response, next: NextFunction) => {
   try {

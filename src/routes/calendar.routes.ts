@@ -7,6 +7,7 @@ import {
   updateTodoProgress,
   getPregnancyDiaries,
   savePregnancyDiary,
+  deletePregnancyDiary,
   getCustomTodos,
   createCustomTodo,
   updateCustomTodo,
@@ -50,6 +51,7 @@ router.put('/todo-progress', writeRateLimiter, validate({ body: updateTodoProgre
 // 孕周记录
 router.get('/diaries', queryRateLimiter, getPregnancyDiaries);
 router.put('/diaries', writeRateLimiter, validate({ body: saveDiaryBody }), savePregnancyDiary);
+router.delete('/diaries/:week', writeRateLimiter, deletePregnancyDiary);
 
 // 自定义待办
 router.get('/custom-todos', queryRateLimiter, getCustomTodos);
