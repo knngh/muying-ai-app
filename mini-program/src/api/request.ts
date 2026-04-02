@@ -1,5 +1,5 @@
 // uni.request 封装 - 对标 Web 端 Axios 拦截器
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://212.64.29.211/api/v1'
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://beihu.me/api/v1'
 
 interface RequestOptions {
   url: string

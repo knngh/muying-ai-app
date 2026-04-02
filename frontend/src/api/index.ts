@@ -3,7 +3,7 @@ import { storage } from '../utils/storage'
 
 // 创建主 axios 实例
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://212.64.29.211/api/v1',
+  baseURL: import.meta.env.VITE_API_BASE_URL || 'https://beihu.me/api/v1',
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
@@ -12,7 +12,7 @@ const api = axios.create({
 
 // 用于 token 刷新的独立实例（无拦截器，避免循环）
 const refreshClient = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://212.64.29.211/api/v1',
+  baseURL: import.meta.env.VITE_API_BASE_URL || 'https://beihu.me/api/v1',
   timeout: 10000,
 })
 

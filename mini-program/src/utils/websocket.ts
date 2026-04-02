@@ -10,7 +10,7 @@ class AIWebSocketManager {
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null
   private listeners: Map<string, MessageHandler> = new Map()
   private pendingMessages: string[] = []
-  private baseUrl = import.meta.env.VITE_WS_URL || 'ws://212.64.29.211'
+  private baseUrl = import.meta.env.VITE_WS_URL || 'wss://beihu.me'
 
   connect(): void {
     const token = uni.getStorageSync('token')
