@@ -14,20 +14,20 @@ import {
   getKnowledgeBaseStats,
 } from '../controllers/ai.controller';
 import { authMiddleware } from '../middlewares/auth.middleware';
-import { aiRateLimiter } from '../middlewares/rateLimiter.middleware';
+import { aiRateLimiter, queryRateLimiter, writeRateLimiter } from '../middlewares/rateLimiter.middleware';
 import { validate } from '../middlewares/validate.middleware';
 import { askQuestionBody, chatBody, feedbackBody } from '../schemas/ai.schema';
 
 const router = Router();
 
 // 健康检查（无需认证）
-router.get('/health', checkHealth);
+router.get('/health', queryRateLimiter, checkHealth);
 
 // 获取可用模型（无需认证）
-router.get('/models', getModels);
+router.get('/models', queryRateLimiter, getModels);
 
 // 知识库统计（无需认证）
-router.get('/knowledge/stats', getKnowledgeBaseStats);
+router.get('/knowledge/stats', queryRateLimiter, getKnowledgeBaseStats);
 
 // 以下路由需要认证
 router.use(authMiddleware);
@@ -53,6 +53,6 @@ router.post('/chat/stream', aiRateLimiter, validate({ body: chatBody }), chatStr
 router.get('/knowledge/search', aiRateLimiter, searchKnowledge);
 
 // 用户反馈
-router.post('/feedback', validate({ body: feedbackBody }), submitFeedback);
+router.post('/feedback', writeRateLimiter, validate({ body: feedbackBody }), submitFeedback);
 
 export default router;

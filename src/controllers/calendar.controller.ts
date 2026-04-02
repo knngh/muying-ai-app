@@ -2,6 +2,26 @@ import { Request, Response, NextFunction } from 'express';
 import prisma from '../config/database';
 import { successResponse, AppError, ErrorCodes } from '../middlewares/error.middleware';
 
+// 辅助函数：将 Prisma CalendarEvent 序列化为前端期望的格式
+const serializeEvent = (event: any) => {
+  const { eventTime, endTime, isAllDay, isRecurring, status, ...rest } = event;
+  const formatTime = (t: Date | null | undefined): string | null => {
+    if (!t) return null;
+    const d = new Date(t);
+    return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
+  };
+  return {
+    ...rest,
+    startTime: formatTime(eventTime),
+    endTime: formatTime(endTime),
+    isAllDay: isAllDay === 1,
+    isRecurring: isRecurring === 1,
+    isCompleted: status === 1,
+    reminderEnabled: (rest.reminderMinutes ?? 0) > 0,
+    status,
+  };
+};
+
 // 辅助函数：获取一周的开始和结束日期（周一到周日）
 const getWeekRange = (dateStr: string): { start: Date; end: Date } => {
   const date = new Date(dateStr);
@@ -154,11 +174,11 @@ export const getWeekEvents = async (req: Request, res: Response, next: NextFunct
       });
     }
 
-    // 将事件分配到对应日期
+    // 将事件分配到对应日期（序列化后）
     events.forEach((event: any) => {
       const dateStr = formatDate(event.eventDate);
       if (eventsByDate[dateStr]) {
-        eventsByDate[dateStr].push(event);
+        eventsByDate[dateStr].push(serializeEvent(event));
       }
     });
 
@@ -211,7 +231,7 @@ export const getEvents = async (req: Request, res: Response, next: NextFunction)
       orderBy: { eventDate: 'asc' }
     });
 
-    res.json(successResponse({ list: events }));
+    res.json(successResponse({ list: events.map(serializeEvent) }));
   } catch (error) {
     next(error);
   }
@@ -375,6 +395,40 @@ export const savePregnancyDiary = async (req: Request, res: Response, next: Next
       createdAt: diary.createdAt.toISOString(),
       updatedAt: diary.updatedAt.toISOString()
     }, '保存成功'));
+  } catch (error) {
+    next(error);
+  }
+};
+
+// 删除孕周记录
+export const deletePregnancyDiary = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.userId!;
+    const week = parseTodoWeek(req.params.week);
+
+    const existingDiary = await prisma.userPregnancyDiary.findUnique({
+      where: {
+        userId_week: {
+          userId: BigInt(userId),
+          week
+        }
+      }
+    });
+
+    if (!existingDiary) {
+      throw new AppError('记录不存在', ErrorCodes.PARAM_ERROR, 404);
+    }
+
+    await prisma.userPregnancyDiary.delete({
+      where: {
+        userId_week: {
+          userId: BigInt(userId),
+          week
+        }
+      }
+    });
+
+    res.json(successResponse({ week }, '删除成功'));
   } catch (error) {
     next(error);
   }
@@ -571,7 +625,7 @@ export const createEvent = async (req: Request, res: Response, next: NextFunctio
       }
     });
 
-    res.status(201).json(successResponse(event, '创建成功'));
+    res.status(201).json(successResponse(serializeEvent(event), '创建成功'));
   } catch (error) {
     next(error);
   }
@@ -616,7 +670,7 @@ export const updateEvent = async (req: Request, res: Response, next: NextFunctio
       }
     });
 
-    res.json(successResponse(event, '更新成功'));
+    res.json(successResponse(serializeEvent(event), '更新成功'));
   } catch (error) {
     next(error);
   }
@@ -655,7 +709,7 @@ export const dragEvent = async (req: Request, res: Response, next: NextFunction)
       data: updateData
     });
 
-    res.json(successResponse(event, '拖拽更新成功'));
+    res.json(successResponse(serializeEvent(event), '拖拽更新成功'));
   } catch (error) {
     next(error);
   }
@@ -698,7 +752,7 @@ export const batchUpdateEvents = async (req: Request, res: Response, next: NextF
         data: safeData
       });
 
-      results.push(updated);
+      results.push(serializeEvent(updated));
     }
 
     res.json(successResponse({ updated: results.length, events: results }, '批量更新成功'));
@@ -777,7 +831,7 @@ export const completeEvent = async (req: Request, res: Response, next: NextFunct
       data: { status: 1, completedAt: new Date() }
     });
 
-    res.json(successResponse(updatedEvent, '标记完成'));
+    res.json(successResponse(serializeEvent(updatedEvent), '标记完成'));
   } catch (error) {
     next(error);
   }
@@ -829,7 +883,7 @@ export const getDayEvents = async (req: Request, res: Response, next: NextFuncti
 
     res.json(successResponse({
       date,
-      events,
+      events: events.map(serializeEvent),
       stats: {
         total: events.length,
         completed: events.filter((e: any) => e.status === 1).length

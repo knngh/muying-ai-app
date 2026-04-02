@@ -48,3 +48,16 @@ export const changePasswordBody = z.object({
     .min(8, '新密码至少8个字符')
     .max(64, '新密码最多64个字符'),
 });
+
+export const wechatLoginBody = z.object({
+  code: z.string().min(1, '微信登录code不能为空'),
+  pregnancyWeek: z.coerce.number().int().min(1).max(42).optional(),
+});
+
+export const checkUsernameQuery = z.object({
+  username: z.string().min(1, '用户名不能为空').max(20),
+});
+
+export const checkPhoneQuery = z.object({
+  phone: z.string().regex(/^1[3-9]\d{9}$/, '手机号格式错误'),
+});

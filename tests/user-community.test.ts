@@ -2,21 +2,37 @@ import request from 'supertest';
 import app from '../src/app';
 
 let authToken: string;
+const testUser = {
+  username: `community_user_${Date.now()}`,
+  password: 'Test123456',
+  phone: '13900139000',
+  email: `community_${Date.now()}@example.com`,
+};
 
 describe('个人中心API测试', () => {
   
   beforeAll(async () => {
-    // 登录获取Token
-    const res = await request(app)
+    const registerRes = await request(app)
+      .post('/api/v1/auth/register')
+      .send(testUser);
+
+    if (registerRes.status === 201 && registerRes.body?.data?.token) {
+      authToken = registerRes.body.data.token;
+      return;
+    }
+
+    const loginRes = await request(app)
       .post('/api/v1/auth/login')
       .send({
-        username: 'existing_user', // 需要预先创建的测试用户
-        password: 'Test123456'
+        username: testUser.username,
+        password: testUser.password,
       });
-    
-    if (res.body.data) {
-      authToken = res.body.data.token;
+
+    if (!loginRes.body?.data?.token) {
+      throw new Error(`测试用户初始化失败: register=${registerRes.status}, login=${loginRes.status}`);
     }
+
+    authToken = loginRes.body.data.token;
   });
 
   describe('GET /api/v1/user/favorites', () => {
@@ -61,7 +77,7 @@ describe('个人中心API测试', () => {
         .send({
           articleId: 1,
           readDuration: 60,
-          progress: 0.5
+          progress: 50
         });
       
       expect(res.status).toBe(200);
