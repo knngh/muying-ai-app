@@ -35,6 +35,9 @@ interface WsServerMessage {
     sources?: SourceReference[]
     disclaimer?: string
     conversationId?: string
+    model?: string
+    provider?: string
+    route?: string
   }
 }
 
@@ -61,6 +64,12 @@ const EXPLICIT_STAGE_PATTERNS = [
   /\d{1,2}\s*个?月龄/u,
   /\d{1,2}\s*个?月宝宝/u,
 ];
+const CHILDCARE_SCENE_PATTERNS = [
+  /(宝宝|婴儿|新生儿|幼儿|孩子|儿童).{0,8}(发烧|发热|咳嗽|腹泻|拉肚子|便秘|吐奶|湿疹|黄疸|皮疹|疫苗|奶量|喂奶|吃奶|夜醒|夜里总醒|夜间醒|睡觉|睡眠|哄睡|哭闹|闹觉|安抚|便便|辅食|厌奶|发育|体重|身高)/u,
+  /(发烧|发热|咳嗽|腹泻|拉肚子|便秘|吐奶|湿疹|黄疸|皮疹|疫苗|奶量|喂奶|吃奶|夜醒|夜里总醒|夜间醒|睡觉|睡眠|哄睡|哭闹|闹觉|安抚|便便|辅食|厌奶|发育|体重|身高).{0,8}(宝宝|婴儿|新生儿|幼儿|孩子|儿童)/u,
+  /宝宝月龄|婴儿护理|儿童护理|儿科|宝宝作息|宝宝睡眠/u,
+  /\d{1,2}\s*个?月(宝宝|婴儿|孩子|儿童)/u,
+];
 
 function hasExplicitStageSignal(text?: string): boolean {
   if (!text) {
@@ -70,12 +79,24 @@ function hasExplicitStageSignal(text?: string): boolean {
   return EXPLICIT_STAGE_PATTERNS.some((pattern) => pattern.test(text));
 }
 
+function hasChildcareSceneSignal(text?: string): boolean {
+  if (!text) {
+    return false;
+  }
+
+  return CHILDCARE_SCENE_PATTERNS.some((pattern) => pattern.test(text));
+}
+
 function shouldUseProfileHints(question: string, context?: string): boolean {
-  return !hasExplicitStageSignal(question) && !hasExplicitStageSignal(context);
+  return !hasExplicitStageSignal(question)
+    && !hasExplicitStageSignal(context)
+    && !hasChildcareSceneSignal(question)
+    && !hasChildcareSceneSignal(context);
 }
 
 function buildAnswerPolicy(question: string, context?: string): string {
   const explicitStage = hasExplicitStageSignal(question) || hasExplicitStageSignal(context);
+  const childcareScene = hasChildcareSceneSignal(question) || hasChildcareSceneSignal(context);
   const lines = [
     '回答策略：',
     '- 以用户当前问题和本轮补充信息为优先。',
@@ -85,6 +106,8 @@ function buildAnswerPolicy(question: string, context?: string): string {
   if (explicitStage) {
     lines.push('- 本轮问题中已明确给出阶段、孕周或月龄时，请以本轮描述为准，不要被历史档案覆盖。');
     lines.push('- 如果本轮描述和历史档案不一致，先回答当前问题，只在结尾用一句话提醒用户确认最新阶段。');
+  } else if (childcareScene) {
+    lines.push('- 本轮问题明显指向宝宝/儿童护理场景时，不要套用孕期档案或孕周信息。');
   } else {
     lines.push('- 若用户未明确说明阶段、孕周或月龄，可谨慎参考历史档案补充建议。');
   }
@@ -93,11 +116,11 @@ function buildAnswerPolicy(question: string, context?: string): string {
 }
 
 function buildPromptContext(question: string, context: string | undefined, profilePrompt?: string, knowledgeContext?: string): string {
-  const explicitStage = hasExplicitStageSignal(question) || hasExplicitStageSignal(context);
+  const allowProfileHints = shouldUseProfileHints(question, context);
 
   return [
     buildAnswerPolicy(question, context),
-    explicitStage ? undefined : profilePrompt,
+    allowProfileHints ? profilePrompt : undefined,
     context?.trim() ? `用户补充背景：\n${context.trim()}` : undefined,
     knowledgeContext,
   ].filter(Boolean).join('\n\n');
@@ -277,9 +300,13 @@ async function handleAskStream(
   // 流式输出
   try {
     let answer = '';
+    let resolvedRoute: { provider: string; model: string; route: string } | undefined;
     for await (const chunk of streamMultiTurnChat(messages, {
       model,
       context: finalContext,
+      onRouteResolved: (route) => {
+        resolvedRoute = route
+      },
     })) {
       answer += chunk;
       if (ws.readyState !== WebSocket.OPEN) break;
@@ -308,6 +335,9 @@ async function handleAskStream(
           sources: knowledgePack.sources,
           disclaimer: '⚠️ 免责声明：本回答由 AI 生成，仅供参考，不构成医疗建议。如有健康问题，请咨询专业医生。',
           conversationId: persistedConversationId,
+          model: resolvedRoute?.model || model,
+          provider: resolvedRoute?.provider,
+          route: resolvedRoute?.route,
         },
       });
     }
@@ -380,9 +410,13 @@ async function handleChatStream(
   // 流式输出
   try {
     let answer = '';
+    let resolvedRoute: { provider: string; model: string; route: string } | undefined;
     for await (const chunk of streamMultiTurnChat(formattedMessages, {
       model,
       context: finalContext,
+      onRouteResolved: (route) => {
+        resolvedRoute = route
+      },
     })) {
       answer += chunk;
       if (ws.readyState !== WebSocket.OPEN) break;
@@ -411,6 +445,9 @@ async function handleChatStream(
           sources: knowledgePack.sources,
           disclaimer: '⚠️ 免责声明：本回答由 AI 生成，仅供参考，不构成医疗建议。',
           conversationId: persistedConversationId,
+          model: resolvedRoute?.model || model,
+          provider: resolvedRoute?.provider,
+          route: resolvedRoute?.route,
         },
       });
     }

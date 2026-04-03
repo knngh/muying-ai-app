@@ -1,10 +1,21 @@
-// AI Gateway 服务 - 支持多模型对接和流式响应
+// AI Gateway 服务 - 支持混合路由、多模型对接和流式响应
 
-import { EventEmitter } from 'events';
+const LEGACY_GATEWAY_URL = process.env.AI_GATEWAY_URL || 'http://localhost:8080/v1';
+const LEGACY_GATEWAY_KEY = process.env.AI_GATEWAY_KEY || '';
+const AI_ROUTING_ENABLED = process.env.AI_ROUTING_ENABLED === 'true';
+const AI_GENERAL_URL = process.env.AI_GENERAL_URL || process.env.SILICONFLOW_API_URL || 'https://api.siliconflow.cn/v1/chat/completions';
+const AI_GENERAL_KEY = process.env.AI_GENERAL_KEY || process.env.SILICONFLOW_API_KEY || '';
+const AI_GENERAL_MODEL = process.env.AI_GENERAL_MODEL || 'deepseek-ai/DeepSeek-V3';
+const AI_GENERAL_PROVIDER = process.env.AI_GENERAL_PROVIDER || 'siliconflow';
+const AI_MEDICAL_PRIMARY_URL = process.env.AI_MEDICAL_PRIMARY_URL || LEGACY_GATEWAY_URL;
+const AI_MEDICAL_PRIMARY_KEY = process.env.AI_MEDICAL_PRIMARY_KEY || LEGACY_GATEWAY_KEY;
+const AI_MEDICAL_PRIMARY_MODEL = process.env.AI_MEDICAL_PRIMARY_MODEL || (process.env.AI_DEFAULT_MODEL || 'baichuan-m3');
+const AI_MEDICAL_PRIMARY_PROVIDER = process.env.AI_MEDICAL_PRIMARY_PROVIDER || '';
+const AI_MEDICAL_SECONDARY_URL = process.env.AI_MEDICAL_SECONDARY_URL || '';
+const AI_MEDICAL_SECONDARY_KEY = process.env.AI_MEDICAL_SECONDARY_KEY || '';
+const AI_MEDICAL_SECONDARY_MODEL = process.env.AI_MEDICAL_SECONDARY_MODEL || '';
+const AI_MEDICAL_SECONDARY_PROVIDER = process.env.AI_MEDICAL_SECONDARY_PROVIDER || '';
 
-// AI Gateway 配置
-const AI_GATEWAY_URL = process.env.AI_GATEWAY_URL || 'http://localhost:8080/v1';
-const AI_GATEWAY_KEY = process.env.AI_GATEWAY_KEY || '';
 const MODEL_ALIASES: Record<string, string> = {
   'Baichuan-M3': 'baichuan-m3',
 };
@@ -15,6 +26,62 @@ interface SupportedModel {
   name: string;
   provider: string;
   maxTokens: number;
+}
+
+interface ChatMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
+interface ChatRequest {
+  model: string;
+  messages: ChatMessage[];
+  temperature?: number;
+  max_tokens?: number;
+  stream?: boolean;
+}
+
+interface ChatResponse {
+  id: string;
+  choices: Array<{
+    index: number;
+    message?: {
+      role: string;
+      content: string;
+    };
+    delta?: {
+      content?: string;
+    };
+    finish_reason: string | null;
+  }>;
+  usage?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  };
+}
+
+interface GatewayProvider {
+  id: string;
+  label: string;
+  provider: string;
+  routeKind: 'general' | 'medical' | 'legacy' | 'manual';
+  url: string;
+  key: string;
+  model: string;
+  supportsStreaming: boolean;
+}
+
+export interface AIGatewayRouteInfo {
+  provider: string;
+  model: string;
+  route: GatewayProvider['routeKind'];
+  label: string;
+}
+
+export interface AIGatewayTextResult {
+  answer: string;
+  route: AIGatewayRouteInfo;
 }
 
 // 支持的模型列表
@@ -93,58 +160,18 @@ const EMERGENCY_KEYWORDS = [
   '早产', '宫缩频繁',
   '窒息', '婴儿窒息',
   '中毒', '误食',
-  '过敏休克', '严重过敏'
+  '过敏休克', '严重过敏',
 ];
 
-// 检测是否为紧急问题
-export function isEmergencyQuestion(question: string): boolean {
-  return EMERGENCY_KEYWORDS.some(keyword => question.includes(keyword));
-}
+const MEDICAL_ROUTING_PATTERNS = [
+  /用药|吃药|药量|剂量|退烧药|抗生素|头孢|阿莫西林|布洛芬|美林|对乙酰氨基酚|处方药|外用药|雾化|输液|挂水/u,
+  /发烧|发热|高烧|咳嗽|腹泻|拉肚子|呕吐|便血|咳痰|黄疸|湿疹|皮疹|过敏|感染|肺炎|支气管炎|中耳炎|流感|哮喘|惊厥/u,
+  /诊断|确诊|治疗|手术|住院|复诊|检查单|化验单|报告单|血常规|尿常规|B超|彩超|CT|核磁|指标|报告/u,
+  /胎动减少|宫缩|见红|破水|流血|腹痛|高血压|血压高|尿蛋白|糖耐|胎盘|羊水/u,
+];
 
-// 生成紧急问题回复
-export function getEmergencyResponse(): string {
-  return `⚠️ 您描述的情况可能比较紧急，请立即就医，不要等待！
-
-如遇紧急情况请拨打：
-- 急救电话：120
-- 产科急诊：前往最近医院
-
-不要在网上寻求建议，时间就是生命！`;
-}
-
-// AI Gateway 请求接口
-interface ChatMessage {
-  role: 'system' | 'user' | 'assistant';
-  content: string;
-}
-
-interface ChatRequest {
-  model: string;
-  messages: ChatMessage[];
-  temperature?: number;
-  max_tokens?: number;
-  stream?: boolean;
-}
-
-interface ChatResponse {
-  id: string;
-  choices: Array<{
-    index: number;
-    message: {
-      role: string;
-      content: string;
-    };
-    finish_reason: string;
-  }>;
-  usage?: {
-    prompt_tokens: number;
-    completion_tokens: number;
-    total_tokens: number;
-  };
-}
-
-function resolveGatewayChatCompletionsUrl(): string {
-  const trimmed = AI_GATEWAY_URL.replace(/\/+$/, '');
+function resolveGatewayChatCompletionsUrl(url: string): string {
+  const trimmed = url.replace(/\/+$/, '');
   if (trimmed.endsWith('/chat/completions')) {
     return trimmed;
   }
@@ -170,7 +197,201 @@ function getUniqueSupportedModels(): SupportedModel[] {
     });
 }
 
-function buildGatewayHeaders(stream = false): Record<string, string> {
+function inferProviderName(url: string, model: string, fallback: string): string {
+  const text = `${url} ${model}`.toLowerCase();
+  if (text.includes('baichuan')) {
+    return 'baichuan';
+  }
+  if (text.includes('siliconflow')) {
+    return 'siliconflow';
+  }
+  if (text.includes('deepseek')) {
+    return 'deepseek';
+  }
+  return fallback;
+}
+
+function supportsStreaming(provider: string, model: string, url: string): boolean {
+  const text = `${provider} ${model} ${url}`.toLowerCase();
+  return !text.includes('baichuan');
+}
+
+function buildProvider(
+  id: string,
+  label: string,
+  routeKind: GatewayProvider['routeKind'],
+  url: string,
+  key: string,
+  model: string,
+  fallbackProvider: string
+): GatewayProvider | null {
+  if (!url) {
+    return null;
+  }
+
+  const resolvedModel = resolveModelName(model);
+  const provider = inferProviderName(url, resolvedModel, fallbackProvider);
+
+  return {
+    id,
+    label,
+    provider,
+    routeKind,
+    url: resolveGatewayChatCompletionsUrl(url),
+    key,
+    model: resolvedModel,
+    supportsStreaming: supportsStreaming(provider, resolvedModel, url),
+  };
+}
+
+function buildLegacyProvider(requestedModel?: string): GatewayProvider | null {
+  return buildProvider(
+    'legacy-default',
+    'legacy-default',
+    requestedModel ? 'manual' : 'legacy',
+    LEGACY_GATEWAY_URL,
+    LEGACY_GATEWAY_KEY,
+    requestedModel || DEFAULT_MODEL,
+    resolveModelConfig(requestedModel || DEFAULT_MODEL)?.provider || 'legacy'
+  );
+}
+
+function buildGeneralProvider(): GatewayProvider | null {
+  if (!AI_ROUTING_ENABLED || !AI_GENERAL_KEY) {
+    return null;
+  }
+
+  return buildProvider(
+    'general-deepseek',
+    'general-deepseek',
+    'general',
+    AI_GENERAL_URL,
+    AI_GENERAL_KEY,
+    AI_GENERAL_MODEL,
+    AI_GENERAL_PROVIDER
+  );
+}
+
+function buildMedicalPrimaryProvider(): GatewayProvider | null {
+  if (!AI_ROUTING_ENABLED) {
+    return null;
+  }
+
+  return buildProvider(
+    'medical-primary',
+    'medical-primary',
+    'medical',
+    AI_MEDICAL_PRIMARY_URL,
+    AI_MEDICAL_PRIMARY_KEY,
+    AI_MEDICAL_PRIMARY_MODEL,
+    AI_MEDICAL_PRIMARY_PROVIDER || 'medical'
+  );
+}
+
+function buildMedicalSecondaryProvider(): GatewayProvider | null {
+  if (!AI_ROUTING_ENABLED || !AI_MEDICAL_SECONDARY_URL) {
+    return null;
+  }
+
+  return buildProvider(
+    'medical-secondary',
+    'medical-secondary',
+    'medical',
+    AI_MEDICAL_SECONDARY_URL,
+    AI_MEDICAL_SECONDARY_KEY,
+    AI_MEDICAL_SECONDARY_MODEL || AI_MEDICAL_PRIMARY_MODEL,
+    AI_MEDICAL_SECONDARY_PROVIDER || 'medical'
+  );
+}
+
+function dedupeProviders(providers: Array<GatewayProvider | null>): GatewayProvider[] {
+  const unique = new Map<string, GatewayProvider>();
+
+  for (const provider of providers) {
+    if (!provider) {
+      continue;
+    }
+
+    const key = `${provider.url}::${provider.model}`;
+    if (!unique.has(key)) {
+      unique.set(key, provider);
+    }
+  }
+
+  return Array.from(unique.values());
+}
+
+function buildRoutingSignalText(messages: ChatMessage[]): string {
+  const recentUserMessages = messages
+    .filter((message) => message.role === 'user' && message.content.trim())
+    .slice(-3)
+    .map((message) => message.content.trim());
+
+  if (recentUserMessages.length > 0) {
+    return recentUserMessages.join('\n');
+  }
+
+  return messages
+    .filter((message) => message.role !== 'system' && message.content.trim())
+    .slice(-4)
+    .map((message) => message.content.trim())
+    .join('\n');
+}
+
+function shouldUseMedicalRoute(messages: ChatMessage[]): boolean {
+  const routingText = buildRoutingSignalText(messages);
+  return MEDICAL_ROUTING_PATTERNS.some((pattern) => pattern.test(routingText));
+}
+
+function resolveProviderChain(
+  messages: ChatMessage[],
+  options: {
+    model?: string;
+  } = {}
+): GatewayProvider[] {
+  const requestedModel = options.model ? (MODEL_ALIASES[options.model] || options.model) : undefined;
+  const requestedConfig = requestedModel ? resolveModelConfig(requestedModel) : undefined;
+
+  if (requestedModel) {
+    if (requestedConfig?.provider === 'deepseek') {
+      return dedupeProviders([
+        buildGeneralProvider(),
+        buildLegacyProvider(requestedModel),
+      ]);
+    }
+
+    if (requestedConfig?.provider === 'baichuan') {
+      return dedupeProviders([
+        buildMedicalPrimaryProvider(),
+        buildMedicalSecondaryProvider(),
+        buildLegacyProvider(requestedModel),
+      ]);
+    }
+
+    return dedupeProviders([buildLegacyProvider(requestedModel)]);
+  }
+
+  if (!AI_ROUTING_ENABLED) {
+    return dedupeProviders([buildLegacyProvider()]);
+  }
+
+  if (shouldUseMedicalRoute(messages)) {
+    return dedupeProviders([
+      buildMedicalPrimaryProvider(),
+      buildMedicalSecondaryProvider(),
+      buildLegacyProvider(),
+    ]);
+  }
+
+  return dedupeProviders([
+    buildGeneralProvider(),
+    buildMedicalPrimaryProvider(),
+    buildMedicalSecondaryProvider(),
+    buildLegacyProvider(),
+  ]);
+}
+
+function buildGatewayHeaders(provider: GatewayProvider, stream = false): Record<string, string> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
@@ -179,8 +400,8 @@ function buildGatewayHeaders(stream = false): Record<string, string> {
     headers.Accept = 'text/event-stream';
   }
 
-  if (AI_GATEWAY_KEY) {
-    headers.Authorization = `Bearer ${AI_GATEWAY_KEY}`;
+  if (provider.key) {
+    headers.Authorization = `Bearer ${provider.key}`;
   }
 
   return headers;
@@ -205,6 +426,150 @@ ${context}
   ];
 }
 
+async function requestProvider(
+  provider: GatewayProvider,
+  messages: ChatMessage[],
+  options: {
+    temperature?: number;
+    maxTokens?: number;
+    stream?: boolean;
+  } = {}
+): Promise<Response> {
+  const request: ChatRequest = {
+    model: provider.model,
+    messages,
+    temperature: options.temperature ?? 0.7,
+    max_tokens: options.maxTokens ?? 2000,
+    stream: options.stream ?? false,
+  };
+
+  return fetch(provider.url, {
+    method: 'POST',
+    headers: buildGatewayHeaders(provider, options.stream),
+    body: JSON.stringify(request),
+  });
+}
+
+async function callProvider(
+  provider: GatewayProvider,
+  messages: ChatMessage[],
+  options: {
+    temperature?: number;
+    maxTokens?: number;
+  } = {}
+): Promise<string> {
+  const response = await requestProvider(provider, messages, options);
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error(`[AI Gateway:${provider.label}] Error:`, response.status, errorText);
+    throw new Error(`AI Gateway error: ${response.status}`);
+  }
+
+  const data: ChatResponse = await response.json() as ChatResponse;
+  return data.choices?.[0]?.message?.content || '抱歉，我暂时无法回答这个问题。';
+}
+
+function toRouteInfo(provider: GatewayProvider): AIGatewayRouteInfo {
+  return {
+    provider: provider.provider,
+    model: provider.model,
+    route: provider.routeKind,
+    label: provider.label,
+  };
+}
+
+async function* streamProvider(
+  provider: GatewayProvider,
+  messages: ChatMessage[],
+  options: {
+    temperature?: number;
+    maxTokens?: number;
+  } = {}
+): AsyncGenerator<string, void, unknown> {
+  if (!provider.supportsStreaming) {
+    const finalAnswer = await callProvider(provider, messages, options);
+    if (finalAnswer) {
+      yield finalAnswer;
+    }
+    return;
+  }
+
+  const response = await requestProvider(provider, messages, {
+    ...options,
+    stream: true,
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error(`[AI Gateway Stream:${provider.label}] Error:`, response.status, errorText);
+    throw new Error(`AI Gateway error: ${response.status}`);
+  }
+
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new Error('No response body');
+  }
+
+  const decoder = new TextDecoder();
+  let buffer = '';
+  const MAX_BUFFER_SIZE = 512 * 1024;
+
+  while (true) {
+    const { done, value } = await reader.read();
+
+    if (done) {
+      break;
+    }
+
+    buffer += decoder.decode(value, { stream: true });
+
+    if (buffer.length > MAX_BUFFER_SIZE) {
+      throw new Error('AI 响应超出大小限制');
+    }
+
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) {
+        continue;
+      }
+
+      const data = line.slice(6);
+      if (data === '[DONE]') {
+        return;
+      }
+
+      try {
+        const parsed = JSON.parse(data) as ChatResponse;
+        const content = parsed.choices?.[0]?.delta?.content;
+        if (content) {
+          yield content;
+        }
+      } catch {
+        // 忽略非 JSON 行
+      }
+    }
+  }
+}
+
+// 检测是否为紧急问题
+export function isEmergencyQuestion(question: string): boolean {
+  return EMERGENCY_KEYWORDS.some(keyword => question.includes(keyword));
+}
+
+// 生成紧急问题回复
+export function getEmergencyResponse(): string {
+  return `⚠️ 您描述的情况可能比较紧急，请立即就医，不要等待！
+
+如遇紧急情况请拨打：
+- 急救电话：120
+- 产科急诊：前往最近医院
+
+不要在网上寻求建议，时间就是生命！`;
+}
+
 // 非流式调用 AI Gateway
 export async function callAIGateway(
   messages: ChatMessage[],
@@ -214,35 +579,52 @@ export async function callAIGateway(
     maxTokens?: number;
   } = {}
 ): Promise<string> {
-  const model = resolveModelName(options.model);
-  
-  const request: ChatRequest = {
-    model,
-    messages,
-    temperature: options.temperature ?? 0.7,
-    max_tokens: options.maxTokens ?? 2000,
-    stream: false,
-  };
-
-  try {
-    const response = await fetch(resolveGatewayChatCompletionsUrl(), {
-      method: 'POST',
-      headers: buildGatewayHeaders(),
-      body: JSON.stringify(request),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('[AI Gateway] Error:', response.status, errorText);
-      throw new Error(`AI Gateway error: ${response.status}`);
-    }
-
-    const data: ChatResponse = await response.json() as ChatResponse;
-    return data.choices?.[0]?.message?.content || '抱歉，我暂时无法回答这个问题。';
-  } catch (error) {
-    console.error('[AI Gateway] Request failed:', error);
-    throw error;
+  const providers = resolveProviderChain(messages, { model: options.model });
+  if (providers.length === 0) {
+    throw new Error('未配置可用的 AI 提供方');
   }
+
+  let lastError: unknown;
+  for (const provider of providers) {
+    try {
+      return await callProvider(provider, messages, options);
+    } catch (error) {
+      lastError = error;
+      console.error(`[AI Router] Provider failed: ${provider.label}`, error);
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error('AI 服务不可用');
+}
+
+export async function callAIGatewayDetailed(
+  messages: ChatMessage[],
+  options: {
+    model?: string;
+    temperature?: number;
+    maxTokens?: number;
+  } = {}
+): Promise<AIGatewayTextResult> {
+  const providers = resolveProviderChain(messages, { model: options.model });
+  if (providers.length === 0) {
+    throw new Error('未配置可用的 AI 提供方');
+  }
+
+  let lastError: unknown;
+  for (const provider of providers) {
+    try {
+      const answer = await callProvider(provider, messages, options);
+      return {
+        answer,
+        route: toRouteInfo(provider),
+      };
+    } catch (error) {
+      lastError = error;
+      console.error(`[AI Router] Provider failed: ${provider.label}`, error);
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error('AI 服务不可用');
 }
 
 // 流式调用 AI Gateway
@@ -252,90 +634,36 @@ export async function* streamAIGateway(
     model?: string;
     temperature?: number;
     maxTokens?: number;
+    onRouteResolved?: (route: AIGatewayRouteInfo) => void;
   } = {}
 ): AsyncGenerator<string, void, unknown> {
-  const modelConfig = resolveModelConfig(options.model);
-  if (modelConfig?.provider === 'baichuan') {
-    const finalAnswer = await callAIGateway(messages, options);
-    if (finalAnswer) {
-      yield finalAnswer;
-    }
-    return;
+  const providers = resolveProviderChain(messages, { model: options.model });
+  if (providers.length === 0) {
+    throw new Error('未配置可用的 AI 提供方');
   }
 
-  const model = resolveModelName(options.model);
-  
-  const request: ChatRequest = {
-    model,
-    messages,
-    temperature: options.temperature ?? 0.7,
-    max_tokens: options.maxTokens ?? 2000,
-    stream: true,
-  };
+  let lastError: unknown;
 
-  try {
-    const response = await fetch(resolveGatewayChatCompletionsUrl(), {
-      method: 'POST',
-      headers: buildGatewayHeaders(true),
-      body: JSON.stringify(request),
-    });
+  for (const provider of providers) {
+    let hasOutput = false;
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('[AI Gateway Stream] Error:', response.status, errorText);
-      throw new Error(`AI Gateway error: ${response.status}`);
-    }
-
-    const reader = response.body?.getReader();
-    if (!reader) {
-      throw new Error('No response body');
-    }
-
-    const decoder = new TextDecoder();
-    let buffer = '';
-    const MAX_BUFFER_SIZE = 512 * 1024; // 512KB 防止 OOM
-
-    while (true) {
-      const { done, value } = await reader.read();
-
-      if (done) {
-        break;
+    try {
+      options.onRouteResolved?.(toRouteInfo(provider));
+      for await (const chunk of streamProvider(provider, messages, options)) {
+        hasOutput = true;
+        yield chunk;
       }
-
-      buffer += decoder.decode(value, { stream: true });
-
-      if (buffer.length > MAX_BUFFER_SIZE) {
-        throw new Error('AI 响应超出大小限制');
-      }
-      
-      // 解析 SSE 格式
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || ''; // 保留最后一个不完整的行
-
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const data = line.slice(6);
-          
-          if (data === '[DONE]') {
-            return;
-          }
-
-          try {
-            const parsed = JSON.parse(data);
-            const content = parsed.choices?.[0]?.delta?.content;
-            if (content) {
-              yield content;
-            }
-          } catch (e) {
-            // 忽略解析错误
-          }
-        }
+      return;
+    } catch (error) {
+      lastError = error;
+      console.error(`[AI Router] Stream provider failed: ${provider.label}`, error);
+      if (hasOutput) {
+        throw error;
       }
     }
-  } catch (error) {
-    console.error('[AI Gateway Stream] Failed:', error);
-    throw error;
   }
+
+  throw lastError instanceof Error ? lastError : new Error('AI 服务不可用');
 }
 
 // RAG 增强问答（带知识库检索）
@@ -346,21 +674,23 @@ export async function ragEnhancedAnswer(
   answer: string;
   sources: Array<{ title: string; content: string }>;
   confidence: number;
+  route?: AIGatewayRouteInfo;
 }> {
   const messages = buildMessagesWithKnowledgeContext([
     { role: 'user', content: question },
   ], context);
 
   try {
-    const answer = await callAIGateway(messages, {
+    const result = await callAIGatewayDetailed(messages, {
       temperature: 0.7,
       maxTokens: 2000,
     });
 
     return {
-      answer,
+      answer: result.answer,
       sources: context ? [{ title: '知识库', content: context.substring(0, 200) + '...' }] : [],
       confidence: 0.85,
+      route: result.route,
     };
   } catch (error) {
     console.error('[RAG] Error:', error);
@@ -386,6 +716,19 @@ export async function multiTurnChat(
   return callAIGateway(fullMessages, options);
 }
 
+export async function multiTurnChatDetailed(
+  messages: ChatMessage[],
+  options: {
+    model?: string;
+    temperature?: number;
+    context?: string;
+  } = {}
+): Promise<AIGatewayTextResult> {
+  const fullMessages = buildMessagesWithKnowledgeContext(messages, options.context);
+
+  return callAIGatewayDetailed(fullMessages, options);
+}
+
 // 流式多轮对话
 export async function* streamMultiTurnChat(
   messages: ChatMessage[],
@@ -393,6 +736,7 @@ export async function* streamMultiTurnChat(
     model?: string;
     temperature?: number;
     context?: string;
+    onRouteResolved?: (route: AIGatewayRouteInfo) => void;
   } = {}
 ): AsyncGenerator<string, void, unknown> {
   const fullMessages = buildMessagesWithKnowledgeContext(messages, options.context);
@@ -404,9 +748,9 @@ export async function* streamMultiTurnChat(
 export function getAvailableModels(): Array<{ id: string; name: string; provider: string }> {
   return getUniqueSupportedModels()
     .map(({ id, name, provider }) => ({
-    id,
-    name,
-    provider,
+      id,
+      name,
+      provider,
     }));
 }
 
@@ -420,23 +764,36 @@ export async function healthCheck(): Promise<{
   status: 'ok' | 'error';
   gateway: string;
   models: string[];
+  mode: 'config-only';
+  providers: AIGatewayRouteInfo[];
+  routing?: {
+    enabled: boolean;
+    generalProvider?: string;
+    medicalProviders: string[];
+  };
 }> {
-  try {
-    // 尝试一个简单请求
-    const response = await callAIGateway([
-      { role: 'user', content: 'hi' },
-    ], { maxTokens: 10 });
+  const providers = AI_ROUTING_ENABLED
+    ? dedupeProviders([
+      buildGeneralProvider(),
+      buildMedicalPrimaryProvider(),
+      buildMedicalSecondaryProvider(),
+      buildLegacyProvider(),
+    ])
+    : dedupeProviders([buildLegacyProvider()]);
 
-    return {
-      status: response ? 'ok' : 'error',
-      gateway: resolveGatewayChatCompletionsUrl(),
-      models: getUniqueSupportedModels().map(model => model.id),
-    };
-  } catch (error) {
-    return {
-      status: 'error',
-      gateway: resolveGatewayChatCompletionsUrl(),
-      models: getUniqueSupportedModels().map(model => model.id),
-    };
-  }
+  return {
+    status: providers.length > 0 ? 'ok' : 'error',
+    gateway: AI_ROUTING_ENABLED ? 'hybrid-routing' : (providers[0]?.url || resolveGatewayChatCompletionsUrl(LEGACY_GATEWAY_URL)),
+    models: getUniqueSupportedModels().map(model => model.id),
+    mode: 'config-only',
+    providers: providers.map((provider) => toRouteInfo(provider)),
+    routing: {
+      enabled: AI_ROUTING_ENABLED,
+      generalProvider: buildGeneralProvider()?.provider,
+      medicalProviders: [
+        buildMedicalPrimaryProvider()?.provider,
+        buildMedicalSecondaryProvider()?.provider,
+      ].filter(Boolean) as string[],
+    },
+  };
 }

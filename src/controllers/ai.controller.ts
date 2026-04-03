@@ -4,7 +4,7 @@ import {
   isEmergencyQuestion,
   getEmergencyResponse,
   ragEnhancedAnswer,
-  multiTurnChat,
+  multiTurnChatDetailed,
   streamMultiTurnChat,
   getAvailableModels,
   getDefaultModel,
@@ -36,9 +36,9 @@ const EXPLICIT_STAGE_PATTERNS = [
   /\d{1,2}\s*个?月宝宝/u,
 ];
 const CHILDCARE_SCENE_PATTERNS = [
-  /(宝宝|婴儿|新生儿|幼儿|孩子|儿童).{0,8}(发烧|发热|咳嗽|腹泻|拉肚子|便秘|吐奶|湿疹|黄疸|皮疹|疫苗|奶量|喂奶|吃奶|夜醒|便便)/u,
-  /(发烧|发热|咳嗽|腹泻|拉肚子|便秘|吐奶|湿疹|黄疸|皮疹|疫苗|奶量|喂奶|吃奶|夜醒|便便).{0,8}(宝宝|婴儿|新生儿|幼儿|孩子|儿童)/u,
-  /宝宝月龄|婴儿护理|儿童护理|儿科/u,
+  /(宝宝|婴儿|新生儿|幼儿|孩子|儿童).{0,8}(发烧|发热|咳嗽|腹泻|拉肚子|便秘|吐奶|湿疹|黄疸|皮疹|疫苗|奶量|喂奶|吃奶|夜醒|夜里总醒|夜间醒|睡觉|睡眠|哄睡|哭闹|闹觉|安抚|便便|辅食|厌奶|发育|体重|身高)/u,
+  /(发烧|发热|咳嗽|腹泻|拉肚子|便秘|吐奶|湿疹|黄疸|皮疹|疫苗|奶量|喂奶|吃奶|夜醒|夜里总醒|夜间醒|睡觉|睡眠|哄睡|哭闹|闹觉|安抚|便便|辅食|厌奶|发育|体重|身高).{0,8}(宝宝|婴儿|新生儿|幼儿|孩子|儿童)/u,
+  /宝宝月龄|婴儿护理|儿童护理|儿科|宝宝作息|宝宝睡眠/u,
   /\d{1,2}\s*个?月(宝宝|婴儿|孩子|儿童)/u,
 ];
 
@@ -98,6 +98,29 @@ function hasChildcareSceneSignal(text?: string): boolean {
   return CHILDCARE_SCENE_PATTERNS.some((pattern) => pattern.test(text));
 }
 
+function getContextSignalText(context: unknown): string | undefined {
+  if (!context) {
+    return undefined;
+  }
+
+  if (typeof context === 'string') {
+    const trimmed = context.trim();
+    return trimmed || undefined;
+  }
+
+  if (typeof context !== 'object' || Array.isArray(context)) {
+    return undefined;
+  }
+
+  const parts = Object.entries(context as Record<string, unknown>)
+    .filter(([, value]) => value !== undefined && value !== null && value !== '')
+    .slice(0, 8)
+    .map(([key, value]) => `${key} ${String(value).trim()}`)
+    .filter(Boolean);
+
+  return parts.length > 0 ? parts.join('\n') : undefined;
+}
+
 function hasExplicitStructuredContext(context: unknown): boolean {
   if (!context) {
     return false;
@@ -119,14 +142,16 @@ function hasExplicitStructuredContext(context: unknown): boolean {
 }
 
 function shouldUseProfileHints(question: string, userContext: unknown): boolean {
+  const contextSignals = getContextSignalText(userContext);
   return !hasExplicitStageSignal(question)
     && !hasExplicitStructuredContext(userContext)
-    && !hasChildcareSceneSignal(question);
+    && !hasChildcareSceneSignal(question)
+    && !hasChildcareSceneSignal(contextSignals);
 }
 
 function buildAnswerPolicy(question: string, userContext: unknown): string {
   const explicitStage = hasExplicitStageSignal(question) || hasExplicitStructuredContext(userContext);
-  const childcareScene = hasChildcareSceneSignal(question);
+  const childcareScene = hasChildcareSceneSignal(question) || hasChildcareSceneSignal(getContextSignalText(userContext));
   const lines = [
     '回答策略：',
     '- 以用户当前问题和本轮补充信息为优先。',
@@ -268,7 +293,9 @@ export const askQuestion = async (req: Request, res: Response, next: NextFunctio
       confidence: estimateConfidence(knowledgePack.results[0]?.score || result.confidence * 100),
       disclaimer: result.confidence > 0 ? AI_DISCLAIMER : DEGRADED_DISCLAIMER,
       followUpQuestions: knowledgePack.followUpQuestions,
-      model: model || DEFAULT_MODEL_ID,
+      model: result.route?.model || model || DEFAULT_MODEL_ID,
+      provider: result.route?.provider,
+      route: result.route?.route,
       conversationId: persistedConversationId,
     }));
   } catch (error) {
@@ -314,10 +341,17 @@ export const askQuestionStream = async (req: Request, res: Response, next: NextF
     const { profileContext, knowledgePack } = await resolveKnowledge(question, userId, context);
     const finalContext = buildPromptContext(question, context, profileContext.prompt, knowledgePack.context);
     const messages = [{ role: 'user' as const, content: question }];
+    let resolvedRoute: { provider: string; model: string; route: string } | undefined;
 
     try {
       let answer = '';
-      for await (const chunk of streamMultiTurnChat(messages, { model, context: finalContext })) {
+      for await (const chunk of streamMultiTurnChat(messages, {
+        model,
+        context: finalContext,
+        onRouteResolved: (route) => {
+          resolvedRoute = route;
+        },
+      })) {
         answer += chunk;
         res.write(`data: ${JSON.stringify({ content: chunk })}\n\n`);
       }
@@ -337,6 +371,9 @@ export const askQuestionStream = async (req: Request, res: Response, next: NextF
         sources: knowledgePack.sources,
         disclaimer: AI_DISCLAIMER,
         followUpQuestions: knowledgePack.followUpQuestions,
+        model: resolvedRoute?.model || model || DEFAULT_MODEL_ID,
+        provider: resolvedRoute?.provider,
+        route: resolvedRoute?.route,
         conversationId: persistedConversationId,
       })}\n\n`);
       res.end();
@@ -426,12 +463,15 @@ export const chat = async (req: Request, res: Response, next: NextFunction) => {
     const finalContext = buildPromptContext(lastMessage.content, context, profileContext.prompt, knowledgePack.context);
     let answer: string;
     let degraded = false;
+    let routeInfo: { provider: string; model: string; route: string } | undefined;
 
     try {
-      answer = await multiTurnChat(formattedMessages, {
+      const result = await multiTurnChatDetailed(formattedMessages, {
         model,
         context: finalContext,
       });
+      answer = result.answer;
+      routeInfo = result.route;
     } catch (chatError) {
       console.error('[AI Chat] Error:', chatError);
       answer = buildGatewayFallbackAnswer(lastMessage.content, knowledgePack);
@@ -460,7 +500,9 @@ export const chat = async (req: Request, res: Response, next: NextFunction) => {
       followUpQuestions: knowledgePack.followUpQuestions,
       disclaimer: degraded ? DEGRADED_DISCLAIMER : AI_DISCLAIMER,
       degraded,
-      model: model || DEFAULT_MODEL_ID,
+      model: routeInfo?.model || model || DEFAULT_MODEL_ID,
+      provider: routeInfo?.provider,
+      route: routeInfo?.route,
       conversationId: persistedConversationId,
     }));
   } catch (error) {
@@ -520,12 +562,16 @@ export const chatStream = async (req: Request, res: Response, next: NextFunction
       : { context: '', sources: [], followUpQuestions: [], results: [] };
 
     const finalContext = buildPromptContext(lastMessage.content, context, profileContext.prompt, knowledgePack.context);
+    let resolvedRoute: { provider: string; model: string; route: string } | undefined;
 
     try {
       let answer = '';
       for await (const chunk of streamMultiTurnChat(formattedMessages, {
         model,
         context: finalContext,
+        onRouteResolved: (route) => {
+          resolvedRoute = route;
+        },
       })) {
         answer += chunk;
         res.write(`data: ${JSON.stringify({ content: chunk })}\n\n`);
@@ -546,6 +592,9 @@ export const chatStream = async (req: Request, res: Response, next: NextFunction
         sources: knowledgePack.sources,
         followUpQuestions: knowledgePack.followUpQuestions,
         disclaimer: AI_DISCLAIMER,
+        model: resolvedRoute?.model || model || DEFAULT_MODEL_ID,
+        provider: resolvedRoute?.provider,
+        route: resolvedRoute?.route,
         conversationId: persistedConversationId,
       })}\n\n`);
       res.end();

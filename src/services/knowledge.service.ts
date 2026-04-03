@@ -102,8 +102,8 @@ const CATEGORY_HINTS: Array<{ category: string; keywords: string[] }> = [
   { category: 'pregnancy-late', keywords: ['孕晚期', '宫缩', '水肿', '待产', '破水'] },
   { category: 'pregnancy-birth', keywords: ['分娩', '顺产', '剖宫产', '开宫口', '产后'] },
   { category: 'parenting-newborn', keywords: ['新生儿', '黄疸', '月子', '出生', '脐带'] },
-  { category: 'parenting-0-1', keywords: ['宝宝', '婴儿', '母乳', '辅食', '夜醒', '湿疹', '发烧'] },
-  { category: 'parenting-1-3', keywords: ['幼儿', '一岁', '两岁', '断奶', '走路', '说话'] },
+  { category: 'parenting-0-1', keywords: ['宝宝', '婴儿', '母乳', '辅食', '夜醒', '睡眠', '哄睡', '安抚', '奶量', '喂奶', '吃奶', '厌奶', '湿疹', '发烧'] },
+  { category: 'parenting-1-3', keywords: ['幼儿', '一岁', '两岁', '断奶', '走路', '说话', '睡眠', '哭闹', '作息'] },
   { category: 'parenting-3-6', keywords: ['学龄前', '入园', '专注力', '社交', '发音'] },
   { category: 'vaccine-schedule', keywords: ['疫苗', '接种', '打针', '疫苗时间'] },
   { category: 'common-symptoms', keywords: ['腹泻', '咳嗽', '拉肚子', '发热', '呕吐', '便秘'] },
@@ -170,6 +170,10 @@ const QUERY_NOISE_PATTERNS = [
   /想了解/g,
 ];
 
+const VACCINE_QUERY_PATTERNS = [
+  /疫苗|接种|打针|预防针|卡介|乙肝疫苗|百白破|麻腮风|脊灰/u,
+];
+
 const SIGNAL_GROUPS: Array<{
   id: string;
   keywords: string[];
@@ -234,6 +238,42 @@ const SIGNAL_GROUPS: Array<{
     keywords: ['发烧', '发热', '高烧'],
     textBoost: 16,
     missingTextPenalty: 16,
+  },
+  {
+    id: 'childcare-sleep',
+    keywords: ['夜醒', '夜里总醒', '夜间醒', '睡眠', '睡觉', '哄睡', '闹觉', '安抚', '作息', '睡不踏实', '翻来覆去'],
+    categoryBoost: {
+      'parenting-newborn': 18,
+      'parenting-0-1': 26,
+      'parenting-1-3': 18,
+    },
+    mismatchPenalty: {
+      'pregnancy-prep': 26,
+      'pregnancy-early': 26,
+      'pregnancy-mid': 22,
+      'pregnancy-late': 22,
+      'pregnancy-birth': 18,
+    },
+    textBoost: 14,
+    missingTextPenalty: 24,
+  },
+  {
+    id: 'childcare-feeding',
+    keywords: ['奶量', '喂奶', '吃奶', '厌奶', '母乳', '配方奶', '断奶', '辅食'],
+    categoryBoost: {
+      'parenting-newborn': 20,
+      'parenting-0-1': 24,
+      'parenting-1-3': 16,
+    },
+    mismatchPenalty: {
+      'pregnancy-prep': 22,
+      'pregnancy-early': 22,
+      'pregnancy-mid': 18,
+      'pregnancy-late': 18,
+      'pregnancy-birth': 14,
+    },
+    textBoost: 12,
+    missingTextPenalty: 20,
   },
 ];
 
@@ -368,6 +408,170 @@ function clampScore(score: number): number {
   return Math.max(0, Math.min(1, Number(score.toFixed(3))));
 }
 
+function hasVaccineIntent(query: string): boolean {
+  return VACCINE_QUERY_PATTERNS.some((pattern) => pattern.test(query));
+}
+
+function isChildCareQuery(query: string): boolean {
+  return /宝宝|婴儿|新生儿|孩子|小孩|幼儿|月龄|个月|岁/u.test(query);
+}
+
+function targetsChildCare(qa: QAPair): boolean {
+  const questionText = qa.question || '';
+  const rawText = `${qa.question} ${qa.answer} ${(qa.tags || []).join(' ')} ${qa.category}`;
+  const hasPregnancyIntent = /怀孕|孕妇|胎儿|备孕|分娩/u.test(questionText);
+
+  if (qa.category.startsWith('parenting-')) {
+    return !hasPregnancyIntent;
+  }
+
+  return !hasPregnancyIntent && (
+    /宝宝|婴儿|新生儿|孩子|小孩|幼儿|月龄/u.test(questionText)
+    || /母乳|辅食/u.test(rawText)
+  );
+}
+
+function hasCategoryContentConflict(qa: QAPair): boolean {
+  const rawText = `${qa.question} ${qa.answer} ${(qa.tags || []).join(' ')}`;
+
+  if (qa.category.startsWith('parenting-') && /怀孕|孕期|孕妇|分娩|胎儿|乳腺|宫缩/u.test(rawText)) {
+    return true;
+  }
+
+  if (qa.category.startsWith('pregnancy-') && /宝宝|婴儿|新生儿|幼儿|儿童|孩子|小孩/u.test(rawText)) {
+    return true;
+  }
+
+  if (qa.category.startsWith('parenting-') && !/宝宝|婴儿|新生儿|孩子|小孩|幼儿|月龄|母乳|辅食/u.test(rawText)) {
+    return true;
+  }
+
+  if (/^vaccine-/.test(qa.category) && !/疫苗|接种|打针|预防针|卡介|乙肝疫苗|百白破|麻腮风|脊灰/u.test(rawText)) {
+    return true;
+  }
+
+  return false;
+}
+
+function questionMatchesFocus(qa: QAPair, focus: 'fever' | 'sleep' | 'feeding'): boolean {
+  const text = qa.question;
+
+  if (focus === 'fever') {
+    return /发烧|发热|高烧|退烧/u.test(text);
+  }
+
+  if (focus === 'sleep') {
+    return /夜醒|夜里总醒|夜间醒|睡眠|睡觉|哄睡|安抚|闹觉|睡不踏实|翻来覆去/u.test(text);
+  }
+
+  return /奶量|喂奶|吃奶|厌奶|母乳|配方奶|断奶|辅食/u.test(text);
+}
+
+function focusKeywords(focus: 'fever' | 'sleep' | 'feeding'): RegExp {
+  if (focus === 'fever') {
+    return /发烧|发热|高烧|退烧/u;
+  }
+
+  if (focus === 'sleep') {
+    return /夜醒|夜里总醒|夜间醒|睡眠|睡觉|哄睡|安抚|闹觉|睡不踏实|翻来覆去/u;
+  }
+
+  return /奶量|喂奶|吃奶|厌奶|母乳|配方奶|断奶|辅食/u;
+}
+
+function answerMatchesFocus(qa: QAPair, focus: 'fever' | 'sleep' | 'feeding'): boolean {
+  const text = `${qa.answer} ${(qa.tags || []).join(' ')} ${qa.category}`;
+  return focusKeywords(focus).test(text);
+}
+
+function focusMatchesResult(
+  qa: Pick<QAPair, 'question' | 'answer' | 'tags' | 'category'>,
+  focus: 'fever' | 'sleep' | 'feeding'
+): boolean {
+  return questionMatchesFocus(qa as QAPair, focus) || answerMatchesFocus(qa as QAPair, focus);
+}
+
+function hasQuestionAnswerFocusConflict(qa: QAPair, focus: 'fever' | 'sleep' | 'feeding'): boolean {
+  return questionMatchesFocus(qa, focus) && !answerMatchesFocus(qa, focus);
+}
+
+const FEVER_EXTRA_SYMPTOMS: Array<{ id: string; pattern: RegExp }> = [
+  { id: 'cough', pattern: /咳嗽/u },
+  { id: 'runny-nose', pattern: /流鼻涕|鼻塞/u },
+  { id: 'vomit', pattern: /呕吐/u },
+  { id: 'diarrhea', pattern: /腹泻|拉肚子|拉稀/u },
+  { id: 'rash', pattern: /红疹|皮疹|水疱|泡泡/u },
+  { id: 'eyes', pattern: /眼屎|眼睛/u },
+  { id: 'throat', pattern: /嗓子|咽喉|扁桃体/u },
+  { id: 'dehydration', pattern: /脱水/u },
+  { id: 'convulsion', pattern: /抽风|惊厥|抽搐/u },
+];
+
+const FEVER_SPECIFIC_CONTEXTS: Array<{ id: string; pattern: RegExp }> = [
+  { id: 'vaccine', pattern: /疫苗|接种|打针|预防针/u },
+  { id: 'encephalitis', pattern: /脑炎/u },
+  { id: 'hfmd', pattern: /手足口/u },
+  { id: 'pneumonia', pattern: /肺炎|支原体|支气管|扁桃体/u },
+  { id: 'rash-disease', pattern: /麻疹|出疹/u },
+  { id: 'lymph', pattern: /淋巴结/u },
+];
+
+function extractFeverTemperature(text: string): number | undefined {
+  const match = text.match(/((?:3[7-9])|(?:4[0-2]))(?:[\.。．](\d))?\s*度/u);
+  if (!match) {
+    return undefined;
+  }
+
+  const integerPart = Number(match[1]);
+  const decimalPart = match[2] ? Number(match[2]) / 10 : 0;
+  return integerPart + decimalPart;
+}
+
+function hasFeverHandlingIntent(text: string): boolean {
+  return /怎么办|怎么处理|如何处理|怎么退烧|怎么降温|吃什么退烧药|要不要去医院|该怎么办|先怎么处理/u.test(text);
+}
+
+function getMatchedExtraSymptoms(text: string): string[] {
+  return FEVER_EXTRA_SYMPTOMS
+    .filter(item => item.pattern.test(text))
+    .map(item => item.id);
+}
+
+function getMatchedFeverContexts(text: string): string[] {
+  return FEVER_SPECIFIC_CONTEXTS
+    .filter(item => item.pattern.test(text))
+    .map(item => item.id);
+}
+
+function isStrongFeverQuestionMatch(
+  qa: Pick<QAPair, 'question' | 'answer' | 'tags' | 'category'>,
+  query: string
+): boolean {
+  if (!questionMatchesFocus(qa as QAPair, 'fever')) {
+    return false;
+  }
+
+  if (!hasFeverHandlingIntent(qa.question)) {
+    return false;
+  }
+
+  if (!/宝宝|婴儿|小孩|孩子/u.test(qa.question)) {
+    return false;
+  }
+
+  const queryTemperature = extractFeverTemperature(query);
+  const questionTemperature = extractFeverTemperature(qa.question);
+  if (queryTemperature && questionTemperature !== undefined && Math.abs(queryTemperature - questionTemperature) > 0.8) {
+    return false;
+  }
+
+  const queryExtraSymptoms = new Set(getMatchedExtraSymptoms(query));
+  const unmatchedExtraSymptoms = getMatchedExtraSymptoms(qa.question).filter(item => !queryExtraSymptoms.has(item));
+  const queryContexts = new Set(getMatchedFeverContexts(query));
+  const unmatchedContexts = getMatchedFeverContexts(qa.question).filter(item => !queryContexts.has(item));
+  return unmatchedExtraSymptoms.length === 0 && unmatchedContexts.length === 0;
+}
+
 function isUsefulFollowUpTag(tag: string, question: string): boolean {
   const normalized = tag.trim();
   return normalized.length >= 2
@@ -400,9 +604,26 @@ function cleanQuestionTitle(question: string): string {
   return compact.slice(0, 32);
 }
 
-function buildSourceTitle(qa: QAPair): string {
+function buildSourceTitle(qa: QAPair, signals?: QuerySignals): string {
   const cleaned = cleanQuestionTitle(qa.question);
-  if (cleaned.length >= 8) {
+  const titleSignalsText = `${cleaned} ${qa.question}`;
+  const sleepFocused = signals?.matchedGroups.some(group => group.id === 'childcare-sleep');
+  const feedingFocused = signals?.matchedGroups.some(group => group.id === 'childcare-feeding');
+  const feverFocused = signals?.matchedGroups.some(group => group.id === 'fever');
+
+  if (sleepFocused && !/夜醒|夜里总醒|夜间醒|睡眠|睡觉|哄睡|安抚|闹觉|睡不踏实|翻来覆去/u.test(titleSignalsText)) {
+    return '婴幼儿睡眠安抚参考';
+  }
+
+  if (feedingFocused && !/奶量|喂奶|吃奶|厌奶|母乳|配方奶|断奶|辅食/u.test(titleSignalsText)) {
+    return '婴幼儿喂养护理参考';
+  }
+
+  if (feverFocused && !/发烧|发热|高烧|退烧/u.test(titleSignalsText) && qa.category.startsWith('parenting-')) {
+    return '宝宝发热护理参考';
+  }
+
+  if (cleaned.length >= 8 && !hasCategoryContentConflict(qa)) {
     return cleaned;
   }
 
@@ -420,14 +641,96 @@ function buildSourceTitle(qa: QAPair): string {
   return categoryLabels[qa.category] || '相关知识参考';
 }
 
-function buildSourceReference(qa: QAPair, score: number): SourceReference {
+function buildSourceReference(qa: QAPair, score: number, signals?: QuerySignals): SourceReference {
   return {
-    title: buildSourceTitle(qa),
+    title: buildSourceTitle(qa, signals),
     source: qa.source || '知识库',
     relevance: clampScore(score / 100),
     excerpt: qa.answer.replace(/\s+/g, ' ').slice(0, 120),
     category: qa.category,
   };
+}
+
+function reorderFocusedResults(
+  results: KnowledgeSearchResult[],
+  signals: QuerySignals,
+  query: string,
+  limit: number
+): KnowledgeSearchResult[] {
+  const FOCUS_PROMOTION_MAX_SCORE_GAP = 12;
+  const feverFocused = signals.matchedGroups.some(group => group.id === 'fever');
+  const sleepFocused = signals.matchedGroups.some(group => group.id === 'childcare-sleep');
+  const feedingFocused = signals.matchedGroups.some(group => group.id === 'childcare-feeding');
+
+  let focus: 'fever' | 'sleep' | 'feeding' | undefined;
+  if (sleepFocused) {
+    focus = 'sleep';
+  } else if (feedingFocused) {
+    focus = 'feeding';
+  } else if (feverFocused) {
+    focus = 'fever';
+  }
+
+  if (!focus) {
+    return results.slice(0, limit);
+  }
+
+  const vaccineIntent = hasVaccineIntent(query);
+  const focused = results.filter((result) => {
+    if (!focusMatchesResult(result, focus!)) {
+      return false;
+    }
+
+    if (hasCategoryContentConflict(result)) {
+      return false;
+    }
+
+    if (hasQuestionAnswerFocusConflict(result, focus!) && !(focus === 'fever' && isStrongFeverQuestionMatch(result, query))) {
+      return false;
+    }
+
+    if (focus === 'fever' && !vaccineIntent && /^vaccine-/.test(result.category)) {
+      return false;
+    }
+
+    if ((focus === 'sleep' || focus === 'feeding') && !vaccineIntent && /^vaccine-/.test(result.category)) {
+      return false;
+    }
+
+    if (isChildCareQuery(query) && !targetsChildCare(result)) {
+      return false;
+    }
+
+    return true;
+  });
+
+  if (focused.length === 0) {
+    return results.slice(0, limit);
+  }
+
+  const preferredFocused = focused.filter((result) => (
+    signals.preferredCategories.has(result.category)
+    || (focus === 'fever' && ['common-symptoms', 'common-disease'].includes(result.category))
+  ));
+
+  const rankedFocused = preferredFocused.length > 0 ? preferredFocused : focused;
+  const baselineTopScore = results[0]?.score ?? 0;
+  const promotableFocused = rankedFocused.filter((result) => (
+    baselineTopScore - result.score <= FOCUS_PROMOTION_MAX_SCORE_GAP
+  ));
+
+  if (promotableFocused.length === 0) {
+    return results.slice(0, limit);
+  }
+
+  const merged = new Map<string, KnowledgeSearchResult>();
+  for (const result of [...promotableFocused, ...results]) {
+    if (!merged.has(result.id)) {
+      merged.set(result.id, result);
+    }
+  }
+
+  return Array.from(merged.values()).slice(0, limit);
 }
 
 function calculateScore(
@@ -491,8 +794,9 @@ function calculateScore(
 
   for (const group of signals.matchedGroups) {
     const hasSignalText = group.keywords.some(keyword => rawText.includes(keyword));
+    const canUseCategoryBoost = group.missingTextPenalty ? hasSignalText : true;
 
-    if (group.categoryBoost?.[qa.category]) {
+    if (canUseCategoryBoost && group.categoryBoost?.[qa.category]) {
       score += group.categoryBoost[qa.category] || 0;
     }
 
@@ -515,6 +819,173 @@ function calculateScore(
 
   if ((qa.tags || []).length > 0) {
     score += 1;
+  }
+
+  if (hasCategoryContentConflict(qa)) {
+    score -= 24;
+  }
+
+  const feverFocused = signals.matchedGroups.some(group => group.id === 'fever');
+  const sleepFocused = signals.matchedGroups.some(group => group.id === 'childcare-sleep');
+  const feedingFocused = signals.matchedGroups.some(group => group.id === 'childcare-feeding');
+  const sleepSoothingIntent = /安抚|哄睡|哄/u.test(query);
+  const queryTemperature = extractFeverTemperature(query);
+  const queryFeverHandlingIntent = hasFeverHandlingIntent(query);
+  const queryExtraSymptoms = new Set(getMatchedExtraSymptoms(query));
+  const queryFeverContexts = new Set(getMatchedFeverContexts(query));
+
+  if (feverFocused) {
+    score += questionMatchesFocus(qa, 'fever') ? 14 : -24;
+    if (hasQuestionAnswerFocusConflict(qa, 'fever')) {
+      score -= 10;
+    }
+
+    const questionTemperature = extractFeverTemperature(qa.question);
+    const questionHandlingIntent = hasFeverHandlingIntent(qa.question);
+    const extraSymptoms = getMatchedExtraSymptoms(qa.question);
+    const unmatchedExtraSymptoms = extraSymptoms.filter(item => !queryExtraSymptoms.has(item));
+    const questionContexts = getMatchedFeverContexts(qa.question);
+    const unmatchedContexts = questionContexts.filter(item => !queryFeverContexts.has(item));
+    const simpleFeverQuestion = questionMatchesFocus(qa, 'fever') && extraSymptoms.length === 0;
+
+    if (queryTemperature && questionTemperature !== undefined) {
+      const diff = Math.abs(queryTemperature - questionTemperature);
+      if (diff <= 0.2) {
+        score += 16;
+      } else if (diff <= 0.5) {
+        score += 10;
+      } else if (diff <= 1) {
+        score += 4;
+      } else {
+        score -= 8;
+      }
+    }
+
+    if (queryFeverHandlingIntent) {
+      if (questionHandlingIntent) {
+        score += 12;
+      } else {
+        score -= 6;
+      }
+    }
+
+    if (/宝宝|婴儿|小孩|孩子/u.test(qa.question) && !/怀孕|孕妇|成人|大人/u.test(qa.question)) {
+      score += 8;
+    }
+
+    if (queryExtraSymptoms.size === 0) {
+      if (unmatchedExtraSymptoms.length >= 3) {
+        score -= 34;
+      } else if (unmatchedExtraSymptoms.length === 2) {
+        score -= 24;
+      } else if (unmatchedExtraSymptoms.length === 1) {
+        score -= 14;
+      }
+    } else if (unmatchedExtraSymptoms.length >= 3) {
+      score -= 20;
+    } else if (unmatchedExtraSymptoms.length === 2) {
+      score -= 12;
+    } else if (unmatchedExtraSymptoms.length === 1) {
+      score -= 5;
+    }
+
+    if (/高烧不退|反复高烧|反复发烧/u.test(qa.question)) {
+      score += 6;
+    }
+
+    if (queryExtraSymptoms.size === 0 && simpleFeverQuestion) {
+      score += 18;
+    }
+
+    if (queryExtraSymptoms.size === 0 && questionHandlingIntent && simpleFeverQuestion) {
+      score += 10;
+    }
+
+    if (/没什么症状|无其他症状|没有其他症状/u.test(qa.question)) {
+      score += 10;
+    }
+
+    if (queryFeverContexts.size === 0) {
+      if (unmatchedContexts.length >= 2) {
+        score -= 28;
+      } else if (unmatchedContexts.length === 1) {
+        score -= 16;
+      } else if (simpleFeverQuestion) {
+        score += 8;
+      }
+    }
+  }
+
+  if (sleepFocused) {
+    score += questionMatchesFocus(qa, 'sleep') ? 16 : -28;
+    if (hasQuestionAnswerFocusConflict(qa, 'sleep')) {
+      score -= 18;
+    }
+
+    if (/夜醒|夜里总醒|睡不踏实|翻来覆去|哄睡|安抚|闹觉/u.test(qa.question)) {
+      score += 12;
+    }
+
+    if (sleepSoothingIntent) {
+      if (/安抚|哄睡|哄/u.test(qa.question)) {
+        score += 10;
+      } else {
+        score -= 6;
+      }
+    }
+
+    if (/激灵|抽搐|溶血|脑|蛛网膜/u.test(qa.question)) {
+      score -= 18;
+    }
+  }
+
+  if (feedingFocused) {
+    score += questionMatchesFocus(qa, 'feeding') ? 14 : -22;
+    if (hasQuestionAnswerFocusConflict(qa, 'feeding')) {
+      score -= 14;
+    }
+  }
+
+  if (feverFocused) {
+    if (hasVaccineIntent(query)) {
+      if (/^vaccine-/.test(qa.category)) {
+        score += 14;
+      }
+    } else {
+      if (/^vaccine-/.test(qa.category)) {
+        score -= 30;
+      }
+
+      if (['common-symptoms', 'common-disease', 'parenting-newborn', 'parenting-0-1', 'parenting-1-3'].includes(qa.category)) {
+        score += 10;
+      }
+
+      if (/疫苗|接种|打针|预防针/u.test(rawText)) {
+        score -= 24;
+      }
+    }
+  }
+
+  if (isChildCareQuery(query)) {
+    if (targetsChildCare(qa)) {
+      score += 12;
+    } else {
+      score -= 22;
+    }
+
+    if (/怀孕|孕妇|胎儿|备孕|分娩/u.test(rawText) && !/宝宝|婴儿|孩子|小孩/u.test(qa.question)) {
+      score -= 28;
+    }
+
+    if (/宝宝|婴儿|新生儿|月龄|个月/u.test(qa.question)) {
+      score += 8;
+    } else if (/孩子|小孩|幼儿/u.test(qa.question)) {
+      score += 4;
+    }
+  }
+
+  if ((sleepFocused || feedingFocused) && !hasVaccineIntent(query) && /^vaccine-/.test(qa.category)) {
+    score -= 32;
   }
 
   return score;
@@ -649,7 +1120,7 @@ export function searchQA(
       return {
         ...qa,
         score,
-        sourceReference: buildSourceReference(qa, score),
+        sourceReference: buildSourceReference(qa, score, signals),
       };
     })
     .filter(qa => qa.score > 0)
@@ -661,7 +1132,7 @@ export function searchQA(
       return right.view_count - left.view_count;
     });
 
-  return scoredResults.slice(0, limit);
+  return reorderFocusedResults(scoredResults, signals, query, limit);
 }
 
 // 获取相关上下文（用于 RAG）
