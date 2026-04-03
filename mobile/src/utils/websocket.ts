@@ -14,6 +14,11 @@ type WsServerMessage = {
     disclaimer?: string
     sources?: SourceReference[]
     conversationId?: string
+    followUpQuestions?: string[]
+    degraded?: boolean
+    model?: string
+    provider?: string
+    route?: string
   }
 }
 type MessageHandler = (msg: WsServerMessage) => void
@@ -69,9 +74,27 @@ class AIWebSocketManager {
   disconnect(): void {
     this.stopHeartbeat()
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer)
+    this.listeners.clear()
+    this.pendingMessages = []
     this.ws?.close()
     this.ws = null
     this.connected = false
+  }
+
+  cancelRequest(requestId: string, closeSocket = false): void {
+    this.listeners.delete(requestId)
+    this.pendingMessages = this.pendingMessages.filter((message) => {
+      try {
+        const parsed = JSON.parse(message) as { requestId?: string }
+        return parsed.requestId !== requestId
+      } catch {
+        return true
+      }
+    })
+
+    if (closeSocket) {
+      this.disconnect()
+    }
   }
 
   send(

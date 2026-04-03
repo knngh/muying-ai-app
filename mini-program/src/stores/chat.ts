@@ -20,6 +20,17 @@ export const useChatStore = defineStore('chat', {
   }),
 
   actions: {
+    resetState() {
+      wsManager.disconnect()
+      this.messages = []
+      this.conversationId = null
+      this.loading = false
+      this.loadingHistory = false
+      this.initialized = false
+      this.error = null
+      this.streamingContent = ''
+    },
+
     async initialize() {
       if (this.initialized) {
         return
@@ -112,6 +123,7 @@ export const useChatStore = defineStore('chat', {
           if (wsResolved) return
           if (this.loading && !this.streamingContent) {
             httpFallbackFired = true
+            wsManager.cancelRequest(requestId, true)
             this.fallbackToHttp()
           }
         }, 5000)
@@ -151,6 +163,7 @@ export const useChatStore = defineStore('chat', {
       this.conversationId = null
       this.error = null
       this.streamingContent = ''
+      this.initialized = false
     },
   },
 })

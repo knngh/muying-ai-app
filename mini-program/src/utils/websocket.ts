@@ -11,6 +11,11 @@ type MessageHandler = (data: {
     disclaimer?: string
     sources?: SourceReference[]
     conversationId?: string
+    followUpQuestions?: string[]
+    degraded?: boolean
+    model?: string
+    provider?: string
+    route?: string
   }
 }) => void
 
@@ -80,9 +85,27 @@ class AIWebSocketManager {
       clearTimeout(this.reconnectTimer)
       this.reconnectTimer = null
     }
+    this.listeners.clear()
+    this.pendingMessages = []
     this.socket?.close({})
     this.socket = null
     this.connected = false
+  }
+
+  cancelRequest(requestId: string, closeSocket = false): void {
+    this.listeners.delete(requestId)
+    this.pendingMessages = this.pendingMessages.filter((message) => {
+      try {
+        const parsed = JSON.parse(message) as { requestId?: string }
+        return parsed.requestId !== requestId
+      } catch {
+        return true
+      }
+    })
+
+    if (closeSocket) {
+      this.disconnect()
+    }
   }
 
   send(type: 'ask_stream' | 'chat_stream', requestId: string, payload: Record<string, unknown>, onMessage: MessageHandler): void {

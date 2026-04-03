@@ -21,6 +21,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CommonActions, useNavigation } from '@react-navigation/native';
 import dayjs from 'dayjs';
 import { useAppStore } from '../stores/appStore';
+import { useChatStore } from '../stores/chatStore';
 import { authApi } from '../api/modules';
 
 const THEME_PRIMARY = '#1890ff';
@@ -55,6 +56,7 @@ function getBabyGenderLabel(value?: string | number | null): string {
 const ProfileScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const { user, setUser, setToken } = useAppStore();
+  const resetChatState = useChatStore((state) => state.resetState);
 
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [formNickname, setFormNickname] = useState('');
@@ -150,6 +152,7 @@ const ProfileScreen: React.FC = () => {
         style: 'destructive',
         onPress: async () => {
           try {
+            resetChatState();
             await AsyncStorage.clear();
             setUser(null);
             setToken(null);
@@ -165,7 +168,7 @@ const ProfileScreen: React.FC = () => {
         },
       },
     ]);
-  }, [setUser, setToken, navigation]);
+  }, [resetChatState, setUser, setToken, navigation]);
 
   return (
     <SafeAreaView style={styles.safeArea}>

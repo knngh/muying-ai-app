@@ -158,12 +158,13 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, reactive } from 'vue'
 import { useAppStore } from '@/stores/app'
+import { useChatStore } from '@/stores/chat'
 import { authApi } from '@/api/modules'
-import { wsManager } from '@/utils/websocket'
 import dayjs from 'dayjs'
 import { calculateDueDateFromPregnancyWeek, calculatePregnancyWeekFromDueDate } from '@/utils'
 
 const appStore = useAppStore()
+const chatStore = useChatStore()
 
 const user = computed(() => appStore.user)
 const showEditModal = ref(false)
@@ -330,7 +331,7 @@ const onLogout = () => {
     content: '确定要退出登录吗？',
     success: (res) => {
       if (res.confirm) {
-        wsManager.disconnect()
+        chatStore.resetState()
         uni.removeStorageSync('token')
         uni.removeStorageSync('user')
         appStore.setUser(null)

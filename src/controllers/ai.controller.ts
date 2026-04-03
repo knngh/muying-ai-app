@@ -314,6 +314,11 @@ export const askQuestionStream = async (req: Request, res: Response, next: NextF
     }
 
     if (isEmergencyQuestion(question)) {
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+
       const persistedConversationId = userId
         ? await saveConversationExchange({
           userId,
@@ -324,13 +329,14 @@ export const askQuestionStream = async (req: Request, res: Response, next: NextF
         })
         : conversationId;
 
-      return res.json(successResponse({
-        answer: getEmergencyResponse(),
-        isEmergency: true,
+      res.write(`data: ${JSON.stringify({ content: getEmergencyResponse(), isEmergency: true })}\n\n`);
+      res.write(`data: ${JSON.stringify({
+        done: true,
         sources: [],
         disclaimer: EMERGENCY_DISCLAIMER,
         conversationId: persistedConversationId,
-      }));
+      })}\n\n`);
+      return res.end();
     }
 
     res.setHeader('Content-Type', 'text/event-stream');

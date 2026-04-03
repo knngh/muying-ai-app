@@ -15,6 +15,7 @@ interface ChatState {
   streamingContent: string
   initialize: () => Promise<void>
   sendMessage: (content: string) => Promise<void>
+  resetState: () => void
   clearMessages: () => void
 }
 
@@ -26,6 +27,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
   initialized: false,
   error: null,
   streamingContent: '',
+
+  resetState: () => {
+    wsManager.disconnect()
+    set({
+      messages: [],
+      conversationId: null,
+      loading: false,
+      loadingHistory: false,
+      initialized: false,
+      error: null,
+      streamingContent: '',
+    })
+  },
 
   initialize: async () => {
     if (get().initialized) {
@@ -130,6 +144,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         if (wsResolved) return
         if (get().loading && !get().streamingContent) {
           httpFallbackFired = true
+          wsManager.cancelRequest(requestId, true)
           try {
             const response = await aiApi.chat({
               messages: get().messages.map(m => ({ role: m.role, content: m.content })),
@@ -161,6 +176,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   clearMessages: () => {
-    set({ messages: [], conversationId: null, error: null, streamingContent: '' })
+    set({ messages: [], conversationId: null, error: null, streamingContent: '', initialized: false })
   },
 }))

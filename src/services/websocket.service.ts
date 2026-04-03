@@ -21,7 +21,7 @@ interface WsClientMessage {
     messages?: Array<{ role: string; content: string }>
     conversationId?: string
     model?: string
-    context?: string
+    context?: string | Record<string, string | number | boolean | null>
   }
 }
 
@@ -87,16 +87,64 @@ function hasChildcareSceneSignal(text?: string): boolean {
   return CHILDCARE_SCENE_PATTERNS.some((pattern) => pattern.test(text));
 }
 
-function shouldUseProfileHints(question: string, context?: string): boolean {
-  return !hasExplicitStageSignal(question)
-    && !hasExplicitStageSignal(context)
-    && !hasChildcareSceneSignal(question)
-    && !hasChildcareSceneSignal(context);
+function normalizeContextText(context: unknown): string | undefined {
+  if (!context) {
+    return undefined;
+  }
+
+  if (typeof context === 'string') {
+    const trimmed = context.trim();
+    return trimmed || undefined;
+  }
+
+  if (typeof context !== 'object' || Array.isArray(context)) {
+    return undefined;
+  }
+
+  const lines = Object.entries(context as Record<string, unknown>)
+    .filter(([, value]) => value !== undefined && value !== null && value !== '')
+    .slice(0, 8)
+    .map(([key, value]) => `${key} ${String(value).trim()}`)
+    .filter(Boolean);
+
+  return lines.length > 0 ? lines.join('\n') : undefined;
 }
 
-function buildAnswerPolicy(question: string, context?: string): string {
-  const explicitStage = hasExplicitStageSignal(question) || hasExplicitStageSignal(context);
-  const childcareScene = hasChildcareSceneSignal(question) || hasChildcareSceneSignal(context);
+function buildDisplayContext(context: unknown): string | undefined {
+  if (!context) {
+    return undefined;
+  }
+
+  if (typeof context === 'string') {
+    const trimmed = context.trim();
+    return trimmed ? `用户补充背景：\n${trimmed}` : undefined;
+  }
+
+  if (typeof context !== 'object' || Array.isArray(context)) {
+    return undefined;
+  }
+
+  const lines = Object.entries(context as Record<string, unknown>)
+    .filter(([, value]) => value !== undefined && value !== null && value !== '')
+    .slice(0, 8)
+    .map(([key, value]) => `- ${key}：${String(value).trim()}`)
+    .filter(Boolean);
+
+  return lines.length > 0 ? `用户补充背景：\n${lines.join('\n')}` : undefined;
+}
+
+function shouldUseProfileHints(question: string, context?: unknown): boolean {
+  const contextText = normalizeContextText(context);
+  return !hasExplicitStageSignal(question)
+    && !hasExplicitStageSignal(contextText)
+    && !hasChildcareSceneSignal(question)
+    && !hasChildcareSceneSignal(contextText);
+}
+
+function buildAnswerPolicy(question: string, context?: unknown): string {
+  const contextText = normalizeContextText(context);
+  const explicitStage = hasExplicitStageSignal(question) || hasExplicitStageSignal(contextText);
+  const childcareScene = hasChildcareSceneSignal(question) || hasChildcareSceneSignal(contextText);
   const lines = [
     '回答策略：',
     '- 以用户当前问题和本轮补充信息为优先。',
@@ -115,13 +163,13 @@ function buildAnswerPolicy(question: string, context?: string): string {
   return lines.join('\n');
 }
 
-function buildPromptContext(question: string, context: string | undefined, profilePrompt?: string, knowledgeContext?: string): string {
+function buildPromptContext(question: string, context: unknown, profilePrompt?: string, knowledgeContext?: string): string {
   const allowProfileHints = shouldUseProfileHints(question, context);
 
   return [
     buildAnswerPolicy(question, context),
     allowProfileHints ? profilePrompt : undefined,
-    context?.trim() ? `用户补充背景：\n${context.trim()}` : undefined,
+    buildDisplayContext(context),
     knowledgeContext,
   ].filter(Boolean).join('\n\n');
 }

@@ -32,6 +32,7 @@ export interface ChatSession {
 export interface AskRequest {
   question: string
   conversationId?: string
+  model?: string
   context?: string | Record<string, string | number | boolean | null>
 }
 
@@ -41,12 +42,18 @@ export interface AskResponse {
   isEmergency: boolean
   conversationId?: string
   disclaimer: string
+  followUpQuestions?: string[]
+  confidence?: number
+  model?: string
+  provider?: string
+  route?: string
+  degraded?: boolean
 }
 
 export interface ChatRequest {
-  message: string
+  messages: Array<{ role: 'user' | 'assistant'; content: string }>
   conversationId?: string
-  history?: Array<{ role: string; content: string }>
+  model?: string
   context?: string | Record<string, string | number | boolean | null>
 }
 
@@ -56,6 +63,11 @@ export interface ChatResponse {
   isEmergency: boolean
   conversationId?: string
   disclaimer: string
+  followUpQuestions?: string[]
+  model?: string
+  provider?: string
+  route?: string
+  degraded?: boolean
 }
 
 // WebSocket 消息协议
@@ -67,7 +79,7 @@ export interface WsClientMessage {
     messages?: Array<{ role: string; content: string }>
     conversationId?: string
     model?: string
-    context?: string
+    context?: string | Record<string, string | number | boolean | null>
   }
 }
 
@@ -81,5 +93,10 @@ export interface WsServerMessage {
     sources?: SourceReference[]
     disclaimer?: string
     conversationId?: string
+    followUpQuestions?: string[]
+    degraded?: boolean
+    model?: string
+    provider?: string
+    route?: string
   }
 }
