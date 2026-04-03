@@ -97,12 +97,22 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
     const isPhone = /^1[3-9]\d{9}$/.test(normalizedUsername);
     const isEmail = normalizedUsername.includes('@');
 
-    // 显式分支查询，避免 OR + nullable 字段在不同环境下表现不一致
-    const user = isPhone
-      ? await prisma.user.findUnique({ where: { phone: normalizedUsername } })
-      : isEmail
-        ? await prisma.user.findUnique({ where: { email: normalizedUsername } })
-        : await prisma.user.findUnique({ where: { username: normalizedUsername } });
+    // 显式分支查询，避免 OR + nullable 字段在不同环境下表现不一致。
+    // 对“看起来像手机号/邮箱”的用户名保留回退，避免这类用户名无法登录。
+    let user = null;
+    if (isPhone) {
+      user = await prisma.user.findUnique({ where: { phone: normalizedUsername } });
+      if (!user) {
+        user = await prisma.user.findUnique({ where: { username: normalizedUsername } });
+      }
+    } else if (isEmail) {
+      user = await prisma.user.findUnique({ where: { email: normalizedUsername } });
+      if (!user) {
+        user = await prisma.user.findUnique({ where: { username: normalizedUsername } });
+      }
+    } else {
+      user = await prisma.user.findUnique({ where: { username: normalizedUsername } });
+    }
 
     if (!user) {
       throw new AppError('用户不存在', ErrorCodes.USER_NOT_FOUND, 401);

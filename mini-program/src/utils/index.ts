@@ -108,6 +108,12 @@ export function syncPregnancyWeekStorage(dueDate?: Date | string | null, fallbac
   return null
 }
 
+export function clearLocalSession(): void {
+  uni.removeStorageSync('token')
+  uni.removeStorageSync('user')
+  uni.removeStorageSync('userPregnancyWeek')
+}
+
 function normalizePregnancyStatus(value: unknown): number | undefined {
   if (typeof value === 'number' && value >= 1 && value <= 3) return value
 

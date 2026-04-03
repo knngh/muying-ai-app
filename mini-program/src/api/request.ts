@@ -1,3 +1,5 @@
+import { clearLocalSession } from '@/utils'
+
 // uni.request 封装 - 对标 Web 端 Axios 拦截器
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://beihu.me/api/v1'
 
@@ -44,9 +46,9 @@ async function request<T = unknown>(options: RequestOptions): Promise<T> {
         const statusCode = res.statusCode
         const body = res.data as ApiResponse<T>
 
-        // 401 处理：只清理 token，不做页面跳转（由各页面自行处理未登录状态）
+        // 401 处理：清理本地登录态，不做页面跳转（由各页面自行处理未登录状态）
         if (statusCode === 401) {
-          uni.removeStorageSync('token')
+          clearLocalSession()
           reject(new Error(body?.message || '登录已过期'))
           return
         }

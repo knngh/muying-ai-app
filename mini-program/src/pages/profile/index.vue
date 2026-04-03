@@ -157,11 +157,12 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, reactive } from 'vue'
+import { onShow } from '@dcloudio/uni-app'
 import { useAppStore } from '@/stores/app'
 import { useChatStore } from '@/stores/chat'
 import { authApi } from '@/api/modules'
 import dayjs from 'dayjs'
-import { calculateDueDateFromPregnancyWeek, calculatePregnancyWeekFromDueDate } from '@/utils'
+import { calculateDueDateFromPregnancyWeek, calculatePregnancyWeekFromDueDate, clearLocalSession } from '@/utils'
 
 const appStore = useAppStore()
 const chatStore = useChatStore()
@@ -332,8 +333,7 @@ const onLogout = () => {
     success: (res) => {
       if (res.confirm) {
         chatStore.resetState()
-        uni.removeStorageSync('token')
-        uni.removeStorageSync('user')
+        clearLocalSession()
         appStore.setUser(null)
         uni.reLaunch({ url: '/pages/login/index' })
       }
@@ -341,13 +341,27 @@ const onLogout = () => {
   })
 }
 
-onMounted(async () => {
+async function syncProfileSession() {
   const token = uni.getStorageSync('token')
-  if (token && !user.value) {
+  if (!token) {
+    appStore.setIsLoading(false)
+    appStore.setUser(null)
+    return
+  }
+
+  if (!user.value) {
     appStore.setIsLoading(true)
     await appStore.fetchUser()
     appStore.setIsLoading(false)
   }
+}
+
+onMounted(async () => {
+  await syncProfileSession()
+})
+
+onShow(() => {
+  void syncProfileSession()
 })
 </script>
 

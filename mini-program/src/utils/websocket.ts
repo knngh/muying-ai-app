@@ -22,6 +22,7 @@ type MessageHandler = (data: {
 class AIWebSocketManager {
   private socket: UniApp.SocketTask | null = null
   private connected = false
+  private shouldReconnect = true
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
   private reconnectAttempts = 0
   private maxReconnectAttempts = 5
@@ -33,6 +34,12 @@ class AIWebSocketManager {
   connect(): void {
     const token = uni.getStorageSync('token')
     if (!token) return
+
+    this.shouldReconnect = true
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = null
+    }
 
     this.socket = uni.connectSocket({
       url: `${this.baseUrl}/ws/ai?token=${token}`,
@@ -69,8 +76,11 @@ class AIWebSocketManager {
     this.socket.onClose(() => {
       console.log('[WebSocket] Disconnected')
       this.connected = false
+      this.socket = null
       this.stopHeartbeat()
-      this.tryReconnect()
+      if (this.shouldReconnect) {
+        this.tryReconnect()
+      }
     })
 
     this.socket.onError((err) => {
@@ -80,6 +90,7 @@ class AIWebSocketManager {
   }
 
   disconnect(): void {
+    this.shouldReconnect = false
     this.stopHeartbeat()
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer)
@@ -136,6 +147,7 @@ class AIWebSocketManager {
   }
 
   private tryReconnect(): void {
+    if (!this.shouldReconnect) return
     if (this.reconnectAttempts >= this.maxReconnectAttempts) return
     this.reconnectAttempts++
     const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000)

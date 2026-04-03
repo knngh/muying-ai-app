@@ -32,7 +32,9 @@ export const useAppStore = defineStore('app', {
         const userData = await authApi.me() as User
         this.setUser(userData)
       } catch (_e) {
-        // 忽略错误
+        if (!uni.getStorageSync('token')) {
+          this.setUser(null)
+        }
       }
     },
   },
