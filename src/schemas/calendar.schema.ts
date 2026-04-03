@@ -17,12 +17,6 @@ export const createEventBody = z.object({
   relatedVaccineId: z.string().regex(/^\d+$/).optional(),
 });
 
-export const getEventsQuery = z.object({
-  startDate: z.string().min(1, '请提供开始日期'),
-  endDate: z.string().min(1, '请提供结束日期'),
-  type: z.string().optional(),
-});
-
 export const updateEventBody = z.object({
   title: z.string().min(1).max(100).optional(),
   description: z.string().max(500).optional(),
@@ -57,6 +51,12 @@ export const batchUpdateEventsBody = z.object({
 
 export const batchDeleteEventsBody = z.object({
   ids: z.array(z.string().regex(/^\d+$/)).min(1, '请提供要删除的事件ID列表').max(50, '单次最多删除50个事件'),
+});
+
+export const getEventsQuery = z.object({
+  startDate: z.string().min(1, '请提供开始日期'),
+  endDate: z.string().min(1, '请提供结束日期'),
+  type: z.string().optional(),
 });
 
 // 孕周待办进度

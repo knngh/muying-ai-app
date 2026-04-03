@@ -184,7 +184,11 @@
       <view class="diary-card" v-else>
         <view class="diary-header">
           <text class="diary-date">{{ currentDiary.date }}</text>
-          <text class="edit-btn" @tap="openDiaryModal">编辑</text>
+          <view class="diary-header-actions">
+            <text class="edit-btn" @tap="openDiaryModal">编辑</text>
+            <text class="diary-header-divider">|</text>
+            <text class="delete-btn" @tap="removeDiary">删除</text>
+          </view>
         </view>
         <view class="diary-content">
           <text>{{ currentDiary.content }}</text>
@@ -502,6 +506,40 @@ const saveDiary = () => {
       uni.showToast({ title: err?.message || '保存失败，请稍后重试', icon: 'none' })
     }
   })()
+}
+
+const removeDiary = () => {
+  if (!checkLogin('请先登录后删除记录', false)) return
+
+  const week = currentSelectedWeek.value
+  if (!userDiaries.value[week]) {
+    uni.showToast({ title: '当前没有可删除的记录', icon: 'none' })
+    return
+  }
+
+  uni.showModal({
+    title: '删除记录',
+    content: `确认删除第 ${week} 周的记录吗？`,
+    success: (res) => {
+      if (!res.confirm) return
+
+      void (async () => {
+        try {
+          await calendarApi.deleteDiary(week)
+
+          const nextDiaries = { ...userDiaries.value }
+          delete nextDiaries[week]
+          userDiaries.value = nextDiaries
+
+          diaryInput.value = ''
+          uni.showToast({ title: '记录已删除', icon: 'success' })
+        } catch (err: any) {
+          console.error('[Calendar] 删除孕周记录失败:', err)
+          uni.showToast({ title: err?.message || '删除失败，请稍后重试', icon: 'none' })
+        }
+      })()
+    },
+  })
 }
 
 const saveCustomTodo = () => {
@@ -829,8 +867,11 @@ onShow(() => {
 
 .diary-card { background-color: #fff; border-radius: 24rpx; padding: 40rpx; box-shadow: 0 4rpx 20rpx rgba(0,0,0,0.04); }
 .diary-header { display: flex; justify-content: space-between; margin-bottom: 20rpx; border-bottom: 2rpx dashed #eee; padding-bottom: 15rpx; }
+.diary-header-actions { display: flex; align-items: center; gap: 14rpx; }
 .diary-date { font-size: 24rpx; color: #999; }
 .edit-btn { font-size: 24rpx; color: #ff6b9d; }
+.diary-header-divider { font-size: 22rpx; color: #c2c8d0; }
+.delete-btn { font-size: 24rpx; color: #ff7875; }
 .diary-content { font-size: 30rpx; color: #333; line-height: 1.8; }
 
 .fab-button {

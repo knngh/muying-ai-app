@@ -5,6 +5,7 @@ import { successResponse, AppError, ErrorCodes } from '../middlewares/error.midd
 // 辅助函数：将 Prisma CalendarEvent 序列化为前端期望的格式
 const serializeEvent = (event: any) => {
   const { eventTime, endTime, isAllDay, isRecurring, status, ...rest } = event;
+  // eventTime (Date) → startTime (HH:mm 字符串)
   const formatTime = (t: Date | null | undefined): string | null => {
     if (!t) return null;
     const d = new Date(t);

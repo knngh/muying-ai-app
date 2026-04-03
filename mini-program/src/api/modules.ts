@@ -59,6 +59,8 @@ export const calendarApi = {
       .then(res => (res as { list: PregnancyDiary[] }).list),
   saveDiary: (data: { week: number; content: string }) =>
     api.put<PregnancyDiary>('/calendar/diaries', data),
+  deleteDiary: (week: number) =>
+    api.delete<{ week: number }>(`/calendar/diaries/${week}`),
   getCustomTodos: (params?: { week?: number }) =>
     api.get<{ list: PregnancyCustomTodo[] }>('/calendar/custom-todos', params as Record<string, unknown>)
       .then(res => (res as { list: PregnancyCustomTodo[] }).list),
