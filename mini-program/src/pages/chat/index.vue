@@ -1,5 +1,12 @@
 <template>
   <view class="chat-page">
+    <view class="page-head">
+      <view class="back-button" hover-class="back-button--hover" @tap="handleBack">
+        <text class="back-button-icon">‹</text>
+        <text class="back-button-text">返回</text>
+      </view>
+    </view>
+
     <view class="hero">
       <view class="hero-copy">
         <text class="hero-title">AI 母婴答疑</text>
@@ -23,6 +30,7 @@
       scroll-with-animation
     >
       <view v-if="messages.length === 0" class="empty-state">
+        <text v-if="loadingHistory" class="empty-loading">正在恢复最近一次对话...</text>
         <view class="empty-illustration">
           <text class="empty-emoji">🍼</text>
         </view>
@@ -181,7 +189,7 @@ const quickQuestions = [
 ]
 
 const chatStore = useChatStore()
-const { messages, loading, error, streamingContent, canResume, resumeMessageId } = storeToRefs(chatStore)
+const { messages, loading, loadingHistory, error, streamingContent, canResume, resumeMessageId } = storeToRefs(chatStore)
 
 const inputValue = ref('')
 const disclaimer = getDisclaimer()
@@ -218,6 +226,16 @@ function syncScrollAnchor() {
     scrollAnchor.value = 'chat-bottom'
     scrollTop.value += 100000
   })
+}
+
+function handleBack() {
+  const pages = getCurrentPages()
+  if (pages.length > 1) {
+    uni.navigateBack()
+    return
+  }
+
+  uni.switchTab({ url: '/pages/home/index' })
 }
 
 async function handleSend() {
@@ -393,8 +411,40 @@ watch([messages, streamingContent], () => {
   overflow: hidden;
 }
 
+.page-head {
+  padding: calc(env(safe-area-inset-top) + 20rpx) 28rpx 0;
+}
+
+.back-button {
+  width: fit-content;
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  padding: 12rpx 18rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.78);
+  border: 2rpx solid rgba(255, 173, 122, 0.18);
+  box-shadow: 0 10rpx 24rpx rgba(46, 38, 30, 0.06);
+}
+
+.back-button--hover {
+  transform: translateY(2rpx);
+}
+
+.back-button-icon {
+  font-size: 34rpx;
+  line-height: 1;
+  color: #6f4b2f;
+}
+
+.back-button-text {
+  font-size: 24rpx;
+  font-weight: 700;
+  color: #6f4b2f;
+}
+
 .hero {
-  padding: 112rpx 36rpx 28rpx;
+  padding: 28rpx 36rpx 28rpx;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -504,6 +554,14 @@ watch([messages, streamingContent], () => {
   font-size: 26rpx;
   line-height: 1.7;
   color: #7f746b;
+  text-align: center;
+}
+
+.empty-loading {
+  margin-bottom: 20rpx;
+  font-size: 25rpx;
+  line-height: 1.6;
+  color: #9a7c68;
   text-align: center;
 }
 

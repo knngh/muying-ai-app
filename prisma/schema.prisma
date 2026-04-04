@@ -54,6 +54,8 @@ model User {
   communityComments  CommunityComment[]
   communityPostLikes CommunityPostLike[]
   communityReports   CommunityReport[]
+  growthProfile      GrowthProfile?
+  growthRecords      GrowthRecord[]
 
   @@index([phone])
   @@index([email])
@@ -586,4 +588,50 @@ model CommunityReport {
   @@index([commentId])
   @@index([status])
   @@map("community_reports")
+}
+
+// ============================================
+// 成长档案表
+// ============================================
+model GrowthProfile {
+  id              BigInt    @id @default(autoincrement())
+  userId          BigInt    @unique
+  name            String    @default("宝宝") @db.VarChar(50)
+  birthday        DateTime? @db.Date
+  gender          Int       @default(0)
+  focusArea       String?   @db.VarChar(50)
+  stageHint       String?   @db.VarChar(20)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  records         GrowthRecord[]
+
+  @@index([userId])
+  @@index([birthday])
+  @@map("growth_profiles")
+}
+
+// ============================================
+// 成长记录表
+// ============================================
+model GrowthRecord {
+  id              BigInt        @id @default(autoincrement())
+  userId          BigInt
+  profileId       BigInt
+  recordType      String        @db.VarChar(30)
+  status          String        @db.VarChar(20)
+  note            String        @db.VarChar(300)
+  sourceApp       String?       @db.VarChar(50)
+  recordedAt      DateTime      @default(now())
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profile         GrowthProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([userId, recordedAt])
+  @@index([profileId, recordedAt])
+  @@index([recordType, status])
+  @@map("growth_records")
 }
