@@ -37,8 +37,8 @@
         <text class="post-body">{{ post.content }}</text>
 
         <!-- Category Tag -->
-        <view v-if="post.category" class="category-tag">
-          <text class="category-tag-text">{{ getCategoryLabel(post.category) }}</text>
+        <view v-if="post.categoryName || post.category" class="category-tag">
+          <text class="category-tag-text">{{ getCategoryLabel(post.categoryName || post.category || '') }}</text>
         </view>
 
         <!-- Stats Row -->
@@ -54,6 +54,12 @@
           <view class="stat-item">
             <text class="stat-icon">👁</text>
             <text class="stat-num">{{ post.viewCount || 0 }}</text>
+          </view>
+        </view>
+
+        <view v-if="canDeletePost" class="post-actions">
+          <view class="post-action-btn" @tap="handleDeletePost">
+            <text class="post-action-text">删除帖子</text>
           </view>
         </view>
       </view>
@@ -100,6 +106,9 @@
                 </text>
                 <text class="comment-date">{{ formatDate(comment.createdAt) }}</text>
               </view>
+              <view v-if="canDeleteComment(comment.authorId)" class="comment-delete-btn" @tap="handleDeleteComment(comment.id)">
+                <text class="comment-delete-text">删除</text>
+              </view>
             </view>
             <text class="comment-content">{{ comment.content }}</text>
           </view>
@@ -129,7 +138,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { computed, ref, reactive } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { communityApi } from '@/api/community'
 import type { CommunityPost, CommunityComment } from '@/api/community'
@@ -150,6 +159,7 @@ const comments = ref<CommunityComment[]>([])
 const commentsLoading = ref(false)
 const commentText = ref('')
 const commentPagination = reactive({ page: 1, pageSize: 20, total: 0, totalPages: 0 })
+const currentUserId = ref('')
 
 const getCategoryLabel = (value: string) => {
   const cat = categories.find(c => c.value === value)
@@ -157,6 +167,7 @@ const getCategoryLabel = (value: string) => {
 }
 
 const formatDate = (date: string) => dayjs(date).format('YYYY-MM-DD HH:mm')
+const canDeletePost = computed(() => !!post.value && post.value.authorId === currentUserId.value)
 
 const fetchPost = async () => {
   loading.value = true
@@ -212,6 +223,50 @@ const onToggleLike = async () => {
   }
 }
 
+const canDeleteComment = (authorId: string) => {
+  return authorId === currentUserId.value
+}
+
+const handleDeletePost = () => {
+  if (!post.value || !canDeletePost.value) return
+  uni.showModal({
+    title: '删除帖子',
+    content: '删除后将无法恢复，确认继续吗？',
+    success: async (res) => {
+      if (!res.confirm || !post.value) return
+      try {
+        await communityApi.deletePost(post.value.id)
+        uni.showToast({ title: '删除成功', icon: 'success' })
+        setTimeout(() => {
+          uni.navigateBack()
+        }, 500)
+      } catch (_err) {
+        uni.showToast({ title: '删除失败', icon: 'none' })
+      }
+    },
+  })
+}
+
+const handleDeleteComment = (id: number) => {
+  uni.showModal({
+    title: '删除评论',
+    content: '确认删除这条评论吗？',
+    success: async (res) => {
+      if (!res.confirm) return
+      try {
+        await communityApi.deleteComment(id)
+        comments.value = comments.value.filter(item => item.id !== id)
+        if (post.value && post.value.commentCount > 0) {
+          post.value.commentCount -= 1
+        }
+        uni.showToast({ title: '删除成功', icon: 'success' })
+      } catch (_err) {
+        uni.showToast({ title: '删除失败', icon: 'none' })
+      }
+    },
+  })
+}
+
 const submitComment = async () => {
   const token = uni.getStorageSync('token')
   if (!token) {
@@ -241,6 +296,8 @@ const submitComment = async () => {
 }
 
 onLoad((options) => {
+  const storedUser = uni.getStorageSync('user') as { id?: string } | undefined
+  currentUserId.value = storedUser?.id ? String(storedUser.id) : ''
   if (options?.id) {
     postId.value = Number(options.id)
     fetchPost()
@@ -375,6 +432,24 @@ onLoad((options) => {
   border-top: 1rpx solid #f0f0f0;
 }
 
+.post-actions {
+  margin-top: 24rpx;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.post-action-btn {
+  padding: 10rpx 20rpx;
+  border-radius: 999rpx;
+  background-color: rgba(255, 77, 79, 0.08);
+}
+
+.post-action-text {
+  font-size: 24rpx;
+  color: #d84b4b;
+  font-weight: 600;
+}
+
 .stat-item {
   display: flex;
   align-items: center;
@@ -461,6 +536,7 @@ onLoad((options) => {
 .comment-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   margin-bottom: 12rpx;
 }
 
@@ -486,8 +562,18 @@ onLoad((options) => {
 }
 
 .comment-author-info {
+  flex: 1;
   display: flex;
   flex-direction: column;
+}
+
+.comment-delete-btn {
+  padding: 8rpx 12rpx;
+}
+
+.comment-delete-text {
+  font-size: 22rpx;
+  color: #d84b4b;
 }
 
 .comment-author-name {

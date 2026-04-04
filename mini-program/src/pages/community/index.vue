@@ -71,8 +71,8 @@
 
         <!-- Footer -->
         <view class="post-footer">
-          <view v-if="post.category" class="category-tag">
-            <text class="category-tag-text">{{ post.category }}</text>
+          <view v-if="post.categoryName || post.category" class="category-tag">
+            <text class="category-tag-text">{{ post.categoryName || post.category }}</text>
           </view>
           <view class="post-stats">
             <view class="stat-item" @tap.stop="onToggleLike(post)">
@@ -126,12 +126,27 @@
         </view>
 
         <view class="form-item">
+          <text class="form-label">分类</text>
+          <picker :range="categoryOptions" range-key="name" :value="selectedCategoryIndex" @change="onCategoryChange">
+            <view class="form-picker">
+              <text :class="postForm.categoryId ? 'form-picker-text' : 'placeholder-text'">
+                {{ selectedCategoryLabel }}
+              </text>
+            </view>
+          </picker>
+        </view>
+
+        <view class="form-item">
           <text class="form-label">内容</text>
           <textarea
             v-model="postForm.content"
             class="form-textarea"
             placeholder="分享你的经验和想法..."
           />
+        </view>
+        <view class="form-item form-item--switch">
+          <text class="form-label">匿名发布</text>
+          <switch :checked="postForm.isAnonymous" color="#2ea97d" @change="onAnonymousChange" />
         </view>
         <view class="modal-actions">
           <view class="modal-btn modal-btn--cancel" @tap="showCreateModal = false">
@@ -147,10 +162,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { computed, ref, reactive, onMounted } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { communityApi } from '@/api/community'
 import type { CommunityPost } from '@/api/community'
+import { categoryApi, type Category } from '@/api/modules'
 import dayjs from 'dayjs'
 
 const sortOptions = [
@@ -163,11 +179,29 @@ const keyword = ref('')
 const sortIndex = ref(0)
 const loading = ref(false)
 const posts = ref<CommunityPost[]>([])
+const categories = ref<Array<Pick<Category, 'id' | 'name'>>>([])
 const pagination = reactive({ page: 1, pageSize: 10, total: 0, totalPages: 0 })
 const showCreateModal = ref(false)
-const postForm = reactive({ title: '', content: '' })
+const postForm = reactive({ title: '', content: '', categoryId: '', isAnonymous: false })
+const categoryOptions = computed(() => [{ id: '', name: '不分类' }, ...categories.value])
+const selectedCategoryIndex = computed(() => {
+  const index = categoryOptions.value.findIndex(item => String(item.id) === postForm.categoryId)
+  return index >= 0 ? index : 0
+})
+const selectedCategoryLabel = computed(() => {
+  return categoryOptions.value[selectedCategoryIndex.value]?.name || '不分类'
+})
 
 const formatDate = (date: string) => dayjs(date).format('YYYY-MM-DD HH:mm')
+
+const fetchCategories = async () => {
+  try {
+    const res = await categoryApi.getAll()
+    categories.value = (res || []).map(item => ({ id: item.id, name: item.name }))
+  } catch (_err) {
+    categories.value = []
+  }
+}
 
 const fetchPosts = async () => {
   loading.value = true
@@ -244,7 +278,18 @@ const onCreatePost = () => {
   if (!checkLogin()) return
   postForm.title = ''
   postForm.content = ''
+  postForm.categoryId = ''
+  postForm.isAnonymous = false
   showCreateModal.value = true
+}
+
+const onCategoryChange = (e: any) => {
+  const target = categoryOptions.value[e.detail.value]
+  postForm.categoryId = target ? String(target.id || '') : ''
+}
+
+const onAnonymousChange = (e: any) => {
+  postForm.isAnonymous = Boolean(e.detail.value)
 }
 
 const submitPost = async () => {
@@ -260,6 +305,8 @@ const submitPost = async () => {
     await communityApi.createPost({
       title: postForm.title.trim(),
       content: postForm.content.trim(),
+      categoryId: postForm.categoryId || undefined,
+      isAnonymous: postForm.isAnonymous,
     })
     showCreateModal.value = false
     uni.showToast({ title: '发布成功', icon: 'success' })
@@ -271,6 +318,7 @@ const submitPost = async () => {
 }
 
 onMounted(() => {
+  fetchCategories()
   fetchPosts()
 })
 
@@ -562,10 +610,21 @@ onShow(() => {
   margin-bottom: 24rpx;
 }
 
+.form-item--switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
 .form-label {
   font-size: 28rpx;
   color: #333333;
   margin-bottom: 8rpx;
+}
+
+.form-picker-text {
+  font-size: 28rpx;
+  color: #333333;
 }
 
 .form-input {

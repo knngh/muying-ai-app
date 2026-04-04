@@ -5,6 +5,8 @@ export interface CommunityPost {
   title: string
   content: string
   category?: string
+  categoryId?: string
+  categoryName?: string
   authorId: string
   author?: {
     id: string

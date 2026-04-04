@@ -1,12 +1,14 @@
 import { Request, Response, NextFunction } from 'express';
 import prisma from '../config/database';
 import { successResponse, paginatedResponse, AppError, ErrorCodes } from '../middlewares/error.middleware';
+import { assertCommunityContentAllowed } from '../services/community-moderation.service';
 
 /**
  * 获取帖子列表
  */
 export const getPosts = async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const userId = req.userId;
     const { 
       category, 
       sort = 'latest', 
@@ -57,7 +59,7 @@ export const getPosts = async (req: Request, res: Response, next: NextFunction) 
         take: Number(pageSize),
         include: {
           author: {
-            select: { id: true, nickname: true, avatar: true }
+            select: { id: true, username: true, nickname: true, avatar: true }
           },
           tags: {
             include: {
@@ -72,11 +74,38 @@ export const getPosts = async (req: Request, res: Response, next: NextFunction) 
       prisma.communityPost.count({ where })
     ]);
 
+    const likedPostIds = userId
+      ? new Set(
+        (await prisma.communityPostLike.findMany({
+          where: {
+            userId: BigInt(userId),
+            postId: { in: posts.map((post) => post.id) },
+          },
+          select: { postId: true },
+        })).map((item) => item.postId.toString())
+      )
+      : new Set<string>();
+
+    const categoryIds = Array.from(new Set(posts.map((post) => post.categoryId?.toString()).filter(Boolean))) as string[];
+    const categories = categoryIds.length
+      ? await prisma.category.findMany({
+        where: { id: { in: categoryIds.map((id) => BigInt(id)) } },
+        select: { id: true, name: true },
+      })
+      : [];
+    const categoryNameMap = new Map(categories.map((item) => [item.id.toString(), item.name]));
+
     const list = posts.map(post => ({
       ...post,
+      categoryId: post.categoryId?.toString(),
+      categoryName: post.categoryId ? categoryNameMap.get(post.categoryId.toString()) : undefined,
+      isAnonymous: Boolean(post.isAnonymous),
+      isPinned: Boolean(post.isPinned),
+      isFeatured: Boolean(post.isFeatured),
       tags: (post as any).tags.map((t: any) => t.tag),
       commentCount: (post as any)._count.comments,
-      likeCount: (post as any)._count.likes
+      likeCount: (post as any)._count.likes,
+      isLiked: likedPostIds.has(post.id.toString()),
     }));
 
     res.json(paginatedResponse(list, Number(page), Number(pageSize), total));
@@ -97,7 +126,7 @@ export const getPostById = async (req: Request, res: Response, next: NextFunctio
       where: { id: BigInt(id) },
       include: {
         author: {
-          select: { id: true, nickname: true, avatar: true, createdAt: true }
+          select: { id: true, username: true, nickname: true, avatar: true, createdAt: true }
         },
         tags: {
           include: { tag: true }
@@ -124,8 +153,20 @@ export const getPostById = async (req: Request, res: Response, next: NextFunctio
       isLiked = !!like;
     }
 
+    const category = post.categoryId
+      ? await prisma.category.findUnique({
+        where: { id: post.categoryId },
+        select: { id: true, name: true },
+      })
+      : null;
+
     res.json(successResponse({
       ...post,
+      categoryId: post.categoryId?.toString(),
+      categoryName: category?.name,
+      isAnonymous: Boolean(post.isAnonymous),
+      isPinned: Boolean(post.isPinned),
+      isFeatured: Boolean(post.isFeatured),
       tags: (post as any).tags.map((t: any) => t.tag),
       isLiked
     }));
@@ -146,6 +187,8 @@ export const createPost = async (req: Request, res: Response, next: NextFunction
       throw new AppError('标题和内容不能为空', ErrorCodes.PARAM_ERROR, 400);
     }
 
+    assertCommunityContentAllowed(title, content);
+
     // 创建帖子
     const post = await prisma.communityPost.create({
       data: {
@@ -162,11 +205,29 @@ export const createPost = async (req: Request, res: Response, next: NextFunction
         } : undefined
       },
       include: {
+        author: {
+          select: { id: true, username: true, nickname: true, avatar: true }
+        },
         tags: { include: { tag: true } }
       }
     });
 
-    res.status(201).json(successResponse(post, '发布成功'));
+    const category = post.categoryId
+      ? await prisma.category.findUnique({
+        where: { id: post.categoryId },
+        select: { id: true, name: true },
+      })
+      : null;
+
+    res.status(201).json(successResponse({
+      ...post,
+      categoryId: post.categoryId?.toString(),
+      categoryName: category?.name,
+      isAnonymous: Boolean(post.isAnonymous),
+      isPinned: Boolean(post.isPinned),
+      isFeatured: Boolean(post.isFeatured),
+      tags: (post as any).tags.map((t: any) => t.tag),
+    }, '发布成功'));
   } catch (error) {
     next(error);
   }
@@ -180,6 +241,8 @@ export const updatePost = async (req: Request, res: Response, next: NextFunction
     const userId = req.userId;
     const { id } = req.params;
     const { title, content, categoryId, tags } = req.body;
+
+    assertCommunityContentAllowed(title, content);
 
     // 检查帖子是否存在且属于当前用户
     const existingPost = await prisma.communityPost.findUnique({
@@ -330,12 +393,12 @@ export const getComments = async (req: Request, res: Response, next: NextFunctio
         orderBy: { createdAt: 'desc' },
         include: {
           author: {
-            select: { id: true, nickname: true, avatar: true }
+            select: { id: true, username: true, nickname: true, avatar: true }
           },
           replies: {
             where: { deletedAt: null },
             include: {
-              author: { select: { id: true, nickname: true, avatar: true } }
+              author: { select: { id: true, username: true, nickname: true, avatar: true } }
             },
             take: 5
           },
@@ -373,6 +436,8 @@ export const createComment = async (req: Request, res: Response, next: NextFunct
       throw new AppError('评论内容不能为空', ErrorCodes.PARAM_ERROR, 400);
     }
 
+    assertCommunityContentAllowed(content);
+
     // 检查帖子是否存在
     const post = await prisma.communityPost.findUnique({
       where: { id: BigInt(postId) }
@@ -392,7 +457,7 @@ export const createComment = async (req: Request, res: Response, next: NextFunct
         replyToId: replyToId ? BigInt(replyToId) : null
       },
       include: {
-        author: { select: { id: true, nickname: true, avatar: true } }
+        author: { select: { id: true, username: true, nickname: true, avatar: true } }
       }
     });
 
