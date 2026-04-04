@@ -4,8 +4,10 @@ import type { AIMessage, AskResponse, ChatResponse, ChatSession } from '../../..
 export type { AIMessage, AskResponse, ChatResponse, ChatSession }
 export type { SourceReference } from '../../../shared/types'
 
+type ChatContext = string | Record<string, string | number | boolean | null>
+
 export const aiApi = {
-  ask: async (data: { question: string; context?: string; model?: string }) => {
+  ask: async (data: { question: string; context?: ChatContext; model?: string }) => {
     const res = await api.post<{
       answer: string
       sources?: AskResponse['sources']
@@ -26,7 +28,7 @@ export const aiApi = {
       disclaimer: res.disclaimer,
     } as AskResponse
   },
-  chat: async (data: { messages: Array<{ role: string; content: string }>; conversationId?: string; context?: string; model?: string }) => {
+  chat: async (data: { messages: Array<{ role: string; content: string }>; conversationId?: string; context?: ChatContext; model?: string }) => {
     const res = await api.post<{
       message?: { content?: string }
       sources?: ChatResponse['sources']
@@ -76,5 +78,5 @@ export function getEmergencyWarning(): string {
 }
 
 export function getDisclaimer(): string {
-  return '温馨提示：这里的答复用于帮助您先做初步了解。如果身体不适明显、症状持续加重，或您仍然不放心，请及时就医；紧急情况请拨打120。'
+  return '免责声明：本功能由人工智能生成，适用于母婴健康知识咨询、护理建议参考和就医前信息整理，不提供诊断结论、处方开具或具体治疗方案，也不能替代医生面诊、检查和专业判断。'
 }

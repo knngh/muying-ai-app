@@ -11,7 +11,7 @@ import {
 } from './ai-gateway.service';
 import { buildKnowledgePack, type SourceReference } from './knowledge.service';
 import { buildUserProfileContext } from './ai-user-context.service';
-import { saveConversationExchange } from './ai-session.service';
+import { appendConversationAssistantAnswer, saveConversationExchange } from './ai-session.service';
 import {
   classifyMaternalChildQuestion,
   hasExcludedDomainSignal,
@@ -179,6 +179,14 @@ function buildPromptContext(question: string, context: unknown, profilePrompt?: 
     buildDisplayContext(context),
     knowledgeContext,
   ].filter(Boolean).join('\n\n');
+}
+
+function isResumeContinuationContext(context: unknown): boolean {
+  if (!context || typeof context !== 'object' || Array.isArray(context)) {
+    return false;
+  }
+
+  return (context as Record<string, unknown>).模式 === '原答案续写';
 }
 
 function isRequestCanceled(ws: AuthenticatedWebSocket, requestId: string): boolean {
@@ -496,6 +504,7 @@ async function handleChatStream(
   payload: WsClientMessage['payload']
 ) {
   const { messages, model, context, conversationId } = payload;
+  const isResumeContinuation = isResumeContinuationContext(context);
   clearRequestCancellation(ws, requestId);
 
   if (!messages || !Array.isArray(messages) || messages.length === 0) {
@@ -602,13 +611,20 @@ async function handleChatStream(
     const wasCanceled = isRequestCanceled(ws, requestId);
     if (ws.readyState === WebSocket.OPEN) {
       const persistedConversationId = ws.userId && lastMessage.role === 'user' && answer.trim()
-        ? await saveConversationExchange({
-          userId: ws.userId,
-          conversationId,
-          userQuestion: lastMessage.content,
-          assistantAnswer: answer,
-          sources: knowledgePack.sources,
-        })
+        ? isResumeContinuation
+          ? await appendConversationAssistantAnswer({
+            userId: ws.userId,
+            conversationId,
+            assistantAnswer: answer,
+            sources: knowledgePack.sources,
+          })
+          : await saveConversationExchange({
+            userId: ws.userId,
+            conversationId,
+            userQuestion: lastMessage.content,
+            assistantAnswer: answer,
+            sources: knowledgePack.sources,
+          })
         : conversationId;
 
       sendMessage(ws, {

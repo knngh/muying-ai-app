@@ -6,6 +6,10 @@ export interface AIMessage {
   content: string
   sources?: SourceReference[]
   isEmergency?: boolean
+  model?: string
+  provider?: string
+  route?: string
+  degraded?: boolean
   createdAt: string
 }
 

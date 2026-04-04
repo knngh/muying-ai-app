@@ -140,6 +140,26 @@ function parseSources(value: string | null): SourceReference[] | undefined {
   }
 }
 
+function mergeSourceReferences(current?: SourceReference[], incoming?: SourceReference[]): SourceReference[] | undefined {
+  if (!incoming?.length) {
+    return current;
+  }
+
+  if (!current?.length) {
+    return incoming.map((item) => ({ ...item }));
+  }
+
+  const merged = [...current.map((item) => ({ ...item }))];
+  incoming.forEach((item) => {
+    const exists = merged.some((source) => source.url === item.url && source.title === item.title);
+    if (!exists) {
+      merged.push({ ...item });
+    }
+  });
+
+  return merged;
+}
+
 function mapMessageRow(row: MessageRow): StoredChatMessage {
   return {
     id: row.id.toString(),
@@ -294,6 +314,58 @@ export async function saveConversationExchange(params: {
     );
 
     return conversationId;
+  });
+}
+
+export async function appendConversationAssistantAnswer(params: {
+  userId: string;
+  conversationId?: string;
+  assistantAnswer: string;
+  sources?: SourceReference[];
+}): Promise<string | undefined> {
+  await ensureTables();
+
+  if (!params.conversationId || !(await ensureConversationOwnership(params.userId, params.conversationId))) {
+    return params.conversationId;
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const latestAssistantRows = await tx.$queryRawUnsafe<Array<{
+      id: bigint;
+      content: string;
+      sourcesJson: string | null;
+    }>>(
+      `SELECT id, content, sources_json AS sourcesJson
+       FROM ai_chat_messages
+       WHERE conversation_id = ? AND role = 'assistant'
+       ORDER BY created_at DESC, id DESC
+       LIMIT 1`,
+      params.conversationId
+    );
+
+    if (latestAssistantRows.length === 0) {
+      return params.conversationId;
+    }
+
+    const latestAssistant = latestAssistantRows[0];
+    const nextContent = `${latestAssistant.content || ''}${params.assistantAnswer || ''}`.trim();
+    const nextSources = mergeSourceReferences(parseSources(latestAssistant.sourcesJson), params.sources);
+
+    await tx.$executeRawUnsafe(
+      'UPDATE ai_chat_messages SET content = ?, sources_json = ? WHERE id = ?',
+      nextContent,
+      nextSources?.length ? JSON.stringify(nextSources) : null,
+      latestAssistant.id
+    );
+
+    await tx.$executeRawUnsafe(
+      'UPDATE ai_chat_conversations SET summary = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ? AND deleted_at IS NULL',
+      extractSummary(nextContent, ''),
+      params.conversationId,
+      params.userId
+    );
+
+    return params.conversationId;
   });
 }
 

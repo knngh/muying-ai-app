@@ -8,21 +8,119 @@ function generateId() {
   return uuidv4()
 }
 
+type ChatContext = string | Record<string, string | number | boolean | null>
+
+interface SendMessageOptions {
+  appendUserMessage?: boolean
+  context?: ChatContext
+  resumeMessageId?: string | null
+  transportMessages?: Array<{ role: 'user' | 'assistant'; content: string }>
+}
+
+function mergeSources(current?: AIMessage['sources'], incoming?: AIMessage['sources']) {
+  if (!incoming?.length) {
+    return current
+  }
+
+  if (!current?.length) {
+    return incoming.map(source => ({ ...source }))
+  }
+
+  const next = [...current.map(source => ({ ...source }))]
+  incoming.forEach((source) => {
+    const exists = next.some(item => item.url === source.url && item.title === source.title)
+    if (!exists) {
+      next.push({ ...source })
+    }
+  })
+  return next
+}
+
+function appendText(base: string, addition: string) {
+  const trimmedAddition = addition.trim()
+  if (!trimmedAddition) {
+    return base
+  }
+
+  return `${base}${trimmedAddition}`
+}
+
 export const useChatStore = defineStore('chat', {
   state: () => ({
     messages: [] as AIMessage[],
     conversationId: null as string | null,
     loading: false,
-    loadingHistory: false,
     initialized: false,
     error: null as string | null,
     streamingContent: '',
     activeRequestId: null as string | null,
     stopRequested: false,
+    canResume: false,
+    resumeMessageId: null as string | null,
     fallbackTimer: null as ReturnType<typeof setTimeout> | null,
   }),
 
   actions: {
+    appendToAssistantMessage(messageId: string | null, content: string, payload?: Partial<AIMessage>) {
+      const trimmedContent = content.trim()
+      if (!trimmedContent || !messageId) {
+        return
+      }
+
+      const targetMessage = this.messages.find(message => message.id === messageId && message.role === 'assistant')
+      if (!targetMessage) {
+        this.appendAssistantMessage(trimmedContent, payload)
+        return
+      }
+
+      targetMessage.content = appendText(targetMessage.content, trimmedContent)
+      targetMessage.sources = mergeSources(targetMessage.sources, payload?.sources)
+      targetMessage.isEmergency = payload?.isEmergency ?? targetMessage.isEmergency
+    },
+
+    finalizeAssistantMessage(content: string, payload?: Partial<AIMessage>, options: { resumeMessageId?: string | null } = {}) {
+      if (options.resumeMessageId) {
+        this.appendToAssistantMessage(options.resumeMessageId, content, payload)
+        return
+      }
+
+      this.appendAssistantMessage(content, payload)
+    },
+
+    buildResumeContext(messageId: string) {
+      const messageIndex = this.messages.findIndex(message => message.id === messageId)
+      const currentAnswer = messageIndex >= 0 ? this.messages[messageIndex]?.content?.trim() || '' : ''
+      const relatedQuestion = [...(messageIndex >= 0 ? this.messages.slice(0, messageIndex) : this.messages)]
+        .reverse()
+        .find(message => message.role === 'user')
+        ?.content
+        ?.trim() || ''
+
+      return {
+        模式: '原答案续写',
+        当前问题: relatedQuestion,
+        已有回答: currentAnswer,
+        续写要求: '请直接从已有回答末尾自然续写，不要重复前文，不要写“继续回答”或解释你在续写。',
+      } satisfies Record<string, string>
+    },
+
+    buildResumeTransportMessages(messageId: string) {
+      const messageIndex = this.messages.findIndex(message => message.id === messageId)
+      const currentAnswer = messageIndex >= 0 ? this.messages[messageIndex]?.content?.trim() || '' : ''
+      const answerTail = currentAnswer.slice(-180)
+      const visibleHistory = this.messages
+        .map(message => ({ role: message.role, content: message.content }))
+        .filter((message): message is { role: 'user' | 'assistant'; content: string } => message.role === 'user' || message.role === 'assistant')
+
+      return [
+        ...visibleHistory,
+        {
+          role: 'user' as const,
+          content: `请紧接着你上一条回答的末尾继续写下去，不要从头改写，不要重复已经说过的内容。上一条回答最后已写到：${answerTail || '（前文较短，请直接自然续写）'}`,
+        },
+      ]
+    },
+
     clearFallbackTimer() {
       if (this.fallbackTimer) {
         clearTimeout(this.fallbackTimer)
@@ -51,12 +149,13 @@ export const useChatStore = defineStore('chat', {
       this.messages = []
       this.conversationId = null
       this.loading = false
-      this.loadingHistory = false
       this.initialized = false
       this.error = null
       this.streamingContent = ''
       this.activeRequestId = null
       this.stopRequested = false
+      this.canResume = false
+      this.resumeMessageId = null
     },
 
     async initialize() {
@@ -65,29 +164,40 @@ export const useChatStore = defineStore('chat', {
       }
 
       this.error = null
-      this.loadingHistory = false
       this.initialized = true
     },
 
-    async sendMessage(content: string) {
-      const userMessage: AIMessage = {
-        id: generateId(),
-        role: 'user',
-        content,
-        createdAt: new Date().toISOString(),
+    async sendMessage(content: string, options: SendMessageOptions = {}) {
+      const {
+        appendUserMessage = true,
+        context,
+        resumeMessageId = null,
+        transportMessages,
+      } = options
+
+      if (appendUserMessage) {
+        const userMessage: AIMessage = {
+          id: generateId(),
+          role: 'user',
+          content,
+          createdAt: new Date().toISOString(),
+        }
+
+        this.messages.push(userMessage)
       }
 
-      this.messages.push(userMessage)
       this.clearFallbackTimer()
       this.loading = true
       this.error = null
       this.stopRequested = false
+      this.canResume = false
+      this.resumeMessageId = resumeMessageId
 
       try {
         const requestId = generateId()
         this.activeRequestId = requestId
         this.streamingContent = ''
-        const history = this.messages.map(m => ({ role: m.role, content: m.content }))
+        const history = transportMessages || this.messages.map(m => ({ role: m.role, content: m.content }))
 
         let wsResolved = false
         let httpFallbackFired = false
@@ -95,6 +205,7 @@ export const useChatStore = defineStore('chat', {
         wsManager.send('chat_stream', requestId, {
           messages: history,
           conversationId: this.conversationId || undefined,
+          context,
         }, (msg) => {
           if (httpFallbackFired || this.activeRequestId !== requestId) return
           if (this.stopRequested) {
@@ -112,24 +223,34 @@ export const useChatStore = defineStore('chat', {
             this.streamingContent += msg.data.content
           } else if (msg.type === 'done') {
             wsResolved = true
-            this.appendAssistantMessage(this.streamingContent, {
+            this.finalizeAssistantMessage(this.streamingContent, {
               sources: msg.data.sources,
-            })
+              model: msg.data.model,
+              provider: msg.data.provider,
+              route: msg.data.route,
+              degraded: msg.data.degraded,
+            }, { resumeMessageId: this.resumeMessageId })
             this.conversationId = msg.data.conversationId || this.conversationId
             this.streamingContent = ''
             this.clearFallbackTimer()
             this.activeRequestId = null
             this.loading = false
+            this.canResume = false
+            this.resumeMessageId = null
           } else if (msg.type === 'emergency') {
             wsResolved = true
-            this.appendAssistantMessage(msg.data.content || getEmergencyWarning(), {
+            this.finalizeAssistantMessage(msg.data.content || getEmergencyWarning(), {
               isEmergency: true,
-            })
+              provider: 'system',
+              route: 'emergency',
+            }, { resumeMessageId: this.resumeMessageId })
             this.conversationId = msg.data.conversationId || this.conversationId
             this.streamingContent = ''
             this.clearFallbackTimer()
             this.activeRequestId = null
             this.loading = false
+            this.canResume = false
+            this.resumeMessageId = null
           } else if (msg.type === 'error') {
             wsResolved = true
             this.clearFallbackTimer()
@@ -149,11 +270,19 @@ export const useChatStore = defineStore('chat', {
               dropListener: true,
               closeSocket: true,
             })
-            void this.fallbackToHttp(requestId)
+            void this.fallbackToHttp(requestId, {
+              context,
+              resumeMessageId: this.resumeMessageId,
+              transportMessages: history,
+            })
           }
         }, 5000)
       } catch (error: unknown) {
-        await this.fallbackToHttp(this.activeRequestId)
+        await this.fallbackToHttp(this.activeRequestId, {
+          context,
+          resumeMessageId: this.resumeMessageId,
+          transportMessages,
+        })
       }
     },
 
@@ -162,6 +291,7 @@ export const useChatStore = defineStore('chat', {
         return
       }
 
+      const hasInterruptedContent = !!this.streamingContent.trim() || !!this.activeRequestId
       this.stopRequested = true
       this.clearFallbackTimer()
       if (this.activeRequestId) {
@@ -170,32 +300,69 @@ export const useChatStore = defineStore('chat', {
         })
       }
 
-      this.appendAssistantMessage(this.streamingContent)
+      if (this.resumeMessageId) {
+        this.appendToAssistantMessage(this.resumeMessageId, this.streamingContent)
+      } else if (this.streamingContent.trim()) {
+        const resumeMessage: AIMessage = {
+          id: generateId(),
+          role: 'assistant',
+          content: this.streamingContent.trim(),
+          createdAt: new Date().toISOString(),
+        }
+        this.messages.push(resumeMessage)
+        this.resumeMessageId = resumeMessage.id
+      } else {
+        const lastAssistantMessage = [...this.messages].reverse().find(message => message.role === 'assistant')
+        this.resumeMessageId = lastAssistantMessage?.id || null
+      }
+
       this.streamingContent = ''
       this.error = null
       this.loading = false
+      this.activeRequestId = null
+      this.canResume = hasInterruptedContent && !!this.resumeMessageId
     },
 
-    async fallbackToHttp(requestId: string | null) {
+    async resumeLastAnswer() {
+      if (this.loading || !this.canResume || !this.resumeMessageId) {
+        return
+      }
+
+      await this.sendMessage('', {
+        appendUserMessage: false,
+        context: this.buildResumeContext(this.resumeMessageId),
+        resumeMessageId: this.resumeMessageId,
+        transportMessages: this.buildResumeTransportMessages(this.resumeMessageId),
+      })
+    },
+
+    async fallbackToHttp(requestId: string | null, options: SendMessageOptions = {}) {
       if (!requestId || this.activeRequestId !== requestId || this.stopRequested) {
         return
       }
 
       try {
         const response = await aiApi.chat({
-          messages: this.messages.map(m => ({ role: m.role, content: m.content })),
+          messages: options.transportMessages || this.messages.map(m => ({ role: m.role, content: m.content })),
           conversationId: this.conversationId || undefined,
+          context: options.context,
         }) as any
 
         if (this.activeRequestId !== requestId || this.stopRequested) {
           return
         }
 
-        this.appendAssistantMessage(response.message?.content || response.response || '', {
+        this.finalizeAssistantMessage(response.message?.content || response.response || '', {
           sources: response.sources,
           isEmergency: response.isEmergency,
-        })
+          model: response.model,
+          provider: response.provider,
+          route: response.route,
+          degraded: response.degraded,
+        }, { resumeMessageId: this.resumeMessageId })
         this.conversationId = response.conversationId || this.conversationId
+        this.canResume = false
+        this.resumeMessageId = null
       } catch (error: unknown) {
         if (this.activeRequestId !== requestId || this.stopRequested) {
           return
@@ -221,6 +388,8 @@ export const useChatStore = defineStore('chat', {
       this.initialized = false
       this.activeRequestId = null
       this.stopRequested = false
+      this.canResume = false
+      this.resumeMessageId = null
     },
   },
 })

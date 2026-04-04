@@ -14,6 +14,7 @@ import { buildKnowledgePack, searchQA, getKnowledgeStats } from '../services/kno
 import { buildUserProfileContext } from '../services/ai-user-context.service';
 import {
   saveConversationExchange,
+  appendConversationAssistantAnswer,
   listUserChatSessions,
   getUserChatSession,
   softDeleteUserChatSession,
@@ -319,6 +320,14 @@ function respondWithDomainDecision(
   }));
 }
 
+function isResumeContinuationContext(context: unknown): boolean {
+  if (!context || typeof context !== 'object' || Array.isArray(context)) {
+    return false;
+  }
+
+  return (context as Record<string, unknown>).模式 === '原答案续写';
+}
+
 // 用户提问（单轮）- 非流式
 export const askQuestion = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -532,6 +541,7 @@ export const chat = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { messages, context, model, conversationId } = req.body;
     const userId = req.userId;
+    const isResumeContinuation = isResumeContinuationContext(context);
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       throw new AppError('消息不能为空', ErrorCodes.PARAM_ERROR, 400);
@@ -624,13 +634,20 @@ export const chat = async (req: Request, res: Response, next: NextFunction) => {
     }
 
     const persistedConversationId = userId && lastMessage.role === 'user'
-      ? await saveConversationExchange({
-        userId,
-        conversationId,
-        userQuestion: lastMessage.content,
-        assistantAnswer: answer,
-        sources: knowledgePack.sources,
-      })
+      ? isResumeContinuation
+        ? await appendConversationAssistantAnswer({
+          userId,
+          conversationId,
+          assistantAnswer: answer,
+          sources: knowledgePack.sources,
+        })
+        : await saveConversationExchange({
+          userId,
+          conversationId,
+          userQuestion: lastMessage.content,
+          assistantAnswer: answer,
+          sources: knowledgePack.sources,
+        })
       : conversationId;
 
     res.json(successResponse({
@@ -660,6 +677,7 @@ export const chatStream = async (req: Request, res: Response, next: NextFunction
   try {
     const { messages, context, model, conversationId } = req.body;
     const userId = req.userId;
+    const isResumeContinuation = isResumeContinuationContext(context);
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       throw new AppError('消息不能为空', ErrorCodes.PARAM_ERROR, 400);
@@ -748,13 +766,20 @@ export const chatStream = async (req: Request, res: Response, next: NextFunction
       }
 
       const persistedConversationId = userId && lastMessage.role === 'user'
-        ? await saveConversationExchange({
-          userId,
-          conversationId,
-          userQuestion: lastMessage.content,
-          assistantAnswer: answer,
-          sources: knowledgePack.sources,
-        })
+        ? isResumeContinuation
+          ? await appendConversationAssistantAnswer({
+            userId,
+            conversationId,
+            assistantAnswer: answer,
+            sources: knowledgePack.sources,
+          })
+          : await saveConversationExchange({
+            userId,
+            conversationId,
+            userQuestion: lastMessage.content,
+            assistantAnswer: answer,
+            sources: knowledgePack.sources,
+          })
         : conversationId;
 
       res.write(`data: ${JSON.stringify({

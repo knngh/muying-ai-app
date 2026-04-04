@@ -9,8 +9,10 @@
     </view>
 
     <view class="notice-card">
-      <text class="notice-title">使用提醒</text>
-      <text class="notice-text">{{ disclaimer }}</text>
+      <view class="notice-head">
+        <text class="notice-title">免责声明</text>
+      </view>
+      <text user-select class="notice-text">{{ disclaimer }}</text>
     </view>
 
     <scroll-view
@@ -21,7 +23,6 @@
       scroll-with-animation
     >
       <view v-if="messages.length === 0" class="empty-state">
-        <text v-if="loadingHistory" class="empty-subtitle">正在恢复最近一次对话...</text>
         <view class="empty-illustration">
           <text class="empty-emoji">🍼</text>
         </view>
@@ -60,24 +61,37 @@
               item.isEmergency ? 'bubble--emergency' : '',
             ]"
           >
-            <text class="bubble-text">{{ item.content }}</text>
+            <text user-select class="bubble-text">{{ getDisplayedContent(item) }}</text>
+
+            <view v-if="item.role === 'assistant'" class="answer-origin">
+              <text class="answer-origin-label">答案来源</text>
+              <text user-select class="answer-origin-text">{{ getAnswerOrigin(item) }}</text>
+            </view>
 
             <view v-if="item.sources?.length" class="source-list">
-              <text class="source-title">参考来源</text>
+              <text class="source-title">具体参考来源</text>
               <view
-                v-for="source in item.sources"
+                v-for="source in getSortedSources(item)"
                 :key="`${item.id}-${source.title}`"
                 class="source-card"
               >
-                <text class="source-name">{{ source.title }}</text>
-                <text class="source-meta">{{ source.source }} · 相关度 {{ Math.round(source.relevance * 100) }}%</text>
-                <text v-if="source.excerpt" class="source-excerpt">{{ source.excerpt }}</text>
+                <text user-select class="source-name">{{ source.title }}</text>
+                <text user-select class="source-meta">{{ source.source }} · 相关度 {{ Math.round(source.relevance * 100) }}%</text>
+                <text v-if="source.excerpt" user-select class="source-excerpt">{{ source.excerpt }}</text>
+                <view
+                  v-if="source.url"
+                  class="source-link"
+                  hover-class="source-link--hover"
+                  @tap="handleOpenSource(source)"
+                >
+                  <text class="source-link-text">查看原文</text>
+                </view>
               </view>
             </view>
           </view>
         </view>
 
-        <view v-if="loading && streamingContent" class="message-row message-row--assistant">
+        <view v-if="loading && streamingContent && !isResumingInPlace" class="message-row message-row--assistant">
           <view class="avatar avatar--assistant">
             <text class="avatar-text">AI</text>
           </view>
@@ -86,7 +100,7 @@
           </view>
         </view>
 
-        <view v-else-if="loading" class="message-row message-row--assistant">
+        <view v-else-if="loading && !isResumingInPlace" class="message-row message-row--assistant">
           <view class="avatar avatar--assistant">
             <text class="avatar-text">AI</text>
           </view>
@@ -122,6 +136,14 @@
         @confirm="handleSend"
       />
       <view
+        v-if="!loading && canResume"
+        class="resume-button"
+        hover-class="resume-button--hover"
+        @tap="handleResume"
+      >
+        <text class="resume-button-text">恢复</text>
+      </view>
+      <view
         v-if="loading"
         class="stop-button"
         hover-class="stop-button--hover"
@@ -149,7 +171,7 @@ import { computed, nextTick, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { onHide, onShow } from '@dcloudio/uni-app'
 import { useChatStore } from '@/stores/chat'
-import { getDisclaimer } from '@/api/ai'
+import { getDisclaimer, type AIMessage, type SourceReference } from '@/api/ai'
 
 const quickQuestions = [
   '孕早期有哪些注意事项？',
@@ -159,7 +181,7 @@ const quickQuestions = [
 ]
 
 const chatStore = useChatStore()
-const { messages, loading, loadingHistory, error, streamingContent } = storeToRefs(chatStore)
+const { messages, loading, error, streamingContent, canResume, resumeMessageId } = storeToRefs(chatStore)
 
 const inputValue = ref('')
 const disclaimer = getDisclaimer()
@@ -167,6 +189,29 @@ const scrollAnchor = ref('chat-bottom')
 const scrollTop = ref(0)
 
 const canSend = computed(() => inputValue.value.trim().length > 0 && !loading.value)
+const isResumingInPlace = computed(() => loading.value && !!resumeMessageId.value)
+const AUTHORITY_DOMAINS = [
+  'gov.cn',
+  'nhc.gov.cn',
+  'who.int',
+  'nih.gov',
+  'cdc.gov',
+  'fda.gov',
+  'aap.org',
+  'nhs.uk',
+  'mayoclinic.org',
+]
+const AUTHORITY_NAMES = [
+  '国家卫健委',
+  '中国政府网',
+  'who',
+  'nih',
+  'cdc',
+  'fda',
+  '美国儿科学会',
+  'nhs',
+  '梅奥',
+]
 
 function syncScrollAnchor() {
   nextTick(() => {
@@ -196,9 +241,121 @@ function handleStop() {
   syncScrollAnchor()
 }
 
+async function handleResume() {
+  await chatStore.resumeLastAnswer()
+  syncScrollAnchor()
+}
+
 function handleQuickQuestion(question: string) {
   inputValue.value = question
   handleSend()
+}
+
+function getDisplayedContent(message: AIMessage) {
+  if (isResumingInPlace.value && resumeMessageId.value === message.id) {
+    return `${message.content}${streamingContent.value}`
+  }
+
+  return message.content
+}
+
+function getSourceHost(url?: string) {
+  if (!url) {
+    return ''
+  }
+
+  try {
+    return new URL(url).hostname.toLowerCase()
+  } catch {
+    return ''
+  }
+}
+
+function isAuthoritativeSource(source: SourceReference) {
+  const host = getSourceHost(source.url)
+  if (host && AUTHORITY_DOMAINS.some(domain => host === domain || host.endsWith(`.${domain}`))) {
+    return true
+  }
+
+  const sourceName = (source.source || '').toLowerCase()
+  return AUTHORITY_NAMES.some(name => sourceName.includes(name))
+}
+
+function getSortedSources(message: AIMessage) {
+  return [...(message.sources || [])].sort((left, right) => {
+    const authorityGap = Number(isAuthoritativeSource(right)) - Number(isAuthoritativeSource(left))
+    if (authorityGap !== 0) {
+      return authorityGap
+    }
+
+    return (right.relevance || 0) - (left.relevance || 0)
+  })
+}
+
+function getAnswerOrigin(message: AIMessage) {
+  if (message.isEmergency) {
+    return '系统安全规则触发，已优先给出紧急就医提示。'
+  }
+
+  const authoritativeLabels = Array.from(new Set(
+    getSortedSources(message)
+      .filter(isAuthoritativeSource)
+      .map((source) => {
+        const sourceName = source.source?.trim()
+        const title = source.title?.trim()
+        if (sourceName && title) {
+          return `${sourceName}《${title}》`
+        }
+        return title || sourceName || ''
+      })
+      .filter(Boolean),
+  ))
+
+  if (authoritativeLabels.length) {
+    return authoritativeLabels.slice(0, 3).join('；')
+  }
+
+  const sourceLabels = Array.from(new Set(
+    getSortedSources(message)
+      .map((source) => {
+        const sourceName = source.source?.trim()
+        const title = source.title?.trim()
+        if (sourceName && title) {
+          return `${sourceName}《${title}》`
+        }
+        return title || sourceName || ''
+      })
+      .filter(Boolean),
+  ))
+
+  if (sourceLabels.length) {
+    return sourceLabels.slice(0, 3).join('；')
+  }
+
+  if (message.degraded) {
+    return '当前回答未附带明确权威来源，请谨慎参考并结合线下专业意见判断。'
+  }
+
+  return '当前回答未附带明确权威来源，请谨慎参考并结合线下专业意见判断。'
+}
+
+function handleOpenSource(source: SourceReference) {
+  if (!source.url) {
+    uni.showToast({ title: '该来源暂无原文链接', icon: 'none' })
+    return
+  }
+
+  uni.navigateTo({
+    url: `/pages/webview/index?url=${encodeURIComponent(source.url)}`,
+    fail: () => {
+      uni.setClipboardData({
+        data: source.url || '',
+        success: () => {
+          uni.showToast({ title: '已复制来源链接', icon: 'none' })
+        },
+      })
+    },
+  })
 }
 
 onShow(() => {
@@ -276,7 +433,7 @@ watch([messages, streamingContent], () => {
 }
 
 .notice-card {
-  margin: 0 28rpx 20rpx;
+  margin: 0 28rpx 16rpx;
   padding: 24rpx 28rpx;
   border-radius: 28rpx;
   background: rgba(255, 255, 255, 0.72);
@@ -284,9 +441,15 @@ watch([messages, streamingContent], () => {
   backdrop-filter: blur(12px);
 }
 
-.notice-title {
-  display: block;
+.notice-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
   margin-bottom: 12rpx;
+}
+
+.notice-title {
   font-size: 24rpx;
   font-weight: 700;
   color: #6f4b2f;
@@ -457,6 +620,27 @@ watch([messages, streamingContent], () => {
   color: #fff;
 }
 
+.answer-origin {
+  margin-top: 18rpx;
+  padding-top: 16rpx;
+  border-top: 2rpx solid rgba(95, 133, 229, 0.08);
+}
+
+.answer-origin-label {
+  display: block;
+  font-size: 22rpx;
+  font-weight: 700;
+  color: #7f6958;
+}
+
+.answer-origin-text {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 23rpx;
+  line-height: 1.6;
+  color: #6b7285;
+}
+
 .loading-dot {
   font-size: 27rpx;
   color: #8d7868;
@@ -504,6 +688,25 @@ watch([messages, streamingContent], () => {
   font-size: 23rpx;
   line-height: 1.6;
   color: #666b7d;
+}
+
+.source-link {
+  margin-top: 14rpx;
+  align-self: flex-start;
+  padding: 12rpx 20rpx;
+  border-radius: 999rpx;
+  background: rgba(95, 133, 229, 0.08);
+  border: 2rpx solid rgba(95, 133, 229, 0.12);
+}
+
+.source-link--hover {
+  transform: translateY(2rpx);
+}
+
+.source-link-text {
+  font-size: 22rpx;
+  font-weight: 700;
+  color: #4c6fd1;
 }
 
 .error-bar {
@@ -597,6 +800,29 @@ watch([messages, streamingContent], () => {
 
 .stop-button-text {
   color: #fff;
+  font-size: 28rpx;
+  font-weight: 800;
+  letter-spacing: 1rpx;
+}
+
+.resume-button {
+  height: 88rpx;
+  padding: 0 30rpx;
+  border-radius: 28rpx;
+  background: rgba(255, 255, 255, 0.96);
+  border: 2rpx solid rgba(95, 133, 229, 0.16);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 14rpx 28rpx rgba(95, 133, 229, 0.08);
+}
+
+.resume-button--hover {
+  transform: translateY(2rpx);
+}
+
+.resume-button-text {
+  color: #5f85e5;
   font-size: 28rpx;
   font-weight: 800;
   letter-spacing: 1rpx;
