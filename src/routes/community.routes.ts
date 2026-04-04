@@ -8,6 +8,7 @@ import {
   likePost,
   unlikePost,
   getComments,
+  getReplies,
   createComment,
   deleteComment,
   createReport
@@ -15,7 +16,7 @@ import {
 import { authMiddleware, optionalAuthMiddleware } from '../middlewares/auth.middleware';
 import { queryRateLimiter, writeRateLimiter } from '../middlewares/rateLimiter.middleware';
 import { validate } from '../middlewares/validate.middleware';
-import { getPostsQuery, createPostBody, createCommentBody, updatePostBody, createReportBody, postIdParam, commentIdParam, postCommentsParam } from '../schemas/community.schema';
+import { getPostsQuery, createPostBody, createCommentBody, updatePostBody, createReportBody, postIdParam, commentIdParam, postCommentsParam, commentRepliesParam } from '../schemas/community.schema';
 import { paginationQuery } from '../schemas/common.schema';
 
 const router = Router();
@@ -41,6 +42,7 @@ router.delete('/posts/:id/like', authMiddleware, writeRateLimiter, validate({ pa
 
 // 评论列表（公开）
 router.get('/posts/:postId/comments', queryRateLimiter, validate({ params: postCommentsParam, query: paginationQuery }), getComments);
+router.get('/comments/:id/replies', queryRateLimiter, validate({ params: commentRepliesParam, query: paginationQuery }), getReplies);
 
 // 创建评论（需认证）
 router.post('/posts/:postId/comments', authMiddleware, writeRateLimiter, validate({ params: postCommentsParam, body: createCommentBody }), createComment);

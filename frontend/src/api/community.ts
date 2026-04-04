@@ -45,6 +45,7 @@ export interface CommunityComment {
   likeCount: number
   status: string
   createdAt: string
+  replyCount?: number
   replies?: CommunityComment[]
 }
 
@@ -143,6 +144,10 @@ export const communityApi = {
       parentId: data.parentId !== undefined ? String(data.parentId) : undefined,
       replyToId: data.replyToId !== undefined ? String(data.replyToId) : undefined,
     }),
+
+  // 获取某条评论下的回复
+  getReplies: (commentId: number, params?: { page?: number; pageSize?: number }) =>
+    api.get<PaginatedComments>(`/community/comments/${commentId}/replies`, { params }),
 
   // 删除评论
   deleteComment: (id: number) =>

@@ -71,6 +71,15 @@ export function PostDetail() {
   const [showReportModal, setShowReportModal] = useState(false)
   const [reportTarget, setReportTarget] = useState<{ targetType: 'post' | 'comment'; targetId: number; label: string } | null>(null)
   const [replyTarget, setReplyTarget] = useState<{ parentId: number; replyToId: number; authorName: string } | null>(null)
+  const [expandedReplies, setExpandedReplies] = useState<Record<number, {
+    items: CommunityComment[]
+    loading: boolean
+    expanded: boolean
+    page: number
+    pageSize: number
+    total: number
+    totalPages: number
+  }>>({})
   const [commentPagination, setCommentPagination] = useState({
     page: 1,
     pageSize: 10,
@@ -131,6 +140,7 @@ export function PostDetail() {
         pagination?: { page: number; pageSize: number; total: number; totalPages: number }
       }
       setComments(data.list || [])
+      setExpandedReplies({})
       setCommentPagination((prev) => ({
         ...prev,
         page: data.pagination?.page ?? page,
@@ -286,6 +296,70 @@ export function PostDetail() {
   const canDeleteComment = (authorId: string) => !!currentUserId && String(authorId) === currentUserId
   const canReportPost = !canManagePost
   const canReportComment = (authorId: string) => !!currentUserId && String(authorId) !== currentUserId
+
+  const loadReplies = async (commentId: number, page = 1) => {
+    setExpandedReplies((prev) => ({
+      ...prev,
+      [commentId]: {
+        items: prev[commentId]?.items || [],
+        loading: true,
+        expanded: true,
+        page,
+        pageSize: prev[commentId]?.pageSize || 20,
+        total: prev[commentId]?.total || 0,
+        totalPages: prev[commentId]?.totalPages || 0,
+      },
+    }))
+
+    try {
+      const result = await communityApi.getReplies(commentId, { page, pageSize: 20 })
+      const data = result as unknown as {
+        list: CommunityComment[]
+        pagination?: { page: number; pageSize: number; total: number; totalPages: number }
+      }
+      setExpandedReplies((prev) => ({
+        ...prev,
+        [commentId]: {
+          items: data.list || [],
+          loading: false,
+          expanded: true,
+          page: data.pagination?.page ?? page,
+          pageSize: data.pagination?.pageSize ?? 20,
+          total: data.pagination?.total ?? 0,
+          totalPages: data.pagination?.totalPages ?? 0,
+        },
+      }))
+    } catch (_error) {
+      setExpandedReplies((prev) => ({
+        ...prev,
+        [commentId]: {
+          items: prev[commentId]?.items || [],
+          loading: false,
+          expanded: false,
+          page: prev[commentId]?.page || 1,
+          pageSize: prev[commentId]?.pageSize || 20,
+          total: prev[commentId]?.total || 0,
+          totalPages: prev[commentId]?.totalPages || 0,
+        },
+      }))
+      message.error('加载回复失败')
+    }
+  }
+
+  const collapseReplies = (commentId: number) => {
+    setExpandedReplies((prev) => ({
+      ...prev,
+      [commentId]: {
+        items: prev[commentId]?.items || [],
+        loading: false,
+        expanded: false,
+        page: prev[commentId]?.page || 1,
+        pageSize: prev[commentId]?.pageSize || 20,
+        total: prev[commentId]?.total || 0,
+        totalPages: prev[commentId]?.totalPages || 0,
+      },
+    }))
+  }
 
   const handleSubmitReport = async (values: {
     reason: 'spam' | 'abuse' | 'misinformation' | 'privacy' | 'illegal' | 'other'
@@ -472,6 +546,13 @@ export function PostDetail() {
               renderItem={(comment) => (
                 <List.Item>
                   <div style={{ width: '100%' }}>
+                    {(() => {
+                      const replyState = expandedReplies[comment.id]
+                      const visibleReplies = replyState?.expanded ? replyState.items : (comment.replies || [])
+                      const hasMoreReplies = (comment.replyCount || 0) > (comment.replies?.length || 0)
+
+                      return (
+                        <>
                     <List.Item.Meta
                       avatar={<Avatar icon={<UserOutlined />} src={comment.author?.avatar} />}
                       title={
@@ -529,9 +610,9 @@ export function PostDetail() {
                       }
                     />
 
-                    {!!comment.replies?.length && (
+                    {!!visibleReplies.length && (
                       <div style={{ marginLeft: 52, marginTop: 8, padding: 12, background: '#f7f9fc', borderRadius: 12 }}>
-                        {comment.replies.map((reply) => (
+                        {visibleReplies.map((reply) => (
                           <div key={reply.id} style={{ marginBottom: 12 }}>
                             <Space size={8} wrap>
                               <Text strong>{reply.author?.nickname || reply.author?.username || '用户'}</Text>
@@ -580,6 +661,53 @@ export function PostDetail() {
                         ))}
                       </div>
                     )}
+                    {(hasMoreReplies || replyState?.expanded) && (
+                      <div style={{ marginLeft: 52, marginTop: 8 }}>
+                        {replyState?.expanded ? (
+                          <Space size={12} wrap>
+                            <Button type="link" size="small" style={{ paddingLeft: 0 }} onClick={() => collapseReplies(comment.id)}>
+                              收起回复
+                            </Button>
+                            {replyState.totalPages > 1 && (
+                              <>
+                                <Button
+                                  type="link"
+                                  size="small"
+                                  disabled={replyState.page <= 1 || replyState.loading}
+                                  onClick={() => loadReplies(comment.id, replyState.page - 1)}
+                                >
+                                  上一页
+                                </Button>
+                                <Text type="secondary" style={{ fontSize: 12 }}>
+                                  {replyState.page} / {replyState.totalPages}
+                                </Text>
+                                <Button
+                                  type="link"
+                                  size="small"
+                                  disabled={replyState.page >= replyState.totalPages || replyState.loading}
+                                  onClick={() => loadReplies(comment.id, replyState.page + 1)}
+                                >
+                                  下一页
+                                </Button>
+                              </>
+                            )}
+                          </Space>
+                        ) : (
+                          <Button
+                            type="link"
+                            size="small"
+                            style={{ paddingLeft: 0 }}
+                            loading={replyState?.loading}
+                            onClick={() => loadReplies(comment.id)}
+                          >
+                            查看全部回复 ({comment.replyCount || 0})
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                        </>
+                      )
+                    })()}
                   </div>
                 </List.Item>
               )}

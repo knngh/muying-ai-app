@@ -39,3 +39,4 @@ export const commentIdParam = idParam;
 export const postCommentsParam = z.object({
   postId: z.string().regex(/^\d+$/, '帖子 ID 格式无效'),
 });
+export const commentRepliesParam = idParam;

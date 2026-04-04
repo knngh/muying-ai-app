@@ -43,6 +43,7 @@ export interface CommunityComment {
   likeCount: number
   status: string
   createdAt: string
+  replyCount?: number
   replies?: CommunityComment[]
 }
 

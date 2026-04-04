@@ -125,8 +125,8 @@
               <text class="comment-action-link" @tap="setReplyTarget(comment.id, comment.id, comment.author?.nickname || comment.author?.username || '用户')">回复</text>
               <text v-if="canReportComment(comment.authorId)" class="comment-delete-text" @tap="openReportModal('comment', comment.id, '评论')">举报</text>
             </view>
-            <view v-if="comment.replies?.length" class="reply-list">
-              <view v-for="reply in comment.replies" :key="reply.id" class="reply-card">
+            <view v-if="visibleRepliesFor(comment).length" class="reply-list">
+              <view v-for="reply in visibleRepliesFor(comment)" :key="reply.id" class="reply-card">
                 <view class="reply-head">
                   <text class="reply-author">{{ reply.author?.nickname || reply.author?.username || '用户' }}</text>
                   <text class="reply-date">{{ formatDate(reply.createdAt) }}</text>
@@ -137,6 +137,35 @@
                   <text v-if="canDeleteComment(reply.authorId)" class="comment-delete-text" @tap="handleDeleteComment(reply.id)">删除</text>
                   <text v-else-if="canReportComment(reply.authorId)" class="comment-delete-text" @tap="openReportModal('comment', reply.id, '回复')">举报</text>
                 </view>
+              </view>
+            </view>
+            <view v-if="hasMoreReplies(comment) || expandedReplies[comment.id]?.expanded" class="reply-toolbar">
+              <text
+                v-if="!expandedReplies[comment.id]?.expanded"
+                class="comment-action-link"
+                @tap="loadReplies(comment.id)"
+              >
+                查看全部回复 ({{ comment.replyCount || 0 }})
+              </text>
+              <view v-else class="reply-toolbar-actions">
+                <text class="comment-action-link" @tap="collapseReplies(comment.id)">收起回复</text>
+                <text
+                  v-if="expandedReplies[comment.id]?.page > 1"
+                  class="comment-action-link"
+                  @tap="loadReplies(comment.id, expandedReplies[comment.id].page - 1)"
+                >
+                  上一页
+                </text>
+                <text class="reply-toolbar-text">
+                  {{ expandedReplies[comment.id]?.page || 1 }} / {{ expandedReplies[comment.id]?.totalPages || 1 }}
+                </text>
+                <text
+                  v-if="(expandedReplies[comment.id]?.page || 1) < (expandedReplies[comment.id]?.totalPages || 1)"
+                  class="comment-action-link"
+                  @tap="loadReplies(comment.id, (expandedReplies[comment.id]?.page || 1) + 1)"
+                >
+                  下一页
+                </text>
               </view>
             </view>
           </view>
@@ -273,6 +302,14 @@ const postForm = reactive({ title: '', content: '', categoryId: '', isAnonymous:
 const reportForm = reactive({ reason: '', description: '' })
 const reportTarget = ref<{ targetType: 'post' | 'comment'; targetId: number; label: string } | null>(null)
 const replyTarget = ref<{ parentId: number; replyToId: number; authorName: string } | null>(null)
+const expandedReplies = reactive<Record<number, {
+  items: CommunityComment[]
+  loading: boolean
+  expanded: boolean
+  page: number
+  totalPages: number
+  total: number
+}>>({})
 const reportReasonOptions = [
   { label: '广告引流', value: 'spam' },
   { label: '辱骂攻击', value: 'abuse' },
@@ -348,6 +385,9 @@ const fetchComments = async () => {
       commentPagination.total = res.pagination.total
       commentPagination.totalPages = res.pagination.totalPages
     }
+    Object.keys(expandedReplies).forEach((key) => {
+      delete expandedReplies[Number(key)]
+    })
   } catch (_err) {
     console.error('加载评论失败')
   } finally {
@@ -387,6 +427,14 @@ const canReportComment = (authorId: string) => {
   return !!currentUserId.value && authorId !== currentUserId.value
 }
 
+const visibleRepliesFor = (comment: CommunityComment) => {
+  return expandedReplies[comment.id]?.expanded ? expandedReplies[comment.id].items : (comment.replies || [])
+}
+
+const hasMoreReplies = (comment: CommunityComment) => {
+  return (comment.replyCount || 0) > (comment.replies?.length || 0)
+}
+
 const setReplyTarget = (parentId: number, replyToId: number, authorName: string) => {
   replyTarget.value = { parentId, replyToId, authorName }
 }
@@ -419,6 +467,50 @@ const openReportModal = (targetType: 'post' | 'comment', targetId: number, label
 const closeReportModal = () => {
   showReportModal.value = false
   reportTarget.value = null
+}
+
+const loadReplies = async (commentId: number, page = 1) => {
+  expandedReplies[commentId] = {
+    items: expandedReplies[commentId]?.items || [],
+    loading: true,
+    expanded: true,
+    page,
+    totalPages: expandedReplies[commentId]?.totalPages || 0,
+    total: expandedReplies[commentId]?.total || 0,
+  }
+
+  try {
+    const res = await communityApi.getReplies(commentId, { page, pageSize: 20 }) as any
+    expandedReplies[commentId] = {
+      items: res.list || [],
+      loading: false,
+      expanded: true,
+      page: res.pagination?.page || page,
+      totalPages: res.pagination?.totalPages || 1,
+      total: res.pagination?.total || 0,
+    }
+  } catch (_err) {
+    expandedReplies[commentId] = {
+      items: expandedReplies[commentId]?.items || [],
+      loading: false,
+      expanded: false,
+      page: expandedReplies[commentId]?.page || 1,
+      totalPages: expandedReplies[commentId]?.totalPages || 0,
+      total: expandedReplies[commentId]?.total || 0,
+    }
+    uni.showToast({ title: '加载回复失败', icon: 'none' })
+  }
+}
+
+const collapseReplies = (commentId: number) => {
+  expandedReplies[commentId] = {
+    items: expandedReplies[commentId]?.items || [],
+    loading: false,
+    expanded: false,
+    page: expandedReplies[commentId]?.page || 1,
+    totalPages: expandedReplies[commentId]?.totalPages || 0,
+    total: expandedReplies[commentId]?.total || 0,
+  }
 }
 
 const onCategoryChange = (e: { detail: { value: number | string } }) => {

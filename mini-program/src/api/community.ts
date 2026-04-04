@@ -52,6 +52,9 @@ export const communityApi = {
       replyToId: data.replyToId !== undefined ? String(data.replyToId) : undefined,
     }),
 
+  getReplies: (commentId: number, params?: { page?: number; pageSize?: number }) =>
+    api.get<PaginatedResponse<CommunityComment>>(`/community/comments/${commentId}/replies`, params as Record<string, unknown>),
+
   deleteComment: (id: number) => api.delete<{ deletedCount: number }>(`/community/comments/${id}`),
 
   createReport: (data: CommunityReportPayload) =>

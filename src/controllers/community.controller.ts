@@ -469,6 +469,54 @@ export const getComments = async (req: Request, res: Response, next: NextFunctio
 };
 
 /**
+ * 获取某条评论下的回复列表
+ */
+export const getReplies = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const { page = 1, pageSize = 20 } = req.query;
+
+    const parentComment = await prisma.communityComment.findUnique({
+      where: { id: BigInt(id) },
+      select: { id: true, deletedAt: true }
+    });
+
+    if (!parentComment || parentComment.deletedAt) {
+      throw new AppError('评论不存在', ErrorCodes.ARTICLE_NOT_FOUND, 404);
+    }
+
+    const skip = (Number(page) - 1) * Number(pageSize);
+
+    const [replies, total] = await Promise.all([
+      prisma.communityComment.findMany({
+        where: {
+          parentId: BigInt(id),
+          deletedAt: null
+        },
+        skip,
+        take: Number(pageSize),
+        orderBy: { createdAt: 'asc' },
+        include: {
+          author: {
+            select: { id: true, username: true, nickname: true, avatar: true }
+          }
+        }
+      }),
+      prisma.communityComment.count({
+        where: {
+          parentId: BigInt(id),
+          deletedAt: null
+        }
+      })
+    ]);
+
+    res.json(paginatedResponse(replies, Number(page), Number(pageSize), total));
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * 创建评论
  */
 export const createComment = async (req: Request, res: Response, next: NextFunction) => {
