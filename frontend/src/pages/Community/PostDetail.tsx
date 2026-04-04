@@ -113,7 +113,7 @@ export function PostDetail() {
           )
         )
       } else {
-        setComments([newComment, ...comments])
+        setComments((prev) => [newComment, ...prev])
       }
       setCommentContent('')
       setReplyTarget(null)
@@ -189,7 +189,9 @@ export function PostDetail() {
           {post.content}
         </Paragraph>
 
-        {post.category && <Tag style={{ marginBottom: 16 }}>{post.category}</Tag>}
+        {(post.categoryName || post.category) && (
+          <Tag style={{ marginBottom: 16 }}>{post.categoryName || post.category}</Tag>
+        )}
 
         <Divider />
 

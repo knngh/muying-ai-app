@@ -33,6 +33,7 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: false,
+    chunkSizeWarningLimit: 900,
     rollupOptions: {
       output: {
         manualChunks(id) {
@@ -91,14 +92,14 @@ export default defineConfig({
           if (
             packageName === 'antd'
           ) {
-            return 'vendor-antd'
+            return 'vendor-ui'
           }
 
           if (
             packageName === '@ant-design/icons'
             || packageName === '@ant-design/icons-svg'
           ) {
-            return 'vendor-ant-icons'
+            return 'vendor-ui'
           }
 
           if (
@@ -107,14 +108,14 @@ export default defineConfig({
             || packageName === '@ant-design/colors'
             || packageName === '@ant-design/fast-color'
           ) {
-            return 'vendor-antd'
+            return 'vendor-ui'
           }
 
           if (
             packageName.startsWith('@rc-component/')
             || packageName.startsWith('rc-')
           ) {
-            return 'vendor-rc'
+            return 'vendor-ui'
           }
 
           if (isMarkdownPackage) {
