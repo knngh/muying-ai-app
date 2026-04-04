@@ -99,11 +99,18 @@ export const communityApi = {
   }),
 
   // 更新帖子
-  updatePost: (id: number, data: { title?: string; content?: string; category?: string; categoryId?: string }) =>
+  updatePost: (id: number, data: {
+    title?: string
+    content?: string
+    category?: string
+    categoryId?: string
+    isAnonymous?: boolean
+  }) =>
     api.put<CommunityPost>(`/community/posts/${id}`, {
       title: data.title,
       content: data.content,
       categoryId: data.categoryId ?? data.category,
+      anonymous: data.isAnonymous,
     }),
 
   // 删除帖子
@@ -132,5 +139,5 @@ export const communityApi = {
 
   // 删除评论
   deleteComment: (id: number) =>
-    api.delete(`/community/comments/${id}`),
+    api.delete<{ deletedCount: number }>(`/community/comments/${id}`),
 }

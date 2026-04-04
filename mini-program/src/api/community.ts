@@ -23,11 +23,18 @@ export const communityApi = {
     anonymous: data.isAnonymous,
   }),
 
-  updatePost: (id: number, data: { title?: string; content?: string; category?: string; categoryId?: string }) =>
+  updatePost: (id: number, data: {
+    title?: string
+    content?: string
+    category?: string
+    categoryId?: string
+    isAnonymous?: boolean
+  }) =>
     api.put<CommunityPost>(`/community/posts/${id}`, {
       title: data.title,
       content: data.content,
       categoryId: data.categoryId ?? data.category,
+      anonymous: data.isAnonymous,
     }),
 
   deletePost: (id: number) => api.delete(`/community/posts/${id}`),
@@ -45,5 +52,5 @@ export const communityApi = {
       replyToId: data.replyToId !== undefined ? String(data.replyToId) : undefined,
     }),
 
-  deleteComment: (id: number) => api.delete(`/community/comments/${id}`),
+  deleteComment: (id: number) => api.delete<{ deletedCount: number }>(`/community/comments/${id}`),
 }

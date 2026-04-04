@@ -283,11 +283,11 @@ const handleDeleteComment = (id: number) => {
     success: async (res) => {
       if (!res.confirm) return
       try {
-        await communityApi.deleteComment(id)
-        comments.value = comments.value.filter(item => item.id !== id)
-        if (post.value && post.value.commentCount > 0) {
-          post.value.commentCount -= 1
+        const result = await communityApi.deleteComment(id) as { deletedCount?: number }
+        if (post.value && result.deletedCount) {
+          post.value.commentCount = Math.max(0, post.value.commentCount - result.deletedCount)
         }
+        fetchComments()
         uni.showToast({ title: '删除成功', icon: 'success' })
       } catch (_err) {
         uni.showToast({ title: '删除失败', icon: 'none' })
