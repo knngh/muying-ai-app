@@ -9,12 +9,13 @@ import {
   unlikePost,
   getComments,
   createComment,
-  deleteComment
+  deleteComment,
+  createReport
 } from '../controllers/community.controller';
 import { authMiddleware, optionalAuthMiddleware } from '../middlewares/auth.middleware';
 import { queryRateLimiter, writeRateLimiter } from '../middlewares/rateLimiter.middleware';
 import { validate } from '../middlewares/validate.middleware';
-import { getPostsQuery, createPostBody, createCommentBody, updatePostBody, postIdParam, commentIdParam, postCommentsParam } from '../schemas/community.schema';
+import { getPostsQuery, createPostBody, createCommentBody, updatePostBody, createReportBody, postIdParam, commentIdParam, postCommentsParam } from '../schemas/community.schema';
 import { paginationQuery } from '../schemas/common.schema';
 
 const router = Router();
@@ -46,5 +47,8 @@ router.post('/posts/:postId/comments', authMiddleware, writeRateLimiter, validat
 
 // 删除评论（需认证）
 router.delete('/comments/:id', authMiddleware, writeRateLimiter, validate({ params: commentIdParam }), deleteComment);
+
+// 举报帖子/评论（需认证）
+router.post('/reports', authMiddleware, writeRateLimiter, validate({ body: createReportBody }), createReport);
 
 export default router;

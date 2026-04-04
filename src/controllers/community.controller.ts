@@ -612,3 +612,92 @@ export const deleteComment = async (req: Request, res: Response, next: NextFunct
     next(error);
   }
 };
+
+/**
+ * 举报帖子或评论
+ */
+export const createReport = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.userId;
+    const { targetType, targetId, reason, description } = req.body as {
+      targetType: 'post' | 'comment';
+      targetId: string;
+      reason: string;
+      description?: string;
+    };
+
+    let postId: bigint | null = null;
+    let commentId: bigint | null = null;
+
+    if (targetType === 'post') {
+      const post = await prisma.communityPost.findUnique({
+        where: { id: BigInt(targetId) },
+        select: { id: true, authorId: true, deletedAt: true, status: true }
+      });
+
+      if (!post || post.deletedAt || post.status !== 'published') {
+        throw new AppError('帖子不存在', ErrorCodes.ARTICLE_NOT_FOUND, 404);
+      }
+
+      if (post.authorId.toString() === userId) {
+        throw new AppError('不能举报自己发布的帖子', ErrorCodes.PARAM_ERROR, 400);
+      }
+
+      postId = post.id;
+    } else {
+      const comment = await prisma.communityComment.findUnique({
+        where: { id: BigInt(targetId) },
+        select: { id: true, authorId: true, deletedAt: true, postId: true }
+      });
+
+      if (!comment || comment.deletedAt) {
+        throw new AppError('评论不存在', ErrorCodes.ARTICLE_NOT_FOUND, 404);
+      }
+
+      if (comment.authorId.toString() === userId) {
+        throw new AppError('不能举报自己的评论', ErrorCodes.PARAM_ERROR, 400);
+      }
+
+      commentId = comment.id;
+      postId = comment.postId;
+    }
+
+    const existingReport = await prisma.communityReport.findFirst({
+      where: {
+        reporterId: BigInt(userId!),
+        targetType,
+        postId,
+        commentId,
+        status: 'pending'
+      },
+      select: { id: true }
+    });
+
+    if (existingReport) {
+      throw new AppError('你已经提交过该举报，正在处理', ErrorCodes.PARAM_ERROR, 400);
+    }
+
+    const report = await prisma.communityReport.create({
+      data: {
+        reporterId: BigInt(userId!),
+        targetType,
+        postId,
+        commentId,
+        reason,
+        description: description?.trim() || null,
+        status: 'pending'
+      },
+      select: {
+        id: true,
+        targetType: true,
+        reason: true,
+        status: true,
+        createdAt: true
+      }
+    });
+
+    res.status(201).json(successResponse(report, '举报已提交，我们会尽快处理'));
+  } catch (error) {
+    next(error);
+  }
+};

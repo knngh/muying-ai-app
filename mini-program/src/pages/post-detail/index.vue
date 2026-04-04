@@ -57,11 +57,14 @@
           </view>
         </view>
 
-        <view v-if="canManagePost" class="post-actions">
-          <view class="post-action-btn post-action-btn--edit" @tap="openEditPost">
+        <view class="post-actions">
+          <view v-if="canManagePost" class="post-action-btn post-action-btn--edit" @tap="openEditPost">
             <text class="post-action-text post-action-text--edit">编辑帖子</text>
           </view>
-          <view class="post-action-btn" @tap="handleDeletePost">
+          <view v-else class="post-action-btn" @tap="openReportModal('post', post.id, '帖子')">
+            <text class="post-action-text">举报帖子</text>
+          </view>
+          <view v-if="canManagePost" class="post-action-btn" @tap="handleDeletePost">
             <text class="post-action-text">删除帖子</text>
           </view>
         </view>
@@ -120,6 +123,7 @@
             <text class="comment-content">{{ comment.content }}</text>
             <view class="comment-actions">
               <text class="comment-action-link" @tap="setReplyTarget(comment.id, comment.id, comment.author?.nickname || comment.author?.username || '用户')">回复</text>
+              <text v-if="canReportComment(comment.authorId)" class="comment-delete-text" @tap="openReportModal('comment', comment.id, '评论')">举报</text>
             </view>
             <view v-if="comment.replies?.length" class="reply-list">
               <view v-for="reply in comment.replies" :key="reply.id" class="reply-card">
@@ -131,6 +135,7 @@
                 <view class="reply-actions">
                   <text class="comment-action-link" @tap="setReplyTarget(comment.id, reply.id, reply.author?.nickname || reply.author?.username || '用户')">回复</text>
                   <text v-if="canDeleteComment(reply.authorId)" class="comment-delete-text" @tap="handleDeleteComment(reply.id)">删除</text>
+                  <text v-else-if="canReportComment(reply.authorId)" class="comment-delete-text" @tap="openReportModal('comment', reply.id, '回复')">举报</text>
                 </view>
               </view>
             </view>
@@ -206,6 +211,42 @@
         </view>
       </view>
     </view>
+
+    <view v-if="showReportModal" class="modal-mask" @tap.self="closeReportModal">
+      <view class="modal-content">
+        <text class="modal-title">{{ reportTarget ? `举报${reportTarget.label}` : '举报内容' }}</text>
+
+        <view class="form-item">
+          <text class="form-label">举报原因</text>
+          <picker :range="reportReasonOptions" range-key="label" :value="reportReasonIndex" @change="onReportReasonChange">
+            <view class="form-picker">
+              <text :class="reportForm.reason ? 'form-picker-text' : 'placeholder-text'">
+                {{ selectedReportReasonLabel }}
+              </text>
+            </view>
+          </picker>
+        </view>
+
+        <view class="form-item">
+          <text class="form-label">补充说明</text>
+          <textarea
+            v-model="reportForm.description"
+            class="form-textarea"
+            placeholder="可选，补充更多上下文帮助审核"
+            maxlength="500"
+          />
+        </view>
+
+        <view class="modal-actions">
+          <view class="modal-btn modal-btn--cancel" @tap="closeReportModal">
+            <text class="modal-btn-text">取消</text>
+          </view>
+          <view class="modal-btn modal-btn--confirm" @tap="submitReport">
+            <text class="modal-btn-text modal-btn-text--white">提交举报</text>
+          </view>
+        </view>
+      </view>
+    </view>
   </view>
 </template>
 
@@ -227,8 +268,19 @@ const commentText = ref('')
 const commentPagination = reactive({ page: 1, pageSize: 20, total: 0, totalPages: 0 })
 const currentUserId = ref('')
 const showEditModal = ref(false)
+const showReportModal = ref(false)
 const postForm = reactive({ title: '', content: '', categoryId: '', isAnonymous: false })
+const reportForm = reactive({ reason: '', description: '' })
+const reportTarget = ref<{ targetType: 'post' | 'comment'; targetId: number; label: string } | null>(null)
 const replyTarget = ref<{ parentId: number; replyToId: number; authorName: string } | null>(null)
+const reportReasonOptions = [
+  { label: '广告引流', value: 'spam' },
+  { label: '辱骂攻击', value: 'abuse' },
+  { label: '错误信息', value: 'misinformation' },
+  { label: '隐私泄露', value: 'privacy' },
+  { label: '违法违规', value: 'illegal' },
+  { label: '其他问题', value: 'other' },
+]
 
 const formatDate = (date: string) => dayjs(date).format('YYYY-MM-DD HH:mm')
 const canManagePost = computed(() => !!post.value && post.value.authorId === currentUserId.value)
@@ -239,6 +291,14 @@ const selectedCategoryIndex = computed(() => {
 })
 const selectedCategoryLabel = computed(() => {
   return categoryOptions.value[selectedCategoryIndex.value]?.name || '不分类'
+})
+const reportReasonIndex = computed(() => {
+  const index = reportReasonOptions.findIndex((item) => item.value === reportForm.reason)
+  return index >= 0 ? index : 0
+})
+const selectedReportReasonLabel = computed(() => {
+  if (!reportForm.reason) return '请选择原因'
+  return reportReasonOptions[reportReasonIndex.value]?.label || '请选择原因'
 })
 
 const ensureLogin = () => {
@@ -323,6 +383,10 @@ const canDeleteComment = (authorId: string) => {
   return authorId === currentUserId.value
 }
 
+const canReportComment = (authorId: string) => {
+  return !!currentUserId.value && authorId !== currentUserId.value
+}
+
 const setReplyTarget = (parentId: number, replyToId: number, authorName: string) => {
   replyTarget.value = { parentId, replyToId, authorName }
 }
@@ -344,6 +408,19 @@ const closeEditModal = () => {
   showEditModal.value = false
 }
 
+const openReportModal = (targetType: 'post' | 'comment', targetId: number, label: string) => {
+  if (!ensureLogin()) return
+  reportTarget.value = { targetType, targetId, label }
+  reportForm.reason = ''
+  reportForm.description = ''
+  showReportModal.value = true
+}
+
+const closeReportModal = () => {
+  showReportModal.value = false
+  reportTarget.value = null
+}
+
 const onCategoryChange = (e: { detail: { value: number | string } }) => {
   const target = categoryOptions.value[Number(e.detail.value)]
   postForm.categoryId = target ? String(target.id || '') : ''
@@ -351,6 +428,11 @@ const onCategoryChange = (e: { detail: { value: number | string } }) => {
 
 const onAnonymousChange = (e: any) => {
   postForm.isAnonymous = Boolean(e?.detail?.value)
+}
+
+const onReportReasonChange = (e: { detail: { value: number | string } }) => {
+  const target = reportReasonOptions[Number(e.detail.value)]
+  reportForm.reason = target?.value || ''
 }
 
 const submitPostUpdate = async () => {
@@ -376,6 +458,27 @@ const submitPostUpdate = async () => {
     uni.showToast({ title: '更新成功', icon: 'success' })
   } catch (_err) {
     uni.showToast({ title: '更新失败', icon: 'none' })
+  }
+}
+
+const submitReport = async () => {
+  if (!reportTarget.value) return
+  if (!reportForm.reason) {
+    uni.showToast({ title: '请选择举报原因', icon: 'none' })
+    return
+  }
+
+  try {
+    await communityApi.createReport({
+      targetType: reportTarget.value.targetType,
+      targetId: reportTarget.value.targetId,
+      reason: reportForm.reason as 'spam' | 'abuse' | 'misinformation' | 'privacy' | 'illegal' | 'other',
+      description: reportForm.description.trim() || undefined,
+    })
+    closeReportModal()
+    uni.showToast({ title: '举报已提交', icon: 'success' })
+  } catch (_err) {
+    uni.showToast({ title: '举报失败', icon: 'none' })
   }
 }
 

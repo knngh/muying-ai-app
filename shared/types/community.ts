@@ -45,3 +45,10 @@ export interface CommunityComment {
   createdAt: string
   replies?: CommunityComment[]
 }
+
+export interface CommunityReportPayload {
+  targetType: 'post' | 'comment'
+  targetId: number | string
+  reason: 'spam' | 'abuse' | 'misinformation' | 'privacy' | 'illegal' | 'other'
+  description?: string
+}

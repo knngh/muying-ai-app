@@ -48,6 +48,13 @@ export interface CommunityComment {
   replies?: CommunityComment[]
 }
 
+export interface CommunityReportPayload {
+  targetType: 'post' | 'comment'
+  targetId: number | string
+  reason: 'spam' | 'abuse' | 'misinformation' | 'privacy' | 'illegal' | 'other'
+  description?: string
+}
+
 interface PaginationMeta {
   page: number
   pageSize: number
@@ -140,4 +147,13 @@ export const communityApi = {
   // 删除评论
   deleteComment: (id: number) =>
     api.delete<{ deletedCount: number }>(`/community/comments/${id}`),
+
+  // 举报帖子或评论
+  createReport: (data: CommunityReportPayload) =>
+    api.post<{ id: string; status: string }>('/community/reports', {
+      targetType: data.targetType,
+      targetId: String(data.targetId),
+      reason: data.reason,
+      description: data.description,
+    }),
 }

@@ -1,7 +1,7 @@
 import api from './request'
-import type { CommunityPost, CommunityComment, PaginatedResponse } from '../../../shared/types'
+import type { CommunityPost, CommunityComment, CommunityReportPayload, PaginatedResponse } from '../../../shared/types'
 
-export type { CommunityPost, CommunityComment }
+export type { CommunityPost, CommunityComment, CommunityReportPayload }
 
 export const communityApi = {
   getPosts: (params?: {
@@ -53,4 +53,12 @@ export const communityApi = {
     }),
 
   deleteComment: (id: number) => api.delete<{ deletedCount: number }>(`/community/comments/${id}`),
+
+  createReport: (data: CommunityReportPayload) =>
+    api.post<{ id: string; status: string }>('/community/reports', {
+      targetType: data.targetType,
+      targetId: String(data.targetId),
+      reason: data.reason,
+      description: data.description,
+    }),
 }

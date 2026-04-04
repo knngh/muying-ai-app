@@ -53,6 +53,7 @@ model User {
   communityPosts     CommunityPost[]
   communityComments  CommunityComment[]
   communityPostLikes CommunityPostLike[]
+  communityReports   CommunityReport[]
 
   @@index([phone])
   @@index([email])
@@ -482,6 +483,7 @@ model CommunityPost {
   comments        CommunityComment[]
   likes           CommunityPostLike[]
   tags            CommunityPostTag[]
+  reports         CommunityReport[]
 
   @@index([authorId])
   @@index([categoryId])
@@ -513,6 +515,7 @@ model CommunityComment {
   author          User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
   parent          CommunityComment?  @relation("CommentReplies", fields: [parentId], references: [id])
   replies         CommunityComment[] @relation("CommentReplies")
+  reports         CommunityReport[]
 
   @@index([postId])
   @@index([authorId])
@@ -555,4 +558,32 @@ model CommunityPostTag {
   @@index([postId])
   @@index([tagId])
   @@map("community_post_tags")
+}
+
+// ============================================
+// 社区举报表
+// ============================================
+model CommunityReport {
+  id              BigInt   @id @default(autoincrement())
+  reporterId      BigInt
+  targetType      String   @db.VarChar(20) // post, comment
+  postId          BigInt?
+  commentId       BigInt?
+  reason          String   @db.VarChar(50)
+  description     String?  @db.VarChar(500)
+  status          String   @default("pending") @db.VarChar(20) // pending, reviewed, rejected
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  handledAt       DateTime?
+
+  reporter        User              @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+  post            CommunityPost?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  comment         CommunityComment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@index([reporterId])
+  @@index([targetType])
+  @@index([postId])
+  @@index([commentId])
+  @@index([status])
+  @@map("community_reports")
 }

@@ -33,6 +33,15 @@ import { useAppStore } from '@/stores/appStore'
 const { Paragraph, Text, Title } = Typography
 const { TextArea } = Input
 
+const reportReasonOptions = [
+  { label: '广告引流', value: 'spam' as const },
+  { label: '辱骂攻击', value: 'abuse' as const },
+  { label: '错误信息', value: 'misinformation' as const },
+  { label: '隐私泄露', value: 'privacy' as const },
+  { label: '违法违规', value: 'illegal' as const },
+  { label: '其他问题', value: 'other' as const },
+]
+
 const getUserIdFromToken = () => {
   const token = localStorage.getItem('token')
   if (!token) return ''
@@ -57,7 +66,10 @@ export function PostDetail() {
   const [commentContent, setCommentContent] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [editSubmitting, setEditSubmitting] = useState(false)
+  const [reportSubmitting, setReportSubmitting] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
+  const [showReportModal, setShowReportModal] = useState(false)
+  const [reportTarget, setReportTarget] = useState<{ targetType: 'post' | 'comment'; targetId: number; label: string } | null>(null)
   const [replyTarget, setReplyTarget] = useState<{ parentId: number; replyToId: number; authorName: string } | null>(null)
   const [commentPagination, setCommentPagination] = useState({
     page: 1,
@@ -66,6 +78,7 @@ export function PostDetail() {
     totalPages: 0,
   })
   const [form] = Form.useForm()
+  const [reportForm] = Form.useForm()
 
   const currentUserId = user?.id ? String(user.id) : getUserIdFromToken()
   const postCategoryOptions = [
@@ -179,6 +192,19 @@ export function PostDetail() {
     form.resetFields()
   }
 
+  const openReportModal = (target: { targetType: 'post' | 'comment'; targetId: number; label: string }) => {
+    if (!ensureLogin()) return
+    setReportTarget(target)
+    reportForm.resetFields()
+    setShowReportModal(true)
+  }
+
+  const handleCloseReport = () => {
+    setShowReportModal(false)
+    setReportTarget(null)
+    reportForm.resetFields()
+  }
+
   const handleSubmitEdit = async (values: {
     title: string
     content: string
@@ -258,6 +284,31 @@ export function PostDetail() {
   }
 
   const canDeleteComment = (authorId: string) => !!currentUserId && String(authorId) === currentUserId
+  const canReportPost = !canManagePost
+  const canReportComment = (authorId: string) => !!currentUserId && String(authorId) !== currentUserId
+
+  const handleSubmitReport = async (values: {
+    reason: 'spam' | 'abuse' | 'misinformation' | 'privacy' | 'illegal' | 'other'
+    description?: string
+  }) => {
+    if (!reportTarget) return
+
+    setReportSubmitting(true)
+    try {
+      await communityApi.createReport({
+        targetType: reportTarget.targetType,
+        targetId: reportTarget.targetId,
+        reason: values.reason,
+        description: values.description?.trim() || undefined,
+      })
+      handleCloseReport()
+      message.success('举报已提交，我们会尽快处理')
+    } catch (_error) {
+      message.error('举报提交失败')
+    } finally {
+      setReportSubmitting(false)
+    }
+  }
 
   const handleSubmitComment = async () => {
     if (!commentContent.trim() || !id) return
@@ -338,6 +389,16 @@ export function PostDetail() {
                 删除
               </Button>
             </Space>
+          )}
+          {canReportPost && (
+            <Button
+              type="link"
+              size="small"
+              danger
+              onClick={() => openReportModal({ targetType: 'post', targetId: post.id, label: '帖子' })}
+            >
+              举报
+            </Button>
           )}
         </div>
 
@@ -431,6 +492,20 @@ export function PostDetail() {
                               删除
                             </Button>
                           )}
+                          {canReportComment(comment.authorId) && (
+                            <Button
+                              type="link"
+                              size="small"
+                              danger
+                              onClick={() => openReportModal({
+                                targetType: 'comment',
+                                targetId: comment.id,
+                                label: '评论',
+                              })}
+                            >
+                              举报
+                            </Button>
+                          )}
                         </Space>
                       }
                       description={
@@ -471,6 +546,20 @@ export function PostDetail() {
                                   onClick={() => handleDeleteComment(reply.id)}
                                 >
                                   删除
+                                </Button>
+                              )}
+                              {canReportComment(reply.authorId) && (
+                                <Button
+                                  type="link"
+                                  size="small"
+                                  danger
+                                  onClick={() => openReportModal({
+                                    targetType: 'comment',
+                                    targetId: reply.id,
+                                    label: '回复',
+                                  })}
+                                >
+                                  举报
                                 </Button>
                               )}
                             </Space>
@@ -539,6 +628,28 @@ export function PostDetail() {
           <Form.Item>
             <Button type="primary" htmlType="submit" block loading={editSubmitting}>
               保存修改
+            </Button>
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title={reportTarget ? `举报${reportTarget.label}` : '举报内容'}
+        open={showReportModal}
+        onCancel={handleCloseReport}
+        footer={null}
+        destroyOnClose
+      >
+        <Form form={reportForm} layout="vertical" onFinish={handleSubmitReport}>
+          <Form.Item name="reason" label="举报原因" rules={[{ required: true, message: '请选择举报原因' }]}>
+            <Select options={reportReasonOptions} placeholder="请选择原因" />
+          </Form.Item>
+          <Form.Item name="description" label="补充说明">
+            <Input.TextArea rows={4} maxLength={500} showCount placeholder="可选，补充更多上下文帮助审核" />
+          </Form.Item>
+          <Form.Item>
+            <Button type="primary" htmlType="submit" block loading={reportSubmitting}>
+              提交举报
             </Button>
           </Form.Item>
         </Form>

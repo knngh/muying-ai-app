@@ -27,6 +27,13 @@ export const createCommentBody = z.object({
   replyToId: z.string().regex(/^\d+$/).optional(),
 });
 
+export const createReportBody = z.object({
+  targetType: z.enum(['post', 'comment']),
+  targetId: z.string().regex(/^\d+$/, '目标 ID 格式无效'),
+  reason: z.enum(['spam', 'abuse', 'misinformation', 'privacy', 'illegal', 'other']),
+  description: z.string().max(500, '补充说明最多 500 字').optional(),
+});
+
 export const postIdParam = idParam;
 export const commentIdParam = idParam;
 export const postCommentsParam = z.object({
