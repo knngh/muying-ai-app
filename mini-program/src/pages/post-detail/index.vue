@@ -57,7 +57,10 @@
           </view>
         </view>
 
-        <view v-if="canDeletePost" class="post-actions">
+        <view v-if="canManagePost" class="post-actions">
+          <view class="post-action-btn post-action-btn--edit" @tap="openEditPost">
+            <text class="post-action-text post-action-text--edit">编辑帖子</text>
+          </view>
           <view class="post-action-btn" @tap="handleDeletePost">
             <text class="post-action-text">删除帖子</text>
           </view>
@@ -69,7 +72,7 @@
 
       <!-- Comments Section -->
       <view class="comment-section">
-        <text class="section-title">评论 ({{ comments.length }})</text>
+        <text class="section-title">评论 ({{ post?.commentCount || 0 }})</text>
 
         <!-- Comment Input -->
         <view class="comment-input-box">
@@ -154,6 +157,55 @@
         </view>
       </view>
     </view>
+
+    <view v-if="showEditModal" class="modal-mask" @tap.self="closeEditModal">
+      <view class="modal-content">
+        <text class="modal-title">编辑帖子</text>
+
+        <view class="form-item">
+          <text class="form-label">标题</text>
+          <input
+            v-model="postForm.title"
+            class="form-input"
+            placeholder="请输入标题"
+          />
+        </view>
+
+        <view class="form-item">
+          <text class="form-label">分类</text>
+          <picker :range="categoryOptions" range-key="name" :value="selectedCategoryIndex" @change="onCategoryChange">
+            <view class="form-picker">
+              <text :class="postForm.categoryId ? 'form-picker-text' : 'placeholder-text'">
+                {{ selectedCategoryLabel }}
+              </text>
+            </view>
+          </picker>
+        </view>
+
+        <view class="form-item">
+          <text class="form-label">内容</text>
+          <textarea
+            v-model="postForm.content"
+            class="form-textarea"
+            placeholder="分享你的经验和想法..."
+          />
+        </view>
+
+        <view class="form-item form-item--switch">
+          <text class="form-label">匿名发布</text>
+          <switch :checked="postForm.isAnonymous" color="#2ea97d" @change="onAnonymousChange" />
+        </view>
+
+        <view class="modal-actions">
+          <view class="modal-btn modal-btn--cancel" @tap="closeEditModal">
+            <text class="modal-btn-text">取消</text>
+          </view>
+          <view class="modal-btn modal-btn--confirm" @tap="submitPostUpdate">
+            <text class="modal-btn-text modal-btn-text--white">保存修改</text>
+          </view>
+        </view>
+      </view>
+    </view>
   </view>
 </template>
 
@@ -162,33 +214,46 @@ import { computed, ref, reactive } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { communityApi } from '@/api/community'
 import type { CommunityPost, CommunityComment } from '@/api/community'
+import { categoryApi, type Category } from '@/api/modules'
 import dayjs from 'dayjs'
-
-const categories = [
-  { label: '孕期生活', value: 'pregnancy-life' },
-  { label: '育儿交流', value: 'parenting' },
-  { label: '营养健康', value: 'nutrition' },
-  { label: '分娩经验', value: 'delivery' },
-  { label: '宝宝成长', value: 'baby-growth' },
-]
 
 const postId = ref(0)
 const loading = ref(false)
 const post = ref<CommunityPost | null>(null)
 const comments = ref<CommunityComment[]>([])
+const categories = ref<Array<Pick<Category, 'id' | 'name'>>>([])
 const commentsLoading = ref(false)
 const commentText = ref('')
 const commentPagination = reactive({ page: 1, pageSize: 20, total: 0, totalPages: 0 })
 const currentUserId = ref('')
+const showEditModal = ref(false)
+const postForm = reactive({ title: '', content: '', categoryId: '', isAnonymous: false })
 const replyTarget = ref<{ parentId: number; replyToId: number; authorName: string } | null>(null)
 
+const formatDate = (date: string) => dayjs(date).format('YYYY-MM-DD HH:mm')
+const canManagePost = computed(() => !!post.value && post.value.authorId === currentUserId.value)
+const categoryOptions = computed(() => [{ id: '', name: '不分类' }, ...categories.value])
+const selectedCategoryIndex = computed(() => {
+  const index = categoryOptions.value.findIndex((item) => String(item.id) === postForm.categoryId)
+  return index >= 0 ? index : 0
+})
+const selectedCategoryLabel = computed(() => {
+  return categoryOptions.value[selectedCategoryIndex.value]?.name || '不分类'
+})
+
 const getCategoryLabel = (value: string) => {
-  const cat = categories.find(c => c.value === value)
-  return cat ? cat.label : value
+  const category = categories.value.find((item) => String(item.id) === value || item.name === value)
+  return category?.name || value
 }
 
-const formatDate = (date: string) => dayjs(date).format('YYYY-MM-DD HH:mm')
-const canDeletePost = computed(() => !!post.value && post.value.authorId === currentUserId.value)
+const fetchCategories = async () => {
+  try {
+    const res = await categoryApi.getAll()
+    categories.value = (res || []).map((item) => ({ id: item.id, name: item.name }))
+  } catch (_err) {
+    categories.value = []
+  }
+}
 
 const fetchPost = async () => {
   loading.value = true
@@ -256,8 +321,56 @@ const clearReplyTarget = () => {
   replyTarget.value = null
 }
 
+const openEditPost = () => {
+  if (!post.value || !canManagePost.value) return
+  postForm.title = post.value.title
+  postForm.content = post.value.content
+  postForm.categoryId = post.value.categoryId || ''
+  postForm.isAnonymous = Boolean(post.value.isAnonymous)
+  showEditModal.value = true
+}
+
+const closeEditModal = () => {
+  showEditModal.value = false
+}
+
+const onCategoryChange = (e: { detail: { value: number | string } }) => {
+  const target = categoryOptions.value[Number(e.detail.value)]
+  postForm.categoryId = target ? String(target.id || '') : ''
+}
+
+const onAnonymousChange = (e: any) => {
+  postForm.isAnonymous = Boolean(e?.detail?.value)
+}
+
+const submitPostUpdate = async () => {
+  if (!post.value) return
+  if (!postForm.title.trim()) {
+    uni.showToast({ title: '请输入标题', icon: 'none' })
+    return
+  }
+  if (!postForm.content.trim()) {
+    uni.showToast({ title: '请输入内容', icon: 'none' })
+    return
+  }
+
+  try {
+    const updatedPost = await communityApi.updatePost(post.value.id, {
+      title: postForm.title.trim(),
+      content: postForm.content.trim(),
+      categoryId: postForm.categoryId || undefined,
+      isAnonymous: postForm.isAnonymous,
+    })
+    post.value = updatedPost as CommunityPost
+    closeEditModal()
+    uni.showToast({ title: '更新成功', icon: 'success' })
+  } catch (_err) {
+    uni.showToast({ title: '更新失败', icon: 'none' })
+  }
+}
+
 const handleDeletePost = () => {
-  if (!post.value || !canDeletePost.value) return
+  if (!post.value || !canManagePost.value) return
   uni.showModal({
     title: '删除帖子',
     content: '删除后将无法恢复，确认继续吗？',
@@ -330,6 +443,7 @@ const submitComment = async () => {
 onLoad((options) => {
   const storedUser = uni.getStorageSync('user') as { id?: string } | undefined
   currentUserId.value = storedUser?.id ? String(storedUser.id) : ''
+  fetchCategories()
   if (options?.id) {
     postId.value = Number(options.id)
     fetchPost()
@@ -468,6 +582,7 @@ onLoad((options) => {
   margin-top: 24rpx;
   display: flex;
   justify-content: flex-end;
+  gap: 16rpx;
 }
 
 .post-action-btn {
@@ -476,10 +591,18 @@ onLoad((options) => {
   background-color: rgba(255, 77, 79, 0.08);
 }
 
+.post-action-btn--edit {
+  background-color: rgba(24, 144, 255, 0.08);
+}
+
 .post-action-text {
   font-size: 24rpx;
   color: #d84b4b;
   font-weight: 600;
+}
+
+.post-action-text--edit {
+  color: #1890ff;
 }
 
 .stat-item {
@@ -728,5 +851,108 @@ onLoad((options) => {
 .page-info {
   font-size: 26rpx;
   color: #666666;
+}
+
+.modal-mask {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 999;
+}
+
+.modal-content {
+  width: 640rpx;
+  background-color: #ffffff;
+  border-radius: 20rpx;
+  padding: 40rpx;
+  max-height: 80vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.modal-title {
+  font-size: 34rpx;
+  font-weight: bold;
+  color: #333333;
+  text-align: center;
+  margin-bottom: 32rpx;
+}
+
+.form-item {
+  margin-bottom: 24rpx;
+}
+
+.form-item--switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.form-label {
+  font-size: 28rpx;
+  color: #333333;
+  margin-bottom: 12rpx;
+  display: block;
+}
+
+.form-input,
+.form-picker,
+.form-textarea {
+  width: 100%;
+  background-color: #f8f8f8;
+  border-radius: 12rpx;
+  padding: 20rpx 24rpx;
+  font-size: 28rpx;
+  box-sizing: border-box;
+}
+
+.form-textarea {
+  min-height: 220rpx;
+}
+
+.form-picker-text {
+  color: #333333;
+}
+
+.placeholder-text {
+  color: #999999;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 20rpx;
+  margin-top: 32rpx;
+}
+
+.modal-btn {
+  flex: 1;
+  height: 84rpx;
+  border-radius: 42rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-btn--cancel {
+  background-color: #f5f5f5;
+}
+
+.modal-btn--confirm {
+  background-color: #1890ff;
+}
+
+.modal-btn-text {
+  font-size: 28rpx;
+  color: #666666;
+}
+
+.modal-btn-text--white {
+  color: #ffffff;
 }
 </style>
