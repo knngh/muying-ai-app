@@ -54,6 +54,7 @@ model User {
   communityComments  CommunityComment[]
   communityPostLikes CommunityPostLike[]
   communityReports   CommunityReport[]
+  aiChatConversations AiChatConversation[]
   growthProfile      GrowthProfile?
   growthRecords      GrowthRecord[]
 
@@ -588,6 +589,46 @@ model CommunityReport {
   @@index([commentId])
   @@index([status])
   @@map("community_reports")
+}
+
+// ============================================
+// AI 对话会话表
+// ============================================
+model AiChatConversation {
+  id         BigInt         @id @default(autoincrement())
+  userId     BigInt         @map("user_id")
+  title      String?        @db.VarChar(160)
+  summary    String?        @db.VarChar(500)
+  createdAt  DateTime       @default(now()) @map("created_at")
+  updatedAt  DateTime       @updatedAt @map("updated_at")
+  deletedAt  DateTime?      @map("deleted_at")
+
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages   AiChatMessage[]
+
+  @@index([userId])
+  @@index([updatedAt])
+  @@index([deletedAt])
+  @@map("ai_chat_conversations")
+}
+
+// ============================================
+// AI 对话消息表
+// ============================================
+model AiChatMessage {
+  id             BigInt             @id @default(autoincrement())
+  conversationId BigInt             @map("conversation_id")
+  role           String             @db.VarChar(20)
+  content        String             @db.LongText
+  isEmergency    Boolean            @default(false) @map("is_emergency")
+  sourcesJson    String?            @db.LongText @map("sources_json")
+  createdAt      DateTime           @default(now()) @map("created_at")
+
+  conversation   AiChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([createdAt])
+  @@map("ai_chat_messages")
 }
 
 // ============================================
