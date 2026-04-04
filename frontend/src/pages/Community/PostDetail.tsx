@@ -5,6 +5,7 @@ import {
   Button,
   Card,
   Divider,
+  Empty,
   Form,
   Input,
   List,
@@ -52,11 +53,18 @@ export function PostDetail() {
   const [comments, setComments] = useState<CommunityComment[]>([])
   const [categories, setCategories] = useState<Array<Pick<Category, 'id' | 'name'>>>([])
   const [loading, setLoading] = useState(true)
+  const [commentsLoading, setCommentsLoading] = useState(false)
   const [commentContent, setCommentContent] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [editSubmitting, setEditSubmitting] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [replyTarget, setReplyTarget] = useState<{ parentId: number; replyToId: number; authorName: string } | null>(null)
+  const [commentPagination, setCommentPagination] = useState({
+    page: 1,
+    pageSize: 10,
+    total: 0,
+    totalPages: 0,
+  })
   const [form] = Form.useForm()
 
   const currentUserId = user?.id ? String(user.id) : getUserIdFromToken()
@@ -73,7 +81,7 @@ export function PostDetail() {
   useEffect(() => {
     if (id) {
       fetchPost(Number(id))
-      fetchComments(Number(id))
+      fetchComments(Number(id), 1)
     }
   }, [id])
 
@@ -98,13 +106,29 @@ export function PostDetail() {
     }
   }
 
-  const fetchComments = async (postId: number) => {
+  const fetchComments = async (postId: number, page = commentPagination.page) => {
+    setCommentsLoading(true)
     try {
-      const result = await communityApi.getComments(postId)
-      const data = result as unknown as { list: CommunityComment[] }
+      const result = await communityApi.getComments(postId, {
+        page,
+        pageSize: commentPagination.pageSize,
+      })
+      const data = result as unknown as {
+        list: CommunityComment[]
+        pagination?: { page: number; pageSize: number; total: number; totalPages: number }
+      }
       setComments(data.list || [])
+      setCommentPagination((prev) => ({
+        ...prev,
+        page: data.pagination?.page ?? page,
+        pageSize: data.pagination?.pageSize ?? prev.pageSize,
+        total: data.pagination?.total ?? 0,
+        totalPages: data.pagination?.totalPages ?? 0,
+      }))
     } catch (_error) {
       console.error('获取评论失败:', _error)
+    } finally {
+      setCommentsLoading(false)
     }
   }
 
@@ -220,7 +244,10 @@ export function PostDetail() {
               : prev
           )
           if (id) {
-            fetchComments(Number(id))
+            const nextPage = comments.length === 1 && commentPagination.page > 1
+              ? commentPagination.page - 1
+              : commentPagination.page
+            fetchComments(Number(id), nextPage)
           }
           message.success('删除成功')
         } catch (_error) {
@@ -238,27 +265,16 @@ export function PostDetail() {
 
     setSubmitting(true)
     try {
-      const newComment = (await communityApi.createComment(Number(id), {
+      await communityApi.createComment(Number(id), {
         content: commentContent.trim(),
         parentId: replyTarget?.parentId,
         replyToId: replyTarget?.replyToId,
-      })) as CommunityComment
-
-      if (replyTarget) {
-        setComments((prev) =>
-          prev.map((comment) =>
-            comment.id === replyTarget.parentId
-              ? { ...comment, replies: [newComment, ...(comment.replies || [])] }
-              : comment
-          )
-        )
-      } else {
-        setComments((prev) => [newComment, ...prev])
-      }
+      })
 
       setCommentContent('')
       setReplyTarget(null)
       setPost((prev) => (prev ? { ...prev, commentCount: prev.commentCount + 1 } : prev))
+      await fetchComments(Number(id), 1)
       message.success('评论成功')
     } catch (_error) {
       message.error('评论失败')
@@ -388,96 +404,111 @@ export function PostDetail() {
           </Button>
         </div>
 
-        <List
-          dataSource={comments}
-          locale={{ emptyText: '暂无评论，来说点什么吧' }}
-          renderItem={(comment) => (
-            <List.Item>
-              <div style={{ width: '100%' }}>
-                <List.Item.Meta
-                  avatar={<Avatar icon={<UserOutlined />} src={comment.author?.avatar} />}
-                  title={
-                    <Space>
-                      <Text strong>
-                        {comment.author?.nickname || comment.author?.username || '用户'}
-                      </Text>
-                      <Text type="secondary" style={{ fontSize: 12 }}>
-                        {new Date(comment.createdAt).toLocaleString()}
-                      </Text>
-                      {canDeleteComment(comment.authorId) && (
-                        <Button
-                          type="link"
-                          size="small"
-                          danger
-                          onClick={() => handleDeleteComment(comment.id)}
-                        >
-                          删除
-                        </Button>
-                      )}
-                    </Space>
-                  }
-                  description={
-                    <>
-                      <div>{comment.content}</div>
-                      <div style={{ marginTop: 8 }}>
-                        <Button
-                          type="link"
-                          size="small"
-                          style={{ paddingLeft: 0 }}
-                          onClick={() => setReplyTarget({
-                            parentId: comment.id,
-                            replyToId: comment.id,
-                            authorName: comment.author?.nickname || comment.author?.username || '用户',
-                          })}
-                        >
-                          回复
-                        </Button>
-                      </div>
-                    </>
-                  }
-                />
-
-                {!!comment.replies?.length && (
-                  <div style={{ marginLeft: 52, marginTop: 8, padding: 12, background: '#f7f9fc', borderRadius: 12 }}>
-                    {comment.replies.map((reply) => (
-                      <div key={reply.id} style={{ marginBottom: 12 }}>
-                        <Space size={8} wrap>
-                          <Text strong>{reply.author?.nickname || reply.author?.username || '用户'}</Text>
-                          <Text type="secondary" style={{ fontSize: 12 }}>
-                            {new Date(reply.createdAt).toLocaleString()}
+        <Spin spinning={commentsLoading}>
+          {comments.length > 0 ? (
+            <List
+              dataSource={comments}
+              renderItem={(comment) => (
+                <List.Item>
+                  <div style={{ width: '100%' }}>
+                    <List.Item.Meta
+                      avatar={<Avatar icon={<UserOutlined />} src={comment.author?.avatar} />}
+                      title={
+                        <Space>
+                          <Text strong>
+                            {comment.author?.nickname || comment.author?.username || '用户'}
                           </Text>
-                          {canDeleteComment(reply.authorId) && (
+                          <Text type="secondary" style={{ fontSize: 12 }}>
+                            {new Date(comment.createdAt).toLocaleString()}
+                          </Text>
+                          {canDeleteComment(comment.authorId) && (
                             <Button
                               type="link"
                               size="small"
                               danger
-                              onClick={() => handleDeleteComment(reply.id)}
+                              onClick={() => handleDeleteComment(comment.id)}
                             >
                               删除
                             </Button>
                           )}
                         </Space>
-                        <Paragraph style={{ margin: '6px 0 0', whiteSpace: 'pre-wrap' }}>{reply.content}</Paragraph>
-                        <Button
-                          type="link"
-                          size="small"
-                          style={{ paddingLeft: 0 }}
-                          onClick={() => setReplyTarget({
-                            parentId: comment.id,
-                            replyToId: reply.id,
-                            authorName: reply.author?.nickname || reply.author?.username || '用户',
-                          })}
-                        >
-                          回复
-                        </Button>
+                      }
+                      description={
+                        <>
+                          <div>{comment.content}</div>
+                          <div style={{ marginTop: 8 }}>
+                            <Button
+                              type="link"
+                              size="small"
+                              style={{ paddingLeft: 0 }}
+                              onClick={() => setReplyTarget({
+                                parentId: comment.id,
+                                replyToId: comment.id,
+                                authorName: comment.author?.nickname || comment.author?.username || '用户',
+                              })}
+                            >
+                              回复
+                            </Button>
+                          </div>
+                        </>
+                      }
+                    />
+
+                    {!!comment.replies?.length && (
+                      <div style={{ marginLeft: 52, marginTop: 8, padding: 12, background: '#f7f9fc', borderRadius: 12 }}>
+                        {comment.replies.map((reply) => (
+                          <div key={reply.id} style={{ marginBottom: 12 }}>
+                            <Space size={8} wrap>
+                              <Text strong>{reply.author?.nickname || reply.author?.username || '用户'}</Text>
+                              <Text type="secondary" style={{ fontSize: 12 }}>
+                                {new Date(reply.createdAt).toLocaleString()}
+                              </Text>
+                              {canDeleteComment(reply.authorId) && (
+                                <Button
+                                  type="link"
+                                  size="small"
+                                  danger
+                                  onClick={() => handleDeleteComment(reply.id)}
+                                >
+                                  删除
+                                </Button>
+                              )}
+                            </Space>
+                            <Paragraph style={{ margin: '6px 0 0', whiteSpace: 'pre-wrap' }}>{reply.content}</Paragraph>
+                            <Button
+                              type="link"
+                              size="small"
+                              style={{ paddingLeft: 0 }}
+                              onClick={() => setReplyTarget({
+                                parentId: comment.id,
+                                replyToId: reply.id,
+                                authorName: reply.author?.nickname || reply.author?.username || '用户',
+                              })}
+                            >
+                              回复
+                            </Button>
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    )}
                   </div>
-                )}
-              </div>
-            </List.Item>
+                </List.Item>
+              )}
+              pagination={{
+                current: commentPagination.page,
+                total: commentPagination.total,
+                pageSize: commentPagination.pageSize,
+                onChange: (page) => {
+                  if (!id) return
+                  fetchComments(Number(id), page)
+                },
+                showTotal: (total) => `共 ${total} 条`,
+              }}
+            />
+          ) : (
+            <Empty description="暂无评论，来说点什么吧" />
           )}
-        />
+        </Spin>
       </Card>
 
       <Modal
