@@ -17,10 +17,36 @@ export const useChatStore = defineStore('chat', {
     initialized: false,
     error: null as string | null,
     streamingContent: '',
+    activeRequestId: null as string | null,
+    stopRequested: false,
+    fallbackTimer: null as ReturnType<typeof setTimeout> | null,
   }),
 
   actions: {
+    clearFallbackTimer() {
+      if (this.fallbackTimer) {
+        clearTimeout(this.fallbackTimer)
+        this.fallbackTimer = null
+      }
+    },
+
+    appendAssistantMessage(content: string, payload?: Partial<AIMessage>) {
+      const trimmedContent = content.trim()
+      if (!trimmedContent) {
+        return
+      }
+
+      this.messages.push({
+        id: generateId(),
+        role: 'assistant',
+        content: trimmedContent,
+        createdAt: new Date().toISOString(),
+        ...payload,
+      })
+    },
+
     resetState() {
+      this.clearFallbackTimer()
       wsManager.disconnect()
       this.messages = []
       this.conversationId = null
@@ -29,6 +55,8 @@ export const useChatStore = defineStore('chat', {
       this.initialized = false
       this.error = null
       this.streamingContent = ''
+      this.activeRequestId = null
+      this.stopRequested = false
     },
 
     async initialize() {
@@ -68,11 +96,14 @@ export const useChatStore = defineStore('chat', {
       }
 
       this.messages.push(userMessage)
+      this.clearFallbackTimer()
       this.loading = true
       this.error = null
+      this.stopRequested = false
 
       try {
         const requestId = generateId()
+        this.activeRequestId = requestId
         this.streamingContent = ''
         const history = this.messages.map(m => ({ role: m.role, content: m.content }))
 
@@ -83,87 +114,131 @@ export const useChatStore = defineStore('chat', {
           messages: history,
           conversationId: this.conversationId || undefined,
         }, (msg) => {
-          if (httpFallbackFired) return
+          if (httpFallbackFired || this.activeRequestId !== requestId) return
+          if (this.stopRequested) {
+            if (msg.type === 'done' || msg.type === 'emergency') {
+              this.conversationId = msg.data.conversationId || this.conversationId
+              this.clearFallbackTimer()
+              this.activeRequestId = null
+            } else if (msg.type === 'error') {
+              this.clearFallbackTimer()
+              this.activeRequestId = null
+            }
+            return
+          }
           if (msg.type === 'chunk' && msg.data.content) {
             this.streamingContent += msg.data.content
           } else if (msg.type === 'done') {
             wsResolved = true
-            const assistantMessage: AIMessage = {
-              id: generateId(),
-              role: 'assistant',
-              content: this.streamingContent,
+            this.appendAssistantMessage(this.streamingContent, {
               sources: msg.data.sources,
-              createdAt: new Date().toISOString(),
-            }
-            this.messages.push(assistantMessage)
+            })
             this.conversationId = msg.data.conversationId || this.conversationId
             this.streamingContent = ''
+            this.clearFallbackTimer()
+            this.activeRequestId = null
             this.loading = false
           } else if (msg.type === 'emergency') {
             wsResolved = true
-            const emergencyMsg: AIMessage = {
-              id: generateId(),
-              role: 'assistant',
-              content: msg.data.content || getEmergencyWarning(),
+            this.appendAssistantMessage(msg.data.content || getEmergencyWarning(), {
               isEmergency: true,
-              createdAt: new Date().toISOString(),
-            }
-            this.messages.push(emergencyMsg)
+            })
             this.conversationId = msg.data.conversationId || this.conversationId
             this.streamingContent = ''
+            this.clearFallbackTimer()
+            this.activeRequestId = null
             this.loading = false
           } else if (msg.type === 'error') {
             wsResolved = true
+            this.clearFallbackTimer()
+            this.activeRequestId = null
             this.error = msg.data.error || '服务暂时不可用'
+            this.streamingContent = ''
             this.loading = false
           }
         })
 
-        setTimeout(() => {
-          if (wsResolved) return
+        this.fallbackTimer = setTimeout(() => {
+          if (wsResolved || this.activeRequestId !== requestId || this.stopRequested) return
           if (this.loading && !this.streamingContent) {
             httpFallbackFired = true
-            wsManager.cancelRequest(requestId, true)
-            this.fallbackToHttp()
+            wsManager.cancelRequest(requestId, {
+              notifyServer: true,
+              dropListener: true,
+              closeSocket: true,
+            })
+            void this.fallbackToHttp(requestId)
           }
         }, 5000)
       } catch (error: unknown) {
-        await this.fallbackToHttp()
+        await this.fallbackToHttp(this.activeRequestId)
       }
     },
 
-    async fallbackToHttp() {
+    stopGenerating() {
+      if (!this.loading) {
+        return
+      }
+
+      this.stopRequested = true
+      this.clearFallbackTimer()
+      if (this.activeRequestId) {
+        wsManager.cancelRequest(this.activeRequestId, {
+          notifyServer: true,
+        })
+      }
+
+      this.appendAssistantMessage(this.streamingContent)
+      this.streamingContent = ''
+      this.error = null
+      this.loading = false
+    },
+
+    async fallbackToHttp(requestId: string | null) {
+      if (!requestId || this.activeRequestId !== requestId || this.stopRequested) {
+        return
+      }
+
       try {
         const response = await aiApi.chat({
           messages: this.messages.map(m => ({ role: m.role, content: m.content })),
           conversationId: this.conversationId || undefined,
         }) as any
 
-        const assistantMessage: AIMessage = {
-          id: generateId(),
-          role: 'assistant',
-          content: response.message?.content || response.response || '',
-          sources: response.sources,
-          isEmergency: response.isEmergency,
-          createdAt: new Date().toISOString(),
+        if (this.activeRequestId !== requestId || this.stopRequested) {
+          return
         }
 
-        this.messages.push(assistantMessage)
+        this.appendAssistantMessage(response.message?.content || response.response || '', {
+          sources: response.sources,
+          isEmergency: response.isEmergency,
+        })
         this.conversationId = response.conversationId || this.conversationId
       } catch (error: unknown) {
+        if (this.activeRequestId !== requestId || this.stopRequested) {
+          return
+        }
         const err = error as { message?: string }
         this.error = err.message || '发送消息失败，请重试'
       } finally {
-        this.loading = false
+        if (this.activeRequestId === requestId) {
+          this.clearFallbackTimer()
+          this.activeRequestId = null
+          this.loading = false
+        }
       }
     },
 
     clearMessages() {
+      this.clearFallbackTimer()
+      wsManager.disconnect()
       this.messages = []
       this.conversationId = null
       this.error = null
       this.streamingContent = ''
       this.initialized = false
+      this.activeRequestId = null
+      this.stopRequested = false
     },
   },
 })

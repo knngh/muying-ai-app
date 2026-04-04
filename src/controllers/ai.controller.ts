@@ -18,6 +18,13 @@ import {
   getUserChatSession,
   softDeleteUserChatSession,
 } from '../services/ai-session.service';
+import {
+  classifyMaternalChildQuestion,
+  hasExcludedDomainSignal,
+  hasHealthOrCareSignal,
+  hasMaternalChildSignal,
+  type AIDomainDecision,
+} from '../services/ai-domain.service';
 
 const AI_DISCLAIMER = '⚠️ 免责声明：本回答由 AI 生成，仅供参考，不构成医疗建议。如有健康问题，请咨询专业医生。';
 const EMERGENCY_DISCLAIMER = '🚨 重要提示：如遇紧急情况，请立即就医！';
@@ -239,6 +246,79 @@ function buildPromptContext(
   );
 }
 
+async function persistDomainDecisionExchange(
+  userId: string | undefined,
+  conversationId: string | undefined,
+  question: string,
+  answer: string,
+) {
+  if (!userId) {
+    return conversationId;
+  }
+
+  return saveConversationExchange({
+    userId,
+    conversationId,
+    userQuestion: question,
+    assistantAnswer: answer,
+  });
+}
+
+async function resolveDomainDecision(
+  question: string,
+  options: {
+    userId?: string;
+    context?: unknown;
+    history?: Array<string | { role?: string; content?: string }>;
+  },
+): Promise<AIDomainDecision> {
+  const initialDecision = classifyMaternalChildQuestion(question, {
+    context: options.context,
+    history: options.history,
+  });
+
+  if (initialDecision.status === 'in_scope' || !options.userId) {
+    return initialDecision;
+  }
+
+  if (hasExcludedDomainSignal(question, { context: options.context, history: options.history })) {
+    return initialDecision;
+  }
+
+  if (!hasHealthOrCareSignal(question, { context: options.context, history: options.history })) {
+    return initialDecision;
+  }
+
+  const profileContext = await buildUserProfileContext(options.userId);
+  const profileSignal = profileContext.retrievalHints.join('\n').trim();
+
+  if (!profileSignal) {
+    return initialDecision;
+  }
+
+  return hasMaternalChildSignal(profileSignal)
+    ? { status: 'in_scope' }
+    : initialDecision;
+}
+
+function respondWithDomainDecision(
+  res: Response,
+  decision: AIDomainDecision,
+  model: string | undefined,
+  conversationId: string | undefined,
+) {
+  return res.json(successResponse({
+    answer: decision.answer,
+    isEmergency: false,
+    sources: [],
+    confidence: 1,
+    disclaimer: decision.disclaimer,
+    followUpQuestions: [],
+    model: model || DEFAULT_MODEL_ID,
+    conversationId,
+  }));
+}
+
 // 用户提问（单轮）- 非流式
 export const askQuestion = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -247,6 +327,17 @@ export const askQuestion = async (req: Request, res: Response, next: NextFunctio
 
     if (!question) {
       throw new AppError('请输入问题', ErrorCodes.PARAM_ERROR, 400);
+    }
+
+    const askDecision = await resolveDomainDecision(question, { userId, context });
+    if (askDecision.status !== 'in_scope') {
+      const persistedConversationId = await persistDomainDecisionExchange(
+        userId,
+        conversationId,
+        question,
+        askDecision.answer || '',
+      );
+      return respondWithDomainDecision(res, askDecision, model, persistedConversationId);
     }
 
     if (isEmergencyQuestion(question)) {
@@ -311,6 +402,30 @@ export const askQuestionStream = async (req: Request, res: Response, next: NextF
 
     if (!question) {
       throw new AppError('请输入问题', ErrorCodes.PARAM_ERROR, 400);
+    }
+
+    const askStreamDecision = await resolveDomainDecision(question, { userId, context });
+    if (askStreamDecision.status !== 'in_scope') {
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+
+      const persistedConversationId = await persistDomainDecisionExchange(
+        userId,
+        conversationId,
+        question,
+        askStreamDecision.answer || '',
+      );
+      res.write(`data: ${JSON.stringify({ content: askStreamDecision.answer })}\n\n`);
+      res.write(`data: ${JSON.stringify({
+        done: true,
+        sources: [],
+        disclaimer: askStreamDecision.disclaimer,
+        followUpQuestions: [],
+        conversationId: persistedConversationId,
+      })}\n\n`);
+      return res.end();
     }
 
     if (isEmergencyQuestion(question)) {
@@ -423,6 +538,30 @@ export const chat = async (req: Request, res: Response, next: NextFunction) => {
     }
 
     const lastMessage = messages[messages.length - 1];
+    const chatDecision = lastMessage.role === 'user'
+      ? await resolveDomainDecision(lastMessage.content, { userId, context, history: messages })
+      : { status: 'in_scope' as const };
+    if (lastMessage.role === 'user' && chatDecision.status !== 'in_scope') {
+      const persistedConversationId = await persistDomainDecisionExchange(
+        userId,
+        conversationId,
+        lastMessage.content,
+        chatDecision.answer || '',
+      );
+      return res.json(successResponse({
+        message: {
+          role: 'assistant',
+          content: chatDecision.answer,
+          timestamp: new Date().toISOString(),
+        },
+        isEmergency: false,
+        sources: [],
+        followUpQuestions: [],
+        disclaimer: chatDecision.disclaimer,
+        conversationId: persistedConversationId,
+      }));
+    }
+
     if (lastMessage.role === 'user' && isEmergencyQuestion(lastMessage.content)) {
       const persistedConversationId = userId
         ? await saveConversationExchange({
@@ -527,6 +666,31 @@ export const chatStream = async (req: Request, res: Response, next: NextFunction
     }
 
     const lastMessage = messages[messages.length - 1];
+    const chatStreamDecision = lastMessage.role === 'user'
+      ? await resolveDomainDecision(lastMessage.content, { userId, context, history: messages })
+      : { status: 'in_scope' as const };
+    if (lastMessage.role === 'user' && chatStreamDecision.status !== 'in_scope') {
+      const persistedConversationId = await persistDomainDecisionExchange(
+        userId,
+        conversationId,
+        lastMessage.content,
+        chatStreamDecision.answer || '',
+      );
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+      res.write(`data: ${JSON.stringify({ content: chatStreamDecision.answer })}\n\n`);
+      res.write(`data: ${JSON.stringify({
+        done: true,
+        sources: [],
+        followUpQuestions: [],
+        disclaimer: chatStreamDecision.disclaimer,
+        conversationId: persistedConversationId,
+      })}\n\n`);
+      return res.end();
+    }
+
     if (lastMessage.role === 'user' && isEmergencyQuestion(lastMessage.content)) {
       const persistedConversationId = userId
         ? await saveConversationExchange({

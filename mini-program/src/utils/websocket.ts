@@ -19,6 +19,12 @@ type MessageHandler = (data: {
   }
 }) => void
 
+interface CancelRequestOptions {
+  notifyServer?: boolean
+  dropListener?: boolean
+  closeSocket?: boolean
+}
+
 class AIWebSocketManager {
   private socket: UniApp.SocketTask | null = null
   private connected = false
@@ -103,8 +109,10 @@ class AIWebSocketManager {
     this.connected = false
   }
 
-  cancelRequest(requestId: string, closeSocket = false): void {
-    this.listeners.delete(requestId)
+  cancelRequest(requestId: string, options: CancelRequestOptions = {}): void {
+    if (options.dropListener) {
+      this.listeners.delete(requestId)
+    }
     this.pendingMessages = this.pendingMessages.filter((message) => {
       try {
         const parsed = JSON.parse(message) as { requestId?: string }
@@ -114,7 +122,13 @@ class AIWebSocketManager {
       }
     })
 
-    if (closeSocket) {
+    if (options.notifyServer && this.connected && this.socket) {
+      this.socket.send({
+        data: JSON.stringify({ type: 'cancel', requestId, payload: {} }),
+      })
+    }
+
+    if (options.closeSocket) {
       this.disconnect()
     }
   }

@@ -17,6 +17,7 @@
       class="chat-scroll"
       scroll-y
       :scroll-into-view="scrollAnchor"
+      :scroll-top="scrollTop"
       scroll-with-animation
     >
       <view v-if="messages.length === 0" class="empty-state">
@@ -103,6 +104,13 @@
     </scroll-view>
 
     <view class="composer">
+      <view class="composer-shell">
+        <view v-if="loading" class="composer-status">
+          <text class="composer-status-text">AI 正在生成回答</text>
+          <text class="composer-status-subtext">可随时停止，保留当前内容</text>
+        </view>
+
+        <view class="composer-row">
       <textarea
         v-model="inputValue"
         class="composer-input"
@@ -114,6 +122,15 @@
         @confirm="handleSend"
       />
       <view
+        v-if="loading"
+        class="stop-button"
+        hover-class="stop-button--hover"
+        @tap="handleStop"
+      >
+        <text class="stop-button-text">停止</text>
+      </view>
+      <view
+        v-else
         class="send-button"
         :class="{ 'send-button--disabled': !canSend }"
         hover-class="send-button--hover"
@@ -121,14 +138,16 @@
       >
         <text class="send-button-text">发送</text>
       </view>
+        </view>
     </view>
+      </view>
   </view>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
-import { onShow } from '@dcloudio/uni-app'
+import { onHide, onShow } from '@dcloudio/uni-app'
 import { useChatStore } from '@/stores/chat'
 import { getDisclaimer } from '@/api/ai'
 
@@ -145,12 +164,14 @@ const { messages, loading, loadingHistory, error, streamingContent } = storeToRe
 const inputValue = ref('')
 const disclaimer = getDisclaimer()
 const scrollAnchor = ref('chat-bottom')
+const scrollTop = ref(0)
 
 const canSend = computed(() => inputValue.value.trim().length > 0 && !loading.value)
 
 function syncScrollAnchor() {
   nextTick(() => {
     scrollAnchor.value = 'chat-bottom'
+    scrollTop.value += 100000
   })
 }
 
@@ -162,6 +183,16 @@ async function handleSend() {
 
   inputValue.value = ''
   await chatStore.sendMessage(content)
+  syncScrollAnchor()
+}
+
+function handleStop() {
+  if (!loading.value) {
+    return
+  }
+
+  chatStore.stopGenerating()
+  uni.showToast({ title: '已停止生成', icon: 'none' })
   syncScrollAnchor()
 }
 
@@ -183,6 +214,12 @@ onShow(() => {
   chatStore.initialize()
 })
 
+onHide(() => {
+  if (loading.value) {
+    chatStore.stopGenerating()
+  }
+})
+
 watch([messages, streamingContent], () => {
   syncScrollAnchor()
 }, { deep: true })
@@ -190,12 +227,13 @@ watch([messages, streamingContent], () => {
 
 <style scoped>
 .chat-page {
-  min-height: 100vh;
+  height: 100vh;
   background:
     radial-gradient(circle at top right, rgba(255, 196, 157, 0.28), transparent 30%),
     linear-gradient(180deg, #fff8f2 0%, #fffdf9 42%, #f9fbff 100%);
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .hero {
@@ -262,7 +300,8 @@ watch([messages, streamingContent], () => {
 
 .chat-scroll {
   flex: 1;
-  padding: 0 28rpx 12rpx;
+  min-height: 0;
+  padding: 0 28rpx calc(220rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
 
@@ -486,10 +525,43 @@ watch([messages, streamingContent], () => {
 }
 
 .composer {
-  padding: 18rpx 22rpx calc(env(safe-area-inset-bottom) + 18rpx);
-  background: rgba(255, 255, 255, 0.92);
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 0 18rpx calc(env(safe-area-inset-bottom) + 10rpx);
+  z-index: 20;
+}
+
+.composer-shell {
+  padding: 16rpx 16rpx 16rpx;
+  border-radius: 28rpx 28rpx 0 0;
+  background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(14px);
-  border-top: 2rpx solid rgba(92, 113, 173, 0.08);
+  border: 2rpx solid rgba(92, 113, 173, 0.08);
+  box-shadow: 0 -12rpx 36rpx rgba(46, 38, 30, 0.08);
+}
+
+.composer-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12rpx;
+  margin-bottom: 14rpx;
+}
+
+.composer-status-text {
+  font-size: 24rpx;
+  font-weight: 700;
+  color: #6f4b2f;
+}
+
+.composer-status-subtext {
+  font-size: 22rpx;
+  color: #9a7c68;
+}
+
+.composer-row {
   display: flex;
   align-items: flex-end;
   gap: 16rpx;
@@ -506,6 +578,28 @@ watch([messages, streamingContent], () => {
   line-height: 1.6;
   color: #2f2a26;
   box-sizing: border-box;
+}
+
+.stop-button {
+  height: 88rpx;
+  padding: 0 30rpx;
+  border-radius: 28rpx;
+  background: linear-gradient(135deg, #8f98aa 0%, #6f7687 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 14rpx 28rpx rgba(111, 118, 135, 0.2);
+}
+
+.stop-button--hover {
+  transform: translateY(2rpx);
+}
+
+.stop-button-text {
+  color: #fff;
+  font-size: 28rpx;
+  font-weight: 800;
+  letter-spacing: 1rpx;
 }
 
 .send-button {

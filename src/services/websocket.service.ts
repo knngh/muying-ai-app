@@ -12,9 +12,15 @@ import {
 import { buildKnowledgePack, type SourceReference } from './knowledge.service';
 import { buildUserProfileContext } from './ai-user-context.service';
 import { saveConversationExchange } from './ai-session.service';
+import {
+  classifyMaternalChildQuestion,
+  hasExcludedDomainSignal,
+  hasHealthOrCareSignal,
+  hasMaternalChildSignal,
+} from './ai-domain.service';
 // WebSocket 消息协议类型（与 shared/types/ai.ts 保持一致）
 interface WsClientMessage {
-  type: 'ask_stream' | 'chat_stream' | 'ping'
+  type: 'ask_stream' | 'chat_stream' | 'ping' | 'cancel'
   requestId: string
   payload: {
     question?: string
@@ -47,6 +53,7 @@ interface AuthenticatedWebSocket extends WebSocket {
   isAlive?: boolean;
   requestCount?: number;
   lastResetTime?: number;
+  canceledRequestIds?: Set<string>;
 }
 
 // Rate limiting constants
@@ -174,6 +181,51 @@ function buildPromptContext(question: string, context: unknown, profilePrompt?: 
   ].filter(Boolean).join('\n\n');
 }
 
+function isRequestCanceled(ws: AuthenticatedWebSocket, requestId: string): boolean {
+  return ws.canceledRequestIds?.has(requestId) || false;
+}
+
+function clearRequestCancellation(ws: AuthenticatedWebSocket, requestId: string): void {
+  ws.canceledRequestIds?.delete(requestId);
+}
+
+async function resolveDomainDecision(
+  userId: string | undefined,
+  question: string,
+  options?: {
+    context?: unknown;
+    history?: Array<string | { role?: string; content?: string }>;
+  },
+) {
+  const initialDecision = classifyMaternalChildQuestion(question, {
+    context: options?.context,
+    history: options?.history,
+  });
+
+  if (initialDecision.status === 'in_scope' || !userId) {
+    return initialDecision;
+  }
+
+  if (hasExcludedDomainSignal(question, { context: options?.context, history: options?.history })) {
+    return initialDecision;
+  }
+
+  if (!hasHealthOrCareSignal(question, { context: options?.context, history: options?.history })) {
+    return initialDecision;
+  }
+
+  const profileContext = await buildUserProfileContext(userId);
+  const profileSignal = profileContext.retrievalHints.join('\n').trim();
+
+  if (!profileSignal) {
+    return initialDecision;
+  }
+
+  return hasMaternalChildSignal(profileSignal)
+    ? { status: 'in_scope' as const }
+    : initialDecision;
+}
+
 export function setupWebSocket(server: HttpServer): WebSocketServer {
   const wss = new WebSocketServer({
     server,
@@ -227,6 +279,7 @@ export function setupWebSocket(server: HttpServer): WebSocketServer {
   wss.on('connection', (ws: AuthenticatedWebSocket, req) => {
     ws.userId = (req as any)._userId;
     ws.isAlive = true;
+    ws.canceledRequestIds = new Set();
 
     ws.on('pong', () => {
       ws.isAlive = true;
@@ -246,6 +299,11 @@ export function setupWebSocket(server: HttpServer): WebSocketServer {
 
       if (type === 'ping') {
         ws.isAlive = true;
+        return;
+      }
+
+      if (type === 'cancel') {
+        ws.canceledRequestIds?.add(requestId);
         return;
       }
 
@@ -303,9 +361,38 @@ async function handleAskStream(
   payload: WsClientMessage['payload']
 ) {
   const { question, model, context, conversationId } = payload;
+  clearRequestCancellation(ws, requestId);
 
   if (!question) {
     sendError(ws, requestId, '请输入问题');
+    return;
+  }
+
+  const askDecision = await resolveDomainDecision(ws.userId, question, { context });
+  if (askDecision.status !== 'in_scope') {
+    const persistedConversationId = ws.userId
+      ? await saveConversationExchange({
+        userId: ws.userId,
+        conversationId,
+        userQuestion: question,
+        assistantAnswer: askDecision.answer || '',
+      })
+      : conversationId;
+
+    sendMessage(ws, {
+      type: 'chunk',
+      requestId,
+      data: { content: askDecision.answer },
+    });
+    sendMessage(ws, {
+      type: 'done',
+      requestId,
+      data: {
+        sources: [],
+        disclaimer: askDecision.disclaimer,
+        conversationId: persistedConversationId,
+      },
+    });
     return;
   }
 
@@ -357,6 +444,7 @@ async function handleAskStream(
       },
     })) {
       answer += chunk;
+      if (isRequestCanceled(ws, requestId)) break;
       if (ws.readyState !== WebSocket.OPEN) break;
       sendMessage(ws, {
         type: 'chunk',
@@ -365,8 +453,9 @@ async function handleAskStream(
       });
     }
 
+    const wasCanceled = isRequestCanceled(ws, requestId);
     if (ws.readyState === WebSocket.OPEN) {
-      const persistedConversationId = ws.userId
+      const persistedConversationId = ws.userId && answer.trim()
         ? await saveConversationExchange({
           userId: ws.userId,
           conversationId,
@@ -389,6 +478,9 @@ async function handleAskStream(
         },
       });
     }
+    if (wasCanceled) {
+      clearRequestCancellation(ws, requestId);
+    }
   } catch (streamError: any) {
     console.error(`[WebSocket] Stream error in ask_stream:`, streamError);
     sendError(ws, requestId, streamError.message || '流式响应出错');
@@ -404,6 +496,7 @@ async function handleChatStream(
   payload: WsClientMessage['payload']
 ) {
   const { messages, model, context, conversationId } = payload;
+  clearRequestCancellation(ws, requestId);
 
   if (!messages || !Array.isArray(messages) || messages.length === 0) {
     sendError(ws, requestId, '消息不能为空');
@@ -412,6 +505,36 @@ async function handleChatStream(
 
   // 检测最后一条消息是否为紧急问题
   const lastMessage = messages[messages.length - 1];
+  const chatDecision = lastMessage.role === 'user'
+    ? await resolveDomainDecision(ws.userId, lastMessage.content, { context, history: messages })
+    : { status: 'in_scope' as const };
+  if (lastMessage.role === 'user' && chatDecision.status !== 'in_scope') {
+    const persistedConversationId = ws.userId
+      ? await saveConversationExchange({
+        userId: ws.userId,
+        conversationId,
+        userQuestion: lastMessage.content,
+        assistantAnswer: chatDecision.answer || '',
+      })
+      : conversationId;
+
+    sendMessage(ws, {
+      type: 'chunk',
+      requestId,
+      data: { content: chatDecision.answer },
+    });
+    sendMessage(ws, {
+      type: 'done',
+      requestId,
+      data: {
+        sources: [],
+        disclaimer: chatDecision.disclaimer,
+        conversationId: persistedConversationId,
+      },
+    });
+    return;
+  }
+
   if (lastMessage.role === 'user' && isEmergencyQuestion(lastMessage.content)) {
     const persistedConversationId = ws.userId
       ? await saveConversationExchange({
@@ -467,6 +590,7 @@ async function handleChatStream(
       },
     })) {
       answer += chunk;
+      if (isRequestCanceled(ws, requestId)) break;
       if (ws.readyState !== WebSocket.OPEN) break;
       sendMessage(ws, {
         type: 'chunk',
@@ -475,8 +599,9 @@ async function handleChatStream(
       });
     }
 
+    const wasCanceled = isRequestCanceled(ws, requestId);
     if (ws.readyState === WebSocket.OPEN) {
-      const persistedConversationId = ws.userId && lastMessage.role === 'user'
+      const persistedConversationId = ws.userId && lastMessage.role === 'user' && answer.trim()
         ? await saveConversationExchange({
           userId: ws.userId,
           conversationId,
@@ -498,6 +623,9 @@ async function handleChatStream(
           route: resolvedRoute?.route,
         },
       });
+    }
+    if (wasCanceled) {
+      clearRequestCancellation(ws, requestId);
     }
   } catch (streamError: any) {
     console.error(`[WebSocket] Stream error in chat_stream:`, streamError);

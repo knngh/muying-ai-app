@@ -86,6 +86,12 @@ export interface AIGatewayTextResult {
 
 // 支持的模型列表
 export const SUPPORTED_MODELS: Record<string, SupportedModel> = {
+  'kimi-k2.5': {
+    id: 'kimi-k2.5',
+    name: 'Kimi K2.5',
+    provider: 'dashscope',
+    maxTokens: 16384,
+  },
   'glm-4': {
     id: 'glm-4',
     name: 'GLM-4',
