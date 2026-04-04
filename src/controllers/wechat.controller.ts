@@ -17,7 +17,8 @@ const generateToken = (userId: string): string => {
 
 export const wechatLogin = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { code, pregnancyWeek } = req.body;
+    const { code: rawCode, pregnancyWeek } = req.body;
+    const code = typeof rawCode === 'string' ? rawCode.trim() : '';
 
     if (!code) {
       throw new AppError('缺少微信登录凭证', ErrorCodes.PARAM_ERROR, 400);
@@ -77,8 +78,15 @@ export const wechatLogin = async (req: Request, res: Response, next: NextFunctio
     }
 
     // 真实的微信接口请求逻辑
-    const wxUrl = `https://api.weixin.qq.com/sns/jscode2session?appid=${appId}&secret=${appSecret}&js_code=${code}&grant_type=authorization_code`;
-    const wxResponse = await axios.get(wxUrl);
+    const wxResponse = await axios.get('https://api.weixin.qq.com/sns/jscode2session', {
+      params: {
+        appid: appId,
+        secret: appSecret,
+        js_code: code,
+        grant_type: 'authorization_code',
+      },
+      timeout: 10000,
+    });
     
     if (wxResponse.data.errcode) {
       console.error('WeChat API Error:', wxResponse.data);
