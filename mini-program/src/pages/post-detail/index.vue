@@ -73,10 +73,14 @@
 
         <!-- Comment Input -->
         <view class="comment-input-box">
+          <view v-if="replyTarget" class="reply-target-bar">
+            <text class="reply-target-text">正在回复：{{ replyTarget.authorName }}</text>
+            <text class="reply-target-cancel" @tap="clearReplyTarget">取消</text>
+          </view>
           <textarea
             v-model="commentText"
             class="comment-textarea"
-            placeholder="写下你的评论..."
+            :placeholder="replyTarget ? `回复 ${replyTarget.authorName}...` : '写下你的评论...'"
             :auto-height="true"
             :maxlength="500"
           />
@@ -111,6 +115,22 @@
               </view>
             </view>
             <text class="comment-content">{{ comment.content }}</text>
+            <view class="comment-actions">
+              <text class="comment-action-link" @tap="setReplyTarget(comment.id, comment.id, comment.author?.nickname || comment.author?.username || '用户')">回复</text>
+            </view>
+            <view v-if="comment.replies?.length" class="reply-list">
+              <view v-for="reply in comment.replies" :key="reply.id" class="reply-card">
+                <view class="reply-head">
+                  <text class="reply-author">{{ reply.author?.nickname || reply.author?.username || '用户' }}</text>
+                  <text class="reply-date">{{ formatDate(reply.createdAt) }}</text>
+                </view>
+                <text class="reply-content">{{ reply.content }}</text>
+                <view class="reply-actions">
+                  <text class="comment-action-link" @tap="setReplyTarget(comment.id, reply.id, reply.author?.nickname || reply.author?.username || '用户')">回复</text>
+                  <text v-if="canDeleteComment(reply.authorId)" class="comment-delete-text" @tap="handleDeleteComment(reply.id)">删除</text>
+                </view>
+              </view>
+            </view>
           </view>
         </view>
 
@@ -160,6 +180,7 @@ const commentsLoading = ref(false)
 const commentText = ref('')
 const commentPagination = reactive({ page: 1, pageSize: 20, total: 0, totalPages: 0 })
 const currentUserId = ref('')
+const replyTarget = ref<{ parentId: number; replyToId: number; authorName: string } | null>(null)
 
 const getCategoryLabel = (value: string) => {
   const cat = categories.find(c => c.value === value)
@@ -227,6 +248,14 @@ const canDeleteComment = (authorId: string) => {
   return authorId === currentUserId.value
 }
 
+const setReplyTarget = (parentId: number, replyToId: number, authorName: string) => {
+  replyTarget.value = { parentId, replyToId, authorName }
+}
+
+const clearReplyTarget = () => {
+  replyTarget.value = null
+}
+
 const handleDeletePost = () => {
   if (!post.value || !canDeletePost.value) return
   uni.showModal({
@@ -280,8 +309,11 @@ const submitComment = async () => {
   try {
     await communityApi.createComment(postId.value, {
       content: commentText.value.trim(),
+      parentId: replyTarget.value ? replyTarget.value.parentId : undefined,
+      replyToId: replyTarget.value ? replyTarget.value.replyToId : undefined,
     })
     commentText.value = ''
+    clearReplyTarget()
     uni.showToast({ title: '评论成功', icon: 'success' })
     // Refresh comments
     commentPagination.page = 1
@@ -490,6 +522,24 @@ onLoad((options) => {
   margin-bottom: 32rpx;
 }
 
+.reply-target-bar {
+  margin-bottom: 12rpx;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12rpx;
+}
+
+.reply-target-text {
+  font-size: 24rpx;
+  color: #5f6d8b;
+}
+
+.reply-target-cancel {
+  font-size: 24rpx;
+  color: #d84b4b;
+}
+
 .comment-textarea {
   border: 1rpx solid #d9d9d9;
   border-radius: 12rpx;
@@ -593,6 +643,62 @@ onLoad((options) => {
   color: #444444;
   line-height: 1.6;
   padding-left: 72rpx;
+}
+
+.comment-actions {
+  margin-top: 10rpx;
+  padding-left: 72rpx;
+}
+
+.comment-action-link {
+  font-size: 24rpx;
+  color: #4c6fd1;
+}
+
+.reply-list {
+  margin-top: 16rpx;
+  margin-left: 72rpx;
+  padding: 18rpx;
+  border-radius: 16rpx;
+  background-color: #f7f9fc;
+}
+
+.reply-card + .reply-card {
+  margin-top: 16rpx;
+  padding-top: 16rpx;
+  border-top: 1rpx solid #e9edf5;
+}
+
+.reply-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+}
+
+.reply-author {
+  font-size: 24rpx;
+  font-weight: 600;
+  color: #3b455a;
+}
+
+.reply-date {
+  font-size: 22rpx;
+  color: #99a3b5;
+}
+
+.reply-content {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 26rpx;
+  line-height: 1.6;
+  color: #444444;
+}
+
+.reply-actions {
+  margin-top: 10rpx;
+  display: flex;
+  gap: 24rpx;
 }
 
 .pagination {

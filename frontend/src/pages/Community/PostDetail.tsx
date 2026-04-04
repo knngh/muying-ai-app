@@ -34,6 +34,7 @@ export function PostDetail() {
   const [loading, setLoading] = useState(true)
   const [commentContent, setCommentContent] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [replyTarget, setReplyTarget] = useState<{ parentId: number; replyToId: number; authorName: string } | null>(null)
 
   useEffect(() => {
     if (id) {
@@ -100,9 +101,22 @@ export function PostDetail() {
     try {
       const newComment = (await communityApi.createComment(Number(id), {
         content: commentContent.trim(),
+        parentId: replyTarget?.parentId,
+        replyToId: replyTarget?.replyToId,
       })) as CommunityComment
-      setComments([newComment, ...comments])
+      if (replyTarget) {
+        setComments((prev) =>
+          prev.map((comment) =>
+            comment.id === replyTarget.parentId
+              ? { ...comment, replies: [newComment, ...(comment.replies || [])] }
+              : comment
+          )
+        )
+      } else {
+        setComments([newComment, ...comments])
+      }
       setCommentContent('')
+      setReplyTarget(null)
       if (post) {
         setPost({ ...post, commentCount: post.commentCount + 1 })
       }
@@ -200,11 +214,19 @@ export function PostDetail() {
       <Card title={`评论 (${post.commentCount})`} style={{ marginTop: 16 }}>
         {/* 发评论 */}
         <div style={{ marginBottom: 24 }}>
+          {replyTarget && (
+            <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+              <Text type="secondary">正在回复：{replyTarget.authorName}</Text>
+              <Button type="link" size="small" onClick={() => setReplyTarget(null)}>
+                取消
+              </Button>
+            </div>
+          )}
           <TextArea
             rows={3}
             value={commentContent}
             onChange={(e) => setCommentContent(e.target.value)}
-            placeholder="写下你的评论..."
+            placeholder={replyTarget ? `回复 ${replyTarget.authorName}...` : '写下你的评论...'}
             maxLength={1000}
           />
           <Button
@@ -238,6 +260,47 @@ export function PostDetail() {
                 }
                 description={comment.content}
               />
+              <div style={{ marginLeft: 52, marginTop: 8 }}>
+                <Button
+                  type="link"
+                  size="small"
+                  style={{ paddingLeft: 0 }}
+                  onClick={() => setReplyTarget({
+                    parentId: comment.id,
+                    replyToId: comment.id,
+                    authorName: comment.author?.nickname || comment.author?.username || '用户',
+                  })}
+                >
+                  回复
+                </Button>
+              </div>
+              {!!comment.replies?.length && (
+                <div style={{ marginLeft: 52, marginTop: 8, padding: 12, background: '#f7f9fc', borderRadius: 12 }}>
+                  {comment.replies.map((reply) => (
+                    <div key={reply.id} style={{ marginBottom: 12 }}>
+                      <Space size={8} wrap>
+                        <Text strong>{reply.author?.nickname || reply.author?.username || '用户'}</Text>
+                        <Text type="secondary" style={{ fontSize: 12 }}>
+                          {new Date(reply.createdAt).toLocaleString()}
+                        </Text>
+                      </Space>
+                      <Paragraph style={{ margin: '6px 0 0', whiteSpace: 'pre-wrap' }}>{reply.content}</Paragraph>
+                      <Button
+                        type="link"
+                        size="small"
+                        style={{ paddingLeft: 0 }}
+                        onClick={() => setReplyTarget({
+                          parentId: comment.id,
+                          replyToId: reply.id,
+                          authorName: reply.author?.nickname || reply.author?.username || '用户',
+                        })}
+                      >
+                        回复
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </List.Item>
           )}
         />

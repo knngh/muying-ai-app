@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { paginationQuery } from './common.schema';
+import { paginationQuery, idParam } from './common.schema';
 
 export const getPostsQuery = paginationQuery.extend({
   category: z.string().regex(/^\d+$/).optional(),
@@ -16,8 +16,19 @@ export const createPostBody = z.object({
   anonymous: z.boolean().optional(),
 });
 
+export const updatePostBody = createPostBody.partial().refine(
+  (value) => value.title !== undefined || value.content !== undefined || value.categoryId !== undefined || value.tags !== undefined || value.anonymous !== undefined,
+  { message: '至少提供一个更新字段' }
+);
+
 export const createCommentBody = z.object({
   content: z.string().min(1, '评论内容不能为空').max(1000, '评论过长'),
   parentId: z.string().regex(/^\d+$/).optional(),
   replyToId: z.string().regex(/^\d+$/).optional(),
+});
+
+export const postIdParam = idParam;
+export const commentIdParam = idParam;
+export const postCommentsParam = z.object({
+  postId: z.string().regex(/^\d+$/, '帖子 ID 格式无效'),
 });
