@@ -241,6 +241,15 @@ const selectedCategoryLabel = computed(() => {
   return categoryOptions.value[selectedCategoryIndex.value]?.name || '不分类'
 })
 
+const ensureLogin = () => {
+  const token = uni.getStorageSync('token')
+  if (!token) {
+    uni.navigateTo({ url: '/pages/login/index' })
+    return false
+  }
+  return true
+}
+
 const getCategoryLabel = (value: string) => {
   const category = categories.value.find((item) => String(item.id) === value || item.name === value)
   return category?.name || value
@@ -294,6 +303,7 @@ const changeCommentPage = (page: number) => {
 
 const onToggleLike = async () => {
   if (!post.value) return
+  if (!ensureLogin()) return
   try {
     if (post.value.isLiked) {
       await communityApi.unlikePost(post.value.id)
@@ -410,11 +420,7 @@ const handleDeleteComment = (id: number) => {
 }
 
 const submitComment = async () => {
-  const token = uni.getStorageSync('token')
-  if (!token) {
-    uni.navigateTo({ url: '/pages/login/index' })
-    return
-  }
+  if (!ensureLogin()) return
   if (!commentText.value.trim()) {
     uni.showToast({ title: '请输入评论内容', icon: 'none' })
     return

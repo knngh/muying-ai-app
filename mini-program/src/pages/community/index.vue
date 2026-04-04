@@ -18,6 +18,12 @@
     </view>
 
     <view class="filter-row">
+      <picker :range="filterCategoryOptions" range-key="name" :value="selectedFilterCategoryIndex" @change="onFilterCategoryChange">
+        <view class="filter-picker">
+          <text class="filter-text">{{ selectedFilterCategoryLabel }}</text>
+          <text class="filter-arrow">▼</text>
+        </view>
+      </picker>
       <picker :range="sortOptions" range-key="label" :value="sortIndex" @change="onSortChange">
         <view class="filter-picker">
           <text class="filter-text">{{ sortOptions[sortIndex].label }}</text>
@@ -187,15 +193,24 @@ const pagination = reactive({ page: 1, pageSize: 10, total: 0, totalPages: 0 })
 const showPostModal = ref(false)
 const editingPostId = ref<number | null>(null)
 const currentUserId = ref('')
+const filterCategoryId = ref('')
 const postForm = reactive({ title: '', content: '', categoryId: '', isAnonymous: false })
 
 const categoryOptions = computed(() => [{ id: '', name: '不分类' }, ...categories.value])
+const filterCategoryOptions = computed(() => [{ id: '', name: '全部分类' }, ...categories.value])
 const selectedCategoryIndex = computed(() => {
   const index = categoryOptions.value.findIndex((item) => String(item.id) === postForm.categoryId)
   return index >= 0 ? index : 0
 })
 const selectedCategoryLabel = computed(() => {
   return categoryOptions.value[selectedCategoryIndex.value]?.name || '不分类'
+})
+const selectedFilterCategoryIndex = computed(() => {
+  const index = filterCategoryOptions.value.findIndex((item) => String(item.id) === filterCategoryId.value)
+  return index >= 0 ? index : 0
+})
+const selectedFilterCategoryLabel = computed(() => {
+  return filterCategoryOptions.value[selectedFilterCategoryIndex.value]?.name || '全部分类'
 })
 const isEditing = computed(() => editingPostId.value !== null)
 const modalTitle = computed(() => (isEditing.value ? '编辑帖子' : '发布帖子'))
@@ -238,6 +253,9 @@ const fetchPosts = async (options?: { page?: number; keyword?: string }) => {
       pageSize: pagination.pageSize,
       sort: sortOptions[sortIndex.value].value,
     }
+    if (filterCategoryId.value) {
+      params.category = filterCategoryId.value
+    }
     const nextKeyword = options?.keyword ?? keyword.value.trim()
     if (nextKeyword) {
       params.keyword = nextKeyword
@@ -268,6 +286,13 @@ const onSortChange = (e: { detail: { value: number | string } }) => {
   fetchPosts({ page: 1 })
 }
 
+const onFilterCategoryChange = (e: { detail: { value: number | string } }) => {
+  const target = filterCategoryOptions.value[Number(e.detail.value)]
+  filterCategoryId.value = target ? String(target.id || '') : ''
+  pagination.page = 1
+  fetchPosts({ page: 1 })
+}
+
 const changePage = (page: number) => {
   if (page < 1 || page > pagination.totalPages) return
   pagination.page = page
@@ -279,6 +304,7 @@ const goToDetail = (id: number) => {
 }
 
 const onToggleLike = async (post: CommunityPost) => {
+  if (!checkLogin()) return
   try {
     if (post.isLiked) {
       await communityApi.unlikePost(post.id)
