@@ -26,9 +26,9 @@ import {
   type AIDomainDecision,
 } from '../services/ai-domain.service';
 
-const AI_DISCLAIMER = '⚠️ 免责声明：本回答由 AI 生成，仅供参考，不构成医疗建议。如有健康问题，请咨询专业医生。';
+const AI_DISCLAIMER = '温馨提示：这份答复用于帮助您先做初步了解，不能替代医生面诊；如果症状明显、持续加重，或您仍然不放心，请及时就医。';
 const EMERGENCY_DISCLAIMER = '🚨 重要提示：如遇紧急情况，请立即就医！';
-const DEGRADED_DISCLAIMER = '⚠️ 当前 AI 服务暂时不可用，以下内容基于知识库整理，仅供参考，不构成医疗建议。';
+const DEGRADED_DISCLAIMER = '温馨提示：当前 AI 服务暂时不可用，以下内容由知识库整理，供您先参考；若身体不适明显，请及时就医。';
 const DEFAULT_MODEL_ID = getDefaultModel();
 const EXPLICIT_STAGE_PATTERNS = [
   /孕早期|怀孕早期|怀孕初期|刚怀孕/u,

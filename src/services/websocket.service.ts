@@ -411,10 +411,10 @@ async function handleAskStream(
     sendMessage(ws, {
       type: 'emergency',
       requestId,
-      data: {
-        content: getEmergencyResponse(),
-        isEmergency: true,
-        disclaimer: '🚨 重要提示：如遇紧急情况，请立即就医！',
+        data: {
+          content: getEmergencyResponse(),
+          isEmergency: true,
+          disclaimer: '🚨 重要提示：如遇紧急情况，请立即就医！',
         conversationId: persistedConversationId,
       },
     });
@@ -470,7 +470,7 @@ async function handleAskStream(
         requestId,
         data: {
           sources: knowledgePack.sources,
-          disclaimer: '⚠️ 免责声明：本回答由 AI 生成，仅供参考，不构成医疗建议。如有健康问题，请咨询专业医生。',
+          disclaimer: '温馨提示：这份答复用于帮助您先做初步了解，不能替代医生面诊；如果症状明显、持续加重，或您仍然不放心，请及时就医。',
           conversationId: persistedConversationId,
           model: resolvedRoute?.model || model,
           provider: resolvedRoute?.provider,
@@ -549,10 +549,10 @@ async function handleChatStream(
     sendMessage(ws, {
       type: 'emergency',
       requestId,
-      data: {
-        content: getEmergencyResponse(),
-        isEmergency: true,
-        disclaimer: '🚨 重要提示：如遇紧急情况，请立即就医！',
+        data: {
+          content: getEmergencyResponse(),
+          isEmergency: true,
+          disclaimer: '🚨 重要提示：如遇紧急情况，请立即就医！',
         conversationId: persistedConversationId,
       },
     });
@@ -616,7 +616,7 @@ async function handleChatStream(
         requestId,
         data: {
           sources: knowledgePack.sources,
-          disclaimer: '⚠️ 免责声明：本回答由 AI 生成，仅供参考，不构成医疗建议。',
+          disclaimer: '温馨提示：这份答复供您先参考，如症状持续、加重或您心里仍不踏实，请尽快咨询医生。',
           conversationId: persistedConversationId,
           model: resolvedRoute?.model || model,
           provider: resolvedRoute?.provider,

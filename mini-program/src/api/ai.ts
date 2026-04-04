@@ -76,5 +76,5 @@ export function getEmergencyWarning(): string {
 }
 
 export function getDisclaimer(): string {
-  return '免责声明：本AI助手提供的回答仅供参考，不构成医疗建议。如有身体不适，请立即就医。紧急情况请拨打120。'
+  return '温馨提示：这里的答复用于帮助您先做初步了解。如果身体不适明显、症状持续加重，或您仍然不放心，请及时就医；紧急情况请拨打120。'
 }

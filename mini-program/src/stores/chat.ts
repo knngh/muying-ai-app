@@ -64,27 +64,9 @@ export const useChatStore = defineStore('chat', {
         return
       }
 
-      this.loadingHistory = true
       this.error = null
-
-      try {
-        const conversations = await aiApi.getConversations()
-        const latest = conversations[0]
-
-        if (latest?.id) {
-          const session = await aiApi.getHistory(latest.id)
-          this.messages = session.messages
-          this.conversationId = session.id
-        }
-
-        this.initialized = true
-        this.loadingHistory = false
-      } catch (error: unknown) {
-        const err = error as { message?: string }
-        this.error = err.message || '加载历史对话失败'
-        this.initialized = true
-        this.loadingHistory = false
-      }
+      this.loadingHistory = false
+      this.initialized = true
     },
 
     async sendMessage(content: string) {

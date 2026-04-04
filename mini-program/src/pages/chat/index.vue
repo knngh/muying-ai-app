@@ -3,7 +3,7 @@
     <view class="hero">
       <view class="hero-copy">
         <text class="hero-title">AI 母婴答疑</text>
-        <text class="hero-subtitle">围绕孕产、喂养、护理和常见症状，给你一版更快落地的智能问答。</text>
+        <text class="hero-subtitle">把您此刻最担心的情况告诉我，我会尽力给您温和、清晰的参考建议。</text>
       </view>
       <view class="hero-badge">Beta</view>
     </view>
@@ -25,8 +25,8 @@
         <view class="empty-illustration">
           <text class="empty-emoji">🍼</text>
         </view>
-        <text class="empty-title">先问我一个具体问题</text>
-        <text class="empty-subtitle">例如孕吐、发热、辅食、湿疹、新生儿护理。</text>
+        <text class="empty-title">您可以先说说现在最担心的问题</text>
+        <text class="empty-subtitle">例如孕吐、发热、辅食、湿疹，或新生儿护理中的具体情况。</text>
 
         <view class="quick-list">
           <view
@@ -118,7 +118,7 @@
         maxlength="2000"
         :disabled="loading"
         confirm-type="send"
-        placeholder="请输入你的问题，越具体越容易得到有用回答"
+        placeholder="您可以直接描述情况，越具体越容易得到更贴合的建议"
         @confirm="handleSend"
       />
       <view

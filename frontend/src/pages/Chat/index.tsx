@@ -68,7 +68,7 @@ export function Chat() {
           <QuestionCircleOutlined style={{ fontSize: 24, color: '#1890ff' }} />
           <div>
             <Title level={4} style={{ margin: 0 }}>AI 智能问答</Title>
-            <Text type="secondary">专业母婴知识，随时为您解答</Text>
+            <Text type="secondary">把此刻的担心告诉我，我会陪您一起梳理</Text>
           </div>
         </Space>
       </Card>
@@ -130,8 +130,8 @@ export function Chat() {
               image={Empty.PRESENTED_IMAGE_SIMPLE}
               description={
                 <Space direction="vertical" size="small">
-                  <Text>您好！我是母婴AI助手</Text>
-                  <Text type="secondary">请输入您的问题，我会尽力为您解答</Text>
+                  <Text>您好，我是母婴 AI 助手</Text>
+                  <Text type="secondary">您可以直接说说现在最担心的情况，我会尽力给您温和、清晰的参考建议</Text>
                   <div className={styles.quickQuestions}>
                     <Text type="secondary">快捷问题：</Text>
                     <Space wrap>
