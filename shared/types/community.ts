@@ -5,6 +5,8 @@ export interface CommunityPost {
   title: string
   content: string
   category?: string
+  categoryId?: string
+  categoryName?: string
   authorId: string
   author?: {
     id: string
@@ -41,5 +43,13 @@ export interface CommunityComment {
   likeCount: number
   status: string
   createdAt: string
+  replyCount?: number
   replies?: CommunityComment[]
+}
+
+export interface CommunityReportPayload {
+  targetType: 'post' | 'comment'
+  targetId: number | string
+  reason: 'spam' | 'abuse' | 'misinformation' | 'privacy' | 'illegal' | 'other'
+  description?: string
 }

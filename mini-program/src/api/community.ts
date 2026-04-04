@@ -1,7 +1,7 @@
 import api from './request'
-import type { CommunityPost, CommunityComment, PaginatedResponse } from '../../../shared/types'
+import type { CommunityPost, CommunityComment, CommunityReportPayload, PaginatedResponse } from '../../../shared/types'
 
-export type { CommunityPost, CommunityComment }
+export type { CommunityPost, CommunityComment, CommunityReportPayload }
 
 export const communityApi = {
   getPosts: (params?: {
@@ -23,11 +23,18 @@ export const communityApi = {
     anonymous: data.isAnonymous,
   }),
 
-  updatePost: (id: number, data: { title?: string; content?: string; category?: string; categoryId?: string }) =>
+  updatePost: (id: number, data: {
+    title?: string
+    content?: string
+    category?: string
+    categoryId?: string
+    isAnonymous?: boolean
+  }) =>
     api.put<CommunityPost>(`/community/posts/${id}`, {
       title: data.title,
       content: data.content,
       categoryId: data.categoryId ?? data.category,
+      anonymous: data.isAnonymous,
     }),
 
   deletePost: (id: number) => api.delete(`/community/posts/${id}`),
@@ -45,5 +52,16 @@ export const communityApi = {
       replyToId: data.replyToId !== undefined ? String(data.replyToId) : undefined,
     }),
 
-  deleteComment: (id: number) => api.delete(`/community/comments/${id}`),
+  getReplies: (commentId: number, params?: { page?: number; pageSize?: number }) =>
+    api.get<PaginatedResponse<CommunityComment>>(`/community/comments/${commentId}/replies`, params as Record<string, unknown>),
+
+  deleteComment: (id: number) => api.delete<{ deletedCount: number }>(`/community/comments/${id}`),
+
+  createReport: (data: CommunityReportPayload) =>
+    api.post<{ id: string; status: string }>('/community/reports', {
+      targetType: data.targetType,
+      targetId: String(data.targetId),
+      reason: data.reason,
+      description: data.description,
+    }),
 }

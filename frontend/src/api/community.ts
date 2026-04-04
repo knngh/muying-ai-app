@@ -7,6 +7,8 @@ export interface CommunityPost {
   title: string
   content: string
   category?: string
+  categoryId?: string
+  categoryName?: string
   authorId: string
   author?: {
     id: string
@@ -43,7 +45,15 @@ export interface CommunityComment {
   likeCount: number
   status: string
   createdAt: string
+  replyCount?: number
   replies?: CommunityComment[]
+}
+
+export interface CommunityReportPayload {
+  targetType: 'post' | 'comment'
+  targetId: number | string
+  reason: 'spam' | 'abuse' | 'misinformation' | 'privacy' | 'illegal' | 'other'
+  description?: string
 }
 
 interface PaginationMeta {
@@ -97,11 +107,18 @@ export const communityApi = {
   }),
 
   // 更新帖子
-  updatePost: (id: number, data: { title?: string; content?: string; category?: string; categoryId?: string }) =>
+  updatePost: (id: number, data: {
+    title?: string
+    content?: string
+    category?: string
+    categoryId?: string
+    isAnonymous?: boolean
+  }) =>
     api.put<CommunityPost>(`/community/posts/${id}`, {
       title: data.title,
       content: data.content,
       categoryId: data.categoryId ?? data.category,
+      anonymous: data.isAnonymous,
     }),
 
   // 删除帖子
@@ -128,7 +145,20 @@ export const communityApi = {
       replyToId: data.replyToId !== undefined ? String(data.replyToId) : undefined,
     }),
 
+  // 获取某条评论下的回复
+  getReplies: (commentId: number, params?: { page?: number; pageSize?: number }) =>
+    api.get<PaginatedComments>(`/community/comments/${commentId}/replies`, { params }),
+
   // 删除评论
   deleteComment: (id: number) =>
-    api.delete(`/community/comments/${id}`),
+    api.delete<{ deletedCount: number }>(`/community/comments/${id}`),
+
+  // 举报帖子或评论
+  createReport: (data: CommunityReportPayload) =>
+    api.post<{ id: string; status: string }>('/community/reports', {
+      targetType: data.targetType,
+      targetId: String(data.targetId),
+      reason: data.reason,
+      description: data.description,
+    }),
 }

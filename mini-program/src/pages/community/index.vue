@@ -1,6 +1,5 @@
 <template>
   <view class="community-page">
-    <!-- Header -->
     <view class="header">
       <text class="header-title">社区交流</text>
       <view class="header-btn" @tap="onCreatePost">
@@ -8,7 +7,6 @@
       </view>
     </view>
 
-    <!-- Search Bar -->
     <view class="search-bar">
       <input
         v-model="keyword"
@@ -19,8 +17,13 @@
       />
     </view>
 
-    <!-- Filters -->
     <view class="filter-row">
+      <picker :range="filterCategoryOptions" range-key="name" :value="selectedFilterCategoryIndex" @change="onFilterCategoryChange">
+        <view class="filter-picker">
+          <text class="filter-text">{{ selectedFilterCategoryLabel }}</text>
+          <text class="filter-arrow">▼</text>
+        </view>
+      </picker>
       <picker :range="sortOptions" range-key="label" :value="sortIndex" @change="onSortChange">
         <view class="filter-picker">
           <text class="filter-text">{{ sortOptions[sortIndex].label }}</text>
@@ -29,7 +32,6 @@
       </picker>
     </view>
 
-    <!-- Post List -->
     <view v-if="loading && posts.length === 0" class="loading-box">
       <text class="loading-text">加载中...</text>
     </view>
@@ -45,20 +47,24 @@
         class="post-card"
         @tap="goToDetail(post.id)"
       >
-        <!-- Author Row -->
         <view class="post-author-row">
-          <view class="avatar avatar-fallback">
-            <text class="avatar-text">{{ post.isAnonymous ? '匿' : ((post.author?.nickname || post.author?.username || '用')[0]) }}</text>
+          <view class="post-author-main">
+            <view class="avatar avatar-fallback">
+              <text class="avatar-text">{{ post.isAnonymous ? '匿' : ((post.author?.nickname || post.author?.username || '用')[0]) }}</text>
+            </view>
+            <view class="author-info">
+              <text class="author-name">
+                {{ post.isAnonymous ? '匿名用户' : (post.author?.nickname || post.author?.username || '用户') }}
+              </text>
+              <text class="post-date">{{ formatDate(post.createdAt) }}</text>
+            </view>
           </view>
-          <view class="author-info">
-            <text class="author-name">
-              {{ post.isAnonymous ? '匿名用户' : (post.author?.nickname || post.author?.username || '用户') }}
-            </text>
-            <text class="post-date">{{ formatDate(post.createdAt) }}</text>
+          <view v-if="canManagePost(post)" class="post-manage-actions">
+            <text class="post-manage-link" @tap.stop="onEditPost(post)">编辑</text>
+            <text class="post-manage-link post-manage-link--danger" @tap.stop="onDeletePost(post.id)">删除</text>
           </view>
         </view>
 
-        <!-- Title -->
         <view class="post-title-row">
           <view v-if="post.isPinned" class="pin-tag">
             <text class="pin-tag-text">置顶</text>
@@ -66,13 +72,16 @@
           <text class="post-title">{{ post.title }}</text>
         </view>
 
-        <!-- Content Preview -->
         <text class="post-preview">{{ post.content }}</text>
 
-        <!-- Footer -->
         <view class="post-footer">
-          <view v-if="post.category" class="category-tag">
-            <text class="category-tag-text">{{ post.category }}</text>
+          <view class="post-meta">
+            <view v-if="post.categoryName || post.category" class="category-tag">
+              <text class="category-tag-text">{{ post.categoryName || post.category }}</text>
+            </view>
+            <view v-if="post.isAnonymous" class="anonymous-tag">
+              <text class="anonymous-tag-text">匿名</text>
+            </view>
           </view>
           <view class="post-stats">
             <view class="stat-item" @tap.stop="onToggleLike(post)">
@@ -91,7 +100,6 @@
         </view>
       </view>
 
-      <!-- Pagination -->
       <view v-if="pagination.totalPages > 1" class="pagination">
         <view
           class="page-btn"
@@ -111,10 +119,9 @@
       </view>
     </view>
 
-    <!-- Create Post Modal -->
-    <view v-if="showCreateModal" class="modal-mask" @tap.self="showCreateModal = false">
+    <view v-if="showPostModal" class="modal-mask" @tap.self="closePostModal">
       <view class="modal-content">
-        <text class="modal-title">发布帖子</text>
+        <text class="modal-title">{{ modalTitle }}</text>
 
         <view class="form-item">
           <text class="form-label">标题</text>
@@ -126,6 +133,17 @@
         </view>
 
         <view class="form-item">
+          <text class="form-label">分类</text>
+          <picker :range="categoryOptions" range-key="name" :value="selectedCategoryIndex" @change="onCategoryChange">
+            <view class="form-picker">
+              <text :class="postForm.categoryId ? 'form-picker-text' : 'placeholder-text'">
+                {{ selectedCategoryLabel }}
+              </text>
+            </view>
+          </picker>
+        </view>
+
+        <view class="form-item">
           <text class="form-label">内容</text>
           <textarea
             v-model="postForm.content"
@@ -133,12 +151,18 @@
             placeholder="分享你的经验和想法..."
           />
         </view>
+
+        <view class="form-item form-item--switch">
+          <text class="form-label">匿名发布</text>
+          <switch :checked="postForm.isAnonymous" color="#2ea97d" @change="onAnonymousChange" />
+        </view>
+
         <view class="modal-actions">
-          <view class="modal-btn modal-btn--cancel" @tap="showCreateModal = false">
+          <view class="modal-btn modal-btn--cancel" @tap="closePostModal">
             <text class="modal-btn-text">取消</text>
           </view>
           <view class="modal-btn modal-btn--confirm" @tap="submitPost">
-            <text class="modal-btn-text modal-btn-text--white">发布</text>
+            <text class="modal-btn-text modal-btn-text--white">{{ submitButtonText }}</text>
           </view>
         </view>
       </view>
@@ -147,10 +171,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { communityApi } from '@/api/community'
 import type { CommunityPost } from '@/api/community'
+import { categoryApi, type Category } from '@/api/modules'
 import dayjs from 'dayjs'
 
 const sortOptions = [
@@ -163,23 +188,79 @@ const keyword = ref('')
 const sortIndex = ref(0)
 const loading = ref(false)
 const posts = ref<CommunityPost[]>([])
+const categories = ref<Array<Pick<Category, 'id' | 'name'>>>([])
 const pagination = reactive({ page: 1, pageSize: 10, total: 0, totalPages: 0 })
-const showCreateModal = ref(false)
-const postForm = reactive({ title: '', content: '' })
+const showPostModal = ref(false)
+const editingPostId = ref<number | null>(null)
+const currentUserId = ref('')
+const filterCategoryId = ref('')
+const postForm = reactive({ title: '', content: '', categoryId: '', isAnonymous: false })
+
+const categoryOptions = computed(() => [{ id: '', name: '不分类' }, ...categories.value])
+const filterCategoryOptions = computed(() => [{ id: '', name: '全部分类' }, ...categories.value])
+const selectedCategoryIndex = computed(() => {
+  const index = categoryOptions.value.findIndex((item) => String(item.id) === postForm.categoryId)
+  return index >= 0 ? index : 0
+})
+const selectedCategoryLabel = computed(() => {
+  return categoryOptions.value[selectedCategoryIndex.value]?.name || '不分类'
+})
+const selectedFilterCategoryIndex = computed(() => {
+  const index = filterCategoryOptions.value.findIndex((item) => String(item.id) === filterCategoryId.value)
+  return index >= 0 ? index : 0
+})
+const selectedFilterCategoryLabel = computed(() => {
+  return filterCategoryOptions.value[selectedFilterCategoryIndex.value]?.name || '全部分类'
+})
+const isEditing = computed(() => editingPostId.value !== null)
+const modalTitle = computed(() => (isEditing.value ? '编辑帖子' : '发布帖子'))
+const submitButtonText = computed(() => (isEditing.value ? '保存修改' : '发布'))
 
 const formatDate = (date: string) => dayjs(date).format('YYYY-MM-DD HH:mm')
 
-const fetchPosts = async () => {
+const syncCurrentUserId = () => {
+  const storedUser = uni.getStorageSync('user') as { id?: string | number } | undefined
+  currentUserId.value = storedUser?.id ? String(storedUser.id) : ''
+}
+
+const resetPostForm = () => {
+  editingPostId.value = null
+  postForm.title = ''
+  postForm.content = ''
+  postForm.categoryId = ''
+  postForm.isAnonymous = false
+}
+
+const closePostModal = () => {
+  showPostModal.value = false
+  resetPostForm()
+}
+
+const fetchCategories = async () => {
+  try {
+    const res = await categoryApi.getAll()
+    categories.value = (res || []).map((item) => ({ id: item.id, name: item.name }))
+  } catch (_err) {
+    categories.value = []
+  }
+}
+
+const fetchPosts = async (options?: { page?: number; keyword?: string }) => {
   loading.value = true
   try {
     const params: Record<string, unknown> = {
-      page: pagination.page,
+      page: options?.page ?? pagination.page,
       pageSize: pagination.pageSize,
       sort: sortOptions[sortIndex.value].value,
     }
-    if (keyword.value.trim()) {
-      params.keyword = keyword.value.trim()
+    if (filterCategoryId.value) {
+      params.category = filterCategoryId.value
     }
+    const nextKeyword = options?.keyword ?? keyword.value.trim()
+    if (nextKeyword) {
+      params.keyword = nextKeyword
+    }
+
     const res = await communityApi.getPosts(params as any) as any
     posts.value = res.list || []
     if (res.pagination) {
@@ -187,7 +268,7 @@ const fetchPosts = async () => {
       pagination.total = res.pagination.total
       pagination.totalPages = res.pagination.totalPages
     }
-  } catch (err) {
+  } catch (_err) {
     uni.showToast({ title: '加载失败', icon: 'none' })
   } finally {
     loading.value = false
@@ -196,13 +277,20 @@ const fetchPosts = async () => {
 
 const onSearch = () => {
   pagination.page = 1
-  fetchPosts()
+  fetchPosts({ page: 1 })
 }
 
-const onSortChange = (e: any) => {
-  sortIndex.value = e.detail.value
+const onSortChange = (e: { detail: { value: number | string } }) => {
+  sortIndex.value = Number(e.detail.value)
   pagination.page = 1
-  fetchPosts()
+  fetchPosts({ page: 1 })
+}
+
+const onFilterCategoryChange = (e: { detail: { value: number | string } }) => {
+  const target = filterCategoryOptions.value[Number(e.detail.value)]
+  filterCategoryId.value = target ? String(target.id || '') : ''
+  pagination.page = 1
+  fetchPosts({ page: 1 })
 }
 
 const changePage = (page: number) => {
@@ -216,6 +304,7 @@ const goToDetail = (id: number) => {
 }
 
 const onToggleLike = async (post: CommunityPost) => {
+  if (!checkLogin()) return
   try {
     if (post.isLiked) {
       await communityApi.unlikePost(post.id)
@@ -240,11 +329,53 @@ const checkLogin = (): boolean => {
   return true
 }
 
+const canManagePost = (post: CommunityPost) => {
+  return !!currentUserId.value && String(post.authorId) === currentUserId.value
+}
+
 const onCreatePost = () => {
   if (!checkLogin()) return
-  postForm.title = ''
-  postForm.content = ''
-  showCreateModal.value = true
+  resetPostForm()
+  showPostModal.value = true
+}
+
+const onEditPost = (post: CommunityPost) => {
+  if (!checkLogin()) return
+  editingPostId.value = post.id
+  postForm.title = post.title
+  postForm.content = post.content
+  postForm.categoryId = post.categoryId || ''
+  postForm.isAnonymous = Boolean(post.isAnonymous)
+  showPostModal.value = true
+}
+
+const onDeletePost = (postId: number) => {
+  uni.showModal({
+    title: '删除帖子',
+    content: '删除后不可恢复，确认继续吗？',
+    success: async (res) => {
+      if (!res.confirm) return
+      try {
+        await communityApi.deletePost(postId)
+        uni.showToast({ title: '删除成功', icon: 'success' })
+        if (posts.value.length === 1 && pagination.page > 1) {
+          pagination.page -= 1
+        }
+        fetchPosts()
+      } catch (_err) {
+        uni.showToast({ title: '删除失败', icon: 'none' })
+      }
+    },
+  })
+}
+
+const onCategoryChange = (e: { detail: { value: number | string } }) => {
+  const target = categoryOptions.value[Number(e.detail.value)]
+  postForm.categoryId = target ? String(target.id || '') : ''
+}
+
+const onAnonymousChange = (e: any) => {
+  postForm.isAnonymous = Boolean(e?.detail?.value)
 }
 
 const submitPost = async () => {
@@ -256,25 +387,42 @@ const submitPost = async () => {
     uni.showToast({ title: '请输入内容', icon: 'none' })
     return
   }
+
   try {
-    await communityApi.createPost({
-      title: postForm.title.trim(),
-      content: postForm.content.trim(),
-    })
-    showCreateModal.value = false
-    uni.showToast({ title: '发布成功', icon: 'success' })
+    if (editingPostId.value !== null) {
+      await communityApi.updatePost(editingPostId.value, {
+        title: postForm.title.trim(),
+        content: postForm.content.trim(),
+        categoryId: postForm.categoryId || undefined,
+        isAnonymous: postForm.isAnonymous,
+      })
+      uni.showToast({ title: '更新成功', icon: 'success' })
+    } else {
+      await communityApi.createPost({
+        title: postForm.title.trim(),
+        content: postForm.content.trim(),
+        categoryId: postForm.categoryId || undefined,
+        isAnonymous: postForm.isAnonymous,
+      })
+      uni.showToast({ title: '发布成功', icon: 'success' })
+    }
+
+    closePostModal()
     pagination.page = 1
-    fetchPosts()
+    fetchPosts({ page: 1 })
   } catch (_err) {
-    uni.showToast({ title: '发布失败', icon: 'none' })
+    uni.showToast({ title: editingPostId.value !== null ? '更新失败' : '发布失败', icon: 'none' })
   }
 }
 
 onMounted(() => {
+  syncCurrentUserId()
+  fetchCategories()
   fetchPosts()
 })
 
 onShow(() => {
+  syncCurrentUserId()
   fetchPosts()
 })
 </script>
@@ -377,8 +525,32 @@ onShow(() => {
 
 .post-author-row {
   display: flex;
-  align-items: center;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16rpx;
   margin-bottom: 16rpx;
+}
+
+.post-author-main {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.post-manage-actions {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+  flex-shrink: 0;
+}
+
+.post-manage-link {
+  font-size: 24rpx;
+  color: #1890ff;
+}
+
+.post-manage-link--danger {
+  color: #ff4d4f;
 }
 
 .avatar {
@@ -405,6 +577,7 @@ onShow(() => {
 .author-info {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .author-name {
@@ -460,12 +633,23 @@ onShow(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 20rpx;
+}
+
+.post-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+}
+
+.category-tag,
+.anonymous-tag {
+  border-radius: 6rpx;
+  padding: 4rpx 14rpx;
 }
 
 .category-tag {
   background-color: #e6f7ff;
-  border-radius: 6rpx;
-  padding: 4rpx 14rpx;
 }
 
 .category-tag-text {
@@ -473,9 +657,19 @@ onShow(() => {
   color: #1890ff;
 }
 
+.anonymous-tag {
+  background-color: #fff7e6;
+}
+
+.anonymous-tag-text {
+  font-size: 22rpx;
+  color: #d48806;
+}
+
 .post-stats {
   display: flex;
   gap: 24rpx;
+  flex-shrink: 0;
 }
 
 .stat-item {
@@ -526,7 +720,6 @@ onShow(() => {
   color: #666666;
 }
 
-/* Modal */
 .modal-mask {
   position: fixed;
   top: 0;
@@ -562,40 +755,40 @@ onShow(() => {
   margin-bottom: 24rpx;
 }
 
+.form-item--switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
 .form-label {
   font-size: 28rpx;
   color: #333333;
-  margin-bottom: 8rpx;
+  margin-bottom: 12rpx;
+  display: block;
 }
 
-.form-input {
-  border: 1rpx solid #d9d9d9;
-  border-radius: 12rpx;
-  padding: 16rpx 20rpx;
-  font-size: 28rpx;
+.form-input,
+.form-picker,
+.form-textarea {
   width: 100%;
+  background-color: #f8f8f8;
+  border-radius: 12rpx;
+  padding: 20rpx 24rpx;
+  font-size: 28rpx;
   box-sizing: border-box;
 }
 
 .form-textarea {
-  border: 1rpx solid #d9d9d9;
-  border-radius: 12rpx;
-  padding: 16rpx 20rpx;
-  font-size: 28rpx;
-  width: 100%;
-  height: 240rpx;
-  box-sizing: border-box;
+  min-height: 220rpx;
 }
 
-.form-picker {
-  border: 1rpx solid #d9d9d9;
-  border-radius: 12rpx;
-  padding: 16rpx 20rpx;
+.form-picker-text {
+  color: #333333;
 }
 
 .placeholder-text {
-  color: #cccccc;
-  font-size: 28rpx;
+  color: #999999;
 }
 
 .modal-actions {
@@ -606,9 +799,11 @@ onShow(() => {
 
 .modal-btn {
   flex: 1;
-  border-radius: 12rpx;
-  padding: 18rpx 0;
-  text-align: center;
+  height: 84rpx;
+  border-radius: 42rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .modal-btn--cancel {
@@ -620,9 +815,8 @@ onShow(() => {
 }
 
 .modal-btn-text {
-  font-size: 30rpx;
+  font-size: 28rpx;
   color: #666666;
-  text-align: center;
 }
 
 .modal-btn-text--white {

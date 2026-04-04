@@ -1,12 +1,55 @@
 import { Request, Response, NextFunction } from 'express';
 import prisma from '../config/database';
 import { successResponse, paginatedResponse, AppError, ErrorCodes } from '../middlewares/error.middleware';
+import { assertCommunityContentAllowed } from '../services/community-moderation.service';
+
+const formatCommunityPost = (
+  post: any,
+  options: {
+    categoryName?: string;
+    isLiked?: boolean;
+    commentCount?: number;
+    likeCount?: number;
+  } = {}
+) => ({
+  ...post,
+  categoryId: post.categoryId?.toString(),
+  categoryName: options.categoryName,
+  isAnonymous: Boolean(post.isAnonymous),
+  isPinned: Boolean(post.isPinned),
+  isFeatured: Boolean(post.isFeatured),
+  tags: Array.isArray(post.tags) ? post.tags.map((item: any) => item.tag ?? item) : [],
+  commentCount: options.commentCount ?? post.commentCount ?? 0,
+  likeCount: options.likeCount ?? post.likeCount ?? 0,
+  isLiked: options.isLiked ?? post.isLiked ?? false,
+});
+
+const collectCommentThreadIds = async (rootId: bigint): Promise<bigint[]> => {
+  const ids: bigint[] = [rootId];
+  let frontier: bigint[] = [rootId];
+
+  while (frontier.length > 0) {
+    const children = await prisma.communityComment.findMany({
+      where: {
+        parentId: { in: frontier },
+        deletedAt: null,
+      },
+      select: { id: true },
+    });
+
+    frontier = children.map((item) => item.id);
+    ids.push(...frontier);
+  }
+
+  return ids;
+};
 
 /**
  * 获取帖子列表
  */
 export const getPosts = async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const userId = req.userId;
     const { 
       category, 
       sort = 'latest', 
@@ -57,7 +100,7 @@ export const getPosts = async (req: Request, res: Response, next: NextFunction) 
         take: Number(pageSize),
         include: {
           author: {
-            select: { id: true, nickname: true, avatar: true }
+            select: { id: true, username: true, nickname: true, avatar: true }
           },
           tags: {
             include: {
@@ -72,11 +115,32 @@ export const getPosts = async (req: Request, res: Response, next: NextFunction) 
       prisma.communityPost.count({ where })
     ]);
 
-    const list = posts.map(post => ({
-      ...post,
-      tags: (post as any).tags.map((t: any) => t.tag),
+    const likedPostIds = userId
+      ? new Set(
+        (await prisma.communityPostLike.findMany({
+          where: {
+            userId: BigInt(userId),
+            postId: { in: posts.map((post) => post.id) },
+          },
+          select: { postId: true },
+        })).map((item) => item.postId.toString())
+      )
+      : new Set<string>();
+
+    const categoryIds = Array.from(new Set(posts.map((post) => post.categoryId?.toString()).filter(Boolean))) as string[];
+    const categories = categoryIds.length
+      ? await prisma.category.findMany({
+        where: { id: { in: categoryIds.map((id) => BigInt(id)) } },
+        select: { id: true, name: true },
+      })
+      : [];
+    const categoryNameMap = new Map(categories.map((item) => [item.id.toString(), item.name]));
+
+    const list = posts.map(post => formatCommunityPost(post, {
+      categoryName: post.categoryId ? categoryNameMap.get(post.categoryId.toString()) : undefined,
       commentCount: (post as any)._count.comments,
-      likeCount: (post as any)._count.likes
+      likeCount: (post as any)._count.likes,
+      isLiked: likedPostIds.has(post.id.toString()),
     }));
 
     res.json(paginatedResponse(list, Number(page), Number(pageSize), total));
@@ -97,7 +161,7 @@ export const getPostById = async (req: Request, res: Response, next: NextFunctio
       where: { id: BigInt(id) },
       include: {
         author: {
-          select: { id: true, nickname: true, avatar: true, createdAt: true }
+          select: { id: true, username: true, nickname: true, avatar: true, createdAt: true }
         },
         tags: {
           include: { tag: true }
@@ -124,11 +188,17 @@ export const getPostById = async (req: Request, res: Response, next: NextFunctio
       isLiked = !!like;
     }
 
-    res.json(successResponse({
-      ...post,
-      tags: (post as any).tags.map((t: any) => t.tag),
+    const category = post.categoryId
+      ? await prisma.category.findUnique({
+        where: { id: post.categoryId },
+        select: { id: true, name: true },
+      })
+      : null;
+
+    res.json(successResponse(formatCommunityPost(post, {
+      categoryName: category?.name,
       isLiked
-    }));
+    })));
   } catch (error) {
     next(error);
   }
@@ -146,6 +216,8 @@ export const createPost = async (req: Request, res: Response, next: NextFunction
       throw new AppError('标题和内容不能为空', ErrorCodes.PARAM_ERROR, 400);
     }
 
+    assertCommunityContentAllowed(title, content);
+
     // 创建帖子
     const post = await prisma.communityPost.create({
       data: {
@@ -153,20 +225,32 @@ export const createPost = async (req: Request, res: Response, next: NextFunction
         title,
         content,
         categoryId: categoryId ? BigInt(categoryId) : null,
-        isAnonymous: anonymous || false,
+        isAnonymous: anonymous ? 1 : 0,
         status: 'published', // 直接发布，后续可加审核
-        tags: tags ? {
+        tags: tags && tags.length ? {
           create: (tags as string[]).map(tagId => ({
             tagId: BigInt(tagId)
           }))
         } : undefined
       },
       include: {
+        author: {
+          select: { id: true, username: true, nickname: true, avatar: true }
+        },
         tags: { include: { tag: true } }
       }
     });
 
-    res.status(201).json(successResponse(post, '发布成功'));
+    const category = post.categoryId
+      ? await prisma.category.findUnique({
+        where: { id: post.categoryId },
+        select: { id: true, name: true },
+      })
+      : null;
+
+    res.status(201).json(successResponse(formatCommunityPost(post, {
+      categoryName: category?.name,
+    }), '发布成功'));
   } catch (error) {
     next(error);
   }
@@ -179,7 +263,9 @@ export const updatePost = async (req: Request, res: Response, next: NextFunction
   try {
     const userId = req.userId;
     const { id } = req.params;
-    const { title, content, categoryId, tags } = req.body;
+    const { title, content, categoryId, tags, anonymous } = req.body;
+
+    assertCommunityContentAllowed(title, content);
 
     // 检查帖子是否存在且属于当前用户
     const existingPost = await prisma.communityPost.findUnique({
@@ -200,12 +286,34 @@ export const updatePost = async (req: Request, res: Response, next: NextFunction
       data: {
         title,
         content,
-        categoryId: categoryId ? BigInt(categoryId) : null,
-        updatedAt: new Date()
+        categoryId: categoryId !== undefined ? BigInt(categoryId) : undefined,
+        isAnonymous: anonymous !== undefined ? (anonymous ? 1 : 0) : undefined,
+        updatedAt: new Date(),
+        tags: tags ? {
+          deleteMany: {},
+          create: (tags as string[]).map(tagId => ({
+            tagId: BigInt(tagId)
+          }))
+        } : undefined
+      },
+      include: {
+        author: {
+          select: { id: true, username: true, nickname: true, avatar: true }
+        },
+        tags: { include: { tag: true } }
       }
     });
 
-    res.json(successResponse(post, '更新成功'));
+    const category = post.categoryId
+      ? await prisma.category.findUnique({
+        where: { id: post.categoryId },
+        select: { id: true, name: true },
+      })
+      : null;
+
+    res.json(successResponse(formatCommunityPost(post, {
+      categoryName: category?.name,
+    }), '更新成功'));
   } catch (error) {
     next(error);
   }
@@ -330,12 +438,12 @@ export const getComments = async (req: Request, res: Response, next: NextFunctio
         orderBy: { createdAt: 'desc' },
         include: {
           author: {
-            select: { id: true, nickname: true, avatar: true }
+            select: { id: true, username: true, nickname: true, avatar: true }
           },
           replies: {
             where: { deletedAt: null },
             include: {
-              author: { select: { id: true, nickname: true, avatar: true } }
+              author: { select: { id: true, username: true, nickname: true, avatar: true } }
             },
             take: 5
           },
@@ -361,6 +469,54 @@ export const getComments = async (req: Request, res: Response, next: NextFunctio
 };
 
 /**
+ * 获取某条评论下的回复列表
+ */
+export const getReplies = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const { page = 1, pageSize = 20 } = req.query;
+
+    const parentComment = await prisma.communityComment.findUnique({
+      where: { id: BigInt(id) },
+      select: { id: true, deletedAt: true }
+    });
+
+    if (!parentComment || parentComment.deletedAt) {
+      throw new AppError('评论不存在', ErrorCodes.ARTICLE_NOT_FOUND, 404);
+    }
+
+    const skip = (Number(page) - 1) * Number(pageSize);
+
+    const [replies, total] = await Promise.all([
+      prisma.communityComment.findMany({
+        where: {
+          parentId: BigInt(id),
+          deletedAt: null
+        },
+        skip,
+        take: Number(pageSize),
+        orderBy: { createdAt: 'asc' },
+        include: {
+          author: {
+            select: { id: true, username: true, nickname: true, avatar: true }
+          }
+        }
+      }),
+      prisma.communityComment.count({
+        where: {
+          parentId: BigInt(id),
+          deletedAt: null
+        }
+      })
+    ]);
+
+    res.json(paginatedResponse(replies, Number(page), Number(pageSize), total));
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * 创建评论
  */
 export const createComment = async (req: Request, res: Response, next: NextFunction) => {
@@ -373,6 +529,8 @@ export const createComment = async (req: Request, res: Response, next: NextFunct
       throw new AppError('评论内容不能为空', ErrorCodes.PARAM_ERROR, 400);
     }
 
+    assertCommunityContentAllowed(content);
+
     // 检查帖子是否存在
     const post = await prisma.communityPost.findUnique({
       where: { id: BigInt(postId) }
@@ -382,17 +540,59 @@ export const createComment = async (req: Request, res: Response, next: NextFunct
       throw new AppError('帖子不存在', ErrorCodes.ARTICLE_NOT_FOUND, 404);
     }
 
+    const normalizedParentId = parentId ? BigInt(parentId) : null;
+    const normalizedReplyToId = replyToId ? BigInt(replyToId) : null;
+
+    if (normalizedReplyToId && !normalizedParentId) {
+      throw new AppError('回复评论时必须指定一级评论', ErrorCodes.PARAM_ERROR, 400);
+    }
+
+    const [parentComment, replyToComment] = await Promise.all([
+      normalizedParentId
+        ? prisma.communityComment.findUnique({ where: { id: normalizedParentId } })
+        : null,
+      normalizedReplyToId
+        ? prisma.communityComment.findUnique({ where: { id: normalizedReplyToId } })
+        : null,
+    ]);
+
+    if (normalizedParentId) {
+      if (!parentComment || parentComment.deletedAt) {
+        throw new AppError('回复的评论不存在', ErrorCodes.ARTICLE_NOT_FOUND, 404);
+      }
+      if (parentComment.postId.toString() !== postId) {
+        throw new AppError('评论不属于当前帖子', ErrorCodes.PARAM_ERROR, 400);
+      }
+      if (parentComment.parentId) {
+        throw new AppError('仅支持回复一级评论', ErrorCodes.PARAM_ERROR, 400);
+      }
+    }
+
+    if (normalizedReplyToId) {
+      if (!replyToComment || replyToComment.deletedAt) {
+        throw new AppError('回复目标不存在', ErrorCodes.ARTICLE_NOT_FOUND, 404);
+      }
+      if (replyToComment.postId.toString() !== postId) {
+        throw new AppError('回复目标不属于当前帖子', ErrorCodes.PARAM_ERROR, 400);
+      }
+      const belongsToThread = replyToComment.id.toString() === normalizedParentId!.toString()
+        || replyToComment.parentId?.toString() === normalizedParentId!.toString();
+      if (!belongsToThread) {
+        throw new AppError('回复目标不属于当前评论线程', ErrorCodes.PARAM_ERROR, 400);
+      }
+    }
+
     // 创建评论
     const comment = await prisma.communityComment.create({
       data: {
         postId: BigInt(postId),
         authorId: BigInt(userId!),
         content,
-        parentId: parentId ? BigInt(parentId) : null,
-        replyToId: replyToId ? BigInt(replyToId) : null
+        parentId: normalizedParentId,
+        replyToId: normalizedReplyToId
       },
       include: {
-        author: { select: { id: true, nickname: true, avatar: true } }
+        author: { select: { id: true, username: true, nickname: true, avatar: true } }
       }
     });
 
@@ -428,19 +628,123 @@ export const deleteComment = async (req: Request, res: Response, next: NextFunct
       throw new AppError('无权删除此评论', ErrorCodes.NO_PERMISSION, 403);
     }
 
-    // 软删除
-    await prisma.communityComment.update({
-      where: { id: BigInt(id) },
-      data: { deletedAt: new Date() }
+    const threadIds = await collectCommentThreadIds(comment.id);
+    const deletedAt = new Date();
+
+    const deletedCount = await prisma.$transaction(async (tx) => {
+      const deleteResult = await tx.communityComment.updateMany({
+        where: {
+          id: { in: threadIds },
+          deletedAt: null,
+        },
+        data: { deletedAt }
+      });
+
+      if (deleteResult.count > 0) {
+        const post = await tx.communityPost.findUnique({
+          where: { id: comment.postId },
+          select: { commentCount: true }
+        });
+
+        await tx.communityPost.update({
+          where: { id: comment.postId },
+          data: { commentCount: Math.max(0, (post?.commentCount ?? 0) - deleteResult.count) }
+        });
+      }
+
+      return deleteResult.count;
     });
 
-    // 更新帖子评论数
-    await prisma.communityPost.update({
-      where: { id: comment.postId },
-      data: { commentCount: { decrement: 1 } }
+    res.json(successResponse({ deletedCount }, '删除成功'));
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * 举报帖子或评论
+ */
+export const createReport = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.userId;
+    const { targetType, targetId, reason, description } = req.body as {
+      targetType: 'post' | 'comment';
+      targetId: string;
+      reason: string;
+      description?: string;
+    };
+
+    let postId: bigint | null = null;
+    let commentId: bigint | null = null;
+
+    if (targetType === 'post') {
+      const post = await prisma.communityPost.findUnique({
+        where: { id: BigInt(targetId) },
+        select: { id: true, authorId: true, deletedAt: true, status: true }
+      });
+
+      if (!post || post.deletedAt || post.status !== 'published') {
+        throw new AppError('帖子不存在', ErrorCodes.ARTICLE_NOT_FOUND, 404);
+      }
+
+      if (post.authorId.toString() === userId) {
+        throw new AppError('不能举报自己发布的帖子', ErrorCodes.PARAM_ERROR, 400);
+      }
+
+      postId = post.id;
+    } else {
+      const comment = await prisma.communityComment.findUnique({
+        where: { id: BigInt(targetId) },
+        select: { id: true, authorId: true, deletedAt: true, postId: true }
+      });
+
+      if (!comment || comment.deletedAt) {
+        throw new AppError('评论不存在', ErrorCodes.ARTICLE_NOT_FOUND, 404);
+      }
+
+      if (comment.authorId.toString() === userId) {
+        throw new AppError('不能举报自己的评论', ErrorCodes.PARAM_ERROR, 400);
+      }
+
+      commentId = comment.id;
+      postId = comment.postId;
+    }
+
+    const existingReport = await prisma.communityReport.findFirst({
+      where: {
+        reporterId: BigInt(userId!),
+        targetType,
+        postId,
+        commentId,
+        status: 'pending'
+      },
+      select: { id: true }
     });
 
-    res.json(successResponse(null, '删除成功'));
+    if (existingReport) {
+      throw new AppError('你已经提交过该举报，正在处理', ErrorCodes.PARAM_ERROR, 400);
+    }
+
+    const report = await prisma.communityReport.create({
+      data: {
+        reporterId: BigInt(userId!),
+        targetType,
+        postId,
+        commentId,
+        reason,
+        description: description?.trim() || null,
+        status: 'pending'
+      },
+      select: {
+        id: true,
+        targetType: true,
+        reason: true,
+        status: true,
+        createdAt: true
+      }
+    });
+
+    res.status(201).json(successResponse(report, '举报已提交，我们会尽快处理'));
   } catch (error) {
     next(error);
   }

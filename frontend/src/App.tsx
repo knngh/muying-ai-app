@@ -3,8 +3,6 @@ import { Routes, Route, Navigate, Outlet } from 'react-router-dom'
 import { Layout } from './components/Layout'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { storage } from './utils/storage'
-// import { Community } from './pages/Community'
-// import { PostDetail } from './pages/Community/PostDetail'
 
 const Home = lazy(() => import('./pages/Home').then((module) => ({ default: module.Home })))
 const Knowledge = lazy(() => import('./pages/Knowledge').then((module) => ({ default: module.Knowledge })))
@@ -12,6 +10,8 @@ const KnowledgeDetail = lazy(() => import('./pages/KnowledgeDetail').then((modul
 const Calendar = lazy(() => import('./pages/Calendar').then((module) => ({ default: module.Calendar })))
 const Profile = lazy(() => import('./pages/Profile').then((module) => ({ default: module.Profile })))
 const Chat = lazy(() => import('./pages/Chat').then((module) => ({ default: module.Chat })))
+const Community = lazy(() => import('./pages/Community').then((module) => ({ default: module.Community })))
+const PostDetail = lazy(() => import('./pages/Community/PostDetail').then((module) => ({ default: module.PostDetail })))
 const Login = lazy(() => import('./pages/Login').then((module) => ({ default: module.Login })))
 
 // 需要登录的路由守卫
@@ -46,8 +46,8 @@ function App() {
             <Route path="knowledge" element={<Knowledge />} />
             <Route path="knowledge/:id" element={<KnowledgeDetail />} />
             <Route path="chat" element={<Chat />} />
-            {/* <Route path="community" element={<Community />} /> */}
-            {/* <Route path="community/:id" element={<PostDetail />} /> */}
+            <Route path="community" element={<Community />} />
+            <Route path="community/:id" element={<PostDetail />} />
 
             {/* 需要登录的页面 */}
             <Route element={<ProtectedRoute />}>
