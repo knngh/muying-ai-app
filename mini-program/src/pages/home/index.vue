@@ -67,6 +67,34 @@
         </view>
       </view>
 
+      <view
+        class="feature-card community-card"
+        hover-class="feature-card--hover"
+        hover-start-time="20"
+        hover-stay-time="80"
+        @tap="navigateTo('/pages/community/index')"
+      >
+        <view class="card-bg-wave"></view>
+        <view class="card-content">
+          <view class="card-info">
+            <view class="title-row">
+              <text class="card-title">社区交流</text>
+              <view class="badge-community">New</view>
+            </view>
+            <text class="card-desc">看看其他妈妈的真实经验\n也可以分享你的孕育日常</text>
+            <view class="card-btn">
+              <text class="btn-text">进入社区</text>
+              <text class="btn-icon">→</text>
+            </view>
+          </view>
+          <view class="card-illustration">
+            <text class="emoji-large">💬</text>
+            <view class="floating-emoji e1" style="animation-delay: 0.8s;">🤱</view>
+            <view class="floating-emoji e2" style="animation-delay: 1.6s;">🌿</view>
+          </view>
+        </view>
+      </view>
+
     </view>
     
     <!-- 底部激励标语 -->
@@ -99,7 +127,7 @@ const checkLogin = (): boolean => {
 
 const navigateTo = (url: string) => {
   // 时间轴页面允许未登录访问（微信公众平台审核要求）
-  const PUBLIC_PAGES = new Set(['/pages/calendar/index'])
+  const PUBLIC_PAGES = new Set(['/pages/calendar/index', '/pages/community/index'])
   if (!PUBLIC_PAGES.has(url) && !checkLogin()) return
   if (TAB_PAGES.has(url)) {
     uni.switchTab({ url })
@@ -309,6 +337,30 @@ const handleAITap = () => {
   transform: rotate(45deg);
   border-radius: 40rpx;
   z-index: 1;
+}
+
+.community-card {
+  background: linear-gradient(135deg, #69c7a5 0%, #2ea97d 100%);
+}
+
+.community-card .card-bg-wave {
+  position: absolute;
+  top: -20rpx;
+  right: -30rpx;
+  width: 280rpx;
+  height: 180rpx;
+  background: radial-gradient(circle at center, rgba(255,255,255,0.16) 0%, rgba(255,255,255,0) 72%);
+  z-index: 1;
+}
+
+.badge-community {
+  background: linear-gradient(90deg, #fff5c2, #ffe18b);
+  color: #6c5600;
+  font-size: 20rpx;
+  padding: 4rpx 16rpx;
+  border-radius: 20rpx;
+  font-weight: bold;
+  box-shadow: 0 4rpx 10rpx rgba(108, 86, 0, 0.16);
 }
 
 .title-row {
