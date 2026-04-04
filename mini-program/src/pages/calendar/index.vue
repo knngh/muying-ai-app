@@ -24,7 +24,7 @@
       <scroll-view 
         scroll-x 
         class="week-timeline-scroll" 
-        :scroll-into-view="'week-' + currentSelectedWeek"
+        :scroll-into-view="timelineScrollTarget"
         scroll-with-animation
       >
         <view class="timeline-container">
@@ -239,25 +239,33 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, nextTick } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import mockDataArray from './mockData.json'
 import { useAppStore } from '@/stores/app'
 import { calendarApi, type PregnancyTodoProgress, type PregnancyDiary, type PregnancyCustomTodo } from '@/api/modules'
+import { calculatePregnancyWeekFromDueDate } from '@/utils'
 
 const weeksList = ref(Array.from({ length: 40 }, (_, i) => ({ num: i + 1 })))
 const appStore = useAppStore()
 
 const resolveInitialWeek = () => {
-  const token = uni.getStorageSync('token')
   const storedWeek = Number(uni.getStorageSync('userPregnancyWeek'))
 
-  if (!token) return 1
   if (storedWeek >= 1 && storedWeek <= 40) return storedWeek
+
+  if (appStore.user?.dueDate) {
+    const weekFromDueDate = calculatePregnancyWeekFromDueDate(appStore.user.dueDate)
+    if (weekFromDueDate && weekFromDueDate >= 1 && weekFromDueDate <= 40) {
+      return weekFromDueDate
+    }
+  }
+
   return 1
 }
 
 const currentSelectedWeek = ref(resolveInitialWeek())
+const timelineScrollTarget = ref(`week-${currentSelectedWeek.value}`)
 const activeTab = ref('guide') // 'guide' | 'diary'
 
 // 模拟日记数据库
@@ -416,10 +424,24 @@ const defaultTodoList = computed(() =>
 const todoList = computed(() => [...customTodoList.value, ...defaultTodoList.value])
 const completedTodoCount = computed(() => todoList.value.filter(todo => todo.completed).length)
 
+const scrollToWeek = async (week: number) => {
+  timelineScrollTarget.value = ''
+  await nextTick()
+  timelineScrollTarget.value = `week-${week}`
+}
+
+const syncSelectedWeekFromSession = async () => {
+  const resolvedWeek = resolveInitialWeek()
+  currentSelectedWeek.value = resolvedWeek
+  await scrollToWeek(resolvedWeek)
+}
+
 const handleSelectWeek = (e: any) => {
   const weekNum = e.currentTarget.dataset.week
   if (weekNum) {
-    currentSelectedWeek.value = Number(weekNum)
+    const selectedWeek = Number(weekNum)
+    currentSelectedWeek.value = selectedWeek
+    void scrollToWeek(selectedWeek)
   }
 }
 
@@ -650,7 +672,7 @@ const toggleTodo = async (todo: { todoKey: string; stateKey: string; completed: 
 }
 
 onShow(() => {
-  currentSelectedWeek.value = resolveInitialWeek()
+  void syncSelectedWeekFromSession()
   loginUserId.value = resolveLoginUserId()
   void Promise.all([syncTodoContext(), syncDiaryContext(), syncCustomTodoContext()])
 })
