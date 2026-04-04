@@ -62,32 +62,45 @@
               item.isEmergency ? 'bubble--emergency' : '',
             ]"
           >
-            <text user-select class="bubble-text">{{ getDisplayedContent(item) }}</text>
+            <text v-if="item.role === 'user'" user-select class="bubble-text">{{ getDisplayedContent(item) }}</text>
+            <view v-else class="bubble-html">
+              <mp-html :content="getDisplayedContent(item)" :copy-link="true" :selectable="true" />
+            </view>
+
+            <view v-if="item.isEmergency" class="emergency-actions">
+              <view class="emergency-btn" hover-class="emergency-btn--hover" @tap="handleEmergencyCall">
+                <text class="emergency-btn-text">🚨 拨打120急救</text>
+              </view>
+            </view>
 
             <view v-if="item.role === 'assistant'" class="answer-origin">
               <text class="answer-origin-label">答案来源</text>
               <text user-select class="answer-origin-text">{{ getAnswerOrigin(item) }}</text>
             </view>
 
-            <view v-if="item.sources?.length" class="source-list">
+            <view v-if="item.sources?.length" class="source-list-container">
               <text class="source-title">具体参考来源</text>
-              <view
-                v-for="source in getSortedSources(item)"
-                :key="`${item.id}-${source.title}`"
-                class="source-card"
-              >
-                <text user-select class="source-name">{{ source.title }}</text>
-                <text user-select class="source-meta">{{ source.source }} · 相关度 {{ Math.round(source.relevance * 100) }}%</text>
-                <text v-if="source.excerpt" user-select class="source-excerpt">{{ source.excerpt }}</text>
-                <view
-                  v-if="source.url"
-                  class="source-link"
-                  hover-class="source-link--hover"
-                  @tap="handleOpenSource(source)"
-                >
-                  <text class="source-link-text">查看原文</text>
+              <scroll-view scroll-x class="source-list-scroll">
+                <view class="source-list-inner">
+                  <view
+                    v-for="source in getSortedSources(item)"
+                    :key="`${item.id}-${source.title}`"
+                    class="source-card"
+                  >
+                    <text user-select class="source-name">{{ source.title }}</text>
+                    <text user-select class="source-meta">{{ source.source }} · 相关度 {{ Math.round(source.relevance * 100) }}%</text>
+                    <text v-if="source.excerpt" user-select class="source-excerpt">{{ source.excerpt }}</text>
+                    <view
+                      v-if="source.url"
+                      class="source-link"
+                      hover-class="source-link--hover"
+                      @tap="handleOpenSource(source)"
+                    >
+                      <text class="source-link-text">查看原文</text>
+                    </view>
+                  </view>
                 </view>
-              </view>
+              </scroll-view>
             </view>
           </view>
         </view>
@@ -106,7 +119,11 @@
             <text class="avatar-text">AI</text>
           </view>
           <view class="bubble bubble--assistant bubble--loading">
-            <text class="loading-dot">正在整理回答...</text>
+            <view class="bouncing-dots">
+              <view class="dot"></view>
+              <view class="dot"></view>
+              <view class="dot"></view>
+            </view>
           </view>
         </view>
       </view>
@@ -173,6 +190,7 @@ import { storeToRefs } from 'pinia'
 import { onHide, onShow } from '@dcloudio/uni-app'
 import { useChatStore } from '@/stores/chat'
 import { getDisclaimer, type AIMessage, type SourceReference } from '@/api/ai'
+import mpHtml from 'mp-html/dist/uni-app/components/mp-html/mp-html.vue'
 
 const quickQuestions = [
   '孕早期有哪些注意事项？',
@@ -245,6 +263,12 @@ function handleStop() {
 async function handleResume() {
   await chatStore.resumeLastAnswer()
   syncScrollAnchor()
+}
+
+function handleEmergencyCall() {
+  uni.makePhoneCall({
+    phoneNumber: '120'
+  })
 }
 
 function handleQuickQuestion(question: string) {
@@ -549,10 +573,10 @@ watch([messages, streamingContent], () => {
 }
 
 .message-row {
-  margin-bottom: 24rpx;
+  margin-bottom: 20rpx;
   display: flex;
   align-items: flex-start;
-  gap: 16rpx;
+  gap: 14rpx;
 }
 
 .message-row--user {
@@ -587,26 +611,53 @@ watch([messages, streamingContent], () => {
 
 .bubble {
   max-width: 78%;
-  padding: 24rpx 24rpx 20rpx;
-  border-radius: 30rpx;
+  padding: 18rpx 20rpx 16rpx;
+  border-radius: 24rpx;
   box-sizing: border-box;
 }
 
 .bubble--assistant {
   background: rgba(255, 255, 255, 0.9);
-  border-top-left-radius: 12rpx;
-  box-shadow: 0 14rpx 36rpx rgba(46, 38, 30, 0.05);
+  border-top-left-radius: 10rpx;
+  box-shadow: 0 10rpx 24rpx rgba(46, 38, 30, 0.05);
 }
 
 .bubble--user {
   background: linear-gradient(135deg, #5f85e5 0%, #7fa4ff 100%);
-  border-top-right-radius: 12rpx;
-  box-shadow: 0 14rpx 36rpx rgba(95, 133, 229, 0.16);
+  border-top-right-radius: 10rpx;
+  box-shadow: 0 10rpx 24rpx rgba(95, 133, 229, 0.16);
 }
 
 .bubble--emergency {
   border: 2rpx solid rgba(225, 87, 89, 0.28);
   background: #fff1f0;
+}
+
+.emergency-actions {
+  margin-top: 14rpx;
+  padding-top: 14rpx;
+  border-top: 2rpx dashed rgba(225, 87, 89, 0.2);
+}
+
+.emergency-btn {
+  background: linear-gradient(135deg, #ff4d4f 0%, #ff7875 100%);
+  border-radius: 999rpx;
+  padding: 12rpx 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6rpx 12rpx rgba(255, 77, 79, 0.2);
+}
+
+.emergency-btn--hover {
+  transform: translateY(2rpx);
+  box-shadow: 0 2rpx 6rpx rgba(255, 77, 79, 0.2);
+}
+
+.emergency-btn-text {
+  color: #fff;
+  font-size: 24rpx;
+  font-weight: bold;
 }
 
 .bubble--streaming {
@@ -620,8 +671,8 @@ watch([messages, streamingContent], () => {
 .bubble-text {
   display: block;
   white-space: pre-wrap;
-  font-size: 28rpx;
-  line-height: 1.72;
+  font-size: 26rpx;
+  line-height: 1.6;
   color: #43352c;
 }
 
@@ -629,24 +680,36 @@ watch([messages, streamingContent], () => {
   color: #fff;
 }
 
+.bubble-html {
+  font-size: 26rpx;
+  line-height: 1.6;
+  color: #43352c;
+  word-break: break-word;
+}
+
+.bubble-html :deep(.strong) {
+  color: #2f2a26;
+  font-weight: 800;
+}
+
 .answer-origin {
-  margin-top: 18rpx;
-  padding-top: 16rpx;
+  margin-top: 14rpx;
+  padding-top: 12rpx;
   border-top: 2rpx solid rgba(95, 133, 229, 0.08);
 }
 
 .answer-origin-label {
   display: block;
-  font-size: 22rpx;
+  font-size: 20rpx;
   font-weight: 700;
   color: #7f6958;
 }
 
 .answer-origin-text {
   display: block;
-  margin-top: 8rpx;
-  font-size: 23rpx;
-  line-height: 1.6;
+  margin-top: 6rpx;
+  font-size: 22rpx;
+  line-height: 1.5;
   color: #6b7285;
 }
 
@@ -655,10 +718,47 @@ watch([messages, streamingContent], () => {
   color: #8d7868;
 }
 
-.source-list {
+.bouncing-dots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8rpx;
+  height: 48rpx;
+  padding: 0 12rpx;
+}
+
+.bouncing-dots .dot {
+  width: 12rpx;
+  height: 12rpx;
+  background-color: #ff8f5a;
+  border-radius: 50%;
+  animation: bounce 1.4s infinite ease-in-out both;
+}
+
+.bouncing-dots .dot:nth-child(1) {
+  animation-delay: -0.32s;
+}
+
+.bouncing-dots .dot:nth-child(2) {
+  animation-delay: -0.16s;
+}
+
+@keyframes bounce {
+  0%, 80%, 100% {
+    transform: scale(0);
+    opacity: 0.5;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.source-list-container {
   margin-top: 18rpx;
   padding-top: 18rpx;
   border-top: 2rpx solid rgba(95, 133, 229, 0.08);
+  width: 100%;
 }
 
 .source-title {
@@ -669,40 +769,58 @@ watch([messages, streamingContent], () => {
   color: #7f6958;
 }
 
+.source-list-scroll {
+  width: 100%;
+  white-space: nowrap;
+}
+
+.source-list-inner {
+  display: inline-flex;
+  gap: 16rpx;
+  padding-bottom: 12rpx;
+}
+
 .source-card {
-  padding: 18rpx;
-  margin-top: 12rpx;
-  border-radius: 22rpx;
+  display: inline-flex;
+  flex-direction: column;
+  width: 440rpx;
+  padding: 14rpx;
+  border-radius: 16rpx;
   background: #f7f8ff;
+  box-sizing: border-box;
+  white-space: normal;
 }
 
 .source-name {
-  display: block;
-  font-size: 24rpx;
-  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  font-size: 22rpx;
+  line-height: 1.4;
   font-weight: 700;
   color: #35405a;
 }
 
 .source-meta {
   display: block;
-  margin-top: 6rpx;
-  font-size: 22rpx;
+  margin-top: 4rpx;
+  font-size: 20rpx;
   color: #6c7593;
 }
 
 .source-excerpt {
   display: block;
-  margin-top: 10rpx;
-  font-size: 23rpx;
-  line-height: 1.6;
+  margin-top: 8rpx;
+  font-size: 20rpx;
+  line-height: 1.5;
   color: #666b7d;
 }
 
 .source-link {
-  margin-top: 14rpx;
+  margin-top: 10rpx;
   align-self: flex-start;
-  padding: 12rpx 20rpx;
+  padding: 8rpx 16rpx;
   border-radius: 999rpx;
   background: rgba(95, 133, 229, 0.08);
   border: 2rpx solid rgba(95, 133, 229, 0.12);
@@ -713,7 +831,7 @@ watch([messages, streamingContent], () => {
 }
 
 .source-link-text {
-  font-size: 22rpx;
+  font-size: 20rpx;
   font-weight: 700;
   color: #4c6fd1;
 }
@@ -801,6 +919,7 @@ watch([messages, streamingContent], () => {
   align-items: center;
   justify-content: center;
   box-shadow: 0 14rpx 28rpx rgba(111, 118, 135, 0.2);
+  transition: all 0.3s ease;
 }
 
 .stop-button--hover {
@@ -824,6 +943,7 @@ watch([messages, streamingContent], () => {
   align-items: center;
   justify-content: center;
   box-shadow: 0 14rpx 28rpx rgba(95, 133, 229, 0.08);
+  transition: all 0.3s ease;
 }
 
 .resume-button--hover {
@@ -846,6 +966,7 @@ watch([messages, streamingContent], () => {
   align-items: center;
   justify-content: center;
   box-shadow: 0 14rpx 28rpx rgba(255, 120, 69, 0.22);
+  transition: all 0.3s ease;
 }
 
 .send-button--hover {

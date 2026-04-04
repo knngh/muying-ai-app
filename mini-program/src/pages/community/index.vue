@@ -33,11 +33,18 @@
     </view>
 
     <view v-if="loading && posts.length === 0" class="loading-box">
-      <text class="loading-text">加载中...</text>
+      <view class="bouncing-dots">
+        <view class="dot"></view>
+        <view class="dot"></view>
+        <view class="dot"></view>
+      </view>
     </view>
 
     <view v-else-if="posts.length === 0" class="empty-box">
-      <text class="empty-text">暂无帖子</text>
+      <view class="empty-illustration">
+        <text class="empty-emoji">📝</text>
+      </view>
+      <text class="empty-text">暂时没有看到帖子，快来发一篇吧</text>
     </view>
 
     <view v-else class="post-list">
@@ -154,7 +161,7 @@
 
         <view class="form-item form-item--switch">
           <text class="form-label">匿名发布</text>
-          <switch :checked="postForm.isAnonymous" color="#2ea97d" @change="onAnonymousChange" />
+          <switch :checked="postForm.isAnonymous" color="#ff8f5a" @change="onAnonymousChange" />
         </view>
 
         <view class="modal-actions">
@@ -335,6 +342,13 @@ const canManagePost = (post: CommunityPost) => {
 
 const onCreatePost = () => {
   if (!checkLogin()) return
+  
+  const lastPostTime = uni.getStorageSync('lastPostTime')
+  if (lastPostTime && Date.now() - lastPostTime < 60 * 1000) {
+    uni.showToast({ title: '发帖太频繁，请1分钟后再试', icon: 'none' })
+    return
+  }
+
   resetPostForm()
   showPostModal.value = true
 }
@@ -404,6 +418,7 @@ const submitPost = async () => {
         categoryId: postForm.categoryId || undefined,
         isAnonymous: postForm.isAnonymous,
       })
+      uni.setStorageSync('lastPostTime', Date.now())
       uni.showToast({ title: '发布成功', icon: 'success' })
     }
 
@@ -449,14 +464,16 @@ onShow(() => {
 }
 
 .header-btn {
-  background-color: #1890ff;
+  background: linear-gradient(135deg, #ffbf86 0%, #ff8f5a 100%);
   border-radius: 32rpx;
   padding: 12rpx 28rpx;
+  box-shadow: 0 8rpx 16rpx rgba(255, 143, 90, 0.2);
 }
 
 .header-btn-text {
   color: #ffffff;
   font-size: 26rpx;
+  font-weight: bold;
 }
 
 .search-bar {
@@ -501,14 +518,67 @@ onShow(() => {
 .loading-box,
 .empty-box {
   display: flex;
+  flex-direction: column;
   justify-content: center;
+  align-items: center;
   padding: 100rpx 0;
+}
+
+.empty-illustration {
+  width: 140rpx;
+  height: 140rpx;
+  border-radius: 40rpx;
+  background: linear-gradient(135deg, #fff0e4 0%, #ffe4cf 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 16rpx 32rpx rgba(255, 165, 116, 0.12);
+  margin-bottom: 24rpx;
+}
+
+.empty-emoji {
+  font-size: 72rpx;
 }
 
 .loading-text,
 .empty-text {
   font-size: 28rpx;
-  color: #999999;
+  color: #9a7c68;
+}
+
+.bouncing-dots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8rpx;
+  height: 48rpx;
+}
+
+.bouncing-dots .dot {
+  width: 12rpx;
+  height: 12rpx;
+  background-color: #ff8f5a;
+  border-radius: 50%;
+  animation: bounce 1.4s infinite ease-in-out both;
+}
+
+.bouncing-dots .dot:nth-child(1) {
+  animation-delay: -0.32s;
+}
+
+.bouncing-dots .dot:nth-child(2) {
+  animation-delay: -0.16s;
+}
+
+@keyframes bounce {
+  0%, 80%, 100% {
+    transform: scale(0);
+    opacity: 0.5;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 .post-list {
@@ -546,7 +616,7 @@ onShow(() => {
 
 .post-manage-link {
   font-size: 24rpx;
-  color: #1890ff;
+  color: #ff8f5a;
 }
 
 .post-manage-link--danger {
@@ -565,13 +635,13 @@ onShow(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: rgba(24, 144, 255, 0.15);
+  background: linear-gradient(135deg, #fff0e4 0%, #ffe4cf 100%);
 }
 
 .avatar-text {
   font-size: 26rpx;
   font-weight: bold;
-  color: #1890ff;
+  color: #ff8f5a;
 }
 
 .author-info {
@@ -649,12 +719,13 @@ onShow(() => {
 }
 
 .category-tag {
-  background-color: #e6f7ff;
+  background: linear-gradient(135deg, #fff0e4 0%, #ffe4cf 100%);
+  border: 1rpx solid rgba(255, 143, 90, 0.15);
 }
 
 .category-tag-text {
   font-size: 22rpx;
-  color: #1890ff;
+  color: #ff8f5a;
 }
 
 .anonymous-tag {
@@ -811,7 +882,8 @@ onShow(() => {
 }
 
 .modal-btn--confirm {
-  background-color: #1890ff;
+  background: linear-gradient(135deg, #ff945f 0%, #ff7845 100%);
+  box-shadow: 0 10rpx 20rpx rgba(255, 120, 69, 0.2);
 }
 
 .modal-btn-text {

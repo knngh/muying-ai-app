@@ -616,6 +616,13 @@ const handleDeleteComment = (id: number) => {
 
 const submitComment = async () => {
   if (!ensureLogin()) return
+  
+  const lastCommentTime = uni.getStorageSync('lastCommentTime')
+  if (lastCommentTime && Date.now() - lastCommentTime < 30 * 1000) {
+    uni.showToast({ title: '回帖太频繁，请30秒后再试', icon: 'none' })
+    return
+  }
+
   if (!commentText.value.trim()) {
     uni.showToast({ title: '请输入评论内容', icon: 'none' })
     return
@@ -626,6 +633,7 @@ const submitComment = async () => {
       parentId: replyTarget.value ? replyTarget.value.parentId : undefined,
       replyToId: replyTarget.value ? replyTarget.value.replyToId : undefined,
     })
+    uni.setStorageSync('lastCommentTime', Date.now())
     commentText.value = ''
     clearReplyTarget()
     uni.showToast({ title: '评论成功', icon: 'success' })
