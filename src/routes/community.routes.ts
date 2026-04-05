@@ -11,12 +11,15 @@ import {
   getReplies,
   createComment,
   deleteComment,
-  createReport
+  createReport,
+  getReports,
+  handleReport
 } from '../controllers/community.controller';
 import { authMiddleware, optionalAuthMiddleware } from '../middlewares/auth.middleware';
+import { adminMiddleware } from '../middlewares/admin.middleware';
 import { queryRateLimiter, writeRateLimiter } from '../middlewares/rateLimiter.middleware';
 import { validate } from '../middlewares/validate.middleware';
-import { getPostsQuery, createPostBody, createCommentBody, updatePostBody, createReportBody, postIdParam, commentIdParam, postCommentsParam, commentRepliesParam } from '../schemas/community.schema';
+import { getPostsQuery, createPostBody, createCommentBody, updatePostBody, createReportBody, getReportsQuery, handleReportBody, postIdParam, commentIdParam, reportIdParam, postCommentsParam, commentRepliesParam } from '../schemas/community.schema';
 import { paginationQuery } from '../schemas/common.schema';
 
 const router = Router();
@@ -52,5 +55,7 @@ router.delete('/comments/:id', authMiddleware, writeRateLimiter, validate({ para
 
 // 举报帖子/评论（需认证）
 router.post('/reports', authMiddleware, writeRateLimiter, validate({ body: createReportBody }), createReport);
+router.get('/reports', authMiddleware, adminMiddleware, queryRateLimiter, validate({ query: getReportsQuery }), getReports);
+router.patch('/reports/:id', authMiddleware, adminMiddleware, writeRateLimiter, validate({ params: reportIdParam, body: handleReportBody }), handleReport);
 
 export default router;

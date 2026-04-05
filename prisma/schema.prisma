@@ -575,6 +575,9 @@ model CommunityReport {
   reason          String   @db.VarChar(50)
   description     String?  @db.VarChar(500)
   status          String   @default("pending") @db.VarChar(20) // pending, reviewed, rejected
+  actionTaken     String?  @db.VarChar(50) // none, hide_post, delete_comment
+  decisionReason  String?  @db.VarChar(500)
+  handledByAI     Int      @default(0)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   handledAt       DateTime?

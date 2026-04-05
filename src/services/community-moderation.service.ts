@@ -12,14 +12,31 @@ function normalizeContent(value: string) {
   return value.replace(/\s+/g, ' ').trim();
 }
 
-export function assertCommunityContentAllowed(...parts: Array<string | undefined>) {
+export function analyzeCommunityContent(...parts: Array<string | undefined>) {
   const content = normalizeContent(parts.filter(Boolean).join(' '));
   if (!content) {
-    return;
+    return {
+      content,
+      blocked: false,
+      message: null,
+    };
   }
 
   const blocked = BLOCKED_PATTERNS.find(({ pattern }) => pattern.test(content));
-  if (blocked) {
-    throw new AppError(blocked.message, ErrorCodes.PARAM_ERROR, 400);
+  return {
+    content,
+    blocked: Boolean(blocked),
+    message: blocked?.message ?? null,
+  };
+}
+
+export function assertCommunityContentAllowed(...parts: Array<string | undefined>) {
+  const analysis = analyzeCommunityContent(...parts);
+  if (!analysis.content) {
+    return;
+  }
+
+  if (analysis.blocked) {
+    throw new AppError(analysis.message || '内容不允许发布', ErrorCodes.PARAM_ERROR, 400);
   }
 }

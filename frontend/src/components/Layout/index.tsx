@@ -7,8 +7,10 @@ import {
   UserOutlined,
   MessageOutlined,
   TeamOutlined,
+  SafetyCertificateOutlined,
 } from '@ant-design/icons'
 import { useNavigate, useLocation } from 'react-router-dom'
+import { useAppStore } from '@/stores/appStore'
 import styles from './Layout.module.css'
 
 const { Header, Content, Footer } = AntLayout
@@ -20,12 +22,16 @@ interface LayoutProps {
 export function Layout({ children }: LayoutProps) {
   const navigate = useNavigate()
   const location = useLocation()
+  const user = useAppStore((state) => state.user)
 
   const menuItems = [
     { key: '/', icon: <HomeOutlined />, label: '首页' },
     { key: '/chat', icon: <MessageOutlined />, label: 'AI问答' },
     { key: '/knowledge', icon: <BookOutlined />, label: '知识库' },
     { key: '/community', icon: <TeamOutlined />, label: '社区' },
+    ...(user?.username === 'admin'
+      ? [{ key: '/community/reports', icon: <SafetyCertificateOutlined />, label: '举报处理' }]
+      : []),
     { key: '/calendar', icon: <CalendarOutlined />, label: '日历' },
     { key: '/profile', icon: <UserOutlined />, label: '我的' },
   ]

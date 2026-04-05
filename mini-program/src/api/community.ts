@@ -58,7 +58,15 @@ export const communityApi = {
   deleteComment: (id: number) => api.delete<{ deletedCount: number }>(`/community/comments/${id}`),
 
   createReport: (data: CommunityReportPayload) =>
-    api.post<{ id: string; status: string }>('/community/reports', {
+    api.post<{
+      id: string
+      status: 'pending' | 'reviewed' | 'rejected'
+      actionTaken: 'none' | 'hide_post' | 'delete_comment'
+      decisionReason?: string | null
+      handledByAI: boolean
+      handledAt?: string | null
+      createdAt: string
+    }>('/community/reports', {
       targetType: data.targetType,
       targetId: String(data.targetId),
       reason: data.reason,

@@ -1,7 +1,9 @@
+import { Prisma } from '@prisma/client';
 import { Request, Response, NextFunction } from 'express';
 import prisma from '../config/database';
 import { successResponse, paginatedResponse, AppError, ErrorCodes } from '../middlewares/error.middleware';
 import { assertCommunityContentAllowed } from '../services/community-moderation.service';
+import { applyCommunityReportAction, CommunityReportAction, reviewCommunityReport } from '../services/community-report-review.service';
 
 const formatCommunityPost = (
   post: any,
@@ -43,6 +45,87 @@ const collectCommentThreadIds = async (rootId: bigint): Promise<bigint[]> => {
 
   return ids;
 };
+
+const softDeleteCommentThread = async (commentId: bigint) => {
+  const comment = await prisma.communityComment.findUnique({
+    where: { id: commentId },
+    select: { id: true, postId: true },
+  });
+
+  if (!comment) {
+    throw new AppError('评论不存在', ErrorCodes.ARTICLE_NOT_FOUND, 404);
+  }
+
+  const threadIds = await collectCommentThreadIds(comment.id);
+  const deletedAt = new Date();
+
+  const deletedCount = await prisma.$transaction(async (tx) => {
+    const deleteResult = await tx.communityComment.updateMany({
+      where: {
+        id: { in: threadIds },
+        deletedAt: null,
+      },
+      data: { deletedAt }
+    });
+
+    if (deleteResult.count > 0) {
+      const post = await tx.communityPost.findUnique({
+        where: { id: comment.postId },
+        select: { commentCount: true }
+      });
+
+      await tx.communityPost.update({
+        where: { id: comment.postId },
+        data: { commentCount: Math.max(0, (post?.commentCount ?? 0) - deleteResult.count) }
+      });
+    }
+
+    return deleteResult.count;
+  });
+
+  return { deletedCount, postId: comment.postId };
+};
+
+const formatCommunityReport = (report: any) => ({
+  id: report.id.toString(),
+  targetType: report.targetType,
+  reason: report.reason,
+  description: report.description,
+  status: report.status,
+  actionTaken: report.actionTaken || 'none',
+  decisionReason: report.decisionReason,
+  handledByAI: Boolean(report.handledByAI),
+  createdAt: report.createdAt,
+  updatedAt: report.updatedAt,
+  handledAt: report.handledAt,
+  reporter: report.reporter ? {
+    id: report.reporter.id.toString(),
+    username: report.reporter.username,
+    nickname: report.reporter.nickname,
+  } : null,
+  post: report.post ? {
+    id: report.post.id.toString(),
+    title: report.post.title,
+    content: report.post.content,
+    status: report.post.status,
+    deletedAt: report.post.deletedAt,
+    author: report.post.author ? {
+      id: report.post.author.id.toString(),
+      username: report.post.author.username,
+      nickname: report.post.author.nickname,
+    } : null,
+  } : null,
+  comment: report.comment ? {
+    id: report.comment.id.toString(),
+    content: report.comment.content,
+    deletedAt: report.comment.deletedAt,
+    author: report.comment.author ? {
+      id: report.comment.author.id.toString(),
+      username: report.comment.author.username,
+      nickname: report.comment.author.nickname,
+    } : null,
+  } : null,
+});
 
 /**
  * 获取帖子列表
@@ -628,32 +711,7 @@ export const deleteComment = async (req: Request, res: Response, next: NextFunct
       throw new AppError('无权删除此评论', ErrorCodes.NO_PERMISSION, 403);
     }
 
-    const threadIds = await collectCommentThreadIds(comment.id);
-    const deletedAt = new Date();
-
-    const deletedCount = await prisma.$transaction(async (tx) => {
-      const deleteResult = await tx.communityComment.updateMany({
-        where: {
-          id: { in: threadIds },
-          deletedAt: null,
-        },
-        data: { deletedAt }
-      });
-
-      if (deleteResult.count > 0) {
-        const post = await tx.communityPost.findUnique({
-          where: { id: comment.postId },
-          select: { commentCount: true }
-        });
-
-        await tx.communityPost.update({
-          where: { id: comment.postId },
-          data: { commentCount: Math.max(0, (post?.commentCount ?? 0) - deleteResult.count) }
-        });
-      }
-
-      return deleteResult.count;
-    });
+    const { deletedCount } = await softDeleteCommentThread(comment.id);
 
     res.json(successResponse({ deletedCount }, '删除成功'));
   } catch (error) {
@@ -738,13 +796,274 @@ export const createReport = async (req: Request, res: Response, next: NextFuncti
       select: {
         id: true,
         targetType: true,
+        description: true,
         reason: true,
         status: true,
-        createdAt: true
+        createdAt: true,
+        post: {
+          select: {
+            title: true,
+            content: true,
+          },
+        },
+        comment: {
+          select: {
+            content: true,
+          },
+        },
       }
     });
 
-    res.status(201).json(successResponse(report, '举报已提交，我们会尽快处理'));
+    const reviewResult = await reviewCommunityReport({
+      targetType,
+      reason,
+      reportDescription: description?.trim() || null,
+      targetTitle: report.post?.title ?? null,
+      targetContent: report.post?.content ?? report.comment?.content ?? '',
+    });
+
+    let finalStatus = report.status;
+    let finalActionTaken: CommunityReportAction = 'none';
+    let finalDecisionReason: string | null = null;
+    let finalHandledAt: Date | null = null;
+    let finalHandledByAI = 0;
+
+    if (reviewResult.status !== 'pending') {
+      finalStatus = reviewResult.status;
+      finalActionTaken = reviewResult.actionTaken;
+      finalDecisionReason = reviewResult.decisionReason;
+      finalHandledAt = new Date();
+      finalHandledByAI = reviewResult.handledByAI ? 1 : 0;
+
+      await prisma.$transaction(async (tx) => {
+        const updateData: Prisma.CommunityReportUpdateInput = {
+          status: finalStatus,
+          actionTaken: finalActionTaken,
+          decisionReason: finalDecisionReason,
+          handledAt: finalHandledAt,
+          handledByAI: finalHandledByAI,
+        };
+
+        await tx.communityReport.update({
+          where: { id: report.id },
+          data: updateData,
+        });
+
+        if (reviewResult.status === 'reviewed' && reviewResult.actionTaken !== 'none') {
+          if (reviewResult.actionTaken === 'hide_post' && postId) {
+            await tx.communityPost.update({
+              where: { id: postId },
+              data: { status: 'hidden' },
+            });
+          } else if (reviewResult.actionTaken === 'delete_comment' && commentId) {
+            const threadIds = await collectCommentThreadIds(commentId);
+            const deletedAt = new Date();
+            const deleteResult = await tx.communityComment.updateMany({
+              where: {
+                id: { in: threadIds },
+                deletedAt: null,
+              },
+              data: { deletedAt },
+            });
+
+            if (deleteResult.count > 0 && postId) {
+              const postRecord = await tx.communityPost.findUnique({
+                where: { id: postId },
+                select: { commentCount: true },
+              });
+
+              await tx.communityPost.update({
+                where: { id: postId },
+                data: { commentCount: Math.max(0, (postRecord?.commentCount ?? 0) - deleteResult.count) },
+              });
+            }
+          }
+        }
+      });
+    }
+
+    res.status(201).json(successResponse({
+      id: report.id.toString(),
+      targetType: report.targetType,
+      reason: report.reason,
+      status: finalStatus,
+      actionTaken: finalActionTaken,
+      decisionReason: finalDecisionReason,
+      handledByAI: Boolean(finalHandledByAI),
+      handledAt: finalHandledAt,
+      createdAt: report.createdAt,
+    }, '举报已提交，我们会尽快处理'));
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * 管理端获取举报列表
+ */
+export const getReports = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { page = 1, pageSize = 20, status, targetType } = req.query;
+    const skip = (Number(page) - 1) * Number(pageSize);
+
+    const where: any = {};
+    if (status) {
+      where.status = status;
+    }
+    if (targetType) {
+      where.targetType = targetType;
+    }
+
+    const [reports, total] = await Promise.all([
+      prisma.communityReport.findMany({
+        where,
+        skip,
+        take: Number(pageSize),
+        orderBy: [
+          { status: 'asc' },
+          { createdAt: 'desc' },
+        ],
+        include: {
+          reporter: {
+            select: { id: true, username: true, nickname: true },
+          },
+          post: {
+            select: {
+              id: true,
+              title: true,
+              content: true,
+              status: true,
+              deletedAt: true,
+              author: {
+                select: { id: true, username: true, nickname: true },
+              },
+            },
+          },
+          comment: {
+            select: {
+              id: true,
+              content: true,
+              deletedAt: true,
+              author: {
+                select: { id: true, username: true, nickname: true },
+              },
+            },
+          },
+        },
+      }),
+      prisma.communityReport.count({ where }),
+    ]);
+
+    res.json(paginatedResponse(reports.map(formatCommunityReport), Number(page), Number(pageSize), total));
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * 管理端处理举报
+ */
+export const handleReport = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const { status, actionTaken = 'none', decisionReason } = req.body as {
+      status: 'reviewed' | 'rejected';
+      actionTaken?: CommunityReportAction;
+      decisionReason?: string;
+    };
+
+    const report = await prisma.communityReport.findUnique({
+      where: { id: BigInt(id) },
+      include: {
+        reporter: {
+          select: { id: true, username: true, nickname: true },
+        },
+        post: {
+          select: {
+            id: true,
+            title: true,
+            content: true,
+            status: true,
+            deletedAt: true,
+            author: {
+              select: { id: true, username: true, nickname: true },
+            },
+          },
+        },
+        comment: {
+          select: {
+            id: true,
+            content: true,
+            deletedAt: true,
+            author: {
+              select: { id: true, username: true, nickname: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!report) {
+      throw new AppError('举报记录不存在', ErrorCodes.ARTICLE_NOT_FOUND, 404);
+    }
+
+    const normalizedAction: CommunityReportAction = status === 'reviewed'
+      ? (actionTaken || (report.targetType === 'post' ? 'hide_post' : 'delete_comment'))
+      : 'none';
+    const handledAt = new Date();
+    const updateData: Prisma.CommunityReportUpdateInput = {
+      status,
+      actionTaken: normalizedAction,
+      decisionReason: decisionReason?.trim() || null,
+      handledAt,
+      handledByAI: 0,
+    };
+
+    await prisma.communityReport.update({
+      where: { id: report.id },
+      data: updateData,
+    });
+
+    if (status === 'reviewed' && normalizedAction !== 'none') {
+      if (normalizedAction === 'delete_comment' && report.commentId) {
+        await softDeleteCommentThread(report.commentId);
+      } else {
+        await applyCommunityReportAction(report.id, normalizedAction);
+      }
+    }
+
+    const updatedReport = await prisma.communityReport.findUnique({
+      where: { id: report.id },
+      include: {
+        reporter: {
+          select: { id: true, username: true, nickname: true },
+        },
+        post: {
+          select: {
+            id: true,
+            title: true,
+            content: true,
+            status: true,
+            deletedAt: true,
+            author: {
+              select: { id: true, username: true, nickname: true },
+            },
+          },
+        },
+        comment: {
+          select: {
+            id: true,
+            content: true,
+            deletedAt: true,
+            author: {
+              select: { id: true, username: true, nickname: true },
+            },
+          },
+        },
+      },
+    });
+
+    res.json(successResponse(updatedReport ? formatCommunityReport(updatedReport) : null, '处理成功'));
   } catch (error) {
     next(error);
   }

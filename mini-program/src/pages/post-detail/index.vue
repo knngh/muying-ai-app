@@ -193,7 +193,7 @@
     </view>
 
     <view v-if="showEditModal" class="modal-mask" @tap.self="closeEditModal">
-      <view class="modal-content">
+      <view class="modal-content" @tap.stop>
         <text class="modal-title">编辑帖子</text>
 
         <view class="form-item">
@@ -242,18 +242,16 @@
     </view>
 
     <view v-if="showReportModal" class="modal-mask" @tap.self="closeReportModal">
-      <view class="modal-content">
+      <view class="modal-content" @tap.stop>
         <text class="modal-title">{{ reportTarget ? `举报${reportTarget.label}` : '举报内容' }}</text>
 
         <view class="form-item">
           <text class="form-label">举报原因</text>
-          <picker :range="reportReasonOptions" range-key="label" :value="reportReasonIndex" @change="onReportReasonChange">
-            <view class="form-picker">
-              <text :class="reportForm.reason ? 'form-picker-text' : 'placeholder-text'">
-                {{ selectedReportReasonLabel }}
-              </text>
-            </view>
-          </picker>
+          <view class="form-picker" @tap="openReportReasonSelector">
+            <text :class="reportForm.reason ? 'form-picker-text' : 'placeholder-text'">
+              {{ selectedReportReasonLabel }}
+            </text>
+          </view>
         </view>
 
         <view class="form-item">
@@ -271,7 +269,7 @@
             <text class="modal-btn-text">取消</text>
           </view>
           <view class="modal-btn modal-btn--confirm" @tap="submitReport">
-            <text class="modal-btn-text modal-btn-text--white">提交举报</text>
+            <text class="modal-btn-text modal-btn-text--white">{{ reportSubmitting ? '提交中...' : '提交举报' }}</text>
           </view>
         </view>
       </view>
@@ -298,6 +296,7 @@ const commentPagination = reactive({ page: 1, pageSize: 20, total: 0, totalPages
 const currentUserId = ref('')
 const showEditModal = ref(false)
 const showReportModal = ref(false)
+const reportSubmitting = ref(false)
 const postForm = reactive({ title: '', content: '', categoryId: '', isAnonymous: false })
 const reportForm = reactive({ reason: '', description: '' })
 const reportTarget = ref<{ targetType: 'post' | 'comment'; targetId: number; label: string } | null>(null)
@@ -329,13 +328,9 @@ const selectedCategoryIndex = computed(() => {
 const selectedCategoryLabel = computed(() => {
   return categoryOptions.value[selectedCategoryIndex.value]?.name || '不分类'
 })
-const reportReasonIndex = computed(() => {
-  const index = reportReasonOptions.findIndex((item) => item.value === reportForm.reason)
-  return index >= 0 ? index : 0
-})
 const selectedReportReasonLabel = computed(() => {
   if (!reportForm.reason) return '请选择原因'
-  return reportReasonOptions[reportReasonIndex.value]?.label || '请选择原因'
+  return reportReasonOptions.find((item) => item.value === reportForm.reason)?.label || '请选择原因'
 })
 
 const ensureLogin = () => {
@@ -522,9 +517,43 @@ const onAnonymousChange = (e: any) => {
   postForm.isAnonymous = Boolean(e?.detail?.value)
 }
 
-const onReportReasonChange = (e: { detail: { value: number | string } }) => {
-  const target = reportReasonOptions[Number(e.detail.value)]
-  reportForm.reason = target?.value || ''
+const openReportReasonSelector = () => {
+  uni.showActionSheet({
+    itemList: reportReasonOptions.map((item) => item.label),
+    success: (res) => {
+      const target = reportReasonOptions[res.tapIndex]
+      reportForm.reason = target?.value || ''
+    },
+  })
+}
+
+const getErrorMessage = (error: unknown, fallback: string) => {
+  return error instanceof Error && error.message ? error.message : fallback
+}
+
+const isDuplicateReportError = (message: string) => {
+  return message.includes('已经提交过该举报') || message.includes('正在处理')
+}
+
+const getReportSuccessMessage = (result: {
+  status: 'pending' | 'reviewed' | 'rejected'
+  actionTaken: 'none' | 'hide_post' | 'delete_comment'
+}) => {
+  if (result.status === 'reviewed') {
+    if (result.actionTaken === 'hide_post') {
+      return '举报成功，系统已自动隐藏该帖子'
+    }
+    if (result.actionTaken === 'delete_comment') {
+      return '举报成功，系统已自动处理该评论'
+    }
+    return '举报成功，系统已完成审核'
+  }
+
+  if (result.status === 'rejected') {
+    return '举报已提交，系统判定暂不处理'
+  }
+
+  return '举报已提交，已进入人工复核'
 }
 
 const submitPostUpdate = async () => {
@@ -555,22 +584,40 @@ const submitPostUpdate = async () => {
 
 const submitReport = async () => {
   if (!reportTarget.value) return
+  if (reportSubmitting.value) return
   if (!reportForm.reason) {
     uni.showToast({ title: '请选择举报原因', icon: 'none' })
     return
   }
 
   try {
-    await communityApi.createReport({
+    reportSubmitting.value = true
+    const result = await communityApi.createReport({
       targetType: reportTarget.value.targetType,
       targetId: reportTarget.value.targetId,
       reason: reportForm.reason as 'spam' | 'abuse' | 'misinformation' | 'privacy' | 'illegal' | 'other',
       description: reportForm.description.trim() || undefined,
     })
     closeReportModal()
-    uni.showToast({ title: '举报已提交', icon: 'success' })
-  } catch (_err) {
-    uni.showToast({ title: '举报失败', icon: 'none' })
+    uni.showToast({ title: getReportSuccessMessage(result), icon: 'none' })
+    if (result.status === 'reviewed' && result.actionTaken === 'hide_post') {
+      setTimeout(() => {
+        uni.navigateBack()
+      }, 800)
+    } else if (result.status === 'reviewed' && result.actionTaken === 'delete_comment') {
+      fetchPost()
+      fetchComments()
+    }
+  } catch (error) {
+    const message = getErrorMessage(error, '举报失败')
+    if (isDuplicateReportError(message)) {
+      closeReportModal()
+      uni.showToast({ title: '该内容已举报，等待处理', icon: 'none' })
+      return
+    }
+    uni.showToast({ title: message, icon: 'none' })
+  } finally {
+    reportSubmitting.value = false
   }
 }
 

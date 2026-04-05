@@ -179,11 +179,13 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { onShow } from '@dcloudio/uni-app'
+import { onHide, onPullDownRefresh, onShow, onUnload } from '@dcloudio/uni-app'
 import { communityApi } from '@/api/community'
 import type { CommunityPost } from '@/api/community'
 import { categoryApi, type Category } from '@/api/modules'
 import dayjs from 'dayjs'
+
+const AUTO_REFRESH_INTERVAL_MS = 30 * 1000
 
 const sortOptions = [
   { label: '最新', value: 'latest' },
@@ -194,6 +196,7 @@ const sortOptions = [
 const keyword = ref('')
 const sortIndex = ref(0)
 const loading = ref(false)
+const isFetching = ref(false)
 const posts = ref<CommunityPost[]>([])
 const categories = ref<Array<Pick<Category, 'id' | 'name'>>>([])
 const pagination = reactive({ page: 1, pageSize: 10, total: 0, totalPages: 0 })
@@ -202,6 +205,9 @@ const editingPostId = ref<number | null>(null)
 const currentUserId = ref('')
 const filterCategoryId = ref('')
 const postForm = reactive({ title: '', content: '', categoryId: '', isAnonymous: false })
+const hasLoadedOnce = ref(false)
+
+let autoRefreshTimer: ReturnType<typeof setInterval> | null = null
 
 const categoryOptions = computed(() => [{ id: '', name: '不分类' }, ...categories.value])
 const filterCategoryOptions = computed(() => [{ id: '', name: '全部分类' }, ...categories.value])
@@ -222,6 +228,15 @@ const selectedFilterCategoryLabel = computed(() => {
 const isEditing = computed(() => editingPostId.value !== null)
 const modalTitle = computed(() => (isEditing.value ? '编辑帖子' : '发布帖子'))
 const submitButtonText = computed(() => (isEditing.value ? '保存修改' : '发布'))
+const shouldAutoRefresh = computed(() => {
+  return (
+    !showPostModal.value
+    && pagination.page === 1
+    && !keyword.value.trim()
+    && !filterCategoryId.value
+    && sortOptions[sortIndex.value].value === 'latest'
+  )
+})
 
 const formatDate = (date: string) => dayjs(date).format('YYYY-MM-DD HH:mm')
 
@@ -252,8 +267,27 @@ const fetchCategories = async () => {
   }
 }
 
-const fetchPosts = async (options?: { page?: number; keyword?: string }) => {
-  loading.value = true
+const stopAutoRefresh = () => {
+  if (autoRefreshTimer) {
+    clearInterval(autoRefreshTimer)
+    autoRefreshTimer = null
+  }
+}
+
+const fetchPosts = async (options?: { page?: number; keyword?: string; silent?: boolean; fromPullDown?: boolean }) => {
+  if (isFetching.value) {
+    if (options?.fromPullDown) {
+      uni.stopPullDownRefresh()
+    }
+    return
+  }
+
+  const silent = Boolean(options?.silent)
+  isFetching.value = true
+  if (!silent) {
+    loading.value = true
+  }
+
   try {
     const params: Record<string, unknown> = {
       page: options?.page ?? pagination.page,
@@ -275,11 +309,32 @@ const fetchPosts = async (options?: { page?: number; keyword?: string }) => {
       pagination.total = res.pagination.total
       pagination.totalPages = res.pagination.totalPages
     }
+    hasLoadedOnce.value = true
   } catch (_err) {
-    uni.showToast({ title: '加载失败', icon: 'none' })
+    if (!silent) {
+      uni.showToast({ title: '加载失败', icon: 'none' })
+    }
   } finally {
-    loading.value = false
+    isFetching.value = false
+    if (!silent) {
+      loading.value = false
+    }
+    if (options?.fromPullDown) {
+      uni.stopPullDownRefresh()
+    }
   }
+}
+
+const refreshFeedSilently = async () => {
+  if (!shouldAutoRefresh.value) return
+  await fetchPosts({ page: 1, silent: true })
+}
+
+const startAutoRefresh = () => {
+  stopAutoRefresh()
+  autoRefreshTimer = setInterval(() => {
+    void refreshFeedSilently()
+  }, AUTO_REFRESH_INTERVAL_MS)
 }
 
 const onSearch = () => {
@@ -433,12 +488,25 @@ const submitPost = async () => {
 onMounted(() => {
   syncCurrentUserId()
   fetchCategories()
-  fetchPosts()
 })
 
 onShow(() => {
   syncCurrentUserId()
-  fetchPosts()
+  startAutoRefresh()
+  void fetchPosts({ page: pagination.page, silent: hasLoadedOnce.value })
+})
+
+onHide(() => {
+  stopAutoRefresh()
+})
+
+onUnload(() => {
+  stopAutoRefresh()
+})
+
+onPullDownRefresh(() => {
+  pagination.page = 1
+  void fetchPosts({ page: 1, silent: true, fromPullDown: true })
 })
 </script>
 

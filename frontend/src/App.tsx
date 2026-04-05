@@ -12,6 +12,7 @@ const Profile = lazy(() => import('./pages/Profile').then((module) => ({ default
 const Chat = lazy(() => import('./pages/Chat').then((module) => ({ default: module.Chat })))
 const Community = lazy(() => import('./pages/Community').then((module) => ({ default: module.Community })))
 const PostDetail = lazy(() => import('./pages/Community/PostDetail').then((module) => ({ default: module.PostDetail })))
+const CommunityReports = lazy(() => import('./pages/Community/Reports').then((module) => ({ default: module.CommunityReports })))
 const Login = lazy(() => import('./pages/Login').then((module) => ({ default: module.Login })))
 
 // 需要登录的路由守卫
@@ -51,6 +52,7 @@ function App() {
 
             {/* 需要登录的页面 */}
             <Route element={<ProtectedRoute />}>
+              <Route path="community/reports" element={<CommunityReports />} />
               <Route path="calendar" element={<Calendar />} />
               <Route path="profile" element={<Profile />} />
             </Route>

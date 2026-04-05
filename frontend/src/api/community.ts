@@ -56,6 +56,47 @@ export interface CommunityReportPayload {
   description?: string
 }
 
+export interface CommunityReportItem {
+  id: string
+  targetType: 'post' | 'comment'
+  reason: string
+  description?: string
+  status: 'pending' | 'reviewed' | 'rejected'
+  actionTaken: 'none' | 'hide_post' | 'delete_comment'
+  decisionReason?: string
+  handledByAI: boolean
+  createdAt: string
+  updatedAt: string
+  handledAt?: string
+  reporter?: {
+    id: string
+    username: string
+    nickname?: string
+  } | null
+  post?: {
+    id: string
+    title: string
+    content: string
+    status: string
+    deletedAt?: string | null
+    author?: {
+      id: string
+      username: string
+      nickname?: string
+    } | null
+  } | null
+  comment?: {
+    id: string
+    content: string
+    deletedAt?: string | null
+    author?: {
+      id: string
+      username: string
+      nickname?: string
+    } | null
+  } | null
+}
+
 interface PaginationMeta {
   page: number
   pageSize: number
@@ -70,6 +111,11 @@ interface PaginatedPosts {
 
 interface PaginatedComments {
   list: CommunityComment[]
+  pagination: PaginationMeta
+}
+
+interface PaginatedReports {
+  list: CommunityReportItem[]
   pagination: PaginationMeta
 }
 
@@ -155,10 +201,30 @@ export const communityApi = {
 
   // 举报帖子或评论
   createReport: (data: CommunityReportPayload) =>
-    api.post<{ id: string; status: string }>('/community/reports', {
+    api.post<{
+      id: string
+      status: 'pending' | 'reviewed' | 'rejected'
+      actionTaken: 'none' | 'hide_post' | 'delete_comment'
+      decisionReason?: string
+      handledByAI: boolean
+      handledAt?: string
+    }>('/community/reports', {
       targetType: data.targetType,
       targetId: String(data.targetId),
       reason: data.reason,
       description: data.description,
     }),
+
+  getReports: (params?: {
+    page?: number
+    pageSize?: number
+    status?: 'pending' | 'reviewed' | 'rejected'
+    targetType?: 'post' | 'comment'
+  }) => api.get<PaginatedReports>('/community/reports', { params }),
+
+  handleReport: (id: string, data: {
+    status: 'reviewed' | 'rejected'
+    actionTaken?: 'none' | 'hide_post' | 'delete_comment'
+    decisionReason?: string
+  }) => api.patch<CommunityReportItem>(`/community/reports/${id}`, data),
 }

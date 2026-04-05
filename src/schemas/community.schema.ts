@@ -34,8 +34,20 @@ export const createReportBody = z.object({
   description: z.string().max(500, '补充说明最多 500 字').optional(),
 });
 
+export const getReportsQuery = paginationQuery.extend({
+  status: z.enum(['pending', 'reviewed', 'rejected']).optional(),
+  targetType: z.enum(['post', 'comment']).optional(),
+});
+
+export const handleReportBody = z.object({
+  status: z.enum(['reviewed', 'rejected']),
+  actionTaken: z.enum(['none', 'hide_post', 'delete_comment']).optional(),
+  decisionReason: z.string().max(500, '处理说明最多 500 字').optional(),
+});
+
 export const postIdParam = idParam;
 export const commentIdParam = idParam;
+export const reportIdParam = idParam;
 export const postCommentsParam = z.object({
   postId: z.string().regex(/^\d+$/, '帖子 ID 格式无效'),
 });
