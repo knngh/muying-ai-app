@@ -3,9 +3,11 @@
   "version": "1.0.0",
   "description": "母婴AI助手小程序",
   "scripts": {
+    "dev:app": "uni -p app",
     "dev:mp-weixin": "uni -p mp-weixin",
     "dev:mp-alipay": "uni -p mp-alipay",
     "dev:h5": "uni",
+    "build:app": "uni build -p app",
     "build:mp-weixin": "uni build -p mp-weixin",
     "build:mp-alipay": "uni build -p mp-alipay",
     "build:h5": "uni build",
