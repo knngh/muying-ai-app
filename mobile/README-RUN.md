@@ -25,6 +25,32 @@
 - 安装 CocoaPods
 - 安装 iOS Simulator，或连接真机
 
+## macOS 推荐安装命令
+
+这台机器在 2026-04-06 已验证可直接安装下面这些依赖：
+
+```bash
+brew install openjdk@17 cocoapods watchman
+brew install --cask android-studio android-commandlinetools
+```
+
+Shell 环境变量建议补到 `~/.zshrc`：
+
+```bash
+export JAVA_HOME="/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home"
+export PATH="/opt/homebrew/opt/openjdk@17/bin:$PATH"
+export ANDROID_HOME="$HOME/Library/Android/sdk"
+export ANDROID_SDK_ROOT="$ANDROID_HOME"
+export PATH="/opt/homebrew/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
+```
+
+Android SDK 常用组件可用下面命令安装：
+
+```bash
+yes | sdkmanager --licenses
+sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" "emulator" "system-images;android-34;google_apis;arm64-v8a"
+```
+
 ## 安装依赖
 
 ```bash
@@ -69,16 +95,28 @@ npm run ios
 - React Native CLI 可以识别项目
 - JS / TS 层可通过编译检查
 - 原生项目目录存在且被 `react-native config` 正常识别
+- 已安装 `openjdk@17`、`cocoapods`、`watchman`
+- 已安装 `Android Studio`、`android-commandlinetools`
+- 已安装 Android `platform-tools`、`build-tools;34.0.0`、`platforms;android-34`、`emulator`、`system-images;android-34;google_apis;arm64-v8a`
 
 但当前系统仍缺这些本机工具：
 
-- Android Studio
-- Android SDK
-- Java 17
-- CocoaPods
 - 可用的 Xcode / iOS SDK
 
-所以现在项目结构已经具备预览条件，但这台机器的原生运行环境还没配齐，直接执行 `run-android` / `run-ios` 仍会被系统依赖卡住。
+所以现在 Android 侧依赖已基本齐备，iOS 仍会被完整 `Xcode.app` 缺失卡住。
+
+## Android 模拟器补充
+
+- 如果 `avdmanager` 在本机上无法正常创建 AVD，直接打开 Android Studio。
+- 进入 `More Actions` -> `Virtual Device Manager`。
+- 新建一个 `Pixel 8` 或相近机型。
+- 系统镜像选择 `Android 14 / API 34 / Google APIs / ARM64`。
+- 创建后可执行：
+
+```bash
+emulator -list-avds
+emulator @<你的AVD名称>
+```
 
 ## 当前正式标识
 
