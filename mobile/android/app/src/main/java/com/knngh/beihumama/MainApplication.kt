@@ -1,4 +1,4 @@
-package com.muyingaiappshell2
+package com.knngh.beihumama
 
 import android.app.Application
 import com.facebook.react.PackageList

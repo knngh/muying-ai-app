@@ -74,16 +74,15 @@ npm run ios
 
 - Android Studio
 - Android SDK
+- Java 17
 - CocoaPods
-- iOS SDK
-- Java
+- 可用的 Xcode / iOS SDK
 
 所以现在项目结构已经具备预览条件，但这台机器的原生运行环境还没配齐，直接执行 `run-android` / `run-ios` 仍会被系统依赖卡住。
 
-## 备注
+## 当前正式标识
 
-- 当前生成的原生项目包名/工程名来自临时 RN 壳：
-  - Android `applicationId`: `com.muyingaiappshell2`
-  - iOS Xcode 工程名: `MuyingAiAppShell2`
-- 这不影响本地预览。
-- 如果后续要正式打包上架，建议统一重命名为正式 App 标识。
+- React Native 模块名: `BeihuMama`
+- Android `applicationId`: `com.knngh.beihumama`
+- iOS Bundle Identifier: `com.knngh.beihumama`
+- iOS Xcode 工程名: `BeihuMama`

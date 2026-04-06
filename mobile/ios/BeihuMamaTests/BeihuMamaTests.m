@@ -7,11 +7,11 @@
 #define TIMEOUT_SECONDS 600
 #define TEXT_TO_LOOK_FOR @"Welcome to React"
 
-@interface MuyingAiAppShell2Tests : XCTestCase
+@interface BeihuMamaTests : XCTestCase
 
 @end
 
-@implementation MuyingAiAppShell2Tests
+@implementation BeihuMamaTests
 
 - (BOOL)findSubviewInView:(UIView *)view matching:(BOOL (^)(UIView *view))test
 {
