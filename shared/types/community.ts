@@ -13,6 +13,7 @@ export interface CommunityPost {
     username: string
     nickname?: string
     avatar?: string
+    isVerifiedMember?: boolean
   }
   isAnonymous: boolean
   isPinned: boolean
@@ -36,6 +37,7 @@ export interface CommunityComment {
     username: string
     nickname?: string
     avatar?: string
+    isVerifiedMember?: boolean
   }
   content: string
   parentId?: number

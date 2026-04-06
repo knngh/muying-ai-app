@@ -1,7 +1,34 @@
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+import dayjs from 'dayjs';
 
 const prisma = new PrismaClient();
+
+async function seedDailyQuota(userId: bigint, quotaDate: Date, aiUsed: number, aiLimit: number) {
+  await prisma.$executeRaw`
+    INSERT INTO user_daily_quotas (userId, quotaDate, aiUsed, aiLimit, createdAt, updatedAt)
+    VALUES (${userId}, ${quotaDate}, ${aiUsed}, ${aiLimit}, NOW(), NOW())
+    ON DUPLICATE KEY UPDATE
+      aiUsed = VALUES(aiUsed),
+      aiLimit = VALUES(aiLimit),
+      updatedAt = NOW()
+  `;
+}
+
+async function seedWeeklyReport(
+  userId: bigint,
+  weekStart: Date,
+  stageInfo: string,
+  content: { title: string; highlights: string[] }
+) {
+  await prisma.$executeRaw`
+    INSERT INTO ai_weekly_reports (userId, weekStart, stageInfo, content, createdAt)
+    VALUES (${userId}, ${weekStart}, ${stageInfo}, CAST(${JSON.stringify(content)} AS JSON), NOW())
+    ON DUPLICATE KEY UPDATE
+      stageInfo = VALUES(stageInfo),
+      content = VALUES(content)
+  `;
+}
 
 async function main() {
   console.log('🌱 开始种子数据...');
@@ -346,15 +373,89 @@ async function main() {
   ];
 
   for (const vaccine of vaccines) {
-    await prisma.vaccine.upsert({
-      where: { name: vaccine.name },
-      update: {},
-      create: vaccine
+    const existingVaccine = await prisma.vaccine.findFirst({
+      where: { name: vaccine.name }
+    });
+
+    if (existingVaccine) {
+      await prisma.vaccine.update({
+        where: { id: existingVaccine.id },
+        data: vaccine
+      });
+    } else {
+      await prisma.vaccine.create({
+        data: vaccine
+      });
+    }
+  }
+
+  // ============================================
+  // 6. 创建会员套餐
+  // ============================================
+  console.log('💎 创建会员套餐...');
+
+  const subscriptionPlans = [
+    {
+      code: 'monthly',
+      name: '连续包月',
+      price: 19.9,
+      originalPrice: 29.9,
+      durationDays: 30,
+      description: '适合先体验 AI 无限问答和会员周报。',
+      features: ['ai_unlimited', 'continuous_chat', 'weekly_report', 'stage_circle'],
+      sortOrder: 1,
+    },
+    {
+      code: 'quarterly',
+      name: '季度会员',
+      price: 49.9,
+      originalPrice: 59.7,
+      durationDays: 90,
+      description: '适合孕中期到产后连续使用。',
+      features: ['ai_unlimited', 'continuous_chat', 'weekly_report', 'stage_circle', 'growth_export'],
+      sortOrder: 2,
+    },
+    {
+      code: 'yearly',
+      name: '年度会员',
+      price: 148,
+      originalPrice: 238.8,
+      durationDays: 365,
+      description: '覆盖备孕、孕期、产后完整周期。',
+      features: ['ai_unlimited', 'continuous_chat', 'weekly_report', 'growth_export', 'stage_circle', 'ad_free'],
+      sortOrder: 3,
+    }
+  ];
+
+  for (const plan of subscriptionPlans) {
+    await prisma.subscriptionPlan.upsert({
+      where: { code: plan.code },
+      update: {
+        name: plan.name,
+        price: plan.price,
+        originalPrice: plan.originalPrice,
+        durationDays: plan.durationDays,
+        description: plan.description,
+        features: plan.features,
+        sortOrder: plan.sortOrder,
+        isActive: 1,
+      },
+      create: {
+        name: plan.name,
+        code: plan.code,
+        price: plan.price,
+        originalPrice: plan.originalPrice,
+        durationDays: plan.durationDays,
+        description: plan.description,
+        features: plan.features,
+        sortOrder: plan.sortOrder,
+        isActive: 1,
+      }
     });
   }
 
   // ============================================
-  // 6. 创建测试用户
+  // 7. 创建测试用户
   // ============================================
   console.log('👤 创建测试用户...');
 
@@ -362,20 +463,32 @@ async function main() {
 
   await prisma.user.upsert({
     where: { username: 'testuser' },
-    update: {},
+    update: {
+      passwordHash,
+      nickname: '测试用户',
+      pregnancyStatus: 2,
+      dueDate: dayjs().add(16, 'week').toDate(),
+      status: 1,
+    },
     create: {
       username: 'testuser',
       passwordHash,
       nickname: '测试用户',
       email: 'test@example.com',
       phone: '13800138000',
+      pregnancyStatus: 2,
+      dueDate: dayjs().add(16, 'week').toDate(),
       status: 1
     }
   });
 
   await prisma.user.upsert({
     where: { username: 'admin' },
-    update: {},
+    update: {
+      passwordHash,
+      nickname: '管理员',
+      status: 1,
+    },
     create: {
       username: 'admin',
       passwordHash,
@@ -383,6 +496,207 @@ async function main() {
       email: 'admin@example.com',
       status: 1
     }
+  });
+
+  await prisma.user.upsert({
+    where: { username: 'demo_free_user' },
+    update: {
+      passwordHash,
+      nickname: '免费演示用户',
+      pregnancyStatus: 2,
+      dueDate: dayjs().add(24, 'week').toDate(),
+      status: 1,
+    },
+    create: {
+      username: 'demo_free_user',
+      passwordHash,
+      nickname: '免费演示用户',
+      pregnancyStatus: 2,
+      dueDate: dayjs().add(24, 'week').toDate(),
+      status: 1,
+    }
+  });
+
+  await prisma.user.upsert({
+    where: { username: 'demo_vip_user' },
+    update: {
+      passwordHash,
+      nickname: '会员演示用户',
+      pregnancyStatus: 2,
+      dueDate: dayjs().add(16, 'week').toDate(),
+      status: 1,
+    },
+    create: {
+      username: 'demo_vip_user',
+      passwordHash,
+      nickname: '会员演示用户',
+      pregnancyStatus: 2,
+      dueDate: dayjs().add(16, 'week').toDate(),
+      status: 1,
+    }
+  });
+
+  // ============================================
+  // 8. 为测试用户准备会员演示数据
+  // ============================================
+  console.log('🧪 准备会员演示数据...');
+
+  const testUser = await prisma.user.findUniqueOrThrow({
+    where: { username: 'testuser' },
+    select: { id: true, dueDate: true, pregnancyStatus: true },
+  });
+
+  const demoFreeUser = await prisma.user.findUniqueOrThrow({
+    where: { username: 'demo_free_user' },
+    select: { id: true },
+  });
+
+  const demoVipUser = await prisma.user.findUniqueOrThrow({
+    where: { username: 'demo_vip_user' },
+    select: { id: true, dueDate: true, pregnancyStatus: true },
+  });
+
+  const quarterlyPlan = await prisma.subscriptionPlan.findUniqueOrThrow({
+    where: { code: 'quarterly' },
+    select: { id: true },
+  });
+
+  const activeSubscription = await prisma.subscription.findFirst({
+    where: {
+      userId: testUser.id,
+      status: 'active',
+    },
+    orderBy: { expireAt: 'desc' },
+  });
+
+  if (activeSubscription) {
+    await prisma.subscription.update({
+      where: { id: activeSubscription.id },
+      data: {
+        planId: quarterlyPlan.id,
+        expireAt: dayjs().add(90, 'day').toDate(),
+      },
+    });
+  } else {
+    await prisma.subscription.create({
+      data: {
+        userId: testUser.id,
+        planId: quarterlyPlan.id,
+        status: 'active',
+        startAt: new Date(),
+        expireAt: dayjs().add(90, 'day').toDate(),
+        autoRenew: 1,
+      },
+    });
+  }
+
+  await prisma.paymentOrder.upsert({
+    where: { orderNo: 'SEED-QUARTERLY-TESTUSER' },
+    update: {
+      status: 'paid',
+      payChannel: 'wechat',
+      amount: 49.9,
+      paidAt: new Date(),
+      planId: quarterlyPlan.id,
+      userId: testUser.id,
+    },
+    create: {
+      orderNo: 'SEED-QUARTERLY-TESTUSER',
+      userId: testUser.id,
+      planId: quarterlyPlan.id,
+      amount: 49.9,
+      payChannel: 'wechat',
+      status: 'paid',
+      tradeNo: 'SEED-TRADE-TESTUSER',
+      paidAt: new Date(),
+    },
+  });
+
+  const demoVipSubscription = await prisma.subscription.findFirst({
+    where: {
+      userId: demoVipUser.id,
+      status: 'active',
+    },
+    orderBy: { expireAt: 'desc' },
+  });
+
+  if (demoVipSubscription) {
+    await prisma.subscription.update({
+      where: { id: demoVipSubscription.id },
+      data: {
+        planId: quarterlyPlan.id,
+        expireAt: dayjs().add(90, 'day').toDate(),
+      },
+    });
+  } else {
+    await prisma.subscription.create({
+      data: {
+        userId: demoVipUser.id,
+        planId: quarterlyPlan.id,
+        status: 'active',
+        startAt: new Date(),
+        expireAt: dayjs().add(90, 'day').toDate(),
+        autoRenew: 1,
+      },
+    });
+  }
+
+  await prisma.paymentOrder.upsert({
+    where: { orderNo: 'SEED-QUARTERLY-DEMOVIP' },
+    update: {
+      status: 'paid',
+      payChannel: 'wechat',
+      amount: 49.9,
+      paidAt: new Date(),
+      planId: quarterlyPlan.id,
+      userId: demoVipUser.id,
+    },
+    create: {
+      orderNo: 'SEED-QUARTERLY-DEMOVIP',
+      userId: demoVipUser.id,
+      planId: quarterlyPlan.id,
+      amount: 49.9,
+      payChannel: 'wechat',
+      status: 'paid',
+      tradeNo: 'SEED-TRADE-DEMOVIP',
+      paidAt: new Date(),
+    },
+  });
+
+  const today = dayjs().startOf('day').toDate();
+  await prisma.aiWeeklyReport.deleteMany({
+    where: { userId: demoFreeUser.id },
+  });
+
+  await prisma.paymentOrder.deleteMany({
+    where: { userId: demoFreeUser.id },
+  });
+
+  await prisma.subscription.deleteMany({
+    where: { userId: demoFreeUser.id },
+  });
+
+  await seedDailyQuota(demoFreeUser.id, today, 0, 3);
+  await seedDailyQuota(testUser.id, today, 1, 9999);
+  await seedDailyQuota(demoVipUser.id, today, 0, 9999);
+
+  const weekStart = dayjs().startOf('week').add(1, 'day').startOf('day').toDate();
+  await seedWeeklyReport(testUser.id, weekStart, '孕 24 周', {
+    title: 'AI 个性化周报',
+    highlights: [
+      '本周重点留意下肢水肿和晚间睡姿。',
+      '饮食建议增加优质蛋白和铁摄入。',
+      '适合安排一次 20 分钟舒缓散步。',
+    ],
+  });
+
+  await seedWeeklyReport(demoVipUser.id, weekStart, '孕 24 周', {
+    title: 'AI 个性化周报',
+    highlights: [
+      '这周适合把关注点放在睡眠节律和轻运动上。',
+      '保持少量多餐和规律饮水，减少晚间负担。',
+      '建议完成 1 次日历打卡，方便后续周报持续跟踪。',
+    ],
   });
 
   // ============================================
@@ -396,6 +710,7 @@ async function main() {
   const vaccineCount = await prisma.vaccine.count();
   const userCount = await prisma.user.count();
   const authorCount = await prisma.author.count();
+  const subscriptionPlanCount = await prisma.subscriptionPlan.count();
 
   console.log('\n📊 种子数据统计:');
   console.log(`  - 分类: ${categoryCount} 个`);
@@ -403,6 +718,7 @@ async function main() {
   console.log(`  - 疫苗: ${vaccineCount} 种`);
   console.log(`  - 用户: ${userCount} 个`);
   console.log(`  - 作者: ${authorCount} 位`);
+  console.log(`  - 会员套餐: ${subscriptionPlanCount} 个`);
 }
 
 main()

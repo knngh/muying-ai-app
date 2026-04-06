@@ -3,6 +3,7 @@
 
 import { config } from '../config'
 import type { SourceReference } from '../api/ai'
+import { logError } from './logger'
 
 type WsServerMessage = {
   type: 'chunk' | 'done' | 'error' | 'emergency'
@@ -37,7 +38,11 @@ class AIWebSocketManager {
   connect(token: string): void {
     if (this.connected) return
 
-    this.ws = new WebSocket(`${this.baseUrl}/ws/ai?token=${token}`)
+    this.ws = new WebSocket(
+      `${this.baseUrl}/ws/ai`,
+      undefined,
+      { headers: { Authorization: `Bearer ${token}` } } as any,
+    )
 
     this.ws.onopen = () => {
       this.connected = true
@@ -56,7 +61,7 @@ class AIWebSocketManager {
           this.listeners.delete(msg.requestId)
         }
       } catch (e) {
-        console.error('[WebSocket] Parse error:', e)
+        logError('WebSocket.parse', e)
       }
     }
 

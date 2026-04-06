@@ -18,6 +18,7 @@ import {
   hasHealthOrCareSignal,
   hasMaternalChildSignal,
 } from './ai-domain.service';
+import { consumeAiQuota } from './subscription.service';
 // WebSocket 消息协议类型（与 shared/types/ai.ts 保持一致）
 interface WsClientMessage {
   type: 'ask_stream' | 'chat_stream' | 'ping' | 'cancel'
@@ -140,6 +141,17 @@ function buildDisplayContext(context: unknown): string | undefined {
   return lines.length > 0 ? `用户补充背景：\n${lines.join('\n')}` : undefined;
 }
 
+function buildWsQuotaFingerprint(type: WsClientMessage['type'], payload: WsClientMessage['payload']): string {
+  return JSON.stringify({
+    type,
+    question: payload.question,
+    messages: payload.messages,
+    conversationId: payload.conversationId,
+    context: payload.context,
+    model: payload.model,
+  });
+}
+
 function shouldUseProfileHints(question: string, context?: unknown): boolean {
   const contextText = normalizeContextText(context);
   return !hasExplicitStageSignal(question)
@@ -241,9 +253,13 @@ export function setupWebSocket(server: HttpServer): WebSocketServer {
     maxPayload: 1024 * 1024,
     verifyClient: (info, callback) => {
       try {
-        // 从 URL query 中提取 token
+        const authHeader = info.req.headers.authorization;
+        const bearerToken = typeof authHeader === 'string' && authHeader.startsWith('Bearer ')
+          ? authHeader.slice('Bearer '.length).trim()
+          : '';
         const url = new URL(info.req.url || '', `http://${info.req.headers.host}`);
-        const token = url.searchParams.get('token');
+        const queryToken = url.searchParams.get('token') || '';
+        const token = bearerToken || queryToken;
 
         if (!token) {
           callback(false, 401, 'Unauthorized: No token provided');
@@ -429,6 +445,10 @@ async function handleAskStream(
     return;
   }
 
+  if (!(await ensureWsQuota(ws, requestId, buildWsQuotaFingerprint('ask_stream', payload)))) {
+    return;
+  }
+
   const profileContext = await buildUserProfileContext(ws.userId);
   const retrievalQuery = shouldUseProfileHints(question, context)
     ? [question, ...profileContext.retrievalHints].filter(Boolean).join(' ')
@@ -568,6 +588,10 @@ async function handleChatStream(
     return;
   }
 
+  if (lastMessage.role === 'user' && !(await ensureWsQuota(ws, requestId, buildWsQuotaFingerprint('chat_stream', payload)))) {
+    return;
+  }
+
   // 转换消息格式（过滤掉客户端提供的 system 角色消息）
   const formattedMessages = messages
     .filter((m) => m.role !== 'system')
@@ -665,4 +689,23 @@ function sendError(ws: WebSocket, requestId: string, error: string): void {
     requestId,
     data: { error },
   });
+}
+
+async function ensureWsQuota(
+  ws: AuthenticatedWebSocket,
+  requestId: string,
+  fingerprint?: string,
+): Promise<boolean> {
+  if (!ws.userId) {
+    sendError(ws, requestId, '未授权，请先登录');
+    return false;
+  }
+
+  const result = await consumeAiQuota(ws.userId, { requestId, fingerprint });
+  if (!result.allowed) {
+    sendError(ws, requestId, '今日免费 AI 额度已用完，请升级会员后继续咨询。');
+    return false;
+  }
+
+  return true;
 }

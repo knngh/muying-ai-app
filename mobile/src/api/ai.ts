@@ -4,7 +4,7 @@ import type { AIMessage, AskResponse, ChatResponse, ChatSession, SourceReference
 export type { AIMessage, AskResponse, ChatResponse, ChatSession, SourceReference }
 
 export const aiApi = {
-  ask: async (data: { question: string; context?: string; model?: string }) => {
+  ask: async (data: { question: string; context?: string; model?: string; clientRequestId?: string }) => {
     const res = await api.post<{
       answer: string
       sources?: AskResponse['sources']
@@ -15,6 +15,7 @@ export const aiApi = {
       question: data.question,
       context: data.context,
       model: data.model,
+      clientRequestId: data.clientRequestId,
     })
 
     return {
@@ -25,7 +26,13 @@ export const aiApi = {
       disclaimer: res.disclaimer,
     } as AskResponse
   },
-  chat: async (data: { messages: Array<{ role: string; content: string }>; conversationId?: string; context?: string; model?: string }) => {
+  chat: async (data: {
+    messages: Array<{ role: string; content: string }>
+    conversationId?: string
+    context?: string
+    model?: string
+    clientRequestId?: string
+  }) => {
     const res = await api.post<{
       message?: { content?: string }
       sources?: ChatResponse['sources']

@@ -1,6 +1,7 @@
 export const colors = {
   primary: '#1890ff',
   primaryLight: '#e6f7ff',
+  primaryDark: '#0f5fd7',
   pink: '#eb2f96',
   pinkLight: '#fff0f6',
   green: '#52c41a',
@@ -9,6 +10,10 @@ export const colors = {
   orangeLight: '#fff7e6',
   purple: '#722ed1',
   purpleLight: '#f9f0ff',
+  gold: '#d4a63a',
+  goldLight: '#fff7db',
+  ink: '#16213d',
+  inkSoft: '#32446b',
   red: '#ff4d4f',
   redLight: '#fff1f0',
   text: '#333333',

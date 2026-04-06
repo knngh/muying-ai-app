@@ -1,6 +1,6 @@
 import axios, { InternalAxiosRequestConfig } from 'axios'
-import AsyncStorage from '@react-native-async-storage/async-storage'
 import { config } from '../config'
+import { sessionStorage } from '../utils/storage'
 
 const BASE_URL = config.apiBaseUrl
 
@@ -8,7 +8,7 @@ const BASE_URL = config.apiBaseUrl
 let cachedToken: string | null = null
 
 export async function updateCachedToken(): Promise<void> {
-  cachedToken = await AsyncStorage.getItem('token')
+  cachedToken = await sessionStorage.getToken()
 }
 
 // 主实例
@@ -40,6 +40,12 @@ const processQueue = (error: unknown, token: string | null = null) => {
 let navigationReset: (() => void) | null = null
 export function setNavigationReset(fn: () => void) {
   navigationReset = fn
+}
+
+async function clearSessionAndReset() {
+  await sessionStorage.clear()
+  cachedToken = null
+  navigationReset?.()
 }
 
 // 请求拦截器
@@ -78,35 +84,44 @@ api.interceptors.response.use(
 
       originalRequest._retry = true
       isRefreshing = true
+      const currentToken = await sessionStorage.getToken()
 
-      const currentToken = await AsyncStorage.getItem('token')
-      if (currentToken) {
-        try {
-          const res = await refreshClient.post('/auth/refresh', null, {
-            headers: { Authorization: `Bearer ${currentToken}` },
-          })
-          const newToken = res.data?.data?.token
-          if (newToken) {
-            await AsyncStorage.setItem('token', newToken)
-            cachedToken = newToken
-            originalRequest.headers.Authorization = `Bearer ${newToken}`
-            processQueue(null, newToken)
-            return api(originalRequest)
-          }
-        } catch (refreshError) {
-          processQueue(refreshError, null)
-        } finally {
-          isRefreshing = false
+      try {
+        if (!currentToken) {
+          throw new Error('登录状态已失效，请重新登录')
         }
-      }
 
-      await AsyncStorage.removeItem('token')
-      cachedToken = null
-      navigationReset?.()
-      return Promise.reject(error)
+        const res = await refreshClient.post('/auth/refresh', null, {
+          headers: { Authorization: `Bearer ${currentToken}` },
+        })
+        const newToken = res.data?.data?.token
+        if (!newToken) {
+          throw new Error('登录状态已失效，请重新登录')
+        }
+
+        await sessionStorage.setToken(newToken)
+        cachedToken = newToken
+        originalRequest.headers.Authorization = `Bearer ${newToken}`
+        processQueue(null, newToken)
+        return api(originalRequest)
+      } catch (refreshError) {
+        processQueue(refreshError, null)
+        await clearSessionAndReset()
+        return Promise.reject(refreshError)
+      } finally {
+        isRefreshing = false
+      }
     }
 
-    return Promise.reject(error)
+    const apiError = new Error(error.response?.data?.message || error.message || '请求失败') as Error & {
+      status?: number
+      code?: number
+      data?: unknown
+    }
+    apiError.status = error.response?.status
+    apiError.code = error.response?.data?.code
+    apiError.data = error.response?.data?.data
+    return Promise.reject(apiError)
   },
 )
 

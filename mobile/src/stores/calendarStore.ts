@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { calendarApi } from '../api/modules'
 import type { CalendarEvent } from '../api/modules'
 import dayjs from 'dayjs'
+import { logError } from '../utils/logger'
 
 interface CalendarState {
   events: CalendarEvent[]
@@ -76,7 +77,7 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
       const updated = await calendarApi.completeEvent(id) as CalendarEvent
       set(state => ({ events: state.events.map(e => e.id === id ? updated : e) }))
     } catch (_e) {
-      console.error('标记完成失败:', _e)
+      logError('CalendarStore.completeEvent', _e)
     }
   },
 

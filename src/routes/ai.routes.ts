@@ -17,6 +17,8 @@ import { authMiddleware } from '../middlewares/auth.middleware';
 import { aiRateLimiter, queryRateLimiter, writeRateLimiter } from '../middlewares/rateLimiter.middleware';
 import { validate } from '../middlewares/validate.middleware';
 import { askQuestionBody, chatBody, feedbackBody } from '../schemas/ai.schema';
+import { quotaCheckMiddleware } from '../middlewares/quota.middleware';
+import { subscriptionContextMiddleware } from '../middlewares/subscription.middleware';
 
 const router = Router();
 
@@ -31,6 +33,7 @@ router.get('/knowledge/stats', queryRateLimiter, getKnowledgeBaseStats);
 
 // 以下路由需要认证
 router.use(authMiddleware);
+router.use(subscriptionContextMiddleware);
 
 // 对话历史
 router.get('/conversations', getConversations);
@@ -38,16 +41,16 @@ router.get('/conversations/:conversationId', getConversationHistory);
 router.delete('/conversations/:conversationId', deleteConversation);
 
 // 用户提问（非流式）
-router.post('/ask', aiRateLimiter, validate({ body: askQuestionBody }), askQuestion);
+router.post('/ask', aiRateLimiter, validate({ body: askQuestionBody }), quotaCheckMiddleware, askQuestion);
 
 // 用户提问（流式响应）
-router.post('/ask/stream', aiRateLimiter, validate({ body: askQuestionBody }), askQuestionStream);
+router.post('/ask/stream', aiRateLimiter, validate({ body: askQuestionBody }), quotaCheckMiddleware, askQuestionStream);
 
 // 多轮对话（非流式）
-router.post('/chat', aiRateLimiter, validate({ body: chatBody }), chat);
+router.post('/chat', aiRateLimiter, validate({ body: chatBody }), quotaCheckMiddleware, chat);
 
 // 多轮对话（流式响应）
-router.post('/chat/stream', aiRateLimiter, validate({ body: chatBody }), chatStream);
+router.post('/chat/stream', aiRateLimiter, validate({ body: chatBody }), quotaCheckMiddleware, chatStream);
 
 // 知识库检索
 router.get('/knowledge/search', aiRateLimiter, searchKnowledge);

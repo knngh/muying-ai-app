@@ -18,9 +18,11 @@ import {
   TextInput,
   ActivityIndicator,
 } from 'react-native-paper';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRoute, RouteProp } from '@react-navigation/native';
 import { communityApi } from '../api/community';
+import { useAppStore } from '../stores/appStore';
+import { logError } from '../utils/logger';
+import { getSafeRemoteImageSource } from '../utils/security';
 
 const THEME_PRIMARY = '#1890ff';
 
@@ -31,6 +33,7 @@ interface Author {
   nickname?: string;
   username?: string;
   avatar?: string;
+  isVerifiedMember?: boolean;
 }
 
 interface Post {
@@ -57,6 +60,7 @@ interface Comment {
 const PostDetailScreen: React.FC = () => {
   const route = useRoute<PostDetailRouteProp>();
   const { id } = route.params;
+  const isLoggedIn = useAppStore((state) => Boolean(state.token));
 
   const [post, setPost] = useState<Post | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
@@ -70,7 +74,7 @@ const PostDetailScreen: React.FC = () => {
       const res = await communityApi.getPostById(id);
       setPost(res as any);
     } catch (err) {
-      console.error('Failed to fetch post detail', err);
+      logError('PostDetailScreen.fetchPost', err);
     } finally {
       setLoading(false);
     }
@@ -81,7 +85,7 @@ const PostDetailScreen: React.FC = () => {
       const res = await communityApi.getComments(id);
       setComments(res?.list ?? []);
     } catch (err) {
-      console.error('Failed to fetch comments', err);
+      logError('PostDetailScreen.fetchComments', err);
     }
   }, [id]);
 
@@ -92,6 +96,10 @@ const PostDetailScreen: React.FC = () => {
 
   const handleLikeToggle = useCallback(async () => {
     if (!post) return;
+    if (!isLoggedIn) {
+      Alert.alert('提示', '请先登录后再点赞');
+      return;
+    }
     try {
       if (post.isLiked) {
         await communityApi.unlikePost(post.id);
@@ -110,13 +118,13 @@ const PostDetailScreen: React.FC = () => {
           : prev,
       );
     } catch (err) {
-      console.error('Like toggle failed', err);
+      logError('PostDetailScreen.handleLikeToggle', err);
+      Alert.alert('错误', '操作失败，请稍后重试');
     }
-  }, [post]);
+  }, [isLoggedIn, post]);
 
   const handleSubmitComment = useCallback(async () => {
-    const token = await AsyncStorage.getItem('token');
-    if (!token) {
+    if (!isLoggedIn) {
       Alert.alert('提示', '请先登录后再评论');
       return;
     }
@@ -137,7 +145,7 @@ const PostDetailScreen: React.FC = () => {
     } finally {
       setSubmitting(false);
     }
-  }, [commentText, id, fetchComments]);
+  }, [commentText, fetchComments, id, isLoggedIn]);
 
   if (loading) {
     return (
@@ -155,6 +163,8 @@ const PostDetailScreen: React.FC = () => {
     );
   }
 
+  const authorAvatarSource = getSafeRemoteImageSource(post.author?.avatar);
+
   return (
     <KeyboardAvoidingView
       style={styles.flex}
@@ -164,8 +174,8 @@ const PostDetailScreen: React.FC = () => {
         <Card style={styles.postCard}>
           <Card.Content>
             <View style={styles.authorRow}>
-              {post.author?.avatar ? (
-                <Avatar.Image size={40} source={{ uri: post.author.avatar }} />
+              {authorAvatarSource ? (
+                <Avatar.Image size={40} source={authorAvatarSource} />
               ) : (
                 <Avatar.Icon
                   size={40}
@@ -174,9 +184,16 @@ const PostDetailScreen: React.FC = () => {
                 />
               )}
               <View style={styles.authorInfo}>
-                <Text style={styles.authorName}>
-                  {post.author?.nickname ?? '匿名用户'}
-                </Text>
+                <View style={styles.authorNameRow}>
+                  <Text style={styles.authorName}>
+                    {post.author?.nickname ?? '匿名用户'}
+                  </Text>
+                  {post.author?.isVerifiedMember ? (
+                    <Chip compact style={styles.verifiedChip} textStyle={styles.verifiedChipText}>
+                      已验证妈妈
+                    </Chip>
+                  ) : null}
+                </View>
                 <Text style={styles.postDate}>{post.createdAt}</Text>
               </View>
             </View>
@@ -249,32 +266,43 @@ const PostDetailScreen: React.FC = () => {
           {comments.length === 0 ? (
             <Text style={styles.emptyText}>暂无评论，快来抢沙发吧</Text>
           ) : (
-            comments.map((comment) => (
-              <View key={comment.id} style={styles.commentItem}>
-                <View style={styles.commentAuthorRow}>
-                  {comment.author?.avatar ? (
-                    <Avatar.Image
-                      size={30}
-                      source={{ uri: comment.author.avatar }}
-                    />
-                  ) : (
-                    <Avatar.Icon
-                      size={30}
-                      icon="account"
-                      style={styles.avatarIcon}
-                    />
-                  )}
-                  <View style={styles.commentAuthorInfo}>
-                    <Text style={styles.commentAuthorName}>
-                      {comment.author?.nickname ?? '匿名用户'}
-                    </Text>
-                    <Text style={styles.commentDate}>{comment.createdAt}</Text>
+            comments.map((comment) => {
+              const commentAvatarSource = getSafeRemoteImageSource(comment.author?.avatar);
+
+              return (
+                <View key={comment.id} style={styles.commentItem}>
+                  <View style={styles.commentAuthorRow}>
+                    {commentAvatarSource ? (
+                      <Avatar.Image
+                        size={30}
+                        source={commentAvatarSource}
+                      />
+                    ) : (
+                      <Avatar.Icon
+                        size={30}
+                        icon="account"
+                        style={styles.avatarIcon}
+                      />
+                    )}
+                    <View style={styles.commentAuthorInfo}>
+                      <View style={styles.commentAuthorNameRow}>
+                        <Text style={styles.commentAuthorName}>
+                          {comment.author?.nickname ?? '匿名用户'}
+                        </Text>
+                        {comment.author?.isVerifiedMember ? (
+                          <Chip compact style={styles.commentVerifiedChip} textStyle={styles.commentVerifiedChipText}>
+                            已验证妈妈
+                          </Chip>
+                        ) : null}
+                      </View>
+                      <Text style={styles.commentDate}>{comment.createdAt}</Text>
+                    </View>
                   </View>
+                  <Text style={styles.commentContent}>{comment.content}</Text>
+                  <Divider style={styles.commentDivider} />
                 </View>
-                <Text style={styles.commentContent}>{comment.content}</Text>
-                <Divider style={styles.commentDivider} />
-              </View>
-            ))
+              );
+            })
           )}
         </View>
       </ScrollView>
@@ -311,10 +339,25 @@ const styles = StyleSheet.create({
   authorInfo: {
     marginLeft: 12,
   },
+  authorNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   authorName: {
     fontSize: 15,
     fontWeight: '600',
     color: '#333',
+  },
+  verifiedChip: {
+    backgroundColor: '#fff3e6',
+    height: 22,
+  },
+  verifiedChipText: {
+    color: '#d66a31',
+    fontSize: 10,
+    lineHeight: 13,
+    fontWeight: '700',
   },
   postDate: {
     fontSize: 12,
@@ -404,10 +447,25 @@ const styles = StyleSheet.create({
   commentAuthorInfo: {
     marginLeft: 10,
   },
+  commentAuthorNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   commentAuthorName: {
     fontSize: 13,
     fontWeight: '600',
     color: '#333',
+  },
+  commentVerifiedChip: {
+    backgroundColor: '#eef6ff',
+    height: 20,
+  },
+  commentVerifiedChipText: {
+    color: '#176db8',
+    fontSize: 9,
+    lineHeight: 12,
+    fontWeight: '700',
   },
   commentDate: {
     fontSize: 11,

@@ -6,6 +6,15 @@ import type {
 export type { Category, Tag, Article, CalendarEvent, User, PaginatedResponse }
 export type { PaginationMeta } from '../../../shared/types'
 
+function mapCalendarEventPayload(data: Partial<CalendarEvent>) {
+  return {
+    ...data,
+    eventTime: data.startTime,
+    reminderMinutes: data.reminderEnabled === false ? 0 : data.reminderMinutes ?? 30,
+    status: data.isCompleted !== undefined ? (data.isCompleted ? 1 : 0) : undefined,
+  }
+}
+
 export const categoryApi = {
   getAll: (params?: { parentId?: number }) => api.get<{ list: Category[] }>('/categories', { params }).then(res => (res as { list: Category[] }).list),
   getBySlug: (slug: string) => api.get<Category>(`/categories/${slug}`),
@@ -45,14 +54,8 @@ export const calendarApi = {
   getWeek: (params?: { date?: string }) => api.get('/calendar/week', { params }),
   getDay: (date: string) => api.get(`/calendar/day/${date}`),
   getEventTypes: () => api.get('/calendar/event-types'),
-  createEvent: (data: Partial<CalendarEvent>) => api.post<CalendarEvent>('/calendar/events', {
-    ...data,
-    eventTime: data.startTime,
-  }),
-  updateEvent: (id: number, data: Partial<CalendarEvent>) => api.put<CalendarEvent>(`/calendar/events/${id}`, {
-    ...data,
-    eventTime: data.startTime,
-  }),
+  createEvent: (data: Partial<CalendarEvent>) => api.post<CalendarEvent>('/calendar/events', mapCalendarEventPayload(data)),
+  updateEvent: (id: number, data: Partial<CalendarEvent>) => api.put<CalendarEvent>(`/calendar/events/${id}`, mapCalendarEventPayload(data)),
   deleteEvent: (id: number) => api.delete(`/calendar/events/${id}`),
   completeEvent: (id: number) => api.post<CalendarEvent>(`/calendar/events/${id}/complete`),
   dragEvent: (id: number, data: { newDate: string; newStartTime?: string }) => api.patch<CalendarEvent>(`/calendar/events/${id}/drag`, {

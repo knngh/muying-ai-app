@@ -15,6 +15,7 @@ import type { RouteProp } from '@react-navigation/native'
 import type { RootStackParamList } from '../navigation/AppNavigator'
 import { useKnowledgeStore } from '../stores/knowledgeStore'
 import { colors, spacing, fontSize, categoryColors } from '../theme'
+import { buildSafeArticleHtml, getSafeRemoteImageSource, shouldAllowWebViewNavigation } from '../utils/security'
 
 type DetailRouteProp = RouteProp<RootStackParamList, 'KnowledgeDetail'>
 
@@ -144,9 +145,9 @@ export default function KnowledgeDetailScreen() {
         </View>
 
         {/* Cover Image */}
-        {article.coverImage ? (
+        {getSafeRemoteImageSource(article.coverImage) ? (
           <Image
-            source={{ uri: article.coverImage }}
+            source={getSafeRemoteImageSource(article.coverImage)}
             style={styles.coverImage}
             resizeMode="cover"
           />
@@ -161,9 +162,16 @@ export default function KnowledgeDetailScreen() {
 
         {/* Content */}
         <WebView
-          source={{ html: `<html><head><meta name="viewport" content="width=device-width, initial-scale=1"><style>body{font-size:16px;line-height:1.8;color:#333;padding:0;margin:0}img{max-width:100%;height:auto}</style></head><body>${article.content || ''}</body></html>` }}
+          originWhitelist={['about:blank']}
+          source={{ html: buildSafeArticleHtml(article.content || '') }}
           style={{ flex: 1, minHeight: 300 }}
+          javaScriptEnabled={false}
+          domStorageEnabled={false}
+          allowFileAccess={false}
+          allowingReadAccessToURL={undefined}
+          mixedContentMode="never"
           scrollEnabled={false}
+          onShouldStartLoadWithRequest={(request) => shouldAllowWebViewNavigation(request.url)}
           onMessage={() => {}}
         />
       </ScrollView>

@@ -13,11 +13,20 @@
     "db:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
     "seed:community": "tsx src/scripts/seed-community.ts",
+    "ops:sync:prod": "bash scripts/prod-sync-backend.sh",
+    "ops:deploy:prod": "bash scripts/prod-deploy-backend.sh",
+    "ops:release:prod": "bash scripts/prod-release-backend.sh",
+    "ops:rollback:prod": "bash scripts/prod-rollback-backend.sh",
+    "ops:smoke:prod": "bash scripts/prod-smoke-backend.sh",
+    "ops:verify:payment-callback:prod": "bash scripts/prod-verify-payment-callback.sh",
     "import:knowledge": "tsx src/scripts/import-knowledge.ts",
     "import:content": "tsx src/scripts/import-content-questions.ts",
     "generate:answers": "tsx src/scripts/generate-answers.ts",
     "lint": "eslint src/**/*.ts",
-    "test": "jest"
+    "test": "jest",
+    "test:unit": "jest --runInBand tests/mvp-route-guards.test.ts tests/mvp-security-regressions.test.ts tests/analytics-service.test.ts tests/subscription-quota.test.ts tests/payment-callback-signature.test.ts",
+    "test:integration": "RUN_INTEGRATION_TESTS=true jest --runInBand tests/auth.test.ts tests/user-community.test.ts",
+    "ops:sign:payment-callback": "node --import tsx scripts/generate-payment-callback-signature.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.8.0",

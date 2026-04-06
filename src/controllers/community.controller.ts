@@ -12,6 +12,7 @@ const formatCommunityPost = (
     isLiked?: boolean;
     commentCount?: number;
     likeCount?: number;
+    isVerifiedMember?: boolean;
   } = {}
 ) => ({
   ...post,
@@ -24,7 +25,49 @@ const formatCommunityPost = (
   commentCount: options.commentCount ?? post.commentCount ?? 0,
   likeCount: options.likeCount ?? post.likeCount ?? 0,
   isLiked: options.isLiked ?? post.isLiked ?? false,
+  author: post.isAnonymous ? null : formatCommunityAuthor(post.author, options.isVerifiedMember ?? false),
 });
+
+const formatCommunityAuthor = (author: any, isVerifiedMember = false) => (
+  author
+    ? {
+      ...author,
+      id: author.id.toString(),
+      isVerifiedMember,
+    }
+    : null
+);
+
+const formatCommunityComment = (comment: any, verifiedMemberIds: Set<string>) => ({
+  ...comment,
+  id: comment.id.toString(),
+  postId: comment.postId.toString(),
+  authorId: comment.authorId.toString(),
+  parentId: comment.parentId?.toString() ?? null,
+  replyToId: comment.replyToId?.toString() ?? null,
+  author: formatCommunityAuthor(comment.author, verifiedMemberIds.has(comment.authorId.toString())),
+  replies: Array.isArray(comment.replies)
+    ? comment.replies.map((reply: any) => formatCommunityComment(reply, verifiedMemberIds))
+    : comment.replies,
+});
+
+const getVerifiedMemberUserIds = async (userIds: bigint[]): Promise<Set<string>> => {
+  if (userIds.length === 0) {
+    return new Set<string>();
+  }
+
+  const subscriptions = await prisma.subscription.findMany({
+    where: {
+      userId: { in: userIds },
+      status: 'active',
+      expireAt: { gt: new Date() },
+    },
+    select: { userId: true },
+    distinct: ['userId'],
+  });
+
+  return new Set(subscriptions.map((item) => item.userId.toString()));
+};
 
 const collectCommentThreadIds = async (rootId: bigint): Promise<bigint[]> => {
   const ids: bigint[] = [rootId];
@@ -218,12 +261,14 @@ export const getPosts = async (req: Request, res: Response, next: NextFunction) 
       })
       : [];
     const categoryNameMap = new Map(categories.map((item) => [item.id.toString(), item.name]));
+    const verifiedMemberIds = await getVerifiedMemberUserIds(posts.map((post) => post.authorId));
 
     const list = posts.map(post => formatCommunityPost(post, {
       categoryName: post.categoryId ? categoryNameMap.get(post.categoryId.toString()) : undefined,
       commentCount: (post as any)._count.comments,
       likeCount: (post as any)._count.likes,
       isLiked: likedPostIds.has(post.id.toString()),
+      isVerifiedMember: verifiedMemberIds.has(post.authorId.toString()),
     }));
 
     res.json(paginatedResponse(list, Number(page), Number(pageSize), total));
@@ -277,10 +322,12 @@ export const getPostById = async (req: Request, res: Response, next: NextFunctio
         select: { id: true, name: true },
       })
       : null;
+    const verifiedMemberIds = await getVerifiedMemberUserIds([post.authorId]);
 
     res.json(successResponse(formatCommunityPost(post, {
       categoryName: category?.name,
-      isLiked
+      isLiked,
+      isVerifiedMember: verifiedMemberIds.has(post.authorId.toString()),
     })));
   } catch (error) {
     next(error);
@@ -330,9 +377,11 @@ export const createPost = async (req: Request, res: Response, next: NextFunction
         select: { id: true, name: true },
       })
       : null;
+    const verifiedMemberIds = await getVerifiedMemberUserIds([post.authorId]);
 
     res.status(201).json(successResponse(formatCommunityPost(post, {
       categoryName: category?.name,
+      isVerifiedMember: verifiedMemberIds.has(post.authorId.toString()),
     }), '发布成功'));
   } catch (error) {
     next(error);
@@ -393,9 +442,11 @@ export const updatePost = async (req: Request, res: Response, next: NextFunction
         select: { id: true, name: true },
       })
       : null;
+    const verifiedMemberIds = await getVerifiedMemberUserIds([post.authorId]);
 
     res.json(successResponse(formatCommunityPost(post, {
       categoryName: category?.name,
+      isVerifiedMember: verifiedMemberIds.has(post.authorId.toString()),
     }), '更新成功'));
   } catch (error) {
     next(error);
@@ -540,10 +591,16 @@ export const getComments = async (req: Request, res: Response, next: NextFunctio
       })
     ]);
 
-    const list = comments.map(comment => ({
+    const authorIds = comments.flatMap((comment) => [
+      comment.authorId,
+      ...comment.replies.map((reply) => reply.authorId),
+    ]);
+    const verifiedMemberIds = await getVerifiedMemberUserIds(authorIds);
+
+    const list = comments.map(comment => formatCommunityComment({
       ...comment,
-      replyCount: (comment as any)._count.replies
-    }));
+      replyCount: (comment as any)._count.replies,
+    }, verifiedMemberIds));
 
     res.json(paginatedResponse(list, Number(page), Number(pageSize), total));
   } catch (error) {
@@ -593,7 +650,14 @@ export const getReplies = async (req: Request, res: Response, next: NextFunction
       })
     ]);
 
-    res.json(paginatedResponse(replies, Number(page), Number(pageSize), total));
+    const verifiedMemberIds = await getVerifiedMemberUserIds(replies.map((reply) => reply.authorId));
+
+    res.json(paginatedResponse(
+      replies.map((reply) => formatCommunityComment(reply, verifiedMemberIds)),
+      Number(page),
+      Number(pageSize),
+      total,
+    ));
   } catch (error) {
     next(error);
   }
@@ -685,7 +749,9 @@ export const createComment = async (req: Request, res: Response, next: NextFunct
       data: { commentCount: { increment: 1 } }
     });
 
-    res.status(201).json(successResponse(comment, '评论成功'));
+    const verifiedMemberIds = await getVerifiedMemberUserIds([comment.authorId]);
+
+    res.status(201).json(successResponse(formatCommunityComment(comment, verifiedMemberIds), '评论成功'));
   } catch (error) {
     next(error);
   }

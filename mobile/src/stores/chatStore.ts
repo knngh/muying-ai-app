@@ -3,7 +3,8 @@ import { v4 as uuidv4 } from '../utils'
 import type { AIMessage } from '../api/ai'
 import { aiApi, getEmergencyWarning } from '../api/ai'
 import { wsManager } from '../utils/websocket'
-import AsyncStorage from '@react-native-async-storage/async-storage'
+import { sessionStorage } from '../utils/storage'
+import { useMembershipStore } from './membershipStore'
 
 interface ChatState {
   messages: AIMessage[]
@@ -92,7 +93,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const requestId = uuidv4()
       set({ streamingContent: '' })
       const history = get().messages.map(m => ({ role: m.role, content: m.content }))
-      const token = await AsyncStorage.getItem('token')
+      const token = await sessionStorage.getToken()
 
       let wsResolved = false
       let httpFallbackFired = false
@@ -119,6 +120,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             streamingContent: '',
             loading: false,
           }))
+          void useMembershipStore.getState().ensureFreshQuota()
         } else if (msg.type === 'emergency') {
           wsResolved = true
           const emMsg: AIMessage = {
@@ -134,9 +136,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
             streamingContent: '',
             loading: false,
           }))
+          void useMembershipStore.getState().ensureFreshQuota()
         } else if (msg.type === 'error') {
           wsResolved = true
           set({ error: msg.data.error || '服务暂时不可用', loading: false })
+          if ((msg.data.error || '').includes('额度已用完')) {
+            void useMembershipStore.getState().ensureFreshQuota()
+          }
         }
       }, token || undefined)
 
@@ -149,6 +155,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             const response = await aiApi.chat({
               messages: get().messages.map(m => ({ role: m.role, content: m.content })),
               conversationId: get().conversationId || undefined,
+              clientRequestId: requestId,
             }) as any
             const assistantMessage: AIMessage = {
               id: uuidv4(),
@@ -163,9 +170,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
               conversationId: response.conversationId || state.conversationId,
               loading: false,
             }))
+            void useMembershipStore.getState().ensureFreshQuota()
           } catch (error: unknown) {
             const err = error as { message?: string }
             set({ error: err.message || '发送消息失败', loading: false })
+            if ((err.message || '').includes('额度已用完')) {
+              void useMembershipStore.getState().ensureFreshQuota()
+            }
           }
         }
       }, 5000)

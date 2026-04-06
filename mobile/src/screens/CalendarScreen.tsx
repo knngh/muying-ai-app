@@ -1,286 +1,280 @@
-import React, { useState, useCallback, useMemo } from 'react';
-import {
-  View,
-  ScrollView,
-  SafeAreaView,
-  StyleSheet,
-  Alert,
-  TouchableOpacity,
-} from 'react-native';
-import {
-  Text,
-  Card,
-  Chip,
-  Button,
-  Modal,
-  Portal,
-  TextInput,
-  Switch,
-  IconButton,
-} from 'react-native-paper';
-import { Calendar, DateData } from 'react-native-calendars';
-import dayjs from 'dayjs';
-import { useCalendarStore } from '../stores/calendarStore';
+import React, { useCallback, useMemo, useState } from 'react'
+import { Alert, SafeAreaView, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native'
+import { useFocusEffect } from '@react-navigation/native'
+import { Calendar, type DateData } from 'react-native-calendars'
+import dayjs from 'dayjs'
+import { Button, Card, Chip, IconButton, Modal, Portal, Switch, Text, TextInput } from 'react-native-paper'
+import { useCalendarStore } from '../stores/calendarStore'
+import { useMembershipStore } from '../stores/membershipStore'
+import { colors, fontSize, spacing } from '../theme'
 
-const THEME_PRIMARY = '#1890ff';
-
-type EventType = 'checkup' | 'vaccine' | 'reminder' | 'other';
+type EventType = 'checkup' | 'vaccine' | 'reminder' | 'other'
 
 const EVENT_TYPE_CONFIG: Record<EventType, { label: string; color: string }> = {
-  checkup: { label: '产检', color: '#fa8c16' },
-  vaccine: { label: '疫苗', color: '#52c41a' },
-  reminder: { label: '提醒', color: '#1890ff' },
-  other: { label: '其他', color: '#999999' },
-};
-
-const EVENT_TYPES: EventType[] = ['checkup', 'vaccine', 'reminder', 'other'];
-
-interface CalendarEvent {
-  id: number;
-  title: string;
-  description: string;
-  eventDate: string;
-  eventType: EventType;
-  reminderEnabled: boolean;
-  isCompleted: boolean;
+  checkup: { label: '产检', color: colors.orange },
+  vaccine: { label: '疫苗', color: colors.green },
+  reminder: { label: '提醒', color: colors.primary },
+  other: { label: '其他', color: colors.textSecondary },
 }
 
-const CalendarScreen: React.FC = () => {
+const EVENT_TYPES: EventType[] = ['checkup', 'vaccine', 'reminder', 'other']
+
+interface CalendarEventView {
+  id: number
+  title: string
+  description?: string
+  eventDate: string
+  eventType: EventType
+  reminderEnabled: boolean
+  isCompleted: boolean
+}
+
+export default function CalendarScreen() {
   const {
     events = [],
+    currentMonth,
+    setCurrentMonth,
+    fetchEvents,
     createEvent,
     updateEvent,
     deleteEvent,
-  } = useCalendarStore();
+    completeEvent,
+  } = useCalendarStore()
+  const { checkInStreak, weeklyCompletionRate, ensureFreshQuota } = useMembershipStore()
 
-  const [selectedDate, setSelectedDate] = useState(dayjs().format('YYYY-MM-DD'));
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
+  const [selectedDate, setSelectedDate] = useState(dayjs().format('YYYY-MM-DD'))
+  const [modalVisible, setModalVisible] = useState(false)
+  const [editingEvent, setEditingEvent] = useState<CalendarEventView | null>(null)
+  const [formTitle, setFormTitle] = useState('')
+  const [formDescription, setFormDescription] = useState('')
+  const [formType, setFormType] = useState<EventType>('reminder')
+  const [formReminder, setFormReminder] = useState(true)
 
-  const [formTitle, setFormTitle] = useState('');
-  const [formDescription, setFormDescription] = useState('');
-  const [formType, setFormType] = useState<EventType>('reminder');
-  const [formReminder, setFormReminder] = useState(true);
+  useFocusEffect(
+    useCallback(() => {
+      const start = dayjs(currentMonth).startOf('month').format('YYYY-MM-DD')
+      const end = dayjs(currentMonth).endOf('month').format('YYYY-MM-DD')
+      fetchEvents(start, end)
+      ensureFreshQuota()
+    }, [currentMonth, ensureFreshQuota, fetchEvents]),
+  )
+
+  const calendarEvents = events as unknown as CalendarEventView[]
 
   const markedDates = useMemo(() => {
-    const marks: Record<string, any> = {};
-    (events as CalendarEvent[]).forEach((event) => {
-      const color = EVENT_TYPE_CONFIG[event.eventType]?.color ?? '#999';
+    const marks: Record<string, { dots?: Array<{ key: number; color: string }>; marked?: boolean; selected?: boolean; selectedColor?: string }> = {}
+
+    calendarEvents.forEach((event) => {
+      const color = EVENT_TYPE_CONFIG[event.eventType]?.color ?? colors.textSecondary
       if (!marks[event.eventDate]) {
-        marks[event.eventDate] = { dots: [], marked: true };
+        marks[event.eventDate] = { dots: [], marked: true }
       }
-      marks[event.eventDate].dots.push({ key: event.id, color });
-    });
-    if (selectedDate) {
-      marks[selectedDate] = {
-        ...(marks[selectedDate] || {}),
-        selected: true,
-        selectedColor: THEME_PRIMARY,
-      };
+      marks[event.eventDate].dots?.push({ key: event.id, color })
+    })
+
+    marks[selectedDate] = {
+      ...(marks[selectedDate] || {}),
+      selected: true,
+      selectedColor: colors.ink,
     }
-    return marks;
-  }, [events, selectedDate]);
+
+    return marks
+  }, [calendarEvents, selectedDate])
 
   const eventsForSelectedDate = useMemo(
-    () => (events as CalendarEvent[]).filter((e) => e.eventDate === selectedDate),
-    [events, selectedDate],
-  );
+    () => calendarEvents.filter((event) => event.eventDate === selectedDate),
+    [calendarEvents, selectedDate],
+  )
+
+  const completedToday = eventsForSelectedDate.filter((event) => event.isCompleted).length
+  const pendingToday = Math.max(eventsForSelectedDate.length - completedToday, 0)
 
   const onDayPress = useCallback((day: DateData) => {
-    setSelectedDate(day.dateString);
-  }, []);
+    setSelectedDate(day.dateString)
+  }, [])
+
+  const onMonthChange = useCallback((day: DateData) => {
+    setCurrentMonth(day.dateString.slice(0, 7))
+  }, [setCurrentMonth])
 
   const openCreateModal = useCallback(() => {
-    setEditingEvent(null);
-    setFormTitle('');
-    setFormDescription('');
-    setFormType('reminder');
-    setFormReminder(true);
-    setModalVisible(true);
-  }, []);
+    setEditingEvent(null)
+    setFormTitle('')
+    setFormDescription('')
+    setFormType('reminder')
+    setFormReminder(true)
+    setModalVisible(true)
+  }, [])
 
-  const openEditModal = useCallback((event: CalendarEvent) => {
-    setEditingEvent(event);
-    setFormTitle(event.title);
-    setFormDescription(event.description);
-    setFormType(event.eventType);
-    setFormReminder(event.reminderEnabled);
-    setModalVisible(true);
-  }, []);
+  const openEditModal = useCallback((event: CalendarEventView) => {
+    setEditingEvent(event)
+    setFormTitle(event.title)
+    setFormDescription(event.description || '')
+    setFormType(event.eventType)
+    setFormReminder(event.reminderEnabled)
+    setModalVisible(true)
+  }, [])
 
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
     if (!formTitle.trim()) {
-      Alert.alert('提示', '请输入事件标题');
-      return;
+      Alert.alert('提示', '请输入事件标题')
+      return
     }
+
     if (editingEvent) {
-      updateEvent(editingEvent.id, {
+      await updateEvent(editingEvent.id, {
         title: formTitle.trim(),
         description: formDescription.trim(),
         eventType: formType,
         reminderEnabled: formReminder,
-      });
+      })
     } else {
-      createEvent({
+      await createEvent({
         title: formTitle.trim(),
         description: formDescription.trim(),
         eventDate: selectedDate,
         eventType: formType,
         reminderEnabled: formReminder,
         isCompleted: false,
-      });
+      })
     }
-    setModalVisible(false);
-  }, [
-    editingEvent,
-    formTitle,
-    formDescription,
-    formType,
-    formReminder,
-    selectedDate,
-    createEvent,
-    updateEvent,
-  ]);
 
-  const handleDelete = useCallback(
-    (event: CalendarEvent) => {
-      Alert.alert('确认删除', `确定要删除"${event.title}"吗？`, [
-        { text: '取消', style: 'cancel' },
-        {
-          text: '删除',
-          style: 'destructive',
-          onPress: () => deleteEvent(event.id),
+    setModalVisible(false)
+  }, [createEvent, editingEvent, formDescription, formReminder, formTitle, formType, selectedDate, updateEvent])
+
+  const handleDelete = useCallback((event: CalendarEventView) => {
+    Alert.alert('确认删除', `确定要删除“${event.title}”吗？`, [
+      { text: '取消', style: 'cancel' },
+      {
+        text: '删除',
+        style: 'destructive',
+        onPress: () => {
+          deleteEvent(event.id)
         },
-      ]);
-    },
-    [deleteEvent],
-  );
+      },
+    ])
+  }, [deleteEvent])
 
-  const handleComplete = useCallback(
-    (event: CalendarEvent) => {
-      updateEvent(event.id, { isCompleted: !event.isCompleted });
-    },
-    [updateEvent],
-  );
+  const handleComplete = useCallback(async (event: CalendarEventView) => {
+    if (event.isCompleted) {
+      await updateEvent(event.id, { isCompleted: false })
+      return
+    }
+
+    await completeEvent(event.id)
+  }, [completeEvent, updateEvent])
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView style={styles.container}>
+    <SafeAreaView style={styles.container}>
+      <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>孕育日历</Text>
-          <Button
-            mode="contained"
-            icon="plus"
-            onPress={openCreateModal}
-            buttonColor={THEME_PRIMARY}
-          >
+          <View>
+            <Text style={styles.headerTitle}>孕育日历</Text>
+            <Text style={styles.headerSubtitle}>把产检、提醒和打卡放到同一个节奏里。</Text>
+          </View>
+          <Button mode="contained" icon="plus" onPress={openCreateModal} buttonColor={colors.ink}>
             添加事件
           </Button>
         </View>
 
-        <Calendar
-          current={selectedDate}
-          onDayPress={onDayPress}
-          markingType="multi-dot"
-          markedDates={markedDates}
-          theme={{
-            todayTextColor: THEME_PRIMARY,
-            selectedDayBackgroundColor: THEME_PRIMARY,
-            arrowColor: THEME_PRIMARY,
-          }}
-        />
-
-        <View style={styles.eventsSection}>
-          <Text style={styles.sectionTitle}>
-            {dayjs(selectedDate).format('YYYY年MM月DD日')} 的事件
-          </Text>
-
-          {eventsForSelectedDate.length === 0 ? (
-            <Text style={styles.emptyText}>暂无事件</Text>
-          ) : (
-            eventsForSelectedDate.map((event) => {
-              const typeConfig = EVENT_TYPE_CONFIG[event.eventType];
-              return (
-                <Card
-                  key={event.id}
-                  style={[
-                    styles.eventCard,
-                    event.isCompleted && styles.eventCardCompleted,
-                  ]}
-                >
-                  <Card.Content>
-                    <View style={styles.eventHeader}>
-                      <View style={styles.eventTitleRow}>
-                        <Text
-                          style={[
-                            styles.eventTitle,
-                            event.isCompleted && styles.eventTitleCompleted,
-                          ]}
-                        >
-                          {event.title}
-                        </Text>
-                        <Chip
-                          compact
-                          style={[
-                            styles.typeChip,
-                            { backgroundColor: typeConfig.color },
-                          ]}
-                          textStyle={styles.typeChipText}
-                        >
-                          {typeConfig.label}
-                        </Chip>
-                      </View>
-                      <Text style={styles.eventDate}>
-                        {dayjs(event.eventDate).format('YYYY-MM-DD')}
-                      </Text>
-                    </View>
-                    {!!event.description && (
-                      <Text style={styles.eventDescription}>
-                        {event.description}
-                      </Text>
-                    )}
-                    <View style={styles.eventActions}>
-                      <Button
-                        compact
-                        mode="text"
-                        icon={
-                          event.isCompleted ? 'check-circle' : 'circle-outline'
-                        }
-                        onPress={() => handleComplete(event)}
-                        textColor={event.isCompleted ? '#52c41a' : '#666'}
-                      >
-                        {event.isCompleted ? '已完成' : '完成'}
-                      </Button>
-                      <IconButton
-                        icon="pencil"
-                        size={18}
-                        onPress={() => openEditModal(event)}
-                      />
-                      <IconButton
-                        icon="delete"
-                        size={18}
-                        iconColor="#ff4d4f"
-                        onPress={() => handleDelete(event)}
-                      />
-                    </View>
-                  </Card.Content>
-                </Card>
-              );
-            })
-          )}
+        <View style={styles.statsRow}>
+          <Card style={styles.statCard}>
+            <Card.Content>
+              <Text style={styles.statLabel}>连续打卡</Text>
+              <Text style={styles.statValue}>{checkInStreak} 天</Text>
+            </Card.Content>
+          </Card>
+          <Card style={styles.statCard}>
+            <Card.Content>
+              <Text style={styles.statLabel}>本周完成率</Text>
+              <Text style={styles.statValue}>{weeklyCompletionRate}%</Text>
+            </Card.Content>
+          </Card>
+          <Card style={styles.statCard}>
+            <Card.Content>
+              <Text style={styles.statLabel}>今日待办</Text>
+              <Text style={styles.statValue}>{pendingToday} 项</Text>
+            </Card.Content>
+          </Card>
         </View>
+
+        <Card style={styles.calendarCard}>
+          <Card.Content>
+            <Calendar
+              current={selectedDate}
+              onDayPress={onDayPress}
+              onMonthChange={onMonthChange}
+              markingType="multi-dot"
+              markedDates={markedDates}
+              theme={{
+                todayTextColor: colors.primary,
+                selectedDayBackgroundColor: colors.ink,
+                arrowColor: colors.ink,
+              }}
+            />
+          </Card.Content>
+        </Card>
+
+        <View style={styles.sectionHeader}>
+          <View>
+            <Text style={styles.sectionTitle}>{dayjs(selectedDate).format('YYYY年MM月DD日')} 的事件</Text>
+            <Text style={styles.sectionMeta}>已完成 {completedToday} 项，待处理 {pendingToday} 项</Text>
+          </View>
+        </View>
+
+        {eventsForSelectedDate.length === 0 ? (
+          <Card style={styles.emptyCard}>
+            <Card.Content>
+              <Text style={styles.emptyTitle}>这一天还没有安排事件</Text>
+              <Text style={styles.emptyText}>可以补一个产检提醒、疫苗计划或日常打卡。</Text>
+            </Card.Content>
+          </Card>
+        ) : (
+          eventsForSelectedDate.map((event) => {
+            const typeConfig = EVENT_TYPE_CONFIG[event.eventType]
+            return (
+              <Card key={event.id} style={[styles.eventCard, event.isCompleted && styles.eventCardCompleted]}>
+                <Card.Content>
+                  <View style={styles.eventHeader}>
+                    <View style={styles.eventTitleRow}>
+                      <Text style={[styles.eventTitle, event.isCompleted && styles.eventTitleCompleted]}>
+                        {event.title}
+                      </Text>
+                      <Chip compact style={[styles.typeChip, { backgroundColor: `${typeConfig.color}20` }]} textStyle={[styles.typeChipText, { color: typeConfig.color }]}>
+                        {typeConfig.label}
+                      </Chip>
+                    </View>
+                    <Text style={styles.eventDate}>{dayjs(event.eventDate).format('YYYY-MM-DD')}</Text>
+                  </View>
+
+                  {event.description ? (
+                    <Text style={styles.eventDescription}>{event.description}</Text>
+                  ) : null}
+
+                  <View style={styles.eventActions}>
+                    <Button
+                      compact
+                      mode="text"
+                      icon={event.isCompleted ? 'check-circle' : 'circle-outline'}
+                      onPress={() => handleComplete(event)}
+                      textColor={event.isCompleted ? colors.green : colors.textLight}
+                    >
+                      {event.isCompleted ? '已完成' : '完成'}
+                    </Button>
+                    <IconButton icon="pencil" size={18} onPress={() => openEditModal(event)} />
+                    <IconButton icon="delete" size={18} iconColor={colors.red} onPress={() => handleDelete(event)} />
+                  </View>
+                </Card.Content>
+              </Card>
+            )
+          })
+        )}
       </ScrollView>
 
       <Portal>
-        <Modal
-          visible={modalVisible}
-          onDismiss={() => setModalVisible(false)}
-          contentContainerStyle={styles.modalContainer}
-        >
+        <Modal visible={modalVisible} onDismiss={() => setModalVisible(false)} contentContainerStyle={styles.modalContainer}>
           <ScrollView>
-            <Text style={styles.modalTitle}>
-              {editingEvent ? '编辑事件' : '新建事件'}
-            </Text>
+            <Text style={styles.modalTitle}>{editingEvent ? '编辑事件' : '新建事件'}</Text>
 
             <TextInput
               label="标题"
@@ -288,7 +282,7 @@ const CalendarScreen: React.FC = () => {
               onChangeText={setFormTitle}
               mode="outlined"
               style={styles.input}
-              activeOutlineColor={THEME_PRIMARY}
+              activeOutlineColor={colors.primary}
             />
 
             <TextInput
@@ -299,36 +293,24 @@ const CalendarScreen: React.FC = () => {
               multiline
               numberOfLines={3}
               style={styles.input}
-              activeOutlineColor={THEME_PRIMARY}
+              activeOutlineColor={colors.primary}
             />
 
-            <Text style={styles.fieldLabel}>
-              日期: {dayjs(selectedDate).format('YYYY年MM月DD日')}
-            </Text>
-
+            <Text style={styles.fieldLabel}>日期：{dayjs(selectedDate).format('YYYY年MM月DD日')}</Text>
             <Text style={styles.fieldLabel}>类型</Text>
+
             <View style={styles.typePicker}>
-              {EVENT_TYPES.map((t) => (
+              {EVENT_TYPES.map((type) => (
                 <TouchableOpacity
-                  key={t}
-                  onPress={() => setFormType(t)}
+                  key={type}
+                  onPress={() => setFormType(type)}
                   style={[
                     styles.typeOption,
-                    {
-                      backgroundColor:
-                        formType === t
-                          ? EVENT_TYPE_CONFIG[t].color
-                          : '#f0f0f0',
-                    },
+                    { backgroundColor: formType === type ? EVENT_TYPE_CONFIG[type].color : colors.background },
                   ]}
                 >
-                  <Text
-                    style={{
-                      color: formType === t ? '#fff' : '#333',
-                      fontSize: 14,
-                    }}
-                  >
-                    {EVENT_TYPE_CONFIG[t].label}
+                  <Text style={[styles.typeOptionText, formType === type && styles.typeOptionTextSelected]}>
+                    {EVENT_TYPE_CONFIG[type].label}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -336,19 +318,10 @@ const CalendarScreen: React.FC = () => {
 
             <View style={styles.reminderRow}>
               <Text style={styles.fieldLabel}>开启提醒</Text>
-              <Switch
-                value={formReminder}
-                onValueChange={setFormReminder}
-                color={THEME_PRIMARY}
-              />
+              <Switch value={formReminder} onValueChange={setFormReminder} color={colors.primary} />
             </View>
 
-            <Button
-              mode="contained"
-              onPress={handleSave}
-              style={styles.saveButton}
-              buttonColor={THEME_PRIMARY}
-            >
+            <Button mode="contained" onPress={handleSave} style={styles.saveButton} buttonColor={colors.ink}>
               保存
             </Button>
             <Button mode="text" onPress={() => setModalVisible(false)}>
@@ -358,134 +331,178 @@ const CalendarScreen: React.FC = () => {
         </Modal>
       </Portal>
     </SafeAreaView>
-  );
-};
+  )
+}
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
   container: {
     flex: 1,
+    backgroundColor: colors.background,
+  },
+  content: {
+    padding: spacing.md,
+    paddingBottom: spacing.xl,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#fff',
+    alignItems: 'flex-start',
+    gap: spacing.md,
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
+    fontSize: fontSize.title,
+    fontWeight: '700',
+    color: colors.text,
   },
-  eventsSection: {
-    padding: 16,
+  headerSubtitle: {
+    marginTop: spacing.xs,
+    color: colors.textLight,
+  },
+  statsRow: {
+    marginTop: spacing.lg,
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  statCard: {
+    flex: 1,
+    borderRadius: 18,
+    backgroundColor: colors.white,
+  },
+  statLabel: {
+    color: colors.textSecondary,
+    marginBottom: spacing.xs,
+  },
+  statValue: {
+    fontSize: fontSize.xl,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  calendarCard: {
+    marginTop: spacing.lg,
+    borderRadius: 24,
+    backgroundColor: colors.white,
+  },
+  sectionHeader: {
+    marginTop: spacing.xl,
+    marginBottom: spacing.md,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 12,
-    color: '#333',
+    fontSize: fontSize.xl,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  sectionMeta: {
+    marginTop: spacing.xs,
+    color: colors.textSecondary,
+  },
+  emptyCard: {
+    borderRadius: 20,
+    backgroundColor: colors.white,
+  },
+  emptyTitle: {
+    fontSize: fontSize.lg,
+    fontWeight: '700',
+    color: colors.text,
   },
   emptyText: {
-    textAlign: 'center',
-    color: '#999',
-    marginTop: 20,
-    fontSize: 14,
+    marginTop: spacing.sm,
+    color: colors.textLight,
+    lineHeight: 22,
   },
   eventCard: {
-    marginBottom: 10,
-    backgroundColor: '#fff',
+    marginBottom: spacing.sm,
+    borderRadius: 20,
+    backgroundColor: colors.white,
   },
   eventCardCompleted: {
-    opacity: 0.6,
+    opacity: 0.68,
   },
   eventHeader: {
-    marginBottom: 4,
+    marginBottom: spacing.xs,
   },
   eventTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    flexWrap: 'wrap',
+    gap: spacing.sm,
   },
   eventTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
+    fontSize: fontSize.lg,
+    fontWeight: '700',
+    color: colors.text,
   },
   eventTitleCompleted: {
     textDecorationLine: 'line-through',
-    color: '#999',
+    color: colors.textSecondary,
   },
   typeChip: {
-    height: 24,
+    alignSelf: 'flex-start',
   },
   typeChipText: {
-    color: '#fff',
-    fontSize: 11,
-    lineHeight: 14,
+    fontWeight: '700',
   },
   eventDate: {
-    fontSize: 12,
-    color: '#999',
-    marginTop: 2,
+    marginTop: spacing.xs,
+    color: colors.textSecondary,
+    fontSize: fontSize.sm,
   },
   eventDescription: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 6,
+    marginTop: spacing.sm,
+    color: colors.textLight,
+    lineHeight: 22,
   },
   eventActions: {
+    marginTop: spacing.sm,
     flexDirection: 'row',
+    justifyContent: 'flex-end',
     alignItems: 'center',
-    marginTop: 8,
   },
   modalContainer: {
-    backgroundColor: '#fff',
-    margin: 20,
-    padding: 20,
-    borderRadius: 12,
-    maxHeight: '80%',
+    margin: spacing.md,
+    maxHeight: '82%',
+    borderRadius: 24,
+    padding: spacing.lg,
+    backgroundColor: colors.white,
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 16,
-    color: '#333',
+    marginBottom: spacing.md,
+    fontSize: fontSize.xxl,
+    fontWeight: '700',
+    color: colors.text,
   },
   input: {
-    marginBottom: 12,
-    backgroundColor: '#fff',
+    marginBottom: spacing.md,
+    backgroundColor: colors.white,
   },
   fieldLabel: {
-    fontSize: 14,
-    color: '#333',
-    marginBottom: 8,
-    marginTop: 4,
+    marginBottom: spacing.sm,
+    color: colors.text,
   },
   typePicker: {
     flexDirection: 'row',
-    gap: 8,
-    marginBottom: 16,
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
   },
   typeOption: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
     borderRadius: 16,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  typeOptionText: {
+    color: colors.text,
+  },
+  typeOptionTextSelected: {
+    color: colors.white,
   },
   reminderRow: {
+    marginVertical: spacing.md,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
   },
   saveButton: {
-    marginBottom: 8,
+    marginTop: spacing.sm,
+    marginBottom: spacing.sm,
   },
-});
-
-export default CalendarScreen;
+})

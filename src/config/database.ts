@@ -1,6 +1,8 @@
 import { PrismaClient } from '@prisma/client';
 import { env } from './env';
 
+const isTestEnv = env.NODE_ENV === 'test' || typeof process.env.JEST_WORKER_ID !== 'undefined';
+
 /**
  * 数据库配置优化（全局单例）
  * - 连接池管理
@@ -16,7 +18,7 @@ const prisma = new PrismaClient({
 });
 
 // 连接池状态监控（仅开发环境）
-if (env.isDev) {
+if (env.isDev && !isTestEnv) {
   setInterval(async () => {
     try {
       await prisma.$queryRaw`SELECT 1`;

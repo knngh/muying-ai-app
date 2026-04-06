@@ -1,5 +1,11 @@
 import { z } from 'zod';
 
+const clientRequestIdSchema = z.string()
+  .trim()
+  .min(8, '请求 ID 过短')
+  .max(120, '请求 ID 过长')
+  .regex(/^[A-Za-z0-9_-]+$/, '请求 ID 格式无效');
+
 const contextSchema = z.union([
   z.string().max(5000),
   z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
@@ -10,6 +16,7 @@ export const askQuestionBody = z.object({
   context: contextSchema.optional(),
   conversationId: z.string().optional(),
   model: z.string().optional(),
+  clientRequestId: clientRequestIdSchema.optional(),
 });
 
 export const chatBody = z.object({
@@ -20,6 +27,7 @@ export const chatBody = z.object({
   context: contextSchema.optional(),
   conversationId: z.string().optional(),
   model: z.string().optional(),
+  clientRequestId: clientRequestIdSchema.optional(),
 });
 
 export const feedbackBody = z.object({

@@ -2,9 +2,11 @@ import React, { useEffect, useState } from 'react'
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native'
 import { createStackNavigator } from '@react-navigation/stack'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
-import AsyncStorage from '@react-native-async-storage/async-storage'
 import { setNavigationReset, updateCachedToken } from '../api/index'
 import { useAppStore } from '../stores/appStore'
+import { useChatStore } from '../stores/chatStore'
+import { useMembershipStore } from '../stores/membershipStore'
+import { sessionStorage } from '../utils/storage'
 
 // Screens
 import HomeScreen from '../screens/HomeScreen'
@@ -16,6 +18,9 @@ import CommunityScreen from '../screens/CommunityScreen'
 import PostDetailScreen from '../screens/PostDetailScreen'
 import ProfileScreen from '../screens/ProfileScreen'
 import LoginScreen from '../screens/LoginScreen'
+import MembershipScreen from '../screens/MembershipScreen'
+import WeeklyReportScreen from '../screens/WeeklyReportScreen'
+import GrowthArchiveScreen from '../screens/GrowthArchiveScreen'
 
 export type RootStackParamList = {
   Login: undefined
@@ -23,6 +28,9 @@ export type RootStackParamList = {
   KnowledgeDetail: { slug: string }
   PostDetail: { id: number }
   Calendar: undefined
+  Membership: undefined
+  WeeklyReport: undefined
+  GrowthArchive: undefined
 }
 
 export type TabParamList = {
@@ -58,7 +66,8 @@ function TabNavigator() {
 
 export default function AppNavigator() {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null)
-  const setToken = useAppStore(s => s.setToken)
+  const setToken = useAppStore(state => state.setToken)
+  const setUser = useAppStore(state => state.setUser)
 
   useEffect(() => {
     checkAuth()
@@ -66,11 +75,14 @@ export default function AppNavigator() {
     setNavigationReset(() => {
       setIsLoggedIn(false)
       setToken(null)
+      setUser(null)
+      useChatStore.getState().resetState()
+      useMembershipStore.getState().resetState()
     })
   }, [])
 
   const checkAuth = async () => {
-    const token = await AsyncStorage.getItem('token')
+    const token = await sessionStorage.getToken()
     await updateCachedToken()
     setIsLoggedIn(!!token)
     if (token) {
@@ -113,6 +125,21 @@ export default function AppNavigator() {
               name="Calendar"
               component={CalendarScreen}
               options={{ headerShown: true, title: '孕育日历' }}
+            />
+            <Stack.Screen
+              name="Membership"
+              component={MembershipScreen}
+              options={{ headerShown: true, title: '贝护会员' }}
+            />
+            <Stack.Screen
+              name="WeeklyReport"
+              component={WeeklyReportScreen}
+              options={{ headerShown: true, title: 'AI 周报' }}
+            />
+            <Stack.Screen
+              name="GrowthArchive"
+              component={GrowthArchiveScreen}
+              options={{ headerShown: true, title: '成长档案' }}
             />
           </>
         )}

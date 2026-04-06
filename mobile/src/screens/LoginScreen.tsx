@@ -15,15 +15,31 @@ import {
   SegmentedButtons,
   HelperText,
 } from 'react-native-paper'
-import AsyncStorage from '@react-native-async-storage/async-storage'
+import { config } from '../config'
 import { authApi } from '../api/modules'
 import { useAppStore } from '../stores/appStore'
 import { colors, spacing, fontSize } from '../theme'
+import { sessionStorage } from '../utils/storage'
 
 interface LoginScreenProps {
   onLoginSuccess: () => Promise<void>
   navigation: any
 }
+
+const demoAccounts = [
+  {
+    key: 'free',
+    label: '免费演示账号',
+    username: 'demo_free_user',
+    description: '适合演示免费 3 次 AI 额度和会员升级前状态，需要单独输入演示口令。',
+  },
+  {
+    key: 'vip',
+    label: '会员演示账号',
+    username: 'demo_vip_user',
+    description: '适合直接演示会员权益、周报和无限额度，需要单独输入演示口令。',
+  },
+]
 
 export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   const [mode, setMode] = useState<string>('login')
@@ -38,6 +54,14 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   const { setUser, setToken } = useAppStore()
 
   const isRegister = mode === 'register'
+
+  const applyDemoAccount = (account: (typeof demoAccounts)[number]) => {
+    setMode('login')
+    setUsername(account.username)
+    setPhone('')
+    setEmail('')
+    setError('')
+  }
 
   const validate = (): boolean => {
     if (!username.trim()) {
@@ -77,7 +101,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         }) as { user: any; token: string }
       }
 
-      await AsyncStorage.setItem('token', response.token)
+      await sessionStorage.setToken(response.token)
       setToken(response.token)
       setUser(response.user)
       await onLoginSuccess()
@@ -122,6 +146,29 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                 ]}
                 style={styles.segmented}
               />
+
+              {config.enableDemoAccounts ? (
+                <View style={styles.demoSection}>
+                  <Text style={styles.demoTitle}>演示账号</Text>
+                  <Text style={styles.demoHint}>仅填充演示用户名，口令请通过测试环境单独发放。</Text>
+                  {demoAccounts.map((account) => (
+                    <View key={account.key} style={styles.demoCard}>
+                      <View style={styles.demoTextWrap}>
+                        <Text style={styles.demoCardTitle}>{account.label}</Text>
+                        <Text style={styles.demoCardDesc}>{account.description}</Text>
+                      </View>
+                      <Button
+                        mode="outlined"
+                        compact
+                        onPress={() => applyDemoAccount(account)}
+                        textColor={colors.primary}
+                      >
+                        填充账号
+                      </Button>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
 
               <TextInput
                 label="用户名"
@@ -247,6 +294,45 @@ const styles = StyleSheet.create({
   },
   segmented: {
     marginBottom: spacing.lg,
+  },
+  demoSection: {
+    marginBottom: spacing.md,
+    padding: spacing.md,
+    borderRadius: 16,
+    backgroundColor: colors.primaryLight,
+    gap: spacing.sm,
+  },
+  demoTitle: {
+    fontSize: fontSize.lg,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  demoHint: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+  },
+  demoCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+    padding: spacing.sm,
+    borderRadius: 14,
+    backgroundColor: colors.white,
+  },
+  demoTextWrap: {
+    flex: 1,
+    gap: spacing.xs,
+  },
+  demoCardTitle: {
+    fontSize: fontSize.md,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  demoCardDesc: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    lineHeight: 18,
   },
   input: {
     marginBottom: spacing.md,

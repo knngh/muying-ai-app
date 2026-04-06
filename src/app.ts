@@ -24,6 +24,11 @@ import calendarRoutes from './routes/calendar.routes';
 import vaccineRoutes from './routes/vaccine.routes';
 import aiRoutes from './routes/ai.routes';
 import communityRoutes from './routes/community.routes';
+import subscriptionRoutes from './routes/subscription.routes';
+import paymentRoutes from './routes/payment.routes';
+import quotaRoutes from './routes/quota.routes';
+import reportRoutes from './routes/report.routes';
+import analyticsRoutes from './routes/analytics.routes';
 
 // 中间件导入
 import { errorHandler, notFoundHandler } from './middlewares/error.middleware';
@@ -101,6 +106,11 @@ app.use(`${API_PREFIX}/calendar`, calendarRoutes);
 app.use(`${API_PREFIX}/vaccines`, vaccineRoutes);
 app.use(`${API_PREFIX}/ai`, aiRoutes);
 app.use(`${API_PREFIX}/community`, communityRoutes);
+app.use(`${API_PREFIX}/subscription`, subscriptionRoutes);
+app.use(`${API_PREFIX}/payment`, paymentRoutes);
+app.use(`${API_PREFIX}/quota`, quotaRoutes);
+app.use(`${API_PREFIX}/report`, reportRoutes);
+app.use(`${API_PREFIX}/analytics`, analyticsRoutes);
 
 // ============================================
 // 错误处理

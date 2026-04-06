@@ -1,42 +1,63 @@
-import React, { useRef, useState, useEffect, useCallback } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  View,
   FlatList,
-  StyleSheet,
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
+  SafeAreaView,
+  StyleSheet,
+  View,
 } from 'react-native'
-import { Text, TextInput, IconButton, Chip, Banner } from 'react-native-paper'
-import { useNavigation } from '@react-navigation/native'
-import { useChatStore } from '../stores/chatStore'
+import { Banner, Button, Card, Chip, IconButton, Text, TextInput } from 'react-native-paper'
+import { useFocusEffect, useNavigation } from '@react-navigation/native'
 import { getDisclaimer } from '../api/ai'
 import type { AIMessage } from '../api/ai'
-import { colors, spacing, fontSize } from '../theme'
+import UpgradeModal from '../components/UpgradeModal'
+import { useChatStore } from '../stores/chatStore'
+import { useMembershipStore } from '../stores/membershipStore'
+import type { MembershipPlan } from '../stores/membershipStore'
+import { colors, fontSize, spacing } from '../theme'
 
 const quickQuestions = [
-  '孕早期有哪些注意事项？',
-  '宝宝发烧怎么办？',
-  '孕期营养应该怎么补充？',
-  '新生儿护理要点有哪些？',
+  '我这周最该注意的三件事是什么？',
+  '孕期营养补充怎么安排更稳妥？',
+  '宝宝反复夜醒一般先排查什么？',
+  '能帮我拆解一次产检前准备吗？',
 ]
 
 export default function ChatScreen() {
-  const navigation = useNavigation()
+  const navigation = useNavigation<any>()
   const flatListRef = useRef<FlatList>(null)
   const [inputText, setInputText] = useState('')
   const [showBanner, setShowBanner] = useState(true)
+  const [upgradeVisible, setUpgradeVisible] = useState(false)
 
   const { messages, loading, streamingContent, error, initialize, sendMessage, clearMessages } = useChatStore()
+  const {
+    status,
+    currentPlanCode,
+    aiUsedToday,
+    aiLimit,
+    plans,
+    ensureFreshQuota,
+    consumeAiQuota,
+    purchasePlan,
+    loading: membershipLoading,
+  } = useMembershipStore()
 
   useEffect(() => {
     initialize()
   }, [initialize])
 
+  useFocusEffect(
+    useCallback(() => {
+      ensureFreshQuota()
+    }, [ensureFreshQuota]),
+  )
+
   useEffect(() => {
     navigation.setOptions({
       headerShown: true,
-      title: 'AI智能问答',
+      title: 'AI 智能问答',
       headerRight: () => (
         <IconButton
           icon="delete-outline"
@@ -46,68 +67,82 @@ export default function ChatScreen() {
         />
       ),
     })
-  }, [navigation, clearMessages])
+  }, [clearMessages, navigation])
 
   useEffect(() => {
-    if (messages.length > 0) {
+    if (messages.length > 0 || streamingContent) {
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true })
-      }, 100)
+      }, 120)
     }
   }, [messages, streamingContent])
+
+  useEffect(() => {
+    if (error?.includes('额度已用完')) {
+      setUpgradeVisible(true)
+      ensureFreshQuota()
+    }
+  }, [ensureFreshQuota, error])
+
+  const activePlan = useMemo(
+    () => plans.find((item: MembershipPlan) => item.code === currentPlanCode),
+    [currentPlanCode, plans],
+  )
+
+  const remainingCount = status === 'active' ? '无限次' : `${Math.max(aiLimit - aiUsedToday, 0)} 次`
+
+  const checkQuota = useCallback(() => {
+    const result = consumeAiQuota()
+    if (!result.allowed) {
+      setUpgradeVisible(true)
+      return false
+    }
+    return true
+  }, [consumeAiQuota])
 
   const handleSend = useCallback(() => {
     const trimmed = inputText.trim()
     if (!trimmed || loading) return
+    if (!checkQuota()) return
+
     setInputText('')
     sendMessage(trimmed)
-  }, [inputText, loading, sendMessage])
+  }, [checkQuota, inputText, loading, sendMessage])
 
   const handleQuickQuestion = useCallback((question: string) => {
+    if (loading) return
+    if (!checkQuota()) return
     sendMessage(question)
-  }, [sendMessage])
+  }, [checkQuota, loading, sendMessage])
+
+  const handleUpgrade = async (code: 'monthly' | 'quarterly' | 'yearly') => {
+    try {
+      await purchasePlan(code)
+      setUpgradeVisible(false)
+    } catch (_error) {
+      setUpgradeVisible(true)
+    }
+  }
 
   const renderMessage = ({ item }: { item: AIMessage }) => {
     const isUser = item.role === 'user'
-    const isEmergency = item.isEmergency
 
     return (
-      <View
-        style={[
-          styles.messageBubbleWrapper,
-          isUser ? styles.userWrapper : styles.assistantWrapper,
-        ]}
-      >
-        <View
-          style={[
-            styles.messageBubble,
-            isUser ? styles.userBubble : styles.assistantBubble,
-            isEmergency && styles.emergencyBubble,
-          ]}
-        >
-          <Text
-            style={[
-              styles.messageText,
-              isUser ? styles.userText : styles.assistantText,
-              isEmergency && styles.emergencyText,
-            ]}
-            selectable
-          >
+      <View style={[styles.messageWrap, isUser ? styles.userWrap : styles.assistantWrap]}>
+        <View style={[styles.messageBubble, isUser ? styles.userBubble : styles.assistantBubble]}>
+          <Text style={[styles.messageText, isUser ? styles.userText : styles.assistantText]}>
             {item.content}
           </Text>
 
           {!isUser && item.sources?.length ? (
             <View style={styles.sourcesWrap}>
               <Text style={styles.sourcesTitle}>参考来源</Text>
-              {item.sources.map((source) => (
+              {item.sources.map((source: NonNullable<AIMessage['sources']>[number]) => (
                 <View key={`${item.id}-${source.title}`} style={styles.sourceCard}>
                   <Text style={styles.sourceName}>{source.title}</Text>
                   <Text style={styles.sourceMeta}>
                     {source.source} · 相关度 {Math.round(source.relevance * 100)}%
                   </Text>
-                  {source.excerpt ? (
-                    <Text style={styles.sourceExcerpt}>{source.excerpt}</Text>
-                  ) : null}
                 </View>
               ))}
             </View>
@@ -117,51 +152,19 @@ export default function ChatScreen() {
     )
   }
 
-  const renderStreamingMessage = () => {
-    if (!loading || !streamingContent) return null
+  const renderFooter = () => {
+    if (!loading && !streamingContent) return null
+
     return (
-      <View style={[styles.messageBubbleWrapper, styles.assistantWrapper]}>
+      <View style={[styles.messageWrap, styles.assistantWrap]}>
         <View style={[styles.messageBubble, styles.assistantBubble]}>
-          <Text style={[styles.messageText, styles.assistantText]}>
-            {streamingContent}
+          <Text style={styles.messageText}>
+            {streamingContent || '正在思考中...'}
           </Text>
         </View>
       </View>
     )
   }
-
-  const renderLoadingIndicator = () => {
-    if (!loading || streamingContent) return null
-    return (
-      <View style={[styles.messageBubbleWrapper, styles.assistantWrapper]}>
-        <View style={[styles.messageBubble, styles.assistantBubble]}>
-          <Text style={styles.thinkingText}>正在思考中...</Text>
-        </View>
-      </View>
-    )
-  }
-
-  const renderEmptyState = () => (
-    <View style={styles.emptyContainer}>
-      <Text style={styles.emptyTitle}>有什么可以帮助您的？</Text>
-      <Text style={styles.emptySubtitle}>
-        您可以问我关于孕期、育儿、营养等方面的问题
-      </Text>
-      <View style={styles.quickQuestionsContainer}>
-        {quickQuestions.map((question) => (
-          <Chip
-            key={question}
-            style={styles.quickChip}
-            textStyle={styles.quickChipText}
-            onPress={() => handleQuickQuestion(question)}
-            mode="outlined"
-          >
-            {question}
-          </Chip>
-        ))}
-      </View>
-    </View>
-  )
 
   return (
     <SafeAreaView style={styles.container}>
@@ -170,21 +173,49 @@ export default function ChatScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
-        {showBanner && (
-          <Banner
-            visible={showBanner}
-            actions={[{ label: '知道了', onPress: () => setShowBanner(false) }]}
-            style={styles.banner}
-          >
-            {getDisclaimer()}
-          </Banner>
-        )}
+        <View style={styles.topArea}>
+          <Card style={styles.quotaCard}>
+            <Card.Content>
+              <View style={styles.quotaHeader}>
+                <View>
+                  <Text style={styles.quotaTitle}>
+                    {status === 'active' ? activePlan?.name || '贝护会员' : '今日 AI 额度'}
+                  </Text>
+                  <Text style={styles.quotaSubtitle}>
+                    {status === 'active'
+                      ? '已解锁多轮连续对话和 AI 周报。'
+                      : '免费用户每天可咨询 3 次，升级后不限次数。'}
+                  </Text>
+                </View>
+                <Chip style={styles.quotaChip} textStyle={styles.quotaChipText}>
+                  剩余 {remainingCount}
+                </Chip>
+              </View>
 
-        {error ? (
-          <View style={styles.errorBar}>
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        ) : null}
+              {status !== 'active' ? (
+                <Button mode="contained" buttonColor={colors.ink} onPress={() => setUpgradeVisible(true)}>
+                  解锁无限问答
+                </Button>
+              ) : null}
+            </Card.Content>
+          </Card>
+
+          {showBanner ? (
+            <Banner
+              visible={showBanner}
+              actions={[{ label: '知道了', onPress: () => setShowBanner(false) }]}
+              style={styles.banner}
+            >
+              {getDisclaimer()}
+            </Banner>
+          ) : null}
+
+          {error ? (
+            <View style={styles.errorBar}>
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          ) : null}
+        </View>
 
         <FlatList
           ref={flatListRef}
@@ -192,16 +223,32 @@ export default function ChatScreen() {
           renderItem={renderMessage}
           keyExtractor={(item) => item.id}
           contentContainerStyle={[
-            styles.messagesList,
-            messages.length === 0 && styles.messagesListEmpty,
+            styles.messageList,
+            messages.length === 0 && styles.messageListEmpty,
           ]}
-          ListEmptyComponent={renderEmptyState}
-          ListFooterComponent={
-            <>
-              {renderStreamingMessage()}
-              {renderLoadingIndicator()}
-            </>
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyTitle}>今天想先解决什么问题？</Text>
+              <Text style={styles.emptySubtitle}>
+                先问一个最具体的问题，AI 更容易给到可执行建议。
+              </Text>
+
+              <View style={styles.quickWrap}>
+                {quickQuestions.map((question) => (
+                  <Chip
+                    key={question}
+                    mode="outlined"
+                    style={styles.quickChip}
+                    textStyle={styles.quickChipText}
+                    onPress={() => handleQuickQuestion(question)}
+                  >
+                    {question}
+                  </Chip>
+                ))}
+              </View>
+            </View>
           }
+          ListFooterComponent={renderFooter}
           onContentSizeChange={() => {
             if (messages.length > 0) {
               flatListRef.current?.scrollToEnd({ animated: false })
@@ -209,37 +256,41 @@ export default function ChatScreen() {
           }}
         />
 
-        {/* Input Area */}
-        <View style={styles.inputContainer}>
+        <View style={styles.inputWrap}>
           <TextInput
-            style={styles.textInput}
             value={inputText}
             onChangeText={setInputText}
-            placeholder="输入您的问题..."
+            placeholder="输入你的问题，例如：本周产检前我该准备什么？"
             placeholderTextColor={colors.textSecondary}
+            mode="outlined"
+            style={styles.input}
+            outlineColor={colors.border}
+            activeOutlineColor={colors.primary}
             multiline
             maxLength={2000}
             returnKeyType="send"
             onSubmitEditing={handleSend}
             blurOnSubmit={false}
-            mode="outlined"
-            outlineColor={colors.border}
-            activeOutlineColor={colors.primary}
-            dense
           />
           <IconButton
             icon="send"
+            size={20}
             iconColor={colors.white}
-            size={22}
-            style={[
-              styles.sendButton,
-              (!inputText.trim() || loading) && styles.sendButtonDisabled,
-            ]}
+            style={[styles.sendButton, (!inputText.trim() || loading) && styles.sendButtonDisabled]}
             onPress={handleSend}
             disabled={!inputText.trim() || loading}
           />
         </View>
       </KeyboardAvoidingView>
+
+      <UpgradeModal
+        visible={upgradeVisible}
+        plans={plans}
+        loading={membershipLoading}
+        onDismiss={() => setUpgradeVisible(false)}
+        onUpgrade={handleUpgrade}
+        onViewMembership={() => navigation.navigate('Membership')}
+      />
     </SafeAreaView>
   )
 }
@@ -252,56 +303,109 @@ const styles = StyleSheet.create({
   flex: {
     flex: 1,
   },
+  topArea: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+  },
+  quotaCard: {
+    borderRadius: 22,
+    backgroundColor: colors.white,
+  },
+  quotaHeader: {
+    marginBottom: spacing.md,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+  },
+  quotaTitle: {
+    fontSize: fontSize.xl,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  quotaSubtitle: {
+    marginTop: spacing.xs,
+    maxWidth: 220,
+    color: colors.textLight,
+    lineHeight: 20,
+  },
+  quotaChip: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.goldLight,
+  },
+  quotaChipText: {
+    color: colors.gold,
+    fontWeight: '700',
+  },
   banner: {
+    marginTop: spacing.sm,
     backgroundColor: colors.orangeLight,
+    borderRadius: 16,
   },
   errorBar: {
+    marginTop: spacing.sm,
+    borderRadius: 14,
+    padding: spacing.md,
     backgroundColor: colors.redLight,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
   },
   errorText: {
     color: colors.red,
-    fontSize: fontSize.sm,
   },
-  messagesList: {
+  messageList: {
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.lg,
   },
-  messagesListEmpty: {
-    flex: 1,
-    justifyContent: 'center',
+  messageListEmpty: {
+    flexGrow: 1,
   },
-  messageBubbleWrapper: {
-    marginVertical: spacing.xs,
-    maxWidth: '80%',
+  emptyState: {
+    paddingTop: spacing.xl,
   },
-  userWrapper: {
-    alignSelf: 'flex-end',
+  emptyTitle: {
+    fontSize: 26,
+    fontWeight: '700',
+    color: colors.text,
   },
-  assistantWrapper: {
-    alignSelf: 'flex-start',
+  emptySubtitle: {
+    marginTop: spacing.sm,
+    color: colors.textLight,
+    lineHeight: 22,
+  },
+  quickWrap: {
+    marginTop: spacing.lg,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  quickChip: {
+    backgroundColor: colors.white,
+  },
+  quickChipText: {
+    color: colors.text,
+  },
+  messageWrap: {
+    marginBottom: spacing.md,
+    flexDirection: 'row',
+  },
+  userWrap: {
+    justifyContent: 'flex-end',
+  },
+  assistantWrap: {
+    justifyContent: 'flex-start',
   },
   messageBubble: {
-    borderRadius: 16,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm + 2,
+    maxWidth: '84%',
+    padding: spacing.md,
+    borderRadius: 20,
   },
   userBubble: {
     backgroundColor: colors.primary,
-    borderBottomRightRadius: 4,
+    borderBottomRightRadius: 8,
   },
   assistantBubble: {
     backgroundColor: colors.white,
-    borderBottomLeftRadius: 4,
-  },
-  emergencyBubble: {
-    borderWidth: 2,
-    borderColor: colors.red,
-    backgroundColor: colors.redLight,
+    borderBottomLeftRadius: 8,
   },
   messageText: {
-    fontSize: fontSize.md,
     lineHeight: 22,
   },
   userText: {
@@ -310,100 +414,47 @@ const styles = StyleSheet.create({
   assistantText: {
     color: colors.text,
   },
-  emergencyText: {
-    color: colors.red,
-  },
-  thinkingText: {
-    color: colors.textSecondary,
-    fontSize: fontSize.md,
-    fontStyle: 'italic',
-  },
   sourcesWrap: {
-    marginTop: spacing.sm,
-    paddingTop: spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: '#E7EBF3',
+    marginTop: spacing.md,
+    gap: spacing.sm,
   },
   sourcesTitle: {
     color: colors.textSecondary,
     fontSize: fontSize.sm,
-    marginBottom: spacing.xs,
   },
   sourceCard: {
-    marginTop: spacing.xs,
     padding: spacing.sm,
-    borderRadius: 12,
-    backgroundColor: '#F5F7FD',
+    borderRadius: 14,
+    backgroundColor: colors.background,
   },
   sourceName: {
-    color: colors.text,
-    fontSize: fontSize.sm,
     fontWeight: '700',
+    color: colors.text,
   },
   sourceMeta: {
-    color: colors.textSecondary,
-    fontSize: 12,
-    marginTop: 2,
-  },
-  sourceExcerpt: {
-    color: colors.textSecondary,
-    fontSize: 12,
-    lineHeight: 18,
     marginTop: spacing.xs,
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-  },
-  emptyTitle: {
-    fontSize: fontSize.xl,
-    fontWeight: 'bold',
-    color: colors.text,
-    marginBottom: spacing.sm,
-  },
-  emptySubtitle: {
-    fontSize: fontSize.md,
-    color: colors.textSecondary,
-    marginBottom: spacing.lg,
-    textAlign: 'center',
-  },
-  quickQuestionsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: spacing.sm,
-  },
-  quickChip: {
-    backgroundColor: colors.white,
-    borderColor: colors.primary,
-    marginBottom: spacing.xs,
-  },
-  quickChipText: {
-    color: colors.primary,
+    color: colors.textLight,
     fontSize: fontSize.sm,
   },
-  inputContainer: {
+  inputWrap: {
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.md,
+    paddingTop: spacing.sm,
     flexDirection: 'row',
     alignItems: 'flex-end',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.sm,
-    backgroundColor: colors.white,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
+    gap: spacing.sm,
+    backgroundColor: colors.background,
   },
-  textInput: {
+  input: {
     flex: 1,
-    maxHeight: 100,
     backgroundColor: colors.white,
-    fontSize: fontSize.md,
   },
   sendButton: {
-    backgroundColor: colors.primary,
-    borderRadius: 20,
-    marginLeft: spacing.xs,
-    marginBottom: 4,
+    margin: 0,
+    borderRadius: 18,
+    backgroundColor: colors.ink,
   },
   sendButtonDisabled: {
-    backgroundColor: colors.border,
+    backgroundColor: colors.textSecondary,
   },
 })

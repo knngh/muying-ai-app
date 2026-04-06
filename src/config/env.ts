@@ -36,6 +36,18 @@ export const env = {
   get CORS_ORIGIN(): string {
     return process.env.CORS_ORIGIN || 'http://localhost:5173';
   },
+  get WECHAT_PAYMENT_CALLBACK_SECRET(): string {
+    return process.env.WECHAT_PAYMENT_CALLBACK_SECRET || '';
+  },
+  get ALIPAY_PAYMENT_CALLBACK_SECRET(): string {
+    return process.env.ALIPAY_PAYMENT_CALLBACK_SECRET || '';
+  },
+  get PAYMENT_CALLBACK_ALLOW_AUTH_FALLBACK(): boolean {
+    return this.isDev && process.env.PAYMENT_CALLBACK_ALLOW_AUTH_FALLBACK === 'true';
+  },
+  get PAYMENT_CALLBACK_MAX_SKEW_SECONDS(): number {
+    return Number(process.env.PAYMENT_CALLBACK_MAX_SKEW_SECONDS || 300);
+  },
   get isDev(): boolean {
     return this.NODE_ENV === 'development';
   },

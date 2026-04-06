@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+WITH_INSTALL="${WITH_INSTALL:-false}"
+WITH_DB_PUSH="${WITH_DB_PUSH:-false}"
+SKIP_SMOKE="${SKIP_SMOKE:-false}"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  scripts/prod-release-backend.sh [--with-install] [--with-db-push] [--skip-smoke]
+
+This script runs:
+  1. prod-sync-backend.sh
+  2. prod-deploy-backend.sh
+  3. prod-smoke-backend.sh
+EOF
+}
+
+DEPLOY_ARGS=()
+
+while (($# > 0)); do
+  case "$1" in
+    --with-install)
+      WITH_INSTALL="true"
+      DEPLOY_ARGS+=("--with-install")
+      ;;
+    --with-db-push)
+      WITH_DB_PUSH="true"
+      DEPLOY_ARGS+=("--with-db-push")
+      ;;
+    --skip-smoke)
+      SKIP_SMOKE="true"
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+  shift
+done
+
+echo "[1/3] sync"
+bash "${SCRIPT_DIR}/prod-sync-backend.sh"
+
+echo "[2/3] deploy"
+if ((${#DEPLOY_ARGS[@]} > 0)); then
+  bash "${SCRIPT_DIR}/prod-deploy-backend.sh" "${DEPLOY_ARGS[@]}"
+else
+  bash "${SCRIPT_DIR}/prod-deploy-backend.sh"
+fi
+
+if [[ "${SKIP_SMOKE}" == "true" ]]; then
+  echo "[3/3] smoke skipped"
+  exit 0
+fi
+
+echo "[3/3] smoke"
+bash "${SCRIPT_DIR}/prod-smoke-backend.sh"
