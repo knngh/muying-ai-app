@@ -1,6 +1,16 @@
 # 母婴AI助手 (Muying AI App)
 
-专为孕妇和新手妈妈打造的全栈 AI 健康助手，提供智能问答、孕育日历、知识库、社区交流等一站式母婴服务。
+面向孕妇、新手妈妈和家庭成员的母婴产品仓库，当前包含后端 API、小程序端、React Native App 端，以及围绕“问题助手”和“权威知识库”的可信 AI 机制。
+
+## 近期更新
+
+- `AI答疑` 统一调整为 `问题助手`，表述切换为更低风险、备案友好的“参考信息 / 下一步关注点 / 何时就医”
+- 新增 `权威知识库` 主入口，小程序首页与底部 Tab 已改为知识库优先
+- 知识库接入权威源抓取链路，当前已覆盖中国政府网、中国政府网政策解读、WHO、CDC、AAP、ACOG、NHS 等来源
+- 知识库详情支持 `中文辅助阅读`，英文文章可一键查看中文；中文原文自动隐藏翻译入口
+- 权威文章接口补充 `sourceLanguage / sourceLocale`，排序改为“按日期优先，同日中文在前”
+- 服务端新增权威源同步脚本、审核导出脚本、authority worker，支持持续抓取与快照导出
+- App 端与小程序端的 `知识库 / 问题助手` 顺序已统一
 
 ## 技术架构
 
@@ -43,18 +53,19 @@
 
 ## 功能模块
 
-### AI 智能问答
-- RAG 增强回答（知识库 5000+ QA 对）
+### 问题助手
+- 基于可信 AI 机制输出结构化参考信息，而不是开放式自由生成
+- 支持来源引用、风险分级、越权拦截、紧急问题快速止损
 - 支持流式响应 (SSE) 和非流式模式
-- 紧急关键词检测（出血、破水、昏迷等），自动触发急救警告
-- 多模型支持（GLM-4、Gemini、GPT-4o、DeepSeek）
-- 医疗免责声明
+- 当前按三模型 coding plan 路由执行，并由系统规则优先控制安全边界
+- 医疗免责声明与就医提醒兜底
 
-### 知识库
-- 文章浏览、全文搜索、分类/标签/阶段过滤
-- 文章详情（按 slug 访问）、点赞/收藏
-- 阅读历史追踪
-- 服务端缓存（热门文章 5 分钟 TTL）
+### 权威知识库
+- 权威文章浏览、全文搜索、来源/阶段过滤
+- 文章详情（按 slug 访问）、点赞/收藏、分享给家人
+- 中文辅助阅读、翻译缓存与中文原文自动识别
+- 服务端权威快照缓存、权威来源导出与增量同步
+- 默认排序：按日期优先，同日中文源优先
 
 ### 孕育日历
 - 周视图/日视图日历
@@ -63,11 +74,9 @@
 - 事件提醒设置
 
 ### 社区交流
-- 帖子发布（支持匿名）、编辑、删除
-- 评论/回复（支持嵌套评论）
-- 点赞/取消点赞（防重复）
-- 分类筛选、排序（最新/最热/最多赞）
-- 置顶、精选帖子
+- 后端社区能力仍保留
+- 小程序端当前已下线社区入口，优先展示权威知识库
+- App 端可按业务节奏继续保留或收缩
 
 ### 用户系统
 - 用户名 + 密码注册/登录（支持手机号/邮箱作为登录名）
@@ -119,29 +128,34 @@ muying-ai-app/
 │   └── utils/                    # 工具函数
 │       ├── pregnancy.ts          # 孕期计算
 │       └── ownership.ts          # 资源所有权校验
-├── frontend/                     # 前端源码
-│   ├── src/
-│   │   ├── api/                  # API 客户端
-│   │   │   ├── index.ts          # Axios 实例 + 拦截器 + Token 刷新（Promise 锁）
-│   │   │   ├── modules.ts        # 文章/日历/用户/认证 API
-│   │   │   ├── community.ts      # 社区 API
-│   │   │   └── ai.ts             # AI 问答 API + 紧急检测
-│   │   ├── stores/               # Zustand 状态管理
-│   │   ├── pages/                # 页面组件
-│   │   ├── components/           # 公共组件
-│   │   │   ├── Layout/           # 导航布局
-│   │   │   ├── ErrorBoundary.tsx # 全局错误边界（防白屏）
-│   │   │   └── ChatMessage/      # 聊天消息
-│   │   ├── utils/
-│   │   │   └── storage.ts        # 安全 localStorage 封装
-│   │   └── App.tsx               # 路由配置 + 路由守卫 + ErrorBoundary
-│   └── vite.config.ts
+├── mini-program/                 # Uni-app 小程序端
+│   ├── src/pages/                # 首页 / 知识库 / 问题助手 / 登录 / 孕育日历
+│   ├── src/stores/               # Pinia 状态
+│   ├── src/api/                  # 小程序 API 封装
+│   └── src/static/               # Tab 图标与静态资源
+├── mobile/                       # React Native App 端
+│   ├── src/navigation/           # App Navigator / Tab
+│   ├── src/screens/              # Home / Knowledge / Chat / Profile 等页面
+│   ├── src/api/                  # App API 封装
+│   └── src/components/           # App 组件
 ├── prisma/
 │   └── schema.prisma             # 数据库模型（16 张表）
 ├── data/
-│   └── expanded-qa-data-5000.json # AI 知识库数据
+│   ├── expanded-qa-data-5000.json # QA 数据集
+│   └── authority-knowledge-cache.json # 权威知识库导出快照（运行时生成）
 ├── docs/
-│   └── REMEDIATION-PLAN.md       # 安全整改方案
+│   ├── authority-knowledge-full-sync-plan.md
+│   ├── prod-authority-rollout.md
+│   └── app-mvp/
+├── src/config/
+│   └── authority-sources.ts      # 权威来源配置（来源、语言、区域、抓取入口）
+├── src/services/
+│   ├── trusted-ai.service.ts     # 可信 AI 安全与来源机制
+│   ├── authority-sync.service.ts # 权威来源发现 / 抓取 / 标准化 / 导出
+│   ├── ai-route-planner.service.ts # 模型路由层
+│   └── authority-adapters/       # 各权威来源标准化适配器
+├── src/workers/
+│   └── authority-sync.worker.ts  # 权威来源持续抓取 worker
 ├── Dockerfile                    # 后端 Docker 镜像
 └── .env.example                  # 环境变量模板
 ```
@@ -171,7 +185,7 @@ muying-ai-app/
 | POST | `/:id/like` | Bearer | 点赞 |
 | POST | `/:id/favorite` | Bearer | 收藏 |
 
-### AI `/ai`
+### 问题助手 `/ai`
 
 | 方法 | 路径 | 认证 | 说明 |
 |------|------|------|------|
@@ -258,6 +272,19 @@ npx prisma db push
 
 # 启动开发服务器
 npm run dev
+```
+
+### 4. 权威知识库抓取与导出
+
+```bash
+# 增量抓取已配置权威源
+npm run sync:authority
+
+# 导出已发布权威文档到快照缓存
+npm run review:authority -- export
+
+# 启动 authority worker
+npm run worker:authority
 ```
 
 后端运行在 http://localhost:3000

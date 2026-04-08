@@ -5,9 +5,11 @@ export const getArticlesQuery = paginationQuery.extend({
   category: z.string().optional(),
   tag: z.string().optional(),
   stage: z.string().optional(),
+  source: z.string().optional(),
   difficulty: z.string().optional(),
   contentType: z.string().optional(),
   sort: z.enum(['latest', 'popular', 'recommended']).default('latest'),
+  keyword: z.string().optional(),
 });
 
 export const searchArticlesQuery = paginationQuery.extend({

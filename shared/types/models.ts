@@ -40,6 +40,15 @@ export interface Article {
   contentType?: string
   isVerified?: boolean
   disclaimer?: string
+  source?: string
+  sourceOrg?: string
+  sourceUrl?: string
+  sourceLanguage?: 'zh' | 'en'
+  sourceLocale?: string
+  audience?: string
+  topic?: string
+  region?: string
+  originalId?: string
   status: number
   publishedAt?: string
   createdAt: string

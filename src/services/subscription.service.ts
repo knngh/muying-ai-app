@@ -92,7 +92,7 @@ const DEFAULT_PLAN_SEEDS: DefaultPlanSeed[] = [
     price: 19.9,
     originalPrice: 29.9,
     durationDays: 30,
-    description: '适合先体验 AI 无限问答和会员周报。',
+    description: '适合先体验问题助手不限次和会员周度报告。',
     sortOrder: 1,
   },
   {
@@ -122,6 +122,19 @@ const PLAN_FEATURES: Record<PlanCode, MembershipFeatureCode[]> = {
   quarterly: ['ai_unlimited', 'continuous_chat', 'weekly_report', 'stage_circle', 'growth_export'],
   yearly: ['ai_unlimited', 'continuous_chat', 'weekly_report', 'growth_export', 'stage_circle', 'ad_free'],
 };
+
+function normalizeWeeklyReportTitle(rawTitle?: string | null): string {
+  const title = (rawTitle || '').trim();
+  if (!title) {
+    return '个性化周度报告';
+  }
+
+  if (title === 'AI 个性化周报' || title === 'AI个性化周报' || title === '个性化周报') {
+    return '个性化周度报告';
+  }
+
+  return title;
+}
 
 function getTodayDate(): Date {
   return dayjs().startOf('day').toDate();
@@ -807,7 +820,9 @@ function serializeWeeklyReport(report: {
   const highlights = Array.isArray(content.highlights)
     ? content.highlights.filter((item): item is string => typeof item === 'string')
     : [];
-  const title = typeof content.title === 'string' ? content.title : 'AI 个性化周报';
+  const title = normalizeWeeklyReportTitle(
+    typeof content.title === 'string' ? content.title : null,
+  );
 
   return {
     id: report.id.toString(),
@@ -863,7 +878,7 @@ export async function generateWeeklyReport(userId: string): Promise<WeeklyReport
       weekStart,
       stageInfo: stageLabel,
       content: {
-        title: 'AI 个性化周报',
+        title: '个性化周度报告',
         highlights,
       },
     },

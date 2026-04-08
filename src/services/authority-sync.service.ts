@@ -1,0 +1,862 @@
+import fs from 'fs';
+import path from 'path';
+import zlib from 'zlib';
+import prisma from '../config/database';
+import {
+  getAuthoritySourceConfig,
+  inferAuthorityLocaleDefaults,
+  listEnabledAuthoritySources,
+  type AuthoritySourceConfig,
+} from '../config/authority-sources';
+import { normalizeWithAuthorityAdapter } from './authority-adapters';
+import { stripHtml } from './authority-adapters/base.adapter';
+
+export interface DiscoveredAuthorityUrl {
+  url: string;
+  sourceId: string;
+  discoveredAt: string;
+  priority: number;
+}
+
+export interface AuthorityRawDocument {
+  sourceId: string;
+  url: string;
+  httpStatus: number;
+  contentType: string;
+  etag?: string;
+  lastModified?: string;
+  contentHash: string;
+  fetchedAt: string;
+  rawBody: string;
+}
+
+export interface NormalizedAuthorityDocument {
+  sourceId: string;
+  sourceOrg: string;
+  sourceUrl: string;
+  sourceLanguage?: 'zh' | 'en';
+  sourceLocale?: string;
+  title: string;
+  updatedAt?: string;
+  audience: string;
+  topic: string;
+  region: string;
+  riskLevelDefault: 'green' | 'yellow' | 'red';
+  summary: string;
+  contentText: string;
+  metadataJson: Record<string, unknown>;
+  publishStatus: 'draft' | 'review' | 'published' | 'rejected';
+}
+
+export interface AuthoritySyncSummary {
+  sourceId: string;
+  mode: 'full' | 'incremental';
+  discovered: number;
+  fetched: number;
+  normalized: number;
+  published: number;
+  failed: number;
+}
+
+export interface AuthorityReviewDocument {
+  id: number | bigint;
+  sourceId: string;
+  sourceOrg: string;
+  sourceUrl: string;
+  title: string;
+  updatedAt: Date | null;
+  audience: string;
+  topic: string;
+  region: string;
+  riskLevelDefault: string;
+  publishStatus: string;
+  createdAt: Date;
+}
+
+export interface ListAuthorityDocumentsOptions {
+  publishStatus?: 'draft' | 'review' | 'published' | 'rejected' | 'all';
+  sourceId?: string;
+  limit?: number;
+}
+
+let ensureAuthorityTablesPromise: Promise<void> | null = null;
+const AUTHORITY_CACHE_PATH = path.join(process.cwd(), 'data', 'authority-knowledge-cache.json');
+
+function toMysqlDateTime(input?: string | Date | null): string | null {
+  if (!input) {
+    return null;
+  }
+
+  const date = input instanceof Date ? input : new Date(input);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(date.getUTCDate()).padStart(2, '0');
+  const hours = String(date.getUTCHours()).padStart(2, '0');
+  const minutes = String(date.getUTCMinutes()).padStart(2, '0');
+  const seconds = String(date.getUTCSeconds()).padStart(2, '0');
+
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+}
+
+function hashText(input: string): string {
+  let hash = 0;
+  for (let index = 0; index < input.length; index += 1) {
+    hash = ((hash << 5) - hash) + input.charCodeAt(index);
+    hash |= 0;
+  }
+  return `${hash}`;
+}
+
+function isAllowedAuthorityUrl(url: string, source: AuthoritySourceConfig): boolean {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return source.allowedDomains.some((domain) => host === domain || host.endsWith(`.${domain}`));
+  } catch {
+    return false;
+  }
+}
+
+function isBlockedAuthorityUrl(url: string, source: AuthoritySourceConfig): boolean {
+  const normalized = url.toLowerCase();
+
+  const genericBlockedPatterns = [
+    /\/login\b/,
+    /\/signin\b/,
+    /\/sign-in\b/,
+    /\/logout\b/,
+    /\/register\b/,
+    /\/account\b/,
+    /\/search\b/,
+    /\/tag\b/,
+    /\/tags\b/,
+    /\/category\b/,
+    /\/categories\b/,
+    /\/author\b/,
+    /\/authors\b/,
+    /\/feed\b/,
+    /\/rss\b/,
+    /\/print\b/,
+    /\/download\b/,
+    /\.js($|[?#])/,
+    /\.css($|[?#])/,
+    /\.json($|[?#])/,
+    /\?.*(replytocom|output=1)/,
+  ];
+
+  if (genericBlockedPatterns.some((pattern) => pattern.test(normalized))) {
+    return true;
+  }
+
+  if (source.id === 'acog') {
+    const acogBlockedPatterns = [
+      /\/myacog\//,
+      /\/membership/,
+      /\/membership-applications\//,
+      /\/purchase/,
+      /\/speaker-agreement/,
+      /\/committee-opinion/,
+      /\/clinical-guidance\/committee-opinion/,
+    ];
+    return acogBlockedPatterns.some((pattern) => pattern.test(normalized));
+  }
+
+  if (source.id === 'aap') {
+    return /\/english\/news\//.test(normalized);
+  }
+
+  if (source.id === 'nhc-fys') {
+    return /\/video\//.test(normalized) || /\.(mp4|mp3|avi|wmv)($|[?#])/i.test(normalized);
+  }
+
+  return false;
+}
+
+function isAuthorityUrlMatched(url: string, source: AuthoritySourceConfig, anchorText = ''): boolean {
+  if (!isAllowedAuthorityUrl(url, source) || isBlockedAuthorityUrl(url, source)) {
+    return false;
+  }
+
+  const normalized = `${url} ${anchorText}`.toLowerCase();
+  if (source.id === 'acog') {
+    return /\/(clinical|womens-health|topics)\//.test(normalized);
+  }
+
+  if (source.id === 'aap') {
+    return /\/english\/(ages-stages|health-issues|healthy-living|safety-prevention|family-life)\//.test(normalized)
+      && !/\/english\/pages\//.test(normalized);
+  }
+
+  if (source.id === 'cdc') {
+    return /\/(pregnancy|breastfeeding|parents|child-development|vaccines-(children|pregnancy|for-children)|reproductivehealth|womens-health|contraception|growthcharts|ncbddd|act-early|early-care|protect-children|medicines?-and-pregnancy|opioid-use-during-pregnancy|pregnancy-hiv-std-tb-hepatitis)\//.test(normalized);
+  }
+
+  if (source.id === 'who') {
+    return /(pregnan|maternal|newborn|infant|child|children|breastfeed|breastfeeding|immuni|vaccin|reproductive|family-planning|contracept|postpartum|antenatal|prenatal|labou?r|birth)/.test(normalized);
+  }
+
+  if (source.id === 'nhc-fys') {
+    return /\/(fys|wjw|wsb)\//.test(normalized)
+      && /(妇幼|孕产|孕妇|母婴|婴幼儿|新生儿|儿童|托育|生育|母乳|哺乳|接种|疫苗|出生|产后)/.test(normalized);
+  }
+
+  if (source.id === 'chinacdc-immunization') {
+    return /chinacdc\.cn/.test(normalized)
+      && /(免疫|疫苗|接种|儿童|婴幼儿|新生儿|孕妇|孕产|母乳|喂养)/.test(normalized);
+  }
+
+  if (source.id === 'govcn-muying' || source.id === 'govcn-jiedu-muying') {
+    return /gov\.cn/.test(normalized)
+      && /(生育|母婴|托育|儿童|婴幼儿|新生儿|孕产|妇幼|疫苗|接种|产假|育儿)/.test(normalized);
+  }
+
+  return true;
+}
+
+function filterAuthorityUrls(urls: string[], source: AuthoritySourceConfig): string[] {
+  return urls.filter((url) => {
+    return isAuthorityUrlMatched(url, source);
+  });
+}
+
+function extractSitemapUrls(xml: string, source: AuthoritySourceConfig): string[] {
+  const urls = Array.from(xml.matchAll(/<loc>(.*?)<\/loc>/gi)).map((match) => match[1]?.trim()).filter(Boolean) as string[];
+  return filterAuthorityUrls(urls, source);
+}
+
+function looksLikeSitemapIndex(xml: string): boolean {
+  return /<sitemapindex[\s>]/i.test(xml);
+}
+
+function isXmlSitemapUrl(url: string): boolean {
+  return /\.xml(\.gz)?($|[?#])/i.test(url) || /sitemap/i.test(url) || /\.gz($|[?#])/i.test(url);
+}
+
+function filterNestedSitemapCandidates(urls: string[], source: AuthoritySourceConfig): string[] {
+  if (source.id === 'cdc') {
+    return urls.filter((url) => /\/(pregnancy|breastfeeding|parents|child-development|vaccines-(children|pregnancy|for-children)|reproductivehealth|womens-health|contraception|growthcharts|ncbddd|act-early|early-care|protect-children|medicines?-and-pregnancy|opioid-use-during-pregnancy|pregnancy-hiv-std-tb-hepatitis|rsv|flu|measles|mumps|rubella|chickenpox|rotavirus|pinkbook|acip-recs)\//i.test(url));
+  }
+
+  return urls;
+}
+
+function extractIndexLinks(html: string, source: AuthoritySourceConfig): string[] {
+  const links = Array.from(html.matchAll(/<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi))
+    .map((match) => ({
+      href: match[1]?.trim() || '',
+      text: stripHtml(match[2] || '').slice(0, 120),
+    }))
+    .filter((item) => Boolean(item.href))
+    .map((item) => {
+      try {
+        return {
+          url: new URL(item.href, source.baseUrl).toString(),
+          text: item.text,
+        };
+      } catch {
+        return null;
+      }
+    })
+    .filter((item): item is { url: string; text: string } => Boolean(item));
+
+  return links
+    .filter((item) => isAuthorityUrlMatched(item.url, source, item.text))
+    .map((item) => item.url);
+}
+
+function extractApiLinks(payload: unknown, source: AuthoritySourceConfig): string[] {
+  const discovered = new Map<string, string>();
+
+  function walk(node: unknown) {
+    if (!node) {
+      return;
+    }
+
+    if (Array.isArray(node)) {
+      node.forEach(walk);
+      return;
+    }
+
+    if (typeof node !== 'object') {
+      return;
+    }
+
+    const record = node as Record<string, unknown>;
+    const urlValue = [record.URL, record.url, record.link, record.href]
+      .find((value) => typeof value === 'string' && value.trim()) as string | undefined;
+    const titleValue = [record.TITLE, record.title, record.name]
+      .find((value) => typeof value === 'string' && value.trim()) as string | undefined;
+
+    if (urlValue) {
+      try {
+        const absoluteUrl = new URL(urlValue, source.baseUrl).toString();
+        if (isAuthorityUrlMatched(absoluteUrl, source, titleValue || '')) {
+          discovered.set(absoluteUrl, titleValue || '');
+        }
+      } catch {
+        // ignore invalid URLs
+      }
+    }
+
+    Object.values(record).forEach(walk);
+  }
+
+  walk(payload);
+  return Array.from(discovered.keys());
+}
+
+async function fetchText(url: string, headers?: Record<string, string>): Promise<Response> {
+  return fetch(url, {
+    method: 'GET',
+    headers: {
+      'User-Agent': 'muying-ai-app-authority-sync/1.0',
+      Accept: 'text/html,application/xhtml+xml,application/xml,text/xml;q=0.9,*/*;q=0.8',
+      ...headers,
+    },
+  });
+}
+
+function detectResponseCharset(response: Response, buffer: Buffer): string {
+  const contentType = response.headers.get('content-type') || '';
+  const headerCharset = contentType.match(/charset=([^;]+)/i)?.[1]?.trim().toLowerCase();
+  if (headerCharset) {
+    return headerCharset;
+  }
+
+  if (buffer.length >= 2) {
+    if (buffer[0] === 0xff && buffer[1] === 0xfe) {
+      return 'utf-16le';
+    }
+    if (buffer[0] === 0xfe && buffer[1] === 0xff) {
+      return 'utf-16be';
+    }
+  }
+
+  const sample = buffer.subarray(0, Math.min(buffer.length, 128));
+  const hasUtf16NullPattern = sample.some((byte, index) => index % 2 === 1 && byte === 0);
+  if (hasUtf16NullPattern) {
+    return 'utf-16le';
+  }
+
+  return 'utf-8';
+}
+
+async function readResponseText(response: Response, url: string): Promise<string> {
+  const arrayBuffer = await response.arrayBuffer();
+  let buffer = Buffer.from(arrayBuffer);
+  const contentType = response.headers.get('content-type') || '';
+  const contentEncoding = response.headers.get('content-encoding') || '';
+
+  if (/\.gz($|[?#])/i.test(url) || /gzip/i.test(contentEncoding) || /gzip|x-gzip/i.test(contentType)) {
+    try {
+      buffer = zlib.gunzipSync(buffer);
+    } catch {
+      // Some endpoints expose .gz in the URL but return plain XML.
+    }
+  }
+
+  const charset = detectResponseCharset(response, buffer);
+  try {
+    const decoder = new TextDecoder(charset);
+    return decoder.decode(buffer);
+  } catch {
+    return buffer.toString('utf-8');
+  }
+}
+
+export async function ensureAuthoritySyncTables(): Promise<void> {
+  if (!ensureAuthorityTablesPromise) {
+    ensureAuthorityTablesPromise = (async () => {
+      await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS authority_discovered_urls (
+          id BIGINT NOT NULL AUTO_INCREMENT,
+          source_id VARCHAR(64) NOT NULL,
+          url VARCHAR(1000) NOT NULL,
+          discovered_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          priority INT NOT NULL DEFAULT 100,
+          status VARCHAR(20) NOT NULL DEFAULT 'pending',
+          PRIMARY KEY (id),
+          UNIQUE KEY uniq_authority_discovered_url (source_id, url(255)),
+          KEY idx_authority_discovered_status (status)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+      `);
+
+      await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS authority_raw_documents (
+          id BIGINT NOT NULL AUTO_INCREMENT,
+          source_id VARCHAR(64) NOT NULL,
+          url VARCHAR(1000) NOT NULL,
+          http_status INT NOT NULL,
+          content_type VARCHAR(120) NOT NULL,
+          etag VARCHAR(255) NULL,
+          last_modified VARCHAR(255) NULL,
+          content_hash VARCHAR(128) NOT NULL,
+          fetched_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          raw_body LONGTEXT NOT NULL,
+          PRIMARY KEY (id),
+          UNIQUE KEY uniq_authority_raw_url (source_id, url(255), content_hash),
+          KEY idx_authority_raw_fetched (fetched_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+      `);
+
+      await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS authority_normalized_documents (
+          id BIGINT NOT NULL AUTO_INCREMENT,
+          source_id VARCHAR(64) NOT NULL,
+          source_org VARCHAR(120) NOT NULL,
+          source_url VARCHAR(1000) NOT NULL,
+          title VARCHAR(500) NOT NULL,
+          updated_at DATETIME NULL,
+          audience VARCHAR(120) NOT NULL,
+          topic VARCHAR(120) NOT NULL,
+          region VARCHAR(20) NOT NULL,
+          risk_level_default VARCHAR(20) NOT NULL,
+          summary TEXT NOT NULL,
+          content_text LONGTEXT NOT NULL,
+          metadata_json LONGTEXT NULL,
+          publish_status VARCHAR(20) NOT NULL DEFAULT 'draft',
+          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (id),
+          UNIQUE KEY uniq_authority_normalized_url (source_id, source_url(255))
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+      `);
+    })();
+  }
+
+  return ensureAuthorityTablesPromise;
+}
+
+export async function discoverAuthorityUrls(
+  source: AuthoritySourceConfig,
+  mode: 'full' | 'incremental',
+): Promise<DiscoveredAuthorityUrl[]> {
+  const discovered = new Map<string, DiscoveredAuthorityUrl>();
+
+  async function collectSitemapPageUrls(urls: string[], depth = 0): Promise<string[]> {
+    if (depth > 2 || urls.length === 0) {
+      return [];
+    }
+
+    const pageUrls: string[] = [];
+    for (const url of urls) {
+      if (pageUrls.length >= source.maxPagesPerRun) {
+        break;
+      }
+
+      const response = await fetchText(url);
+      if (!response.ok) {
+        continue;
+      }
+
+      const text = await readResponseText(response, url);
+      const candidates = extractSitemapUrls(text, source);
+      if (candidates.length === 0) {
+        continue;
+      }
+
+      if (looksLikeSitemapIndex(text)) {
+        const nestedCandidates = filterNestedSitemapCandidates(
+          candidates
+          .filter((candidate) => isXmlSitemapUrl(candidate))
+          .slice(0, source.maxPagesPerRun - pageUrls.length),
+          source,
+        );
+        const nestedUrls = await collectSitemapPageUrls(nestedCandidates, depth + 1);
+        pageUrls.push(...nestedUrls);
+        continue;
+      }
+
+      pageUrls.push(
+        ...candidates
+          .filter((candidate) => !isXmlSitemapUrl(candidate))
+          .slice(0, source.maxPagesPerRun - pageUrls.length)
+      );
+    }
+
+    return pageUrls.slice(0, source.maxPagesPerRun);
+  }
+
+  for (const entryUrl of source.entryUrls) {
+    const normalizedCandidates: string[] = [];
+
+    if (source.discoveryType === 'sitemap') {
+      normalizedCandidates.push(...await collectSitemapPageUrls([entryUrl]));
+    } else if (source.discoveryType === 'api') {
+      const response = await fetchText(entryUrl, { Accept: 'application/json,text/plain,*/*' });
+      if (!response.ok) {
+        continue;
+      }
+
+      const text = await readResponseText(response, entryUrl);
+      try {
+        const parsed = JSON.parse(text);
+        normalizedCandidates.push(...extractApiLinks(parsed, source));
+      } catch {
+        continue;
+      }
+    } else {
+      const response = await fetchText(entryUrl);
+      if (!response.ok) {
+        continue;
+      }
+
+      const text = await response.text();
+      normalizedCandidates.push(...extractIndexLinks(text, source));
+    }
+
+    for (const url of normalizedCandidates.slice(0, source.maxPagesPerRun)) {
+      if (!discovered.has(url)) {
+        discovered.set(url, {
+          url,
+          sourceId: source.id,
+          discoveredAt: new Date().toISOString(),
+          priority: mode === 'full' ? 100 : 80,
+        });
+      }
+    }
+  }
+
+  return Array.from(discovered.values()).slice(0, source.maxPagesPerRun);
+}
+
+export async function persistDiscoveredAuthorityUrls(urls: DiscoveredAuthorityUrl[]): Promise<void> {
+  if (urls.length === 0) {
+    return;
+  }
+
+  await ensureAuthoritySyncTables();
+
+  for (const item of urls) {
+    await prisma.$executeRawUnsafe(
+      `INSERT IGNORE INTO authority_discovered_urls (source_id, url, discovered_at, priority, status)
+       VALUES (?, ?, ?, ?, 'pending')`,
+      item.sourceId,
+      item.url,
+      toMysqlDateTime(item.discoveredAt),
+      item.priority,
+    );
+  }
+}
+
+export async function fetchAuthorityDocument(source: AuthoritySourceConfig, url: string): Promise<AuthorityRawDocument | null> {
+  const response = await fetchText(url);
+  const rawBody = await readResponseText(response, url);
+  const contentType = response.headers.get('content-type') || 'text/html';
+  const raw: AuthorityRawDocument = {
+    sourceId: source.id,
+    url,
+    httpStatus: response.status,
+    contentType,
+    etag: response.headers.get('etag') || undefined,
+    lastModified: response.headers.get('last-modified') || undefined,
+    contentHash: hashText(rawBody),
+    fetchedAt: new Date().toISOString(),
+    rawBody,
+  };
+
+  await prisma.$executeRawUnsafe(
+    `INSERT IGNORE INTO authority_raw_documents
+     (source_id, url, http_status, content_type, etag, last_modified, content_hash, fetched_at, raw_body)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    raw.sourceId,
+    raw.url,
+    raw.httpStatus,
+    raw.contentType,
+    raw.etag || null,
+    raw.lastModified || null,
+    raw.contentHash,
+    toMysqlDateTime(raw.fetchedAt),
+    raw.rawBody,
+  );
+
+  return raw;
+}
+
+export function normalizeAuthorityDocument(source: AuthoritySourceConfig, raw: AuthorityRawDocument): NormalizedAuthorityDocument | null {
+  return normalizeWithAuthorityAdapter(source, raw);
+}
+
+export async function persistNormalizedAuthorityDocument(document: NormalizedAuthorityDocument): Promise<void> {
+  await prisma.$executeRawUnsafe(
+    `INSERT INTO authority_normalized_documents
+     (source_id, source_org, source_url, title, updated_at, audience, topic, region, risk_level_default, summary, content_text, metadata_json, publish_status)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE
+       source_org = VALUES(source_org),
+       title = VALUES(title),
+       updated_at = VALUES(updated_at),
+       audience = VALUES(audience),
+       topic = VALUES(topic),
+       region = VALUES(region),
+       risk_level_default = VALUES(risk_level_default),
+       summary = VALUES(summary),
+       content_text = VALUES(content_text),
+       metadata_json = VALUES(metadata_json),
+       publish_status = CASE
+         WHEN publish_status IN ('published', 'rejected') THEN publish_status
+         ELSE VALUES(publish_status)
+       END`,
+    document.sourceId,
+    document.sourceOrg,
+    document.sourceUrl,
+    document.title,
+    toMysqlDateTime(document.updatedAt),
+    document.audience,
+    document.topic,
+    document.region,
+    document.riskLevelDefault,
+    document.summary,
+    document.contentText,
+    JSON.stringify(document.metadataJson),
+    document.publishStatus,
+  );
+}
+
+export async function listAuthorityDocuments(
+  options: ListAuthorityDocumentsOptions = {},
+): Promise<AuthorityReviewDocument[]> {
+  await ensureAuthoritySyncTables();
+  const limit = Math.max(1, Math.min(options.limit || 20, 200));
+  const whereClauses: string[] = [];
+  const params: Array<string> = [];
+
+  if (options.publishStatus && options.publishStatus !== 'all') {
+    whereClauses.push('publish_status = ?');
+    params.push(options.publishStatus);
+  }
+
+  if (options.sourceId) {
+    whereClauses.push('source_id = ?');
+    params.push(options.sourceId);
+  }
+
+  const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+
+  return prisma.$queryRawUnsafe<AuthorityReviewDocument[]>(
+    `SELECT
+      id,
+      source_id AS sourceId,
+      source_org AS sourceOrg,
+      source_url AS sourceUrl,
+      title,
+      updated_at AS updatedAt,
+      audience,
+      topic,
+      region,
+      risk_level_default AS riskLevelDefault,
+      publish_status AS publishStatus,
+      created_at AS createdAt
+     FROM authority_normalized_documents
+     ${whereSql}
+     ORDER BY updated_at DESC, id DESC
+     LIMIT ${limit}`,
+    ...params,
+  );
+}
+
+export async function updateAuthorityDocumentPublishStatus(
+  ids: number[],
+  publishStatus: 'published' | 'rejected',
+): Promise<number> {
+  await ensureAuthoritySyncTables();
+  const normalizedIds = Array.from(new Set(ids))
+    .map((id) => Number(id))
+    .filter((id) => Number.isInteger(id) && id > 0);
+
+  if (normalizedIds.length === 0) {
+    return 0;
+  }
+
+  const placeholders = normalizedIds.map(() => '?').join(', ');
+  const updated = await prisma.$executeRawUnsafe(
+    `UPDATE authority_normalized_documents
+     SET publish_status = ?
+     WHERE id IN (${placeholders})`,
+    publishStatus,
+    ...normalizedIds,
+  );
+
+  if (updated > 0) {
+    await exportPublishedAuthoritySnapshot();
+  }
+
+  return Number(updated);
+}
+
+export async function syncAuthoritySource(
+  sourceId: string,
+  mode: 'full' | 'incremental' = 'incremental',
+): Promise<AuthoritySyncSummary> {
+  await ensureAuthoritySyncTables();
+  const source = getAuthoritySourceConfig(sourceId);
+  if (!source || !source.enabled) {
+    throw new Error(`Authority source not enabled: ${sourceId}`);
+  }
+
+  const summary: AuthoritySyncSummary = {
+    sourceId,
+    mode,
+    discovered: 0,
+    fetched: 0,
+    normalized: 0,
+    published: 0,
+    failed: 0,
+  };
+
+  const discoveredUrls = await discoverAuthorityUrls(source, mode);
+  summary.discovered = discoveredUrls.length;
+  await persistDiscoveredAuthorityUrls(discoveredUrls);
+
+  for (const discovered of discoveredUrls) {
+    try {
+      const raw = await fetchAuthorityDocument(source, discovered.url);
+      if (!raw || raw.httpStatus >= 400) {
+        summary.failed += 1;
+        continue;
+      }
+      summary.fetched += 1;
+
+      const normalized = normalizeAuthorityDocument(source, raw);
+      if (!normalized) {
+        summary.failed += 1;
+        continue;
+      }
+
+      await persistNormalizedAuthorityDocument(normalized);
+      summary.normalized += 1;
+      if (normalized.publishStatus === 'published' || normalized.publishStatus === 'review') {
+        summary.published += 1;
+      }
+    } catch (error) {
+      summary.failed += 1;
+      console.error(`[Authority Sync] Failed: ${source.id} -> ${discovered.url}`, error);
+    }
+  }
+
+  await exportPublishedAuthoritySnapshot();
+
+  return summary;
+}
+
+export async function syncAllAuthoritySources(
+  mode: 'full' | 'incremental' = 'incremental',
+): Promise<AuthoritySyncSummary[]> {
+  const summaries: AuthoritySyncSummary[] = [];
+  for (const source of listEnabledAuthoritySources()) {
+    summaries.push(await syncAuthoritySource(source.id, mode));
+  }
+  return summaries;
+}
+
+export async function exportPublishedAuthoritySnapshot(): Promise<void> {
+  await ensureAuthoritySyncTables();
+  const rows = await prisma.$queryRawUnsafe<Array<{
+    sourceId: string;
+    sourceOrg: string;
+    sourceUrl: string;
+    title: string;
+    updatedAt: Date | null;
+    createdAt: Date;
+    audience: string;
+    topic: string;
+    region: string;
+    riskLevelDefault: string;
+    summary: string;
+    contentText: string;
+    metadataJson: string | null;
+    publishStatus: string;
+  }>>(
+    `SELECT
+      source_id AS sourceId,
+      source_org AS sourceOrg,
+      source_url AS sourceUrl,
+      title,
+      updated_at AS updatedAt,
+      created_at AS createdAt,
+      audience,
+      topic,
+      region,
+      risk_level_default AS riskLevelDefault,
+      summary,
+      content_text AS contentText,
+      metadata_json AS metadataJson,
+      publish_status AS publishStatus
+     FROM authority_normalized_documents
+     WHERE publish_status = 'published'
+     ORDER BY COALESCE(updated_at, created_at) DESC, id DESC`
+  );
+
+  const payload = rows.map((row, index) => {
+    const localeDefaults = inferAuthorityLocaleDefaults(row.sourceId, row.region);
+    const metadata = row.metadataJson ? JSON.parse(row.metadataJson) : {};
+    const stableDate = row.updatedAt || row.createdAt;
+
+    return {
+      id: `authority-${row.sourceId}-${index + 1}`,
+      source_id: row.sourceId,
+      content_type: 'authority',
+      question: row.title,
+      answer: row.contentText,
+      summary: row.summary,
+      category: row.topic,
+      tags: [row.topic, row.audience].filter(Boolean),
+      target_stage: [],
+      difficulty: 'authoritative',
+      read_time: Math.max(1, Math.ceil((row.contentText || '').length / 600)),
+      author: {
+        name: row.sourceOrg,
+        title: 'Authority Source',
+      },
+      is_verified: true,
+      status: 'published',
+      view_count: 0,
+      like_count: 0,
+      created_at: row.createdAt.toISOString(),
+      updated_at: stableDate.toISOString(),
+      published_at: stableDate.toISOString(),
+      source: row.sourceOrg,
+      source_org: row.sourceOrg,
+      source_url: row.sourceUrl,
+      source_language: localeDefaults.sourceLanguage,
+      source_locale: localeDefaults.sourceLocale,
+      url: row.sourceUrl,
+      audience: row.audience,
+      topic: row.topic,
+      risk_level_default: row.riskLevelDefault,
+      region: row.region,
+      original_id: row.sourceUrl,
+      metadata: {
+        ...metadata,
+        sourceId: row.sourceId,
+        sourceLanguage: localeDefaults.sourceLanguage,
+        sourceLocale: localeDefaults.sourceLocale,
+      },
+    };
+  });
+
+  fs.mkdirSync(path.dirname(AUTHORITY_CACHE_PATH), { recursive: true });
+  fs.writeFileSync(AUTHORITY_CACHE_PATH, JSON.stringify(payload, null, 2), 'utf-8');
+
+  try {
+    const { publishAuthorityDocumentsToVectorStore } = await import('./vector.service.js');
+    const vectorResult = await publishAuthorityDocumentsToVectorStore(rows.map((row) => ({
+      sourceUrl: row.sourceUrl,
+      title: row.title,
+      contentText: row.contentText,
+      topic: row.topic,
+      sourceOrg: row.sourceOrg,
+    })));
+    console.log(`[Authority Sync] 向量发布完成: published=${vectorResult.published}, skipped=${vectorResult.skipped}`);
+  } catch (error) {
+    const moduleError = error as { code?: string; message?: string };
+    if (moduleError.code === 'MODULE_NOT_FOUND' && moduleError.message?.includes('@zilliz/milvus2-sdk-node')) {
+      console.warn('[Authority Sync] 未安装 Milvus SDK，已跳过向量发布');
+      return;
+    }
+
+    console.error('[Authority Sync] 权威文档向量发布失败:', error);
+  }
+}

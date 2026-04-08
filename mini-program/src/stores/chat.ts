@@ -77,6 +77,15 @@ export const useChatStore = defineStore('chat', {
       targetMessage.content = appendText(targetMessage.content, trimmedContent)
       targetMessage.sources = mergeSources(targetMessage.sources, payload?.sources)
       targetMessage.isEmergency = payload?.isEmergency ?? targetMessage.isEmergency
+      targetMessage.triageCategory = payload?.triageCategory ?? targetMessage.triageCategory
+      targetMessage.riskLevel = payload?.riskLevel ?? targetMessage.riskLevel
+      targetMessage.structuredAnswer = payload?.structuredAnswer ?? targetMessage.structuredAnswer
+      targetMessage.uncertainty = payload?.uncertainty ?? targetMessage.uncertainty
+      targetMessage.sourceReliability = payload?.sourceReliability ?? targetMessage.sourceReliability
+      targetMessage.degraded = payload?.degraded ?? targetMessage.degraded
+      targetMessage.model = payload?.model ?? targetMessage.model
+      targetMessage.provider = payload?.provider ?? targetMessage.provider
+      targetMessage.route = payload?.route ?? targetMessage.route
     },
 
     finalizeAssistantMessage(content: string, payload?: Partial<AIMessage>, options: { resumeMessageId?: string | null } = {}) {
@@ -228,6 +237,11 @@ export const useChatStore = defineStore('chat', {
             wsResolved = true
             this.finalizeAssistantMessage(this.streamingContent, {
               sources: msg.data.sources,
+              triageCategory: msg.data.triageCategory,
+              riskLevel: msg.data.riskLevel,
+              structuredAnswer: msg.data.structuredAnswer,
+              uncertainty: msg.data.uncertainty,
+              sourceReliability: msg.data.sourceReliability,
               model: msg.data.model,
               provider: msg.data.provider,
               route: msg.data.route,
@@ -244,6 +258,11 @@ export const useChatStore = defineStore('chat', {
             wsResolved = true
             this.finalizeAssistantMessage(msg.data.content || getEmergencyWarning(), {
               isEmergency: true,
+              triageCategory: msg.data.triageCategory,
+              riskLevel: msg.data.riskLevel,
+              structuredAnswer: msg.data.structuredAnswer,
+              uncertainty: msg.data.uncertainty,
+              sourceReliability: msg.data.sourceReliability,
               provider: 'system',
               route: 'emergency',
             }, { resumeMessageId: this.resumeMessageId })
@@ -358,6 +377,11 @@ export const useChatStore = defineStore('chat', {
         this.finalizeAssistantMessage(response.message?.content || response.response || '', {
           sources: response.sources,
           isEmergency: response.isEmergency,
+          triageCategory: response.triageCategory,
+          riskLevel: response.riskLevel,
+          structuredAnswer: response.structuredAnswer,
+          uncertainty: response.uncertainty,
+          sourceReliability: response.sourceReliability,
           model: response.model,
           provider: response.provider,
           route: response.route,

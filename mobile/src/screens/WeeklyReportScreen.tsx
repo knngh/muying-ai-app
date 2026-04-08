@@ -34,7 +34,7 @@ export default function WeeklyReportScreen() {
             <Chip style={styles.heroChip} textStyle={styles.heroChipText}>
               {status === 'active' ? '会员专属' : '升级后解锁'}
             </Chip>
-            <Text style={styles.heroTitle}>AI 周报与阶段回顾</Text>
+            <Text style={styles.heroTitle}>周度报告与阶段回顾</Text>
             <Text style={styles.heroSubtitle}>
               每周自动生成一份围绕你当前阶段的重点提醒、节奏建议和回顾摘要。
             </Text>

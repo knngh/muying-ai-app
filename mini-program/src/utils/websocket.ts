@@ -1,5 +1,6 @@
 // WebSocket 管理器 - 用于 AI 流式对话
 import type { SourceReference } from '@/api/ai'
+import type { StructuredAnswer, TriageCategory, RiskLevel, UncertaintyInfo, SourceReliability } from '../../../shared/types/ai'
 
 type MessageHandler = (data: {
   type: string
@@ -11,6 +12,11 @@ type MessageHandler = (data: {
     disclaimer?: string
     sources?: SourceReference[]
     conversationId?: string
+    triageCategory?: TriageCategory
+    riskLevel?: RiskLevel
+    structuredAnswer?: StructuredAnswer
+    uncertainty?: UncertaintyInfo
+    sourceReliability?: SourceReliability
     followUpQuestions?: string[]
     degraded?: boolean
     model?: string

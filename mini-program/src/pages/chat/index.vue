@@ -2,8 +2,8 @@
   <view class="chat-page">
     <view class="hero">
       <view class="hero-copy">
-        <text class="hero-title">AI 母婴答疑</text>
-        <text class="hero-subtitle">把您此刻最担心的情况告诉我，我会尽力给您温和、清晰的参考建议。</text>
+        <text class="hero-title">母婴问题助手</text>
+        <text class="hero-subtitle">把您此刻最担心的情况告诉我，我会先帮您整理可参考信息和下一步关注点。</text>
       </view>
       <view class="hero-badge">Beta</view>
     </view>
@@ -52,7 +52,7 @@
           :class="item.role === 'user' ? 'message-row--user' : 'message-row--assistant'"
         >
           <view class="avatar" :class="item.role === 'user' ? 'avatar--user' : 'avatar--assistant'">
-            <text class="avatar-text">{{ item.role === 'user' ? '我' : 'AI' }}</text>
+            <text class="avatar-text">{{ item.role === 'user' ? '我' : '助' }}</text>
           </view>
 
           <view
@@ -65,6 +65,22 @@
             <text v-if="item.role === 'user'" user-select class="bubble-text">{{ getDisplayedContent(item) }}</text>
             <view v-else class="bubble-html">
               <mp-html :content="getDisplayedContent(item)" :copy-link="true" :selectable="true" />
+            </view>
+
+            <view v-if="item.role === 'assistant' && (item.triageCategory || item.riskLevel)" class="trust-chips">
+              <text v-if="item.triageCategory" class="trust-chip">{{ getTriageLabel(item.triageCategory) }}</text>
+              <text
+                v-if="item.riskLevel"
+                class="trust-chip"
+                :class="`trust-chip--${item.riskLevel}`"
+              >
+                {{ getRiskLabel(item.riskLevel) }}
+              </text>
+            </view>
+
+            <view v-if="item.role === 'assistant' && item.uncertainty?.message" class="uncertainty-card">
+              <text class="uncertainty-title">不确定性说明</text>
+              <text user-select class="uncertainty-text">{{ item.uncertainty.message }}</text>
             </view>
 
             <view v-if="item.isEmergency" class="emergency-actions">
@@ -88,7 +104,7 @@
                     class="source-card"
                   >
                     <text user-select class="source-name">{{ source.title }}</text>
-                    <text user-select class="source-meta">{{ source.source }} · 相关度 {{ Math.round(source.relevance * 100) }}%</text>
+                    <text user-select class="source-meta">{{ formatSourceMeta(source) }}</text>
                     <text v-if="source.excerpt" user-select class="source-excerpt">{{ source.excerpt }}</text>
                     <view
                       v-if="source.url"
@@ -107,7 +123,7 @@
 
         <view v-if="loading && streamingContent && !isResumingInPlace" class="message-row message-row--assistant">
           <view class="avatar avatar--assistant">
-            <text class="avatar-text">AI</text>
+            <text class="avatar-text">助</text>
           </view>
           <view class="bubble bubble--assistant bubble--streaming">
             <text class="bubble-text">{{ streamingContent }}</text>
@@ -116,7 +132,7 @@
 
         <view v-else-if="loading && !isResumingInPlace" class="message-row message-row--assistant">
           <view class="avatar avatar--assistant">
-            <text class="avatar-text">AI</text>
+            <text class="avatar-text">助</text>
           </view>
           <view class="bubble bubble--assistant bubble--loading">
             <view class="bouncing-dots">
@@ -138,7 +154,7 @@
     <view class="composer">
       <view class="composer-shell">
         <view v-if="loading" class="composer-status">
-          <text class="composer-status-text">AI 正在生成回答</text>
+          <text class="composer-status-text">正在整理信息</text>
           <text class="composer-status-subtext">可随时停止，保留当前内容</text>
         </view>
 
@@ -150,7 +166,7 @@
         maxlength="2000"
         :disabled="loading"
         confirm-type="send"
-        placeholder="您可以直接描述情况，越具体越容易得到更贴合的建议"
+        placeholder="您可以直接描述情况，越具体越容易得到更贴合的参考信息"
         @confirm="handleSend"
       />
       <view
@@ -206,7 +222,6 @@ const inputValue = ref('')
 const disclaimer = getDisclaimer()
 const scrollAnchor = ref('chat-bottom')
 const scrollTop = ref(0)
-
 const canSend = computed(() => inputValue.value.trim().length > 0 && !loading.value)
 const isResumingInPlace = computed(() => loading.value && !!resumeMessageId.value)
 const AUTHORITY_DOMAINS = [
@@ -284,6 +299,29 @@ function getDisplayedContent(message: AIMessage) {
   return message.content
 }
 
+function getRiskLabel(riskLevel?: AIMessage['riskLevel']) {
+  if (riskLevel === 'red') {
+    return '红色风险'
+  }
+  if (riskLevel === 'yellow') {
+    return '黄色风险'
+  }
+  return '绿色风险'
+}
+
+function getTriageLabel(triageCategory?: AIMessage['triageCategory']) {
+  if (triageCategory === 'emergency') {
+    return '紧急问题'
+  }
+  if (triageCategory === 'caution') {
+    return '谨慎问题'
+  }
+  if (triageCategory === 'out_of_scope') {
+    return '超出范围'
+  }
+  return '普通问题'
+}
+
 function getSourceHost(url?: string) {
   if (!url) {
     return ''
@@ -320,6 +358,18 @@ function getSortedSources(message: AIMessage) {
 function getAnswerOrigin(message: AIMessage) {
   if (message.isEmergency) {
     return '系统安全规则触发，已优先给出紧急就医提示。'
+  }
+
+  if (message.sourceReliability === 'authoritative') {
+    return '当前回答已优先展示权威来源。'
+  }
+
+  if (message.sourceReliability === 'mixed') {
+    return '当前回答同时参考了权威来源和一般知识条目，请结合线下判断。'
+  }
+
+  if (message.sourceReliability === 'dataset_only') {
+    return '当前回答主要基于内部知识库或公开问答数据，不属于权威指南。'
   }
 
   const authoritativeLabels = Array.from(new Set(
@@ -364,6 +414,17 @@ function getAnswerOrigin(message: AIMessage) {
   return '当前回答未附带明确权威来源，请谨慎参考并结合线下专业意见判断。'
 }
 
+function formatSourceMeta(source: SourceReference) {
+  const parts = [
+    source.sourceOrg || source.source,
+    source.sourceType === 'authority' ? '权威来源' : (source.sourceType === 'dataset' ? '知识库/数据集' : undefined),
+    source.updatedAt ? `更新于 ${source.updatedAt.slice(0, 10)}` : undefined,
+    `相关度 ${Math.round(source.relevance * 100)}%`,
+  ].filter(Boolean)
+
+  return parts.join(' · ')
+}
+
 function handleOpenSource(source: SourceReference) {
   if (!source.url) {
     uni.showToast({ title: '该来源暂无原文链接', icon: 'none' })
@@ -386,9 +447,9 @@ function handleOpenSource(source: SourceReference) {
 onShow(() => {
   const token = uni.getStorageSync('token')
   if (!token) {
-    uni.showToast({ title: '请先登录后使用 AI 答疑', icon: 'none' })
+    uni.showToast({ title: '请先登录后使用问题助手', icon: 'none' })
     setTimeout(() => {
-      uni.switchTab({ url: '/pages/home/index' })
+      uni.reLaunch({ url: '/pages/login/index' })
     }, 900)
     return
   }
@@ -631,6 +692,60 @@ watch([messages, streamingContent], () => {
 .bubble--emergency {
   border: 2rpx solid rgba(225, 87, 89, 0.28);
   background: #fff1f0;
+}
+
+.trust-chips {
+  margin-top: 14rpx;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+}
+
+.trust-chip {
+  padding: 8rpx 16rpx;
+  border-radius: 999rpx;
+  font-size: 22rpx;
+  line-height: 1.2;
+  color: #7a624d;
+  background: rgba(246, 236, 224, 0.9);
+}
+
+.trust-chip--green {
+  color: #216b49;
+  background: rgba(208, 239, 223, 0.9);
+}
+
+.trust-chip--yellow {
+  color: #8a5a00;
+  background: rgba(255, 236, 189, 0.95);
+}
+
+.trust-chip--red {
+  color: #a43030;
+  background: rgba(255, 219, 214, 0.95);
+}
+
+.uncertainty-card {
+  margin-top: 14rpx;
+  padding: 16rpx 18rpx;
+  border-radius: 18rpx;
+  background: rgba(255, 246, 230, 0.9);
+  border: 2rpx solid rgba(232, 177, 72, 0.2);
+}
+
+.uncertainty-title {
+  display: block;
+  font-size: 23rpx;
+  font-weight: 700;
+  color: #8a5a00;
+}
+
+.uncertainty-text {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 24rpx;
+  line-height: 1.7;
+  color: #81653b;
 }
 
 .emergency-actions {

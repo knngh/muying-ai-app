@@ -45,6 +45,23 @@
           </view>
         </view>
 
+        <view class="demo-account-box">
+          <text class="demo-account-title">演示账号</text>
+          <text class="demo-account-hint">密码统一为 Test123456!，点击可直接填充。</text>
+          <view
+            v-for="account in demoAccounts"
+            :key="account.username"
+            class="demo-account-card"
+            @tap="applyDemoAccount(account)"
+          >
+            <view class="demo-account-copy">
+              <text class="demo-account-name">{{ account.label }}</text>
+              <text class="demo-account-desc">{{ account.description }}</text>
+            </view>
+            <text class="demo-account-action">一键填充</text>
+          </view>
+        </view>
+
         <view class="form-item">
           <text class="form-label">{{ authMode === 'register' ? '用户名' : '用户名 / 手机号 / 邮箱' }} <text class="required">*</text></text>
           <input
@@ -145,6 +162,20 @@ const phone = ref('')
 const email = ref('')
 const authError = ref('')
 const weekOptions = Array.from({ length: 40 }, (_, i) => `第 ${i + 1} 周`)
+const demoAccounts = [
+  {
+    label: '免费演示账号',
+    username: 'demo_free_user',
+    password: 'Test123456!',
+    description: '演示免费问答额度和升级前状态',
+  },
+  {
+    label: '会员演示账号',
+    username: 'demo_vip_user',
+    password: 'Test123456!',
+    description: '演示会员周报、无限额度和标识',
+  },
+]
 
 const onWeekChange = (e: any) => {
   const selectedOption = weekOptions[Number(e.detail.value)] || ''
@@ -153,6 +184,15 @@ const onWeekChange = (e: any) => {
 
 const setAuthMode = (mode: 'login' | 'register') => {
   authMode.value = mode
+  authError.value = ''
+}
+
+const applyDemoAccount = (account: typeof demoAccounts[number]) => {
+  authMode.value = 'login'
+  username.value = account.username
+  password.value = account.password
+  phone.value = ''
+  email.value = ''
   authError.value = ''
 }
 
@@ -389,6 +429,69 @@ onMounted(async () => {
 .auth-mode-text--active {
   color: #ff6b9d !important;
   font-weight: 700 !important;
+}
+
+.demo-account-box {
+  margin-bottom: 28rpx;
+  padding: 24rpx;
+  border-radius: 24rpx;
+  background: #fff5f8;
+}
+
+.demo-account-title {
+  display: block;
+  font-size: 28rpx;
+  font-weight: 700;
+  color: #d84f84;
+}
+
+.demo-account-hint {
+  display: block;
+  margin-top: 10rpx;
+  margin-bottom: 18rpx;
+  font-size: 24rpx;
+  line-height: 1.5;
+  color: #8c6f7d;
+}
+
+.demo-account-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20rpx;
+  padding: 22rpx;
+  border-radius: 18rpx;
+  background: #ffffff;
+}
+
+.demo-account-card + .demo-account-card {
+  margin-top: 14rpx;
+}
+
+.demo-account-copy {
+  flex: 1;
+}
+
+.demo-account-name {
+  display: block;
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #333333;
+}
+
+.demo-account-desc {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 24rpx;
+  line-height: 1.5;
+  color: #7d7d7d;
+}
+
+.demo-account-action {
+  flex-shrink: 0;
+  font-size: 24rpx;
+  font-weight: 600;
+  color: #ff6b9d;
 }
 
 .form-label {

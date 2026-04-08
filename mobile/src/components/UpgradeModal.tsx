@@ -26,7 +26,7 @@ export default function UpgradeModal({
       <Modal visible={visible} onDismiss={onDismiss} contentContainerStyle={styles.modalContainer}>
         <Text style={styles.modalTitle}>今日免费额度已用完</Text>
         <Text style={styles.modalSubtitle}>
-          开通会员后可继续追问，且支持 AI 周报、专属内容和成长档案增强。
+          开通会员后可继续追问，且支持周度报告、专属内容和成长档案增强。
         </Text>
 
         {plans.map((plan) => (

@@ -1,18 +1,73 @@
 import { defineStore } from 'pinia'
-import { articleApi, categoryApi, tagApi } from '@/api/modules'
-import type { Article, Category, Tag, PaginatedResponse } from '@/api/modules'
+import { articleApi } from '@/api/modules'
+import type { Article, PaginatedResponse } from '@/api/modules'
+
+const CHINESE_AUTHORITY_PATTERNS = [
+  /中国政府网/u,
+  /中国政府网政策解读/u,
+  /gov\.cn/i,
+  /国家卫生健康委员会/u,
+  /国家卫健委/u,
+  /中国疾控/u,
+  /中国疾病预防控制中心/u,
+  /chinacdc/i,
+]
+
+function getArticleTimestamp(article: Article): number {
+  const value = article.publishedAt || article.createdAt
+  const timestamp = value ? new Date(value).getTime() : 0
+  return Number.isNaN(timestamp) ? 0 : timestamp
+}
+
+function getArticleDateBucket(article: Article): string {
+  const value = article.publishedAt || article.createdAt
+  if (!value) return ''
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+
+  return date.toISOString().slice(0, 10)
+}
+
+function getSourcePriority(article: Article): number {
+  if (article.sourceLanguage === 'zh' || article.sourceLocale === 'zh-CN') {
+    return 0
+  }
+
+  const sourceText = [
+    article.sourceOrg || '',
+    article.source || '',
+    article.sourceUrl || '',
+    article.region || '',
+  ].join(' ')
+
+  return CHINESE_AUTHORITY_PATTERNS.some((pattern) => pattern.test(sourceText)) ? 0 : 1
+}
+
+function sortKnowledgeArticles(list: Article[]): Article[] {
+  return [...list].sort((left, right) => {
+    const dateBucketDiff = getArticleDateBucket(right).localeCompare(getArticleDateBucket(left))
+    if (dateBucketDiff !== 0) {
+      return dateBucketDiff
+    }
+
+    const sourceDiff = getSourcePriority(left) - getSourcePriority(right)
+    if (sourceDiff !== 0) {
+      return sourceDiff
+    }
+
+    return getArticleTimestamp(right) - getArticleTimestamp(left)
+  })
+}
 
 export const useKnowledgeStore = defineStore('knowledge', {
   state: () => ({
     articles: [] as Article[],
-    categories: [] as Category[],
-    tags: [] as Tag[],
     currentArticle: null as Article | null,
     total: 0,
     page: 1,
     pageSize: 10,
-    selectedCategory: null as string | null,
-    selectedTag: null as string | null,
+    selectedSource: 'all',
     selectedStage: null as string | null,
     keyword: '',
     loading: false,
@@ -29,13 +84,15 @@ export const useKnowledgeStore = defineStore('knowledge', {
         const response = await articleApi.getList({
           page,
           pageSize: this.pageSize,
-          category: this.selectedCategory || undefined,
-          tag: this.selectedTag || undefined,
+          source: this.selectedSource === 'all' ? undefined : this.selectedSource,
           stage: this.selectedStage || undefined,
+          difficulty: 'authoritative',
+          contentType: 'authority',
           keyword: this.keyword || undefined,
         }) as PaginatedResponse<Article>
 
-        this.articles = params?.reset ? response.list : [...this.articles, ...response.list]
+        const nextArticles = params?.reset ? response.list : [...this.articles, ...response.list]
+        this.articles = sortKnowledgeArticles(nextArticles)
         this.total = response.pagination.total
         this.page = response.pagination.page
       } catch (error: unknown) {
@@ -43,22 +100,6 @@ export const useKnowledgeStore = defineStore('knowledge', {
         this.error = err.message || '获取文章列表失败'
       } finally {
         this.loading = false
-      }
-    },
-
-    async fetchCategories() {
-      try {
-        this.categories = await categoryApi.getAll() as Category[]
-      } catch (_error) {
-        console.error('获取分类失败:', _error)
-      }
-    },
-
-    async fetchTags() {
-      try {
-        this.tags = await tagApi.getAll() as Tag[]
-      } catch (_error) {
-        console.error('获取标签失败:', _error)
       }
     },
 
@@ -75,14 +116,8 @@ export const useKnowledgeStore = defineStore('knowledge', {
       }
     },
 
-    setCategory(categorySlug: string | null) {
-      this.selectedCategory = categorySlug
-      this.page = 1
-      this.fetchArticles({ reset: true })
-    },
-
-    setTag(tagSlug: string | null) {
-      this.selectedTag = tagSlug
+    setSource(source: string) {
+      this.selectedSource = source
       this.page = 1
       this.fetchArticles({ reset: true })
     },
@@ -100,20 +135,7 @@ export const useKnowledgeStore = defineStore('knowledge', {
     async search(keyword: string) {
       this.keyword = keyword
       this.page = 1
-      this.loading = true
-      try {
-        const response = await articleApi.search(keyword, {
-          page: 1,
-          pageSize: this.pageSize,
-        }) as PaginatedResponse<Article>
-        this.articles = response.list
-        this.total = response.pagination.total
-      } catch (error: unknown) {
-        const err = error as { message?: string }
-        this.error = err.message || '搜索失败'
-      } finally {
-        this.loading = false
-      }
+      await this.fetchArticles({ page: 1, reset: true })
     },
 
     async likeArticle(id: number) {
@@ -141,8 +163,7 @@ export const useKnowledgeStore = defineStore('knowledge', {
     reset() {
       this.articles = []
       this.page = 1
-      this.selectedCategory = null
-      this.selectedTag = null
+      this.selectedSource = 'all'
       this.selectedStage = null
       this.keyword = ''
       this.error = null

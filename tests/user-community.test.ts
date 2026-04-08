@@ -1,17 +1,20 @@
 import request from 'supertest';
-import app from '../src/app';
+
+const describeIntegration = process.env.RUN_INTEGRATION_TESTS === 'true' ? describe : describe.skip;
 
 let authToken: string;
+let app: typeof import('../src/app').default;
 const testUser = {
-  username: `community_user_${Date.now()}`,
+  username: `cu_${Date.now().toString().slice(-8)}`,
   password: 'Test123456',
   phone: '13900139000',
   email: `community_${Date.now()}@example.com`,
 };
 
-describe('个人中心API测试', () => {
-  
+describeIntegration('个人中心API测试', () => {
   beforeAll(async () => {
+    ({ default: app } = await import('../src/app'));
+
     const registerRes = await request(app)
       .post('/api/v1/auth/register')
       .send(testUser);
@@ -98,8 +101,7 @@ describe('个人中心API测试', () => {
   });
 });
 
-describe('社区功能API测试', () => {
-  
+describeIntegration('社区功能API测试', () => {
   describe('GET /api/v1/community/posts', () => {
     it('应该返回帖子列表', async () => {
       const res = await request(app)

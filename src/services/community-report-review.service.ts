@@ -67,7 +67,7 @@ function runHeuristicReview(input: ReviewInput): ReviewOutput {
   return {
     status: 'pending',
     actionTaken: 'none',
-    decisionReason: 'AI 服务不可用，已保留为待人工复核',
+    decisionReason: '系统服务不可用，已保留为待人工复核',
     handledByAI: false,
   };
 }
@@ -121,7 +121,7 @@ export async function reviewCommunityReport(input: ReviewInput): Promise<ReviewO
       ? parsed.status
       : 'pending';
     const actionTaken = normalizeAction(input.targetType, status, parsed.actionTaken || 'none');
-    const decisionReason = (parsed.decisionReason || '').trim() || 'AI 已完成自动审核';
+    const decisionReason = (parsed.decisionReason || '').trim() || '系统已完成自动审核';
 
     return {
       status,

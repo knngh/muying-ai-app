@@ -19,6 +19,7 @@ import {
   hasMaternalChildSignal,
 } from './ai-domain.service';
 import { consumeAiQuota } from './subscription.service';
+import { chunkTrustedAnswer, generateTrustedAIResponse } from './trusted-ai.service';
 // WebSocket 消息协议类型（与 shared/types/ai.ts 保持一致）
 interface WsClientMessage {
   type: 'ask_stream' | 'chat_stream' | 'ping' | 'cancel'
@@ -42,9 +43,25 @@ interface WsServerMessage {
     sources?: SourceReference[]
     disclaimer?: string
     conversationId?: string
+    triageCategory?: 'normal' | 'caution' | 'emergency' | 'out_of_scope'
+    riskLevel?: 'green' | 'yellow' | 'red'
+    structuredAnswer?: {
+      conclusion: string
+      reasons: string[]
+      actions: string[]
+      whenToSeekCare: string[]
+      uncertaintyNote?: string
+    }
+    uncertainty?: {
+      level: 'none' | 'medium' | 'high'
+      message?: string
+    }
+    sourceReliability?: 'authoritative' | 'mixed' | 'dataset_only' | 'none'
     model?: string
     provider?: string
     route?: string
+    followUpQuestions?: string[]
+    degraded?: boolean
   }
 }
 
@@ -378,6 +395,46 @@ export function setupWebSocket(server: HttpServer): WebSocketServer {
   return wss;
 }
 
+function sendTrustedResult(
+  ws: AuthenticatedWebSocket,
+  requestId: string,
+  result: Awaited<ReturnType<typeof generateTrustedAIResponse>>,
+  conversationId?: string,
+) {
+  for (const chunk of chunkTrustedAnswer(result.answer)) {
+    sendMessage(ws, {
+      type: 'chunk',
+      requestId,
+      data: {
+        content: chunk,
+        isEmergency: result.isEmergency,
+      },
+    });
+  }
+
+  sendMessage(ws, {
+    type: result.isEmergency ? 'emergency' : 'done',
+    requestId,
+    data: {
+      content: result.isEmergency ? result.answer : undefined,
+      isEmergency: result.isEmergency,
+      sources: result.sources,
+      disclaimer: result.disclaimer,
+      conversationId,
+      triageCategory: result.triageCategory,
+      riskLevel: result.riskLevel,
+      structuredAnswer: result.structuredAnswer,
+      uncertainty: result.uncertainty,
+      sourceReliability: result.sourceReliability,
+      followUpQuestions: result.followUpQuestions,
+      degraded: result.degraded,
+      model: result.model,
+      provider: result.provider,
+      route: result.route,
+    },
+  });
+}
+
 // 处理单轮提问流式
 async function handleAskStream(
   ws: AuthenticatedWebSocket,
@@ -392,123 +449,35 @@ async function handleAskStream(
     return;
   }
 
-  const askDecision = await resolveDomainDecision(ws.userId, question, { context });
-  if (askDecision.status !== 'in_scope') {
-    const persistedConversationId = ws.userId
-      ? await saveConversationExchange({
-        userId: ws.userId,
-        conversationId,
-        userQuestion: question,
-        assistantAnswer: askDecision.answer || '',
-      })
-      : conversationId;
-
-    sendMessage(ws, {
-      type: 'chunk',
-      requestId,
-      data: { content: askDecision.answer },
-    });
-    sendMessage(ws, {
-      type: 'done',
-      requestId,
-      data: {
-        sources: [],
-        disclaimer: askDecision.disclaimer,
-        conversationId: persistedConversationId,
-      },
-    });
-    return;
-  }
-
-  // 紧急问题检测
-  if (isEmergencyQuestion(question)) {
-    const persistedConversationId = ws.userId
-      ? await saveConversationExchange({
-        userId: ws.userId,
-        conversationId,
-        userQuestion: question,
-        assistantAnswer: getEmergencyResponse(),
-        isEmergency: true,
-      })
-      : conversationId;
-
-    sendMessage(ws, {
-      type: 'emergency',
-      requestId,
-        data: {
-          content: getEmergencyResponse(),
-          isEmergency: true,
-          disclaimer: '🚨 重要提示：如遇紧急情况，请立即就医！',
-        conversationId: persistedConversationId,
-      },
-    });
-    return;
-  }
-
   if (!(await ensureWsQuota(ws, requestId, buildWsQuotaFingerprint('ask_stream', payload)))) {
     return;
   }
 
-  const profileContext = await buildUserProfileContext(ws.userId);
-  const retrievalQuery = shouldUseProfileHints(question, context)
-    ? [question, ...profileContext.retrievalHints].filter(Boolean).join(' ')
-    : question;
-  const knowledgePack = buildKnowledgePack(retrievalQuery, { limit: 3 });
-  const finalContext = buildPromptContext(question, context, profileContext.prompt, knowledgePack.context);
-
-  const messages: Array<{ role: 'user' | 'assistant'; content: string }> = [
-    { role: 'user' as const, content: question },
-  ];
-
-  // 流式输出
   try {
-    let answer = '';
-    let resolvedRoute: { provider: string; model: string; route: string } | undefined;
-    for await (const chunk of streamMultiTurnChat(messages, {
+    const result = await generateTrustedAIResponse({
+      question,
+      context,
+      userId: ws.userId,
       model,
-      context: finalContext,
-      onRouteResolved: (route) => {
-        resolvedRoute = route
-      },
-    })) {
-      answer += chunk;
-      if (isRequestCanceled(ws, requestId)) break;
-      if (ws.readyState !== WebSocket.OPEN) break;
-      sendMessage(ws, {
-        type: 'chunk',
-        requestId,
-        data: { content: chunk },
-      });
-    }
+    });
 
-    const wasCanceled = isRequestCanceled(ws, requestId);
-    if (ws.readyState === WebSocket.OPEN) {
-      const persistedConversationId = ws.userId && answer.trim()
-        ? await saveConversationExchange({
-          userId: ws.userId,
-          conversationId,
-          userQuestion: question,
-          assistantAnswer: answer,
-          sources: knowledgePack.sources,
-        })
-        : conversationId;
-
-      sendMessage(ws, {
-        type: 'done',
-        requestId,
-        data: {
-          sources: knowledgePack.sources,
-          disclaimer: '温馨提示：这份答复用于帮助您先做初步了解，不能替代医生面诊；如果症状明显、持续加重，或您仍然不放心，请及时就医。',
-          conversationId: persistedConversationId,
-          model: resolvedRoute?.model || model,
-          provider: resolvedRoute?.provider,
-          route: resolvedRoute?.route,
-        },
-      });
-    }
-    if (wasCanceled) {
+    if (isRequestCanceled(ws, requestId) || ws.readyState !== WebSocket.OPEN) {
       clearRequestCancellation(ws, requestId);
+      return;
     }
+
+    const persistedConversationId = ws.userId && result.answer.trim()
+      ? await saveConversationExchange({
+        userId: ws.userId,
+        conversationId,
+        userQuestion: question,
+        assistantAnswer: result.answer,
+        isEmergency: result.isEmergency,
+        sources: result.sources,
+      })
+      : conversationId;
+
+    sendTrustedResult(ws, requestId, result, persistedConversationId);
   } catch (streamError: any) {
     console.error(`[WebSocket] Stream error in ask_stream:`, streamError);
     sendError(ws, requestId, streamError.message || '流式响应出错');
@@ -534,60 +503,6 @@ async function handleChatStream(
 
   // 检测最后一条消息是否为紧急问题
   const lastMessage = messages[messages.length - 1];
-  const chatDecision = lastMessage.role === 'user'
-    ? await resolveDomainDecision(ws.userId, lastMessage.content, { context, history: messages })
-    : { status: 'in_scope' as const };
-  if (lastMessage.role === 'user' && chatDecision.status !== 'in_scope') {
-    const persistedConversationId = ws.userId
-      ? await saveConversationExchange({
-        userId: ws.userId,
-        conversationId,
-        userQuestion: lastMessage.content,
-        assistantAnswer: chatDecision.answer || '',
-      })
-      : conversationId;
-
-    sendMessage(ws, {
-      type: 'chunk',
-      requestId,
-      data: { content: chatDecision.answer },
-    });
-    sendMessage(ws, {
-      type: 'done',
-      requestId,
-      data: {
-        sources: [],
-        disclaimer: chatDecision.disclaimer,
-        conversationId: persistedConversationId,
-      },
-    });
-    return;
-  }
-
-  if (lastMessage.role === 'user' && isEmergencyQuestion(lastMessage.content)) {
-    const persistedConversationId = ws.userId
-      ? await saveConversationExchange({
-        userId: ws.userId,
-        conversationId,
-        userQuestion: lastMessage.content,
-        assistantAnswer: getEmergencyResponse(),
-        isEmergency: true,
-      })
-      : conversationId;
-
-    sendMessage(ws, {
-      type: 'emergency',
-      requestId,
-        data: {
-          content: getEmergencyResponse(),
-          isEmergency: true,
-          disclaimer: '🚨 重要提示：如遇紧急情况，请立即就医！',
-        conversationId: persistedConversationId,
-      },
-    });
-    return;
-  }
-
   if (lastMessage.role === 'user' && !(await ensureWsQuota(ws, requestId, buildWsQuotaFingerprint('chat_stream', payload)))) {
     return;
   }
@@ -599,6 +514,40 @@ async function handleChatStream(
     role: m.role as 'user' | 'assistant',
     content: m.content,
   }));
+
+  if (!isResumeContinuation) {
+    try {
+      const result = await generateTrustedAIResponse({
+        question: lastMessage.content,
+        context,
+        userId: ws.userId,
+        model,
+        history: formattedMessages,
+      });
+
+      if (isRequestCanceled(ws, requestId) || ws.readyState !== WebSocket.OPEN) {
+        clearRequestCancellation(ws, requestId);
+        return;
+      }
+
+      const persistedConversationId = ws.userId && lastMessage.role === 'user' && result.answer.trim()
+        ? await saveConversationExchange({
+          userId: ws.userId,
+          conversationId,
+          userQuestion: lastMessage.content,
+          assistantAnswer: result.answer,
+          isEmergency: result.isEmergency,
+          sources: result.sources,
+        })
+        : conversationId;
+
+      sendTrustedResult(ws, requestId, result, persistedConversationId);
+    } catch (streamError: any) {
+      console.error(`[WebSocket] Stream error in chat_stream:`, streamError);
+      sendError(ws, requestId, streamError.message || '流式响应出错');
+    }
+    return;
+  }
 
   const profileContext = await buildUserProfileContext(ws.userId);
   const retrievalQuery = lastMessage.role === 'user'
@@ -703,7 +652,7 @@ async function ensureWsQuota(
 
   const result = await consumeAiQuota(ws.userId, { requestId, fingerprint });
   if (!result.allowed) {
-    sendError(ws, requestId, '今日免费 AI 额度已用完，请升级会员后继续咨询。');
+    sendError(ws, requestId, '今日免费额度已用完，请升级会员后继续使用。');
     return false;
   }
 

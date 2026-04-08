@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
   getArticles,
   getArticleBySlug,
+  getAuthorityArticleTranslation,
   getRelatedArticles,
   searchArticles,
   likeArticle,
@@ -20,6 +21,7 @@ const router = Router();
 // 公开路由 - 查询（宽松限流）
 router.get('/', queryRateLimiter, validate({ query: getArticlesQuery }), getArticles);
 router.get('/search', searchRateLimiter, validate({ query: searchArticlesQuery }), searchArticles);
+router.get('/:slug/translation', queryRateLimiter, getAuthorityArticleTranslation);
 router.get('/:slug', queryRateLimiter, getArticleBySlug);
 router.get('/:id/related', queryRateLimiter, getRelatedArticles);
 

@@ -14,6 +14,17 @@ export const aiApi = {
       isEmergency: boolean
       disclaimer: string
       conversationId?: string
+      triageCategory?: AskResponse['triageCategory']
+      riskLevel?: AskResponse['riskLevel']
+      structuredAnswer?: AskResponse['structuredAnswer']
+      uncertainty?: AskResponse['uncertainty']
+      sourceReliability?: AskResponse['sourceReliability']
+      followUpQuestions?: AskResponse['followUpQuestions']
+      confidence?: AskResponse['confidence']
+      degraded?: AskResponse['degraded']
+      model?: AskResponse['model']
+      provider?: AskResponse['provider']
+      route?: AskResponse['route']
     }>('/ai/ask', {
       question: data.question,
       context: data.context,
@@ -26,6 +37,17 @@ export const aiApi = {
       isEmergency: res.isEmergency,
       conversationId: res.conversationId,
       disclaimer: res.disclaimer,
+      triageCategory: res.triageCategory,
+      riskLevel: res.riskLevel,
+      structuredAnswer: res.structuredAnswer,
+      uncertainty: res.uncertainty,
+      sourceReliability: res.sourceReliability,
+      followUpQuestions: res.followUpQuestions,
+      confidence: res.confidence,
+      degraded: res.degraded,
+      model: res.model,
+      provider: res.provider,
+      route: res.route,
     } as AskResponse
   },
   chat: async (data: { messages: Array<{ role: string; content: string }>; conversationId?: string; context?: ChatContext; model?: string }) => {
@@ -35,6 +57,16 @@ export const aiApi = {
       isEmergency: boolean
       disclaimer: string
       conversationId?: string
+      triageCategory?: ChatResponse['triageCategory']
+      riskLevel?: ChatResponse['riskLevel']
+      structuredAnswer?: ChatResponse['structuredAnswer']
+      uncertainty?: ChatResponse['uncertainty']
+      sourceReliability?: ChatResponse['sourceReliability']
+      followUpQuestions?: ChatResponse['followUpQuestions']
+      degraded?: ChatResponse['degraded']
+      model?: ChatResponse['model']
+      provider?: ChatResponse['provider']
+      route?: ChatResponse['route']
     }>('/ai/chat', data)
 
     return {
@@ -43,6 +75,16 @@ export const aiApi = {
       isEmergency: res.isEmergency,
       conversationId: res.conversationId,
       disclaimer: res.disclaimer,
+      triageCategory: res.triageCategory,
+      riskLevel: res.riskLevel,
+      structuredAnswer: res.structuredAnswer,
+      uncertainty: res.uncertainty,
+      sourceReliability: res.sourceReliability,
+      followUpQuestions: res.followUpQuestions,
+      degraded: res.degraded,
+      model: res.model,
+      provider: res.provider,
+      route: res.route,
     } as ChatResponse
   },
   getHistory: async (conversationId: string): Promise<ChatSession> => {
@@ -78,5 +120,5 @@ export function getEmergencyWarning(): string {
 }
 
 export function getDisclaimer(): string {
-  return '免责声明：本功能由人工智能生成，适用于母婴健康知识咨询、护理建议参考和就医前信息整理，不提供诊断结论、处方开具或具体治疗方案，也不能替代医生面诊、检查和专业判断。'
+  return '免责声明：本功能由系统辅助生成，适用于母婴健康知识咨询、护理建议参考和就医前信息整理，不提供诊断结论、处方开具或具体治疗方案，也不能替代医生面诊、检查和专业判断。'
 }

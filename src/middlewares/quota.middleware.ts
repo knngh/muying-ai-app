@@ -45,7 +45,7 @@ export async function quotaCheckMiddleware(req: Request, res: Response, next: Ne
     if (!result.allowed) {
       return res.status(429).json({
         code: 4003,
-        message: '今日免费 AI 额度已用完',
+        message: '今日免费额度已用完',
         data: {
           quota: result.quota,
           upgradeUrl: '/membership',

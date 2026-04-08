@@ -57,7 +57,7 @@ export default function ChatScreen() {
   useEffect(() => {
     navigation.setOptions({
       headerShown: true,
-      title: 'AI 智能问答',
+      title: '问题助手',
       headerRight: () => (
         <IconButton
           icon="delete-outline"
@@ -179,12 +179,12 @@ export default function ChatScreen() {
               <View style={styles.quotaHeader}>
                 <View>
                   <Text style={styles.quotaTitle}>
-                    {status === 'active' ? activePlan?.name || '贝护会员' : '今日 AI 额度'}
+                    {status === 'active' ? activePlan?.name || '贝护会员' : '今日可用次数'}
                   </Text>
                   <Text style={styles.quotaSubtitle}>
                     {status === 'active'
-                      ? '已解锁多轮连续对话和 AI 周报。'
-                      : '免费用户每天可咨询 3 次，升级后不限次数。'}
+                      ? '已解锁多轮连续对话和周度报告。'
+                      : '免费用户每天可使用 3 次，升级后不限次数。'}
                   </Text>
                 </View>
                 <Chip style={styles.quotaChip} textStyle={styles.quotaChipText}>
@@ -194,7 +194,7 @@ export default function ChatScreen() {
 
               {status !== 'active' ? (
                 <Button mode="contained" buttonColor={colors.ink} onPress={() => setUpgradeVisible(true)}>
-                  解锁无限问答
+                  解锁不限次使用
                 </Button>
               ) : null}
             </Card.Content>
@@ -230,7 +230,7 @@ export default function ChatScreen() {
             <View style={styles.emptyState}>
               <Text style={styles.emptyTitle}>今天想先解决什么问题？</Text>
               <Text style={styles.emptySubtitle}>
-                先问一个最具体的问题，AI 更容易给到可执行建议。
+                先问一个最具体的问题，更容易给到可执行建议。
               </Text>
 
               <View style={styles.quickWrap}>

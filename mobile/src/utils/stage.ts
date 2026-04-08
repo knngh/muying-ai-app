@@ -72,8 +72,8 @@ export function getStageSummary(user?: User | null): StageSummary {
       focusTitle: '本周关注',
       reminder: '记录最近一次产检和身体不适，方便持续追踪变化。',
       readingTopic: '本周必读：孕期检查与常见不适管理',
-      aiTipPreview: '可以先让 AI 帮你梳理本周最该关注的 3 件事。',
-      aiTipFull: '可以先让 AI 帮你梳理本周最该关注的 3 件事，优先覆盖产检准备、饮食补充和休息节律。',
+      aiTipPreview: '可以先让问题助手帮你梳理本周最该关注的 3 件事。',
+      aiTipFull: '可以先让问题助手帮你梳理本周最该关注的 3 件事，优先覆盖产检准备、饮食补充和休息节律。',
     }
   }
 
@@ -92,8 +92,8 @@ export function getStageSummary(user?: User | null): StageSummary {
       focusTitle: '今日重点',
       reminder: '观察吃奶、睡眠和精神状态，有异常先记录再处理。',
       readingTopic: '本周必读：喂养节奏与常见护理问题',
-      aiTipPreview: '可以把今天最困扰的一件育儿问题交给 AI 拆解。',
-      aiTipFull: '可以把今天最困扰的一件育儿问题交给 AI 拆解，例如喂养间隔、夜醒原因判断或皮肤护理优先级。',
+      aiTipPreview: '可以把今天最困扰的一件育儿问题交给问题助手拆解。',
+      aiTipFull: '可以把今天最困扰的一件育儿问题交给问题助手拆解，例如喂养间隔、夜醒原因判断或皮肤护理优先级。',
     }
   }
 
@@ -107,8 +107,8 @@ export function getStageSummary(user?: User | null): StageSummary {
       focusTitle: '今日重点',
       reminder: '优先记录睡眠、喂养和身体恢复情况，异常时更容易判断。',
       readingTopic: '本周必读：产后恢复与新生儿照护重点',
-      aiTipPreview: '把今天最卡的一件事交给 AI 拆成更容易执行的小步骤。',
-      aiTipFull: '把今天最卡的一件事交给 AI 拆成更容易执行的小步骤，例如伤口恢复、开奶调整或夜醒排查。',
+      aiTipPreview: '把今天最卡的一件事交给问题助手拆成更容易执行的小步骤。',
+      aiTipFull: '把今天最卡的一件事交给问题助手拆成更容易执行的小步骤，例如伤口恢复、开奶调整或夜醒排查。',
     }
   }
 
@@ -121,7 +121,7 @@ export function getStageSummary(user?: User | null): StageSummary {
     focusTitle: '本周建议',
     reminder: '保持规律作息，补充叶酸并安排基础检查。',
     readingTopic: '本周必读：备孕检查与营养准备',
-    aiTipPreview: '先让 AI 帮你列一个 7 天备孕准备清单。',
-    aiTipFull: '先让 AI 帮你列一个 7 天备孕准备清单，重点覆盖叶酸、体检、作息和饮食调整。',
+    aiTipPreview: '先让问题助手帮你列一个 7 天备孕准备清单。',
+    aiTipFull: '先让问题助手帮你列一个 7 天备孕准备清单，重点覆盖叶酸、体检、作息和饮食调整。',
   }
 }

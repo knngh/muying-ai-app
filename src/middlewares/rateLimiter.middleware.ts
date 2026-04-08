@@ -77,13 +77,13 @@ export const checkRateLimiter = rateLimit({
   legacyHeaders: false
 });
 
-// AI 接口限流：1分钟10次（AI查询消耗大）
+// 问答接口限流：1分钟10次
 export const aiRateLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 10,
   message: {
     code: 4001,
-    message: 'AI查询次数已达上限，请1分钟后再试'
+    message: '请求次数已达上限，请1分钟后再试'
   },
   standardHeaders: true,
   legacyHeaders: false

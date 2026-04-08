@@ -1,12 +1,13 @@
 const sharp = require('sharp');
-const fs = require('fs');
+const path = require('path');
 
 async function convert() {
-  const files = ['tab-home', 'tab-home-active', 'tab-chat', 'tab-chat-active', 'tab-user', 'tab-user-active'];
+  const staticDir = path.join(__dirname, 'src', 'static');
+  const files = ['tab-home', 'tab-home-active', 'tab-book', 'tab-book-active', 'tab-chat', 'tab-chat-active', 'tab-user', 'tab-user-active'];
   for (const file of files) {
-    await sharp(`/Users/zhugehao/muying-ai-app/mini-program/src/static/${file}.svg`)
+    await sharp(path.join(staticDir, `${file}.svg`))
       .png()
-      .toFile(`/Users/zhugehao/muying-ai-app/mini-program/src/static/${file}.png`);
+      .toFile(path.join(staticDir, `${file}.png`));
   }
   console.log('PNG files created successfully.');
 }

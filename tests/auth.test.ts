@@ -1,20 +1,24 @@
-// Backend 测试配置
 import request from 'supertest';
-import app from '../src/app';
+
+const describeIntegration = process.env.RUN_INTEGRATION_TESTS === 'true' ? describe : describe.skip;
 
 // 测试用户数据
 const testUser = {
-  username: 'test_user_' + Date.now(),
+  username: `tu_${Date.now().toString().slice(-8)}`,
   password: 'Test123456',
   phone: '13800138000',
-  email: 'test@example.com'
+  email: `test_${Date.now()}@example.com`
 };
 
 let authToken: string;
 let userId: string;
+let app: typeof import('../src/app').default;
 
-describe('用户认证API测试', () => {
-  
+describeIntegration('用户认证API测试', () => {
+  beforeAll(async () => {
+    ({ default: app } = await import('../src/app'));
+  });
+
   describe('POST /api/v1/auth/register', () => {
     it('应该成功注册新用户', async () => {
       const res = await request(app)
@@ -154,7 +158,7 @@ describe('用户认证API测试', () => {
     it('应该返回用户名可用', async () => {
       const res = await request(app)
         .get('/api/v1/auth/check/username')
-        .query({ username: 'unique_username_' + Date.now() });
+        .query({ username: `uu_${Date.now().toString().slice(-8)}` });
       
       expect(res.status).toBe(200);
       expect(res.body.data.available).toBe(true);

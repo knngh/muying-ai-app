@@ -2,6 +2,12 @@
 import fs from 'fs';
 import path from 'path';
 
+const AUTHORITY_CACHE_PATHS = [
+  '/tmp/authority-knowledge-cache.json',
+  path.join(process.cwd(), 'data', 'authority-knowledge-cache.json'),
+  path.join(__dirname, '../../data', 'authority-knowledge-cache.json'),
+];
+
 export interface QAPair {
   id: string;
   content_type?: string;
@@ -24,8 +30,17 @@ export interface QAPair {
   updated_at: string;
   published_at: string;
   source: string;
+  source_org?: string;
+  source_url?: string;
+  url?: string;
+  audience?: string;
+  topic?: string;
+  risk_level_default?: KnowledgeRiskLevel;
+  region?: string;
   original_id: string;
 }
+
+export type KnowledgeRiskLevel = 'green' | 'yellow' | 'red';
 
 export interface SourceReference {
   title: string;
@@ -34,12 +49,65 @@ export interface SourceReference {
   url?: string;
   excerpt?: string;
   category?: string;
+  sourceOrg?: string;
+  updatedAt?: string;
+  audience?: string;
+  topic?: string;
+  riskLevelDefault?: KnowledgeRiskLevel;
+  region?: string;
+  sourceType?: 'authority' | 'dataset' | 'editorial' | 'unknown';
+  authoritative?: boolean;
 }
 
 export interface KnowledgeSearchResult extends QAPair {
   score: number;
   sourceReference: SourceReference;
 }
+
+const AUTHORITATIVE_SOURCE_PATTERNS = [
+  /who/i,
+  /cdc/i,
+  /aap/i,
+  /acog/i,
+  /mayo/i,
+  /nih/i,
+  /nhs/i,
+  /fda/i,
+  /卫健委/u,
+  /中国政府网/u,
+];
+
+const CATEGORY_AUDIENCE_MAP: Partial<Record<QAPair['category'], string>> = {
+  'pregnancy-prep': '备孕家庭',
+  'pregnancy-early': '孕妇',
+  'pregnancy-mid': '孕妇',
+  'pregnancy-late': '孕妇',
+  'pregnancy-birth': '孕妇',
+  'parenting-newborn': '新生儿家长',
+  'parenting-0-1': '婴儿家长',
+  'parenting-1-3': '幼儿家长',
+  'parenting-3-6': '学龄前儿童家长',
+  'vaccine-schedule': '婴幼儿家长',
+  'vaccine-reaction': '婴幼儿家长',
+  'common-symptoms': '母婴家庭',
+  'common-disease': '母婴家庭',
+};
+
+const CATEGORY_TOPIC_MAP: Partial<Record<QAPair['category'], string>> = {
+  'pregnancy-prep': '备孕',
+  'pregnancy-early': '孕早期',
+  'pregnancy-mid': '孕中期',
+  'pregnancy-late': '孕晚期',
+  'pregnancy-birth': '分娩与产后',
+  'parenting-newborn': '新生儿护理',
+  'parenting-0-1': '婴儿护理',
+  'parenting-1-3': '幼儿护理',
+  'parenting-3-6': '学龄前成长',
+  'vaccine-schedule': '疫苗接种',
+  'vaccine-reaction': '疫苗反应',
+  'common-symptoms': '常见症状',
+  'common-disease': '常见疾病',
+};
 
 const FALLBACK_FOLLOW_UPS = [
   '需要我结合孕周或宝宝月龄进一步细化吗？',
@@ -278,6 +346,7 @@ const SIGNAL_GROUPS: Array<{
 ];
 
 let qaData: QAPair[] = [];
+let authorityQaData: QAPair[] = [];
 let isLoaded = false;
 
 interface QuerySignals {
@@ -641,13 +710,61 @@ function buildSourceTitle(qa: QAPair, signals?: QuerySignals): string {
   return categoryLabels[qa.category] || '相关知识参考';
 }
 
+function isAuthoritativeSource(qa: QAPair): boolean {
+  const sourceText = `${qa.source_org || ''} ${qa.source || ''} ${qa.source_url || ''} ${qa.url || ''}`;
+  return AUTHORITATIVE_SOURCE_PATTERNS.some((pattern) => pattern.test(sourceText));
+}
+
+function inferRiskLevelDefault(qa: QAPair): KnowledgeRiskLevel {
+  if (qa.risk_level_default) {
+    return qa.risk_level_default;
+  }
+
+  const text = `${qa.question} ${qa.answer}`;
+  if (/大出血|抽搐|惊厥|昏迷|意识异常|呼吸困难|胎动消失|破水/u.test(text)) {
+    return 'red';
+  }
+
+  if (/发烧|发热|出血|见红|腹痛|腹泻|呕吐|黄疸|湿疹|过敏|宫缩|胎动减少/u.test(text)) {
+    return 'yellow';
+  }
+
+  return 'green';
+}
+
+function buildSourceMetadata(qa: QAPair) {
+  const authoritative = isAuthoritativeSource(qa);
+
+  return {
+    sourceOrg: qa.source_org || qa.source || '知识库',
+    updatedAt: qa.updated_at || qa.published_at || qa.created_at,
+    audience: qa.audience || CATEGORY_AUDIENCE_MAP[qa.category] || '母婴家庭',
+    topic: qa.topic || CATEGORY_TOPIC_MAP[qa.category] || qa.category,
+    riskLevelDefault: inferRiskLevelDefault(qa),
+    region: qa.region || 'CN',
+    sourceType: authoritative ? 'authority' : ((qa.source || '').includes('数据集') ? 'dataset' : 'unknown'),
+    authoritative,
+    url: qa.source_url || qa.url,
+  } as const;
+}
+
 function buildSourceReference(qa: QAPair, score: number, signals?: QuerySignals): SourceReference {
+  const metadata = buildSourceMetadata(qa);
   return {
     title: buildSourceTitle(qa, signals),
     source: qa.source || '知识库',
     relevance: clampScore(score / 100),
+    url: metadata.url,
     excerpt: qa.answer.replace(/\s+/g, ' ').slice(0, 120),
     category: qa.category,
+    sourceOrg: metadata.sourceOrg,
+    updatedAt: metadata.updatedAt,
+    audience: metadata.audience,
+    topic: metadata.topic,
+    riskLevelDefault: metadata.riskLevelDefault,
+    region: metadata.region,
+    sourceType: metadata.sourceType,
+    authoritative: metadata.authoritative,
   };
 }
 
@@ -815,6 +932,10 @@ function calculateScore(
 
   if (qa.is_verified) {
     score += 2;
+  }
+
+  if (qa.source_org && isAuthoritativeSource(qa)) {
+    score += 18;
   }
 
   if ((qa.tags || []).length > 0) {
@@ -999,6 +1120,10 @@ function formatContextBlock(results: KnowledgeSearchResult[]): string {
         `答案：${qa.answer}`,
         `分类：${qa.category}`,
         `来源：${qa.source || '知识库'}`,
+        `来源机构：${qa.sourceReference.sourceOrg || qa.source || '知识库'}`,
+        `来源类型：${qa.sourceReference.sourceType || 'unknown'}`,
+        `默认风险：${qa.sourceReference.riskLevelDefault || 'yellow'}`,
+        `更新时间：${qa.sourceReference.updatedAt || '未知'}`,
       ].join('\n');
     })
     .join('\n\n');
@@ -1085,6 +1210,27 @@ export function loadKnowledgeBase(): void {
     console.error('❌ 知识库加载失败:', error);
     isLoaded = true;
   }
+
+  try {
+    let authorityPath = '';
+    for (const candidate of AUTHORITY_CACHE_PATHS) {
+      if (fs.existsSync(candidate)) {
+        authorityPath = candidate;
+        break;
+      }
+    }
+
+    if (authorityPath) {
+      const rawAuthority = fs.readFileSync(authorityPath, 'utf-8');
+      authorityQaData = JSON.parse(rawAuthority) as QAPair[];
+      console.log(`🏛️ 权威知识快照加载成功: ${authorityQaData.length} 条数据 (路径: ${authorityPath})`);
+    } else {
+      authorityQaData = [];
+    }
+  } catch (error) {
+    console.error('⚠️ 权威知识快照加载失败:', error);
+    authorityQaData = [];
+  }
 }
 
 function ensureKnowledgeLoaded(): void {
@@ -1113,6 +1259,7 @@ export function searchQA(
   const signals = collectQuerySignals(query);
 
   const scoredResults = qaData
+    .concat(authorityQaData)
     .filter(qa => qa.status === 'published')
     .filter(qa => !options.category || qa.category === options.category)
     .map((qa) => {

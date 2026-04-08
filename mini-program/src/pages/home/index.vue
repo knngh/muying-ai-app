@@ -1,18 +1,14 @@
 <template>
   <view class="home-page">
-    <!-- 顶部欢迎区 -->
     <view class="welcome-header">
       <view class="greeting">
-        <text class="title">你好，准妈妈 👋</text>
-        <text class="subtitle">今天也是充满期待的一天，宝宝正在努力长大哦。</text>
+        <text class="title">你好，准妈妈</text>
+        <text class="subtitle">本期先上线权威知识库和问题助手，社区交流暂时下线。</text>
       </view>
       <image class="header-decoration" src="/static/header-decoration.png" mode="aspectFit" />
     </view>
 
-    <!-- 核心功能卡片区 -->
     <view class="cards-container">
-      
-      <!-- 孕育日历卡片 (主打功能) -->
       <view
         class="feature-card calendar-card"
         hover-class="feature-card--hover"
@@ -20,26 +16,46 @@
         hover-stay-time="80"
         @tap="navigateTo('/pages/calendar/index')"
       >
-        <view class="card-bg-circle"></view>
         <view class="card-content">
           <view class="card-info">
             <text class="card-title">孕育时间轴</text>
-            <text class="card-desc">每周一次的奇妙相遇\n见证宝宝的成长奇迹</text>
+            <text class="card-desc">查看不同阶段的护理提醒与关键节点。</text>
             <view class="card-btn">
-              <text class="btn-text">立即查看</text>
+              <text class="btn-text">去看看</text>
               <text class="btn-icon">→</text>
             </view>
           </view>
           <view class="card-illustration">
-            <!-- 用 Emoji 代替图片作为插图，保持轻量美观 -->
             <text class="emoji-large">📅</text>
-            <view class="floating-emoji e1">✨</view>
-            <view class="floating-emoji e2">👶</view>
           </view>
         </view>
       </view>
 
-      <!-- AI 问答卡片 -->
+      <view
+        class="feature-card knowledge-card"
+        hover-class="feature-card--hover"
+        hover-start-time="20"
+        hover-stay-time="80"
+        @tap="navigateTo('/pages/knowledge/index')"
+      >
+        <view class="card-content">
+          <view class="card-info">
+            <view class="title-row">
+              <text class="card-title">权威知识库</text>
+              <view class="badge-primary">推荐</view>
+            </view>
+            <text class="card-desc">优先查看中国政府网、WHO、CDC、AAP、ACOG、NHS 等权威资料。</text>
+            <view class="card-btn">
+              <text class="btn-text">立即进入</text>
+              <text class="btn-icon">→</text>
+            </view>
+          </view>
+          <view class="card-illustration">
+            <text class="emoji-large">📚</text>
+          </view>
+        </view>
+      </view>
+
       <view
         class="feature-card ai-card"
         hover-class="feature-card--hover"
@@ -47,68 +63,31 @@
         hover-stay-time="80"
         @tap="handleAITap"
       >
-        <view class="card-bg-shape"></view>
         <view class="card-content">
           <view class="card-info">
             <view class="title-row">
-              <text class="card-title">AI 答疑</text>
-              <view class="badge-coming-soon badge-beta">Beta</view>
+              <text class="card-title">问题助手</text>
+              <view class="badge-beta">Beta</view>
             </view>
-            <text class="card-desc">基于顶级专家知识库\n随时解答您的孕产疑惑</text>
+            <text class="card-desc">基于权威来源与风险规则，先帮你整理可参考信息和下一步关注点。</text>
             <view class="card-btn">
-              <text class="btn-text">立即体验</text>
-            </view>
-          </view>
-          <view class="card-illustration">
-            <text class="emoji-large">🤖</text>
-            <view class="floating-emoji e1" style="animation-delay: 1s;">💡</view>
-            <view class="floating-emoji e2" style="animation-delay: 2s;">🏥</view>
-          </view>
-        </view>
-      </view>
-
-      <view
-        class="feature-card community-card"
-        hover-class="feature-card--hover"
-        hover-start-time="20"
-        hover-stay-time="80"
-        @tap="navigateTo('/pages/community/index')"
-      >
-        <view class="card-bg-wave"></view>
-        <view class="card-content">
-          <view class="card-info">
-            <view class="title-row">
-              <text class="card-title">社区交流</text>
-              <view class="badge-community">New</view>
-            </view>
-            <text class="card-desc">看看其他妈妈的真实经验\n也可以分享你的孕育日常</text>
-            <view class="card-btn">
-              <text class="btn-text">进入社区</text>
+              <text class="btn-text">整理问题</text>
               <text class="btn-icon">→</text>
             </view>
           </view>
           <view class="card-illustration">
-            <text class="emoji-large">💬</text>
-            <view class="floating-emoji e1" style="animation-delay: 0.8s;">🤱</view>
-            <view class="floating-emoji e2" style="animation-delay: 1.6s;">🌿</view>
+            <text class="emoji-large">🤖</text>
           </view>
         </view>
       </view>
-
-    </view>
-    
-    <!-- 底部激励标语 -->
-    <view class="bottom-quote">
-      <text class="quote-text">"每一个新生命的到来，都是宇宙中最温柔的奇迹。"</text>
     </view>
   </view>
 </template>
 
 <script setup lang="ts">
-
-// tabBar 页面路径集合，用于区分导航方式
 const TAB_PAGES = new Set([
   '/pages/home/index',
+  '/pages/knowledge/index',
   '/pages/chat/index',
   '/pages/profile/index',
 ])
@@ -126,8 +105,7 @@ const checkLogin = (): boolean => {
 }
 
 const navigateTo = (url: string) => {
-  // 时间轴页面允许未登录访问（微信公众平台审核要求）
-  const PUBLIC_PAGES = new Set(['/pages/calendar/index', '/pages/community/index'])
+  const PUBLIC_PAGES = new Set(['/pages/home/index', '/pages/calendar/index', '/pages/knowledge/index'])
   if (!PUBLIC_PAGES.has(url) && !checkLogin()) return
   if (TAB_PAGES.has(url)) {
     uni.switchTab({ url })
@@ -145,42 +123,37 @@ const handleAITap = () => {
 <style scoped>
 .home-page {
   min-height: 100vh;
-  background-color: #f8fafe;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
+  background: linear-gradient(180deg, #fffaf6 0%, #f7f9fc 100%);
 }
 
-/* 顶部欢迎区 */
 .welcome-header {
-  background: linear-gradient(135deg, #fff0f5 0%, #ffe5ec 100%);
-  padding: 120rpx 40rpx 60rpx;
-  border-bottom-left-radius: 60rpx;
-  border-bottom-right-radius: 60rpx;
   position: relative;
   overflow: hidden;
-  box-shadow: 0 10rpx 30rpx rgba(255, 182, 193, 0.15);
+  padding: 120rpx 40rpx 56rpx;
+  background: linear-gradient(135deg, #fff0f5 0%, #ffe6d9 100%);
+  border-bottom-left-radius: 60rpx;
+  border-bottom-right-radius: 60rpx;
 }
 
 .greeting {
   position: relative;
-  z-index: 2;
+  z-index: 1;
 }
 
 .title {
-  font-size: 48rpx;
-  font-weight: 800;
-  color: #333;
   display: block;
   margin-bottom: 16rpx;
+  font-size: 48rpx;
+  font-weight: 800;
+  color: #24303d;
 }
 
 .subtitle {
-  font-size: 28rpx;
-  color: #666;
-  line-height: 1.5;
   display: block;
-  max-width: 80%;
+  max-width: 84%;
+  font-size: 28rpx;
+  line-height: 1.6;
+  color: #5d6b7b;
 }
 
 .header-decoration {
@@ -189,227 +162,117 @@ const handleAITap = () => {
   bottom: -40rpx;
   width: 240rpx;
   height: 240rpx;
-  opacity: 0.1;
-  z-index: 1;
+  opacity: 0.12;
 }
 
-/* 卡片容器 */
 .cards-container {
-  padding: 60rpx 40rpx;
-  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 40rpx;
+  gap: 32rpx;
+  padding: 40rpx 32rpx 48rpx;
 }
 
-/* 通用功能卡片样式 */
 .feature-card {
-  height: 320rpx;
-  border-radius: 40rpx;
-  position: relative;
   overflow: hidden;
-  box-shadow: 0 16rpx 40rpx rgba(0, 0, 0, 0.06);
-  transition: transform 0.2s, box-shadow 0.2s;
+  border-radius: 36rpx;
+  box-shadow: 0 16rpx 40rpx rgba(31, 42, 55, 0.08);
 }
 
 .feature-card--hover {
-  transform: scale(0.97);
-  box-shadow: 0 8rpx 20rpx rgba(0, 0, 0, 0.04);
+  transform: scale(0.98);
+}
+
+.knowledge-card {
+  background: linear-gradient(135deg, #1f8f74 0%, #157a63 100%);
+}
+
+.ai-card {
+  background: linear-gradient(135deg, #5a80ff 0%, #476af0 100%);
+}
+
+.calendar-card {
+  background: linear-gradient(135deg, #f58b62 0%, #f36f45 100%);
 }
 
 .card-content {
-  position: relative;
-  z-index: 2;
   display: flex;
-  height: 100%;
-  padding: 40rpx;
-  box-sizing: border-box;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 240rpx;
+  padding: 36rpx;
 }
 
 .card-info {
   flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-}
-
-.card-title {
-  font-size: 40rpx;
-  font-weight: bold;
-  color: #fff;
-  margin-bottom: 16rpx;
-  letter-spacing: 2rpx;
-}
-
-.card-desc {
-  font-size: 24rpx;
-  color: rgba(255, 255, 255, 0.85);
-  line-height: 1.6;
-  margin-bottom: auto;
-}
-
-.card-btn {
-  display: inline-flex;
-  align-items: center;
-  background: rgba(255, 255, 255, 0.25);
-  padding: 12rpx 30rpx;
-  border-radius: 40rpx;
-  width: fit-content;
-  backdrop-filter: blur(4px);
-}
-
-.btn-text {
-  font-size: 24rpx;
-  color: #fff;
-  font-weight: bold;
-}
-
-.btn-icon {
-  color: #fff;
-  margin-left: 10rpx;
-  font-size: 24rpx;
-}
-
-/* 卡片插画与动效 */
-.card-illustration {
-  width: 180rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-}
-
-.emoji-large {
-  font-size: 120rpx;
-  filter: drop-shadow(0 10rpx 10rpx rgba(0,0,0,0.1));
-  animation: float-main 4s infinite ease-in-out;
-}
-
-.floating-emoji {
-  position: absolute;
-  font-size: 40rpx;
-  opacity: 0.8;
-}
-
-.e1 { top: 20rpx; right: 0; animation: float-sub 3s infinite ease-in-out; }
-.e2 { bottom: 20rpx; left: -20rpx; animation: float-sub 3.5s infinite ease-in-out reverse; }
-
-@keyframes float-main {
-  0% { transform: translateY(0); }
-  50% { transform: translateY(-12rpx) scale(1.05); }
-  100% { transform: translateY(0); }
-}
-
-@keyframes float-sub {
-  0% { transform: translateY(0) rotate(0deg); opacity: 0.6; }
-  50% { transform: translateY(-20rpx) rotate(10deg); opacity: 1; }
-  100% { transform: translateY(0) rotate(0deg); opacity: 0.6; }
-}
-
-/* 孕育日历卡片 特殊样式 */
-.calendar-card {
-  background: linear-gradient(135deg, #ff8da1 0%, #ff6b9d 100%);
-}
-
-.calendar-card .card-bg-circle {
-  position: absolute;
-  top: -60rpx;
-  right: -60rpx;
-  width: 300rpx;
-  height: 300rpx;
-  background: radial-gradient(circle, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0) 70%);
-  border-radius: 50%;
-  z-index: 1;
-}
-
-/* AI 问答卡片 特殊样式 */
-.ai-card {
-  background: linear-gradient(135deg, #7b9cff 0%, #5a80ff 100%);
-}
-
-.ai-card .card-bg-shape {
-  position: absolute;
-  bottom: -40rpx;
-  left: -40rpx;
-  width: 250rpx;
-  height: 250rpx;
-  background: linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0) 100%);
-  transform: rotate(45deg);
-  border-radius: 40rpx;
-  z-index: 1;
-}
-
-.community-card {
-  background: linear-gradient(135deg, #69c7a5 0%, #2ea97d 100%);
-}
-
-.community-card .card-bg-wave {
-  position: absolute;
-  top: -20rpx;
-  right: -30rpx;
-  width: 280rpx;
-  height: 180rpx;
-  background: radial-gradient(circle at center, rgba(255,255,255,0.16) 0%, rgba(255,255,255,0) 72%);
-  z-index: 1;
-}
-
-.badge-community {
-  background: linear-gradient(90deg, #fff5c2, #ffe18b);
-  color: #6c5600;
-  font-size: 20rpx;
-  padding: 4rpx 16rpx;
-  border-radius: 20rpx;
-  font-weight: bold;
-  box-shadow: 0 4rpx 10rpx rgba(108, 86, 0, 0.16);
+  padding-right: 24rpx;
 }
 
 .title-row {
   display: flex;
   align-items: center;
-  margin-bottom: 16rpx;
+  gap: 14rpx;
+  margin-bottom: 14rpx;
 }
 
-.ai-card .card-title {
-  margin-bottom: 0;
-  margin-right: 16rpx;
+.card-title {
+  font-size: 40rpx;
+  font-weight: 700;
+  color: #fff;
 }
 
-.badge-coming-soon {
-  background: linear-gradient(90deg, #ffb347, #ff7b54);
-  color: white;
+.card-desc {
+  display: block;
+  margin-bottom: 28rpx;
+  font-size: 25rpx;
+  line-height: 1.7;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.badge-primary,
+.badge-beta {
+  padding: 4rpx 14rpx;
+  border-radius: 999rpx;
   font-size: 20rpx;
-  padding: 4rpx 16rpx;
-  border-radius: 20rpx;
-  font-weight: bold;
-  box-shadow: 0 4rpx 10rpx rgba(255, 123, 84, 0.4);
-  animation: pulse-badge 2s infinite;
+  font-weight: 700;
 }
 
-@keyframes pulse-badge {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.05); }
-  100% { transform: scale(1); }
+.badge-primary {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff7cf;
 }
 
-.disabled-btn {
-  background: rgba(255, 255, 255, 0.15);
+.badge-beta {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
 }
 
-.disabled-btn .btn-text {
-  color: rgba(255, 255, 255, 0.9);
+.card-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 12rpx 24rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.2);
 }
 
-/* 底部标语 */
-.bottom-quote {
-  text-align: center;
-  padding: 40rpx;
-  margin-top: auto;
-}
-
-.quote-text {
+.btn-text,
+.btn-icon {
   font-size: 24rpx;
-  color: #a0aabf;
-  font-style: italic;
-  letter-spacing: 1rpx;
+  color: #fff;
+  font-weight: 600;
+}
+
+.btn-icon {
+  margin-left: 10rpx;
+}
+
+.card-illustration {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 140rpx;
+}
+
+.emoji-large {
+  font-size: 92rpx;
 }
 </style>

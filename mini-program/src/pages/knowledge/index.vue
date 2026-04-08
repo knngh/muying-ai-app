@@ -1,11 +1,15 @@
 <template>
   <view class="knowledge-page">
-    <!-- Search Bar -->
+    <view class="hero">
+      <text class="hero-title">权威知识库</text>
+      <text class="hero-subtitle">优先展示中国政府网、WHO、CDC、AAP、ACOG、NHS 等公开资料，减少经验帖干扰。</text>
+    </view>
+
     <view class="search-bar">
       <input
         v-model="searchText"
         class="search-input"
-        placeholder="搜索文章..."
+        placeholder="搜索孕产、喂养、发热、黄疸、疫苗..."
         confirm-type="search"
         @confirm="handleSearch"
       />
@@ -14,189 +18,147 @@
       </view>
     </view>
 
-    <!-- Filters -->
-    <view class="filters">
-      <!-- Category Picker -->
-      <picker
-        :range="categoryOptions"
-        range-key="name"
-        @change="onCategoryChange"
-      >
-        <view class="filter-picker">
-          <text class="filter-picker-text">
-            {{ selectedCategoryLabel || '全部分类' }}
-          </text>
-          <text class="picker-arrow">▼</text>
+    <view class="filter-block">
+      <text class="filter-title">机构来源</text>
+      <scroll-view class="source-scroll" scroll-x>
+        <view class="source-row">
+          <view
+            v-for="option in sourceOptions"
+            :key="option.value"
+            :class="['source-chip', selectedSource === option.value ? 'source-chip--active' : '']"
+            @tap="handleSourceChange(option.value)"
+          >
+            <text :class="['source-chip-text', selectedSource === option.value ? 'source-chip-text--active' : '']">
+              {{ option.label }}
+            </text>
+          </view>
         </view>
-      </picker>
-
-      <!-- Stage Picker -->
-      <picker
-        :range="stageOptions"
-        range-key="label"
-        @change="onStageChange"
-      >
-        <view class="filter-picker">
-          <text class="filter-picker-text">
-            {{ selectedStageLabel || '全部阶段' }}
-          </text>
-          <text class="picker-arrow">▼</text>
-        </view>
-      </picker>
+      </scroll-view>
     </view>
 
-    <!-- Hot Tags -->
-    <scroll-view v-if="tags.length > 0" class="hot-tags" scroll-x>
-      <view class="tags-inner">
-        <view
-          v-for="tag in tags"
-          :key="tag.id"
-          :class="['tag-item', selectedTag === tag.slug ? 'tag-active' : '']"
-          @tap="handleTagTap(tag.slug)"
-        >
-          <text :class="['tag-text', selectedTag === tag.slug ? 'tag-text-active' : '']">
-            {{ tag.name }}
-          </text>
+    <view class="filter-row">
+      <picker :range="stageOptions" range-key="label" :value="selectedStageIndex" @change="onStageChange">
+        <view class="filter-picker">
+          <text class="filter-picker-text">{{ selectedStageLabel }}</text>
+          <text class="picker-arrow">▼</text>
         </view>
-      </view>
-    </scroll-view>
+      </picker>
 
-    <!-- Article List -->
+      <view class="result-pill">
+        <text class="result-pill-text">共 {{ total }} 篇 · 中文源优先</text>
+      </view>
+    </view>
+
     <view class="article-list">
-      <view v-if="loading && articles.length === 0" class="loading-state">
-        <text class="loading-text">加载中...</text>
+      <view v-if="loading && articles.length === 0" class="state-box">
+        <text class="state-text">权威内容加载中...</text>
       </view>
 
-      <view v-if="!loading && articles.length === 0" class="empty-state">
-        <text class="empty-text">暂无文章</text>
+      <view v-else-if="!loading && articles.length === 0" class="state-box">
+        <text class="state-text">当前筛选条件下暂无权威文章</text>
       </view>
 
       <view
         v-for="article in articles"
-        :key="article.id"
+        :key="article.slug"
         class="article-card"
         @tap="goToDetail(article.slug)"
       >
-        <image
-          v-if="article.coverImage"
-          :src="article.coverImage"
-          class="article-cover"
-          mode="aspectFill"
-        />
-        <view class="article-body">
+        <view class="article-header">
+          <view class="badge-row">
+            <text class="source-badge">{{ article.sourceOrg || article.source || '权威来源' }}</text>
+            <text v-if="article.topic" class="topic-badge">{{ article.topic }}</text>
+          </view>
           <text class="article-title">{{ article.title }}</text>
-          <view class="article-tags-row">
-            <text v-if="article.category" class="category-tag">
-              {{ article.category.name }}
-            </text>
-          </view>
-          <text v-if="article.summary" class="article-summary">
-            {{ article.summary }}
-          </text>
-          <view class="article-stats">
-            <text class="stat-item">👁 {{ article.viewCount || 0 }}</text>
-            <text class="stat-item">👍 {{ article.likeCount || 0 }}</text>
-            <text class="stat-item">⭐ {{ article.collectCount || 0 }}</text>
-          </view>
+        </view>
+
+        <text v-if="article.summary" class="article-summary">{{ article.summary }}</text>
+
+        <view class="article-meta">
+          <text v-if="article.audience" class="meta-item">{{ article.audience }}</text>
+          <text v-if="article.region" class="meta-item">{{ article.region }}</text>
+          <text class="meta-item">{{ formatDate(article.publishedAt || article.createdAt) }}</text>
+        </view>
+
+        <view class="article-footer">
+          <text class="verified-text">已校验来源</text>
+          <text class="read-more">查看详情</text>
         </view>
       </view>
 
-      <!-- Load More -->
       <view
         v-if="articles.length > 0 && articles.length < total"
         class="load-more"
         @tap="handleLoadMore"
       >
-        <text class="load-more-text">
-          {{ loading ? '加载中...' : '加载更多' }}
-        </text>
-      </view>
-
-      <view v-if="articles.length > 0 && articles.length >= total" class="no-more">
-        <text class="no-more-text">— 没有更多了 —</text>
+        <text class="load-more-text">{{ loading ? '加载中...' : '加载更多' }}</text>
       </view>
     </view>
   </view>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useKnowledgeStore } from '@/stores/knowledge'
 
 const knowledgeStore = useKnowledgeStore()
 
 const searchText = ref('')
-const selectedTag = ref<string | null>(null)
-const selectedCategoryIndex = ref(0)
 const selectedStageIndex = ref(0)
+
+const sourceOptions = [
+  { label: '全部', value: 'all' },
+  { label: '中国政府网', value: '中国政府网' },
+  { label: 'WHO', value: 'who' },
+  { label: 'CDC', value: 'cdc' },
+  { label: 'AAP', value: 'aap' },
+  { label: 'ACOG', value: 'acog' },
+  { label: 'NHS', value: 'nhs' },
+]
 
 const stageOptions = [
   { label: '全部阶段', value: '' },
   { label: '备孕期', value: 'preparation' },
-  { label: '孕早期 (1-12周)', value: 'first-trimester' },
-  { label: '孕中期 (13-27周)', value: 'second-trimester' },
-  { label: '孕晚期 (28-40周)', value: 'third-trimester' },
+  { label: '孕早期', value: 'first-trimester' },
+  { label: '孕中期', value: 'second-trimester' },
+  { label: '孕晚期', value: 'third-trimester' },
   { label: '0-6月', value: '0-6-months' },
   { label: '6-12月', value: '6-12-months' },
   { label: '1-3岁', value: '1-3-years' },
 ]
 
 const articles = computed(() => knowledgeStore.articles)
-const categories = computed(() => knowledgeStore.categories)
-const tags = computed(() => knowledgeStore.tags)
 const loading = computed(() => knowledgeStore.loading)
 const total = computed(() => knowledgeStore.total)
+const selectedSource = computed(() => knowledgeStore.selectedSource)
+const selectedStageLabel = computed(() => stageOptions[selectedStageIndex.value]?.label || '全部阶段')
 
-const categoryOptions = computed(() => {
-  return [{ id: 0, name: '全部分类', slug: '' }, ...categories.value]
-})
-
-const selectedCategoryLabel = computed(() => {
-  const cat = categoryOptions.value[selectedCategoryIndex.value]
-  return cat && cat.slug ? cat.name : ''
-})
-
-const selectedStageLabel = computed(() => {
-  const stage = stageOptions[selectedStageIndex.value]
-  return stage && stage.value ? stage.label : ''
-})
+async function loadArticles(reset = true) {
+  await knowledgeStore.fetchArticles({ reset, page: reset ? 1 : knowledgeStore.page + 1 })
+}
 
 onMounted(async () => {
-  await Promise.all([
-    knowledgeStore.fetchCategories(),
-    knowledgeStore.fetchTags(),
-  ])
-  if (!knowledgeStore.selectedStage) {
-    knowledgeStore.fetchArticles({ reset: true })
-  }
+  await loadArticles(true)
 })
 
-onShow(() => {
-  if (knowledgeStore.selectedStage) {
-    const idx = stageOptions.findIndex(s => s.value === knowledgeStore.selectedStage)
-    if (idx >= 0) {
-      selectedStageIndex.value = idx
-    }
-    knowledgeStore.fetchArticles({ reset: true })
+onShow(async () => {
+  if (articles.value.length === 0) {
+    await loadArticles(true)
   }
 })
 
 function handleSearch() {
   const keyword = searchText.value.trim()
-  if (keyword) {
-    knowledgeStore.search(keyword)
-  } else {
-    knowledgeStore.setKeyword('')
-    knowledgeStore.fetchArticles({ reset: true })
-  }
+  knowledgeStore.setKeyword(keyword)
+  void knowledgeStore.fetchArticles({ reset: true, page: 1 })
 }
 
-function onCategoryChange(e: { detail: { value: number } }) {
-  const idx = e.detail.value
-  selectedCategoryIndex.value = idx
-  const cat = categoryOptions.value[idx]
-  knowledgeStore.setCategory(cat.slug || null)
+function handleSourceChange(source: string) {
+  if (selectedSource.value === source) {
+    return
+  }
+  knowledgeStore.setSource(source)
 }
 
 function onStageChange(e: { detail: { value: number } }) {
@@ -206,235 +168,257 @@ function onStageChange(e: { detail: { value: number } }) {
   knowledgeStore.setStage(stage.value || null)
 }
 
-function handleTagTap(tagSlug: string) {
-  if (selectedTag.value === tagSlug) {
-    selectedTag.value = null
-    knowledgeStore.setTag(null)
-  } else {
-    selectedTag.value = tagSlug
-    knowledgeStore.setTag(tagSlug)
-  }
-}
-
 function handleLoadMore() {
-  if (loading.value) return
-  knowledgeStore.fetchArticles({ page: knowledgeStore.page + 1 })
+  if (loading.value || articles.value.length >= total.value) {
+    return
+  }
+  void loadArticles(false)
 }
 
 function goToDetail(slug: string) {
   uni.navigateTo({ url: `/pages/knowledge-detail/index?slug=${slug}` })
+}
+
+function formatDate(dateStr?: string): string {
+  if (!dateStr) return ''
+  const date = new Date(dateStr)
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
 }
 </script>
 
 <style scoped>
 .knowledge-page {
   min-height: 100vh;
-  background-color: #f5f5f5;
+  background: linear-gradient(180deg, #fffaf6 0%, #f7f9fc 28%, #f4f7fb 100%);
+  padding-bottom: 40rpx;
 }
 
-/* Search Bar */
+.hero {
+  padding: 48rpx 28rpx 28rpx;
+}
+
+.hero-title {
+  display: block;
+  font-size: 44rpx;
+  font-weight: 700;
+  color: #1f2a37;
+  margin-bottom: 12rpx;
+}
+
+.hero-subtitle {
+  display: block;
+  font-size: 26rpx;
+  line-height: 1.6;
+  color: #5d6b7b;
+}
+
 .search-bar {
   display: flex;
   align-items: center;
-  padding: 20rpx 24rpx;
-  background-color: #ffffff;
+  padding: 0 28rpx 24rpx;
 }
 
 .search-input {
   flex: 1;
-  height: 72rpx;
+  height: 76rpx;
   padding: 0 24rpx;
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 38rpx;
   font-size: 28rpx;
-  background-color: #f5f5f5;
-  border-radius: 36rpx;
   box-sizing: border-box;
 }
 
 .search-btn {
   margin-left: 16rpx;
   padding: 16rpx 28rpx;
-  background-color: #ff6b9d;
   border-radius: 36rpx;
-  flex-shrink: 0;
+  background: #f36f45;
 }
 
 .search-btn-text {
   font-size: 26rpx;
-  color: #ffffff;
+  color: #fff;
   font-weight: 600;
 }
 
-/* Filters */
-.filters {
-  display: flex;
-  padding: 16rpx 24rpx;
-  background-color: #ffffff;
-  border-bottom: 1rpx solid #f0f0f0;
+.filter-block {
+  padding: 0 28rpx 16rpx;
+}
+
+.filter-title {
+  display: block;
+  font-size: 24rpx;
+  color: #7a8697;
+  margin-bottom: 14rpx;
+}
+
+.source-scroll {
+  white-space: nowrap;
+}
+
+.source-row {
+  display: inline-flex;
   gap: 16rpx;
+  padding-right: 28rpx;
+}
+
+.source-chip {
+  padding: 14rpx 24rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.source-chip--active {
+  background: #1f8f74;
+}
+
+.source-chip-text {
+  font-size: 24rpx;
+  color: #4c5a69;
+}
+
+.source-chip-text--active {
+  color: #fff;
+  font-weight: 600;
+}
+
+.filter-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 28rpx 20rpx;
 }
 
 .filter-picker {
-  display: flex;
-  align-items: center;
-  padding: 12rpx 20rpx;
-  background-color: #f5f5f5;
-  border-radius: 24rpx;
-}
-
-.filter-picker-text {
-  font-size: 24rpx;
-  color: #333333;
-  margin-right: 8rpx;
-}
-
-.picker-arrow {
-  font-size: 20rpx;
-  color: #999999;
-}
-
-/* Hot Tags */
-.hot-tags {
-  white-space: nowrap;
-  background-color: #ffffff;
-  padding: 16rpx 24rpx;
-  border-bottom: 1rpx solid #f0f0f0;
-  -webkit-overflow-scrolling: touch;
-}
-
-.tags-inner {
-  display: flex;
-  gap: 12rpx;
-}
-
-.tag-item {
   display: inline-flex;
-  padding: 10rpx 24rpx;
-  background-color: #f5f5f5;
-  border-radius: 24rpx;
-  flex-shrink: 0;
+  align-items: center;
+  gap: 10rpx;
+  padding: 16rpx 22rpx;
+  border-radius: 28rpx;
+  background: rgba(255, 255, 255, 0.9);
 }
 
-.tag-active {
-  background-color: #ff6b9d;
-}
-
-.tag-text {
+.filter-picker-text,
+.picker-arrow,
+.result-pill-text {
   font-size: 24rpx;
-  color: #666666;
-  white-space: nowrap;
+  color: #4c5a69;
 }
 
-.tag-text-active {
-  color: #ffffff;
+.result-pill {
+  padding: 14rpx 20rpx;
+  border-radius: 26rpx;
+  background: rgba(31, 143, 116, 0.12);
 }
 
-/* Article List */
 .article-list {
-  padding: 16rpx 24rpx;
+  padding: 0 28rpx;
+}
+
+.state-box {
+  margin-top: 60rpx;
+  padding: 60rpx 32rpx;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 28rpx;
+}
+
+.state-text {
+  font-size: 28rpx;
+  color: #788595;
 }
 
 .article-card {
-  background-color: #ffffff;
-  border-radius: 20rpx;
-  margin-bottom: 20rpx;
-  overflow: hidden;
-  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.05);
+  margin-bottom: 22rpx;
+  padding: 28rpx;
+  border-radius: 28rpx;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 10rpx 30rpx rgba(31, 42, 55, 0.06);
 }
 
-.article-cover {
-  width: 100%;
-  height: 300rpx;
+.article-header {
+  margin-bottom: 14rpx;
 }
 
-.article-body {
-  padding: 24rpx;
+.badge-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin-bottom: 14rpx;
+}
+
+.source-badge,
+.topic-badge {
+  padding: 6rpx 16rpx;
+  border-radius: 999rpx;
+  font-size: 22rpx;
+}
+
+.source-badge {
+  background: rgba(31, 143, 116, 0.12);
+  color: #18755f;
+}
+
+.topic-badge {
+  background: rgba(243, 111, 69, 0.12);
+  color: #d35b34;
 }
 
 .article-title {
-  font-size: 30rpx;
-  font-weight: 600;
-  color: #333333;
-  margin-bottom: 12rpx;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.article-tags-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8rpx;
-  margin-bottom: 12rpx;
-}
-
-.category-tag {
-  font-size: 22rpx;
-  color: #ff6b9d;
-  background-color: rgba(255, 107, 157, 0.1);
-  padding: 4rpx 16rpx;
-  border-radius: 16rpx;
+  font-size: 34rpx;
+  font-weight: 700;
+  line-height: 1.5;
+  color: #1f2a37;
 }
 
 .article-summary {
+  display: block;
   font-size: 26rpx;
-  color: #666666;
-  line-height: 1.6;
-  margin-bottom: 16rpx;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  line-height: 1.7;
+  color: #5d6b7b;
+  margin-bottom: 18rpx;
 }
 
-.article-stats {
+.article-meta {
   display: flex;
-  gap: 24rpx;
+  flex-wrap: wrap;
+  gap: 14rpx;
+  margin-bottom: 18rpx;
 }
 
-.stat-item {
+.meta-item {
   font-size: 22rpx;
-  color: #999999;
+  color: #7a8697;
 }
 
-/* Load More */
-.load-more {
+.article-footer {
   display: flex;
-  justify-content: center;
-  padding: 28rpx;
-  background-color: #ffffff;
-  border-radius: 16rpx;
-  margin-bottom: 20rpx;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.verified-text {
+  font-size: 22rpx;
+  color: #18755f;
+}
+
+.read-more {
+  font-size: 24rpx;
+  color: #f36f45;
+  font-weight: 600;
+}
+
+.load-more {
+  margin-top: 8rpx;
+  padding: 24rpx 0 36rpx;
+  text-align: center;
 }
 
 .load-more-text {
   font-size: 26rpx;
-  color: #ff6b9d;
-  font-weight: 500;
-}
-
-.no-more {
-  text-align: center;
-  padding: 28rpx;
-}
-
-.no-more-text {
-  font-size: 24rpx;
-  color: #cccccc;
-}
-
-/* States */
-.loading-state,
-.empty-state {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 120rpx 0;
-}
-
-.loading-text,
-.empty-text {
-  font-size: 28rpx;
-  color: #999999;
+  color: #6d7a8a;
 }
 </style>

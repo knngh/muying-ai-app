@@ -89,7 +89,7 @@ function getInsightToneColor(tone: InsightBar['tone']) {
 function buildMilestones(stageKind: ReturnType<typeof getStageSummary>['communityStage'], timelineCount: number): MilestoneCard[] {
   const base = [
     { title: '阶段资料已建立', detail: '账号、阶段信息和关键日期已经纳入成长档案。', status: 'done' as const },
-    { title: '本周重点持续沉淀', detail: '结合 AI 周报、打卡和时间轴，逐步形成连续记录。', status: 'focus' as const },
+    { title: '本周重点持续沉淀', detail: '结合周度报告、打卡和时间轴，逐步形成连续记录。', status: 'focus' as const },
     { title: '准备下一个阶段交接', detail: '把下一阶段的提醒、物品和注意事项提前整理给家人。', status: 'next' as const },
   ]
 
@@ -146,7 +146,7 @@ export default function GrowthArchiveScreen() {
     {
       label: '连续打卡',
       value: `${checkInStreak} 天`,
-      hint: '越稳定的记录，后续周报越精准。',
+      hint: '越稳定的记录，后续周度报告越完整。',
     },
     {
       label: '本周完成率',
@@ -154,9 +154,9 @@ export default function GrowthArchiveScreen() {
       hint: '可以结合日历待办回看执行节奏。',
     },
     {
-      label: 'AI 使用',
+      label: '今日使用',
       value: isVip ? `${aiUsedToday} 次` : `${aiUsedToday} / ${aiLimit} 次`,
-      hint: isVip ? '会员已解锁深度问答。' : '升级后可解锁无限次咨询。',
+      hint: isVip ? '会员已解锁更完整的问题助手服务。' : '升级后可不限次使用问题助手。',
     },
     {
       label: '周报沉淀',
@@ -191,7 +191,7 @@ export default function GrowthArchiveScreen() {
         helper: '周报越完整，越适合做阶段交接与分享。',
       },
       {
-        label: 'AI 参与度',
+        label: '问题助手使用度',
         value: isVip ? `${aiUsedToday} 次` : `${aiUsedToday}/${aiLimit}`,
         progress: Math.min(aiUsedToday / quotaBase, 1),
         tone: 'pink',
@@ -229,7 +229,7 @@ export default function GrowthArchiveScreen() {
 
     if (weeklyReports[0]) {
       items.push({
-        label: '最近一份周报',
+        label: '最近一份周度报告',
         value: dayjs(weeklyReports[0].createdAt).format('YYYY-MM-DD'),
         detail: weeklyReports[0].title,
       })
@@ -250,7 +250,7 @@ export default function GrowthArchiveScreen() {
       `${progress.title}：${progress.valueLabel}`,
       `连续打卡：${checkInStreak} 天`,
       `本周完成率：${weeklyCompletionRate}%`,
-      `最近周报：${weeklyReports[0]?.title ?? '暂无周报'}`,
+      `最近周度报告：${weeklyReports[0]?.title ?? '暂无周度报告'}`,
       firstHighlight ? `阶段提醒：${firstHighlight}` : '阶段提醒：持续补充记录后会生成更完整摘要',
     ]
   }, [checkInStreak, progress.title, progress.valueLabel, stage.title, weeklyCompletionRate, weeklyReports])
@@ -465,7 +465,7 @@ export default function GrowthArchiveScreen() {
           </View>
           {[
             '每周至少完成 1 次日历打卡，周报会更完整。',
-            '遇到关键身体变化时，可以结合 AI 问答和社区经验做记录。',
+            '遇到关键身体变化时，可以结合问题助手和知识库内容做记录。',
             '阶段快切换时，建议回看最近 2 份周报，整理重点提醒给家人。',
           ].map((item) => (
             <TouchableOpacity key={item} activeOpacity={0.9}>

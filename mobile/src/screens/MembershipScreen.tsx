@@ -9,9 +9,9 @@ import { trackAppEvent } from '../services/analytics'
 import { colors, fontSize, spacing } from '../theme'
 
 const comparisonRows = [
-  { label: 'AI 问答', free: '3 次/天', member: '无限次' },
-  { label: 'AI 对话模式', free: '单轮问答', member: '多轮连续对话' },
-  { label: 'AI 周报', free: '不可用', member: '每周 1 份' },
+  { label: '问题助手', free: '3 次/天', member: '不限次' },
+  { label: '对话模式', free: '单轮问答', member: '多轮连续对话' },
+  { label: '周度报告', free: '不可用', member: '每周 1 份' },
   { label: '成长档案', free: '基础记录', member: '图表 + 导出' },
   { label: '社区权益', free: '浏览 / 发帖', member: '阶段圈子 + 标识' },
 ]
@@ -42,7 +42,7 @@ export default function MembershipScreen() {
     try {
       await purchasePlan(code)
       const plan = plans.find((item: MembershipPlan) => item.code === code)
-      Alert.alert('开通成功', `${plan?.name || '会员'} 已生效，AI 问答已切换为无限次。`)
+      Alert.alert('开通成功', `${plan?.name || '会员'} 已生效，问题助手权益已切换为不限次使用。`)
     } catch (_error) {
       Alert.alert('开通失败', '支付流程未完成，请稍后重试。')
     }
@@ -59,7 +59,7 @@ export default function MembershipScreen() {
               </Chip>
               <Text style={styles.heroTitle}>把 App 变成你的深度陪伴工具</Text>
               <Text style={styles.heroSubtitle}>
-                AI 无限问答、个性化周报、阶段专属内容和更完整的成长记录都在这里。
+                问题助手不限次、个性化周度报告、阶段专属内容和更完整的成长记录都在这里。
               </Text>
             </View>
 
@@ -71,7 +71,7 @@ export default function MembershipScreen() {
                 </Text>
               </View>
               <View style={styles.heroStatCard}>
-                <Text style={styles.heroStatLabel}>今日 AI 使用</Text>
+                <Text style={styles.heroStatLabel}>今日使用次数</Text>
                 <Text style={styles.heroStatValue}>
                   {status === 'active' ? `${aiUsedToday} 次` : `${aiUsedToday} / 3 次`}
                 </Text>
@@ -86,7 +86,7 @@ export default function MembershipScreen() {
 
             {status === 'active' ? (
               <Button mode="contained" buttonColor={colors.white} textColor={colors.ink} onPress={() => navigation.navigate('WeeklyReport')} style={styles.heroButton}>
-                查看我的 AI 周报
+                查看我的周度报告
               </Button>
             ) : null}
           </Card.Content>

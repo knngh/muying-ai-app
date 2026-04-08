@@ -7,6 +7,18 @@ const AI_GENERAL_URL = process.env.AI_GENERAL_URL || process.env.SILICONFLOW_API
 const AI_GENERAL_KEY = process.env.AI_GENERAL_KEY || process.env.SILICONFLOW_API_KEY || '';
 const AI_GENERAL_MODEL = process.env.AI_GENERAL_MODEL || 'deepseek-ai/DeepSeek-V3';
 const AI_GENERAL_PROVIDER = process.env.AI_GENERAL_PROVIDER || 'siliconflow';
+const AI_KIMI_URL = process.env.AI_KIMI_URL || LEGACY_GATEWAY_URL;
+const AI_KIMI_KEY = process.env.AI_KIMI_KEY || LEGACY_GATEWAY_KEY;
+const AI_KIMI_MODEL = process.env.AI_KIMI_MODEL || 'kimi-k2.5';
+const AI_KIMI_PROVIDER = process.env.AI_KIMI_PROVIDER || 'kimi';
+const AI_MINIMAX_URL = process.env.AI_MINIMAX_URL || LEGACY_GATEWAY_URL;
+const AI_MINIMAX_KEY = process.env.AI_MINIMAX_KEY || LEGACY_GATEWAY_KEY;
+const AI_MINIMAX_MODEL = process.env.AI_MINIMAX_MODEL || 'minimax-2.5';
+const AI_MINIMAX_PROVIDER = process.env.AI_MINIMAX_PROVIDER || 'minimax';
+const AI_GLM_URL = process.env.AI_GLM_URL || LEGACY_GATEWAY_URL;
+const AI_GLM_KEY = process.env.AI_GLM_KEY || LEGACY_GATEWAY_KEY;
+const AI_GLM_MODEL = process.env.AI_GLM_MODEL || 'glm-5';
+const AI_GLM_PROVIDER = process.env.AI_GLM_PROVIDER || 'glm';
 const AI_MEDICAL_PRIMARY_URL = process.env.AI_MEDICAL_PRIMARY_URL || LEGACY_GATEWAY_URL;
 const AI_MEDICAL_PRIMARY_KEY = process.env.AI_MEDICAL_PRIMARY_KEY || LEGACY_GATEWAY_KEY;
 const AI_MEDICAL_PRIMARY_MODEL = process.env.AI_MEDICAL_PRIMARY_MODEL || (process.env.AI_DEFAULT_MODEL || 'baichuan-m3');
@@ -18,6 +30,12 @@ const AI_MEDICAL_SECONDARY_PROVIDER = process.env.AI_MEDICAL_SECONDARY_PROVIDER 
 
 const MODEL_ALIASES: Record<string, string> = {
   'Baichuan-M3': 'baichuan-m3',
+  'kimi2.5': 'kimi-k2.5',
+  'kimi-2.5': 'kimi-k2.5',
+  'glm5': 'glm-5',
+  'glm-5-flash': 'glm-5',
+  'minimax2.5': 'minimax-2.5',
+  'minmax2.5': 'minimax-2.5',
 };
 
 interface SupportedModel {
@@ -65,12 +83,14 @@ interface GatewayProvider {
   id: string;
   label: string;
   provider: string;
-  routeKind: 'general' | 'medical' | 'legacy' | 'manual';
+  routeKind: 'general' | 'medical' | 'legacy' | 'manual' | 'task';
   url: string;
   key: string;
   model: string;
   supportsStreaming: boolean;
 }
+
+export type AITaskModelRole = 'glm_classify' | 'kimi_reason' | 'minimax_render';
 
 export interface AIGatewayRouteInfo {
   provider: string;
@@ -82,6 +102,13 @@ export interface AIGatewayRouteInfo {
 export interface AIGatewayTextResult {
   answer: string;
   route: AIGatewayRouteInfo;
+}
+
+export interface AITaskModelBinding {
+  role: AITaskModelRole;
+  model: string;
+  provider: string;
+  configured: boolean;
 }
 
 // 支持的模型列表
@@ -104,6 +131,12 @@ export const SUPPORTED_MODELS: Record<string, SupportedModel> = {
     provider: 'zhipu',
     maxTokens: 4096,
   },
+  'glm-5': {
+    id: 'glm-5',
+    name: 'GLM-5',
+    provider: 'zhipu',
+    maxTokens: 8192,
+  },
   'gemini-pro': {
     id: 'gemini-pro',
     name: 'Gemini Pro',
@@ -122,6 +155,18 @@ export const SUPPORTED_MODELS: Record<string, SupportedModel> = {
     provider: 'deepseek',
     maxTokens: 4096,
   },
+  'minimax-m1': {
+    id: 'minimax-m1',
+    name: 'MiniMax M1',
+    provider: 'minimax',
+    maxTokens: 8192,
+  },
+  'minimax-2.5': {
+    id: 'minimax-2.5',
+    name: 'MiniMax 2.5',
+    provider: 'minimax',
+    maxTokens: 8192,
+  },
   'baichuan-m3': {
     id: 'baichuan-m3',
     apiModel: 'Baichuan-M3',
@@ -132,7 +177,7 @@ export const SUPPORTED_MODELS: Record<string, SupportedModel> = {
 };
 
 // 默认模型
-const DEFAULT_MODEL = process.env.AI_DEFAULT_MODEL || 'glm-4-flash';
+const DEFAULT_MODEL = process.env.AI_DEFAULT_MODEL || 'glm-5';
 
 // 母婴健康系统提示词
 const MATERNAL_HEALTH_SYSTEM_PROMPT = `你是一位专业的母婴健康顾问，拥有丰富的妇产科和儿科知识。
@@ -314,6 +359,29 @@ function buildMedicalSecondaryProvider(): GatewayProvider | null {
   );
 }
 
+function buildTaskProvider(
+  id: string,
+  label: string,
+  url: string,
+  key: string,
+  model: string,
+  fallbackProvider: string
+): GatewayProvider | null {
+  return buildProvider(id, label, 'task', url, key, model, fallbackProvider);
+}
+
+function buildKimiTaskProvider(): GatewayProvider | null {
+  return buildTaskProvider('task-kimi', 'task-kimi', AI_KIMI_URL, AI_KIMI_KEY, AI_KIMI_MODEL, AI_KIMI_PROVIDER);
+}
+
+function buildMiniMaxTaskProvider(): GatewayProvider | null {
+  return buildTaskProvider('task-minimax', 'task-minimax', AI_MINIMAX_URL, AI_MINIMAX_KEY, AI_MINIMAX_MODEL, AI_MINIMAX_PROVIDER);
+}
+
+function buildGLMTaskProvider(): GatewayProvider | null {
+  return buildTaskProvider('task-glm', 'task-glm', AI_GLM_URL, AI_GLM_KEY, AI_GLM_MODEL, AI_GLM_PROVIDER);
+}
+
 function dedupeProviders(providers: Array<GatewayProvider | null>): GatewayProvider[] {
   const unique = new Map<string, GatewayProvider>();
 
@@ -399,6 +467,34 @@ function resolveProviderChain(
     buildMedicalSecondaryProvider(),
     buildLegacyProvider(),
   ]);
+}
+
+function resolveTaskProviderChain(taskRole: AITaskModelRole): GatewayProvider[] {
+  switch (taskRole) {
+    case 'glm_classify':
+      return dedupeProviders([
+        buildGLMTaskProvider(),
+        buildLegacyProvider('glm-5'),
+        buildGeneralProvider(),
+        buildLegacyProvider(),
+      ]);
+    case 'kimi_reason':
+      return dedupeProviders([
+        buildKimiTaskProvider(),
+        buildLegacyProvider('kimi-k2.5'),
+        buildMedicalPrimaryProvider(),
+        buildLegacyProvider(),
+      ]);
+    case 'minimax_render':
+      return dedupeProviders([
+        buildMiniMaxTaskProvider(),
+        buildLegacyProvider('minimax-2.5'),
+        buildGeneralProvider(),
+        buildLegacyProvider(),
+      ]);
+    default:
+      return dedupeProviders([buildLegacyProvider()]);
+  }
 }
 
 function buildGatewayHeaders(provider: GatewayProvider, stream = false): Record<string, string> {
@@ -535,7 +631,7 @@ async function* streamProvider(
     buffer += decoder.decode(value, { stream: true });
 
     if (buffer.length > MAX_BUFFER_SIZE) {
-      throw new Error('AI 响应超出大小限制');
+      throw new Error('系统响应超出大小限制');
     }
 
     const lines = buffer.split('\n');
@@ -591,7 +687,7 @@ export async function callAIGateway(
 ): Promise<string> {
   const providers = resolveProviderChain(messages, { model: options.model });
   if (providers.length === 0) {
-    throw new Error('未配置可用的 AI 提供方');
+    throw new Error('未配置可用的服务提供方');
   }
 
   let lastError: unknown;
@@ -604,7 +700,7 @@ export async function callAIGateway(
     }
   }
 
-  throw lastError instanceof Error ? lastError : new Error('AI 服务不可用');
+  throw lastError instanceof Error ? lastError : new Error('问答服务不可用');
 }
 
 export async function callAIGatewayDetailed(
@@ -617,7 +713,7 @@ export async function callAIGatewayDetailed(
 ): Promise<AIGatewayTextResult> {
   const providers = resolveProviderChain(messages, { model: options.model });
   if (providers.length === 0) {
-    throw new Error('未配置可用的 AI 提供方');
+    throw new Error('未配置可用的服务提供方');
   }
 
   let lastError: unknown;
@@ -634,7 +730,37 @@ export async function callAIGatewayDetailed(
     }
   }
 
-  throw lastError instanceof Error ? lastError : new Error('AI 服务不可用');
+  throw lastError instanceof Error ? lastError : new Error('问答服务不可用');
+}
+
+export async function callTaskModelDetailed(
+  taskRole: AITaskModelRole,
+  messages: ChatMessage[],
+  options: {
+    temperature?: number;
+    maxTokens?: number;
+  } = {}
+): Promise<AIGatewayTextResult> {
+  const providers = resolveTaskProviderChain(taskRole);
+  if (providers.length === 0) {
+    throw new Error(`未配置可用的任务模型: ${taskRole}`);
+  }
+
+  let lastError: unknown;
+  for (const provider of providers) {
+    try {
+      const answer = await callProvider(provider, messages, options);
+      return {
+        answer,
+        route: toRouteInfo(provider),
+      };
+    } catch (error) {
+      lastError = error;
+      console.error(`[AI Task Router] Provider failed: ${taskRole} -> ${provider.label}`, error);
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error(`任务模型不可用: ${taskRole}`);
 }
 
 // 流式调用 AI Gateway
@@ -649,7 +775,7 @@ export async function* streamAIGateway(
 ): AsyncGenerator<string, void, unknown> {
   const providers = resolveProviderChain(messages, { model: options.model });
   if (providers.length === 0) {
-    throw new Error('未配置可用的 AI 提供方');
+    throw new Error('未配置可用的服务提供方');
   }
 
   let lastError: unknown;
@@ -673,7 +799,7 @@ export async function* streamAIGateway(
     }
   }
 
-  throw lastError instanceof Error ? lastError : new Error('AI 服务不可用');
+  throw lastError instanceof Error ? lastError : new Error('问答服务不可用');
 }
 
 // RAG 增强问答（带知识库检索）
@@ -764,6 +890,21 @@ export function getAvailableModels(): Array<{ id: string; name: string; provider
     }));
 }
 
+export function getTaskModelBindings(): AITaskModelBinding[] {
+  const bindings: Array<{ role: AITaskModelRole; provider: GatewayProvider | null }> = [
+    { role: 'glm_classify', provider: buildGLMTaskProvider() },
+    { role: 'kimi_reason', provider: buildKimiTaskProvider() },
+    { role: 'minimax_render', provider: buildMiniMaxTaskProvider() },
+  ];
+
+  return bindings.map(({ role, provider }) => ({
+    role,
+    model: provider?.model || '',
+    provider: provider?.provider || '',
+    configured: Boolean(provider),
+  }));
+}
+
 export function getDefaultModel(): string {
   const selectedModel = MODEL_ALIASES[DEFAULT_MODEL] || DEFAULT_MODEL;
   return SUPPORTED_MODELS[selectedModel]?.id || selectedModel;
@@ -776,6 +917,7 @@ export async function healthCheck(): Promise<{
   models: string[];
   mode: 'config-only';
   providers: AIGatewayRouteInfo[];
+  taskBindings: AITaskModelBinding[];
   routing?: {
     enabled: boolean;
     generalProvider?: string;
@@ -797,6 +939,7 @@ export async function healthCheck(): Promise<{
     models: getUniqueSupportedModels().map(model => model.id),
     mode: 'config-only',
     providers: providers.map((provider) => toRouteInfo(provider)),
+    taskBindings: getTaskModelBindings(),
     routing: {
       enabled: AI_ROUTING_ENABLED,
       generalProvider: buildGeneralProvider()?.provider,

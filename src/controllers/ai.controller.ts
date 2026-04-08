@@ -3,11 +3,11 @@ import { successResponse, AppError, ErrorCodes } from '../middlewares/error.midd
 import {
   isEmergencyQuestion,
   getEmergencyResponse,
-  ragEnhancedAnswer,
   multiTurnChatDetailed,
   streamMultiTurnChat,
   getAvailableModels,
   getDefaultModel,
+  getTaskModelBindings,
   healthCheck,
 } from '../services/ai-gateway.service';
 import { buildKnowledgePack, searchQA, getKnowledgeStats } from '../services/knowledge.service';
@@ -26,10 +26,11 @@ import {
   hasMaternalChildSignal,
   type AIDomainDecision,
 } from '../services/ai-domain.service';
+import { chunkTrustedAnswer, generateTrustedAIResponse } from '../services/trusted-ai.service';
 
 const AI_DISCLAIMER = '温馨提示：这份答复用于帮助您先做初步了解，不能替代医生面诊；如果症状明显、持续加重，或您仍然不放心，请及时就医。';
 const EMERGENCY_DISCLAIMER = '🚨 重要提示：如遇紧急情况，请立即就医！';
-const DEGRADED_DISCLAIMER = '温馨提示：当前 AI 服务暂时不可用，以下内容由知识库整理，供您先参考；若身体不适明显，请及时就医。';
+const DEGRADED_DISCLAIMER = '温馨提示：当前问答服务暂时不可用，以下内容由知识库整理，供您先参考；若身体不适明显，请及时就医。';
 const DEFAULT_MODEL_ID = getDefaultModel();
 const EXPLICIT_STAGE_PATTERNS = [
   /孕早期|怀孕早期|怀孕初期|刚怀孕/u,
@@ -184,7 +185,7 @@ function buildGatewayFallbackAnswer(
 ): string {
   if (knowledgePack.results.length === 0) {
     return [
-      '当前 AI 服务暂时不可用，我先给你一个稳妥建议：',
+    '当前问答服务暂时不可用，我先给你一个稳妥建议：',
       '1. 先观察症状变化，避免自行用药或处理。',
       '2. 可以补充孕周、宝宝月龄、持续时间、体温或检查结果，我会继续按知识库帮你检索。',
       '3. 如果出现高热、持续出血、呼吸困难、精神状态明显变差等情况，请尽快线下就医。',
@@ -200,7 +201,7 @@ function buildGatewayFallbackAnswer(
   });
 
   return [
-    '当前 AI 服务暂时不可用，我先根据知识库给你整理可参考内容：',
+    '当前问答服务暂时不可用，我先根据知识库给你整理可参考内容：',
     ...sections,
     '如果你愿意，可以继续补充更具体的症状、孕周或宝宝月龄，我会继续按知识库帮你细化。',
   ].join('\n\n');
@@ -328,6 +329,74 @@ function isResumeContinuationContext(context: unknown): boolean {
   return (context as Record<string, unknown>).模式 === '原答案续写';
 }
 
+function buildTrustedResponsePayload(
+  result: Awaited<ReturnType<typeof generateTrustedAIResponse>>,
+  model?: string,
+  conversationId?: string,
+) {
+  return {
+    answer: result.answer,
+    message: {
+      role: 'assistant' as const,
+      content: result.answer,
+      timestamp: new Date().toISOString(),
+    },
+    isEmergency: result.isEmergency,
+    sources: result.sources,
+    confidence: result.confidence,
+    disclaimer: result.disclaimer,
+    followUpQuestions: result.followUpQuestions,
+    triageCategory: result.triageCategory,
+    riskLevel: result.riskLevel,
+    structuredAnswer: result.structuredAnswer,
+    uncertainty: result.uncertainty,
+    sourceReliability: result.sourceReliability,
+    degraded: result.degraded,
+    model: result.model || model || DEFAULT_MODEL_ID,
+    provider: result.provider,
+    route: result.route,
+    conversationId,
+  };
+}
+
+function setSseHeaders(res: Response) {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+}
+
+function streamTrustedResult(
+  res: Response,
+  result: Awaited<ReturnType<typeof generateTrustedAIResponse>>,
+  model: string | undefined,
+  conversationId: string | undefined,
+) {
+  setSseHeaders(res);
+
+  for (const chunk of chunkTrustedAnswer(result.answer)) {
+    res.write(`data: ${JSON.stringify({ content: chunk, isEmergency: result.isEmergency })}\n\n`);
+  }
+
+  res.write(`data: ${JSON.stringify({
+    done: true,
+    sources: result.sources,
+    disclaimer: result.disclaimer,
+    followUpQuestions: result.followUpQuestions,
+    triageCategory: result.triageCategory,
+    riskLevel: result.riskLevel,
+    structuredAnswer: result.structuredAnswer,
+    uncertainty: result.uncertainty,
+    sourceReliability: result.sourceReliability,
+    degraded: result.degraded,
+    model: result.model || model || DEFAULT_MODEL_ID,
+    provider: result.provider,
+    route: result.route,
+    conversationId,
+  })}\n\n`);
+  res.end();
+}
+
 // 用户提问（单轮）- 非流式
 export const askQuestion = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -338,66 +407,24 @@ export const askQuestion = async (req: Request, res: Response, next: NextFunctio
       throw new AppError('请输入问题', ErrorCodes.PARAM_ERROR, 400);
     }
 
-    const askDecision = await resolveDomainDecision(question, { userId, context });
-    if (askDecision.status !== 'in_scope') {
-      const persistedConversationId = await persistDomainDecisionExchange(
-        userId,
-        conversationId,
-        question,
-        askDecision.answer || '',
-      );
-      return respondWithDomainDecision(res, askDecision, model, persistedConversationId);
-    }
-
-    if (isEmergencyQuestion(question)) {
-      const persistedConversationId = userId
-        ? await saveConversationExchange({
-          userId,
-          conversationId,
-          userQuestion: question,
-          assistantAnswer: getEmergencyResponse(),
-          isEmergency: true,
-        })
-        : conversationId;
-
-      return res.json(successResponse({
-        answer: getEmergencyResponse(),
-        isEmergency: true,
-        sources: [],
-        confidence: 1,
-        disclaimer: EMERGENCY_DISCLAIMER,
-        followUpQuestions: [],
-        model: model || DEFAULT_MODEL_ID,
-        conversationId: persistedConversationId,
-      }));
-    }
-
-    const { profileContext, knowledgePack } = await resolveKnowledge(question, userId, context);
-    const finalContext = buildPromptContext(question, context, profileContext.prompt, knowledgePack.context);
-    const result = await ragEnhancedAnswer(question, finalContext);
-
+    const result = await generateTrustedAIResponse({
+      question,
+      context,
+      userId,
+      model,
+    });
     const persistedConversationId = userId
       ? await saveConversationExchange({
         userId,
         conversationId,
         userQuestion: question,
         assistantAnswer: result.answer,
-        sources: knowledgePack.sources,
+        isEmergency: result.isEmergency,
+        sources: result.sources,
       })
       : conversationId;
 
-    res.json(successResponse({
-      answer: result.answer,
-      isEmergency: false,
-      sources: knowledgePack.sources,
-      confidence: estimateConfidence(knowledgePack.results[0]?.score || result.confidence * 100),
-      disclaimer: result.confidence > 0 ? AI_DISCLAIMER : DEGRADED_DISCLAIMER,
-      followUpQuestions: knowledgePack.followUpQuestions,
-      model: result.route?.model || model || DEFAULT_MODEL_ID,
-      provider: result.route?.provider,
-      route: result.route?.route,
-      conversationId: persistedConversationId,
-    }));
+    res.json(successResponse(buildTrustedResponsePayload(result, model, persistedConversationId)));
   } catch (error) {
     next(error);
   }
@@ -413,124 +440,24 @@ export const askQuestionStream = async (req: Request, res: Response, next: NextF
       throw new AppError('请输入问题', ErrorCodes.PARAM_ERROR, 400);
     }
 
-    const askStreamDecision = await resolveDomainDecision(question, { userId, context });
-    if (askStreamDecision.status !== 'in_scope') {
-      res.setHeader('Content-Type', 'text/event-stream');
-      res.setHeader('Cache-Control', 'no-cache');
-      res.setHeader('Connection', 'keep-alive');
-      res.setHeader('X-Accel-Buffering', 'no');
-
-      const persistedConversationId = await persistDomainDecisionExchange(
+    const result = await generateTrustedAIResponse({
+      question,
+      context,
+      userId,
+      model,
+    });
+    const persistedConversationId = userId
+      ? await saveConversationExchange({
         userId,
         conversationId,
-        question,
-        askStreamDecision.answer || '',
-      );
-      res.write(`data: ${JSON.stringify({ content: askStreamDecision.answer })}\n\n`);
-      res.write(`data: ${JSON.stringify({
-        done: true,
-        sources: [],
-        disclaimer: askStreamDecision.disclaimer,
-        followUpQuestions: [],
-        conversationId: persistedConversationId,
-      })}\n\n`);
-      return res.end();
-    }
+        userQuestion: question,
+        assistantAnswer: result.answer,
+        isEmergency: result.isEmergency,
+        sources: result.sources,
+      })
+      : conversationId;
 
-    if (isEmergencyQuestion(question)) {
-      res.setHeader('Content-Type', 'text/event-stream');
-      res.setHeader('Cache-Control', 'no-cache');
-      res.setHeader('Connection', 'keep-alive');
-      res.setHeader('X-Accel-Buffering', 'no');
-
-      const persistedConversationId = userId
-        ? await saveConversationExchange({
-          userId,
-          conversationId,
-          userQuestion: question,
-          assistantAnswer: getEmergencyResponse(),
-          isEmergency: true,
-        })
-        : conversationId;
-
-      res.write(`data: ${JSON.stringify({ content: getEmergencyResponse(), isEmergency: true })}\n\n`);
-      res.write(`data: ${JSON.stringify({
-        done: true,
-        sources: [],
-        disclaimer: EMERGENCY_DISCLAIMER,
-        conversationId: persistedConversationId,
-      })}\n\n`);
-      return res.end();
-    }
-
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no');
-
-    const { profileContext, knowledgePack } = await resolveKnowledge(question, userId, context);
-    const finalContext = buildPromptContext(question, context, profileContext.prompt, knowledgePack.context);
-    const messages = [{ role: 'user' as const, content: question }];
-    let resolvedRoute: { provider: string; model: string; route: string } | undefined;
-
-    try {
-      let answer = '';
-      for await (const chunk of streamMultiTurnChat(messages, {
-        model,
-        context: finalContext,
-        onRouteResolved: (route) => {
-          resolvedRoute = route;
-        },
-      })) {
-        answer += chunk;
-        res.write(`data: ${JSON.stringify({ content: chunk })}\n\n`);
-      }
-
-      const persistedConversationId = userId
-        ? await saveConversationExchange({
-          userId,
-          conversationId,
-          userQuestion: question,
-          assistantAnswer: answer,
-          sources: knowledgePack.sources,
-        })
-        : conversationId;
-
-      res.write(`data: ${JSON.stringify({
-        done: true,
-        sources: knowledgePack.sources,
-        disclaimer: AI_DISCLAIMER,
-        followUpQuestions: knowledgePack.followUpQuestions,
-        model: resolvedRoute?.model || model || DEFAULT_MODEL_ID,
-        provider: resolvedRoute?.provider,
-        route: resolvedRoute?.route,
-        conversationId: persistedConversationId,
-      })}\n\n`);
-      res.end();
-    } catch (streamError) {
-      console.error('[AI QA Stream] Error:', streamError);
-      const fallbackAnswer = buildGatewayFallbackAnswer(question, knowledgePack);
-      const persistedConversationId = userId
-        ? await saveConversationExchange({
-          userId,
-          conversationId,
-          userQuestion: question,
-          assistantAnswer: fallbackAnswer,
-          sources: knowledgePack.sources,
-        })
-        : conversationId;
-
-      res.write(`data: ${JSON.stringify({ content: fallbackAnswer })}\n\n`);
-      res.write(`data: ${JSON.stringify({
-        done: true,
-        degraded: true,
-        sources: knowledgePack.sources,
-        disclaimer: DEGRADED_DISCLAIMER,
-        followUpQuestions: knowledgePack.followUpQuestions,
-        conversationId: persistedConversationId,
-      })}\n\n`);
-      res.end();
-    }
+    streamTrustedResult(res, result, model, persistedConversationId);
   } catch (error) {
     next(error);
   }
@@ -548,59 +475,33 @@ export const chat = async (req: Request, res: Response, next: NextFunction) => {
     }
 
     const lastMessage = messages[messages.length - 1];
-    const chatDecision = lastMessage.role === 'user'
-      ? await resolveDomainDecision(lastMessage.content, { userId, context, history: messages })
-      : { status: 'in_scope' as const };
-    if (lastMessage.role === 'user' && chatDecision.status !== 'in_scope') {
-      const persistedConversationId = await persistDomainDecisionExchange(
-        userId,
-        conversationId,
-        lastMessage.content,
-        chatDecision.answer || '',
-      );
-      return res.json(successResponse({
-        message: {
-          role: 'assistant',
-          content: chatDecision.answer,
-          timestamp: new Date().toISOString(),
-        },
-        isEmergency: false,
-        sources: [],
-        followUpQuestions: [],
-        disclaimer: chatDecision.disclaimer,
-        conversationId: persistedConversationId,
-      }));
-    }
-
-    if (lastMessage.role === 'user' && isEmergencyQuestion(lastMessage.content)) {
-      const persistedConversationId = userId
-        ? await saveConversationExchange({
-          userId,
-          conversationId,
-          userQuestion: lastMessage.content,
-          assistantAnswer: getEmergencyResponse(),
-          isEmergency: true,
-        })
-        : conversationId;
-
-      return res.json(successResponse({
-        message: {
-          role: 'assistant',
-          content: getEmergencyResponse(),
-          timestamp: new Date().toISOString(),
-        },
-        isEmergency: true,
-        sources: [],
-        followUpQuestions: [],
-        disclaimer: EMERGENCY_DISCLAIMER,
-        conversationId: persistedConversationId,
-      }));
-    }
-
     const formattedMessages = messages.map((message: any) => ({
       role: message.role as 'user' | 'assistant',
       content: message.content,
     }));
+
+    if (!isResumeContinuation) {
+      const trustedResult = await generateTrustedAIResponse({
+        question: lastMessage.content,
+        context,
+        userId,
+        model,
+        history: formattedMessages,
+      });
+
+      const persistedConversationId = userId && lastMessage.role === 'user'
+        ? await saveConversationExchange({
+          userId,
+          conversationId,
+          userQuestion: lastMessage.content,
+          assistantAnswer: trustedResult.answer,
+          isEmergency: trustedResult.isEmergency,
+          sources: trustedResult.sources,
+        })
+        : conversationId;
+
+      return res.json(successResponse(buildTrustedResponsePayload(trustedResult, model, persistedConversationId)));
+    }
 
     const profileContext = await buildUserProfileContext(userId);
     const allowProfileHints = lastMessage.role === 'user'
@@ -684,57 +585,35 @@ export const chatStream = async (req: Request, res: Response, next: NextFunction
     }
 
     const lastMessage = messages[messages.length - 1];
-    const chatStreamDecision = lastMessage.role === 'user'
-      ? await resolveDomainDecision(lastMessage.content, { userId, context, history: messages })
-      : { status: 'in_scope' as const };
-    if (lastMessage.role === 'user' && chatStreamDecision.status !== 'in_scope') {
-      const persistedConversationId = await persistDomainDecisionExchange(
-        userId,
-        conversationId,
-        lastMessage.content,
-        chatStreamDecision.answer || '',
-      );
-      res.setHeader('Content-Type', 'text/event-stream');
-      res.setHeader('Cache-Control', 'no-cache');
-      res.setHeader('Connection', 'keep-alive');
-      res.setHeader('X-Accel-Buffering', 'no');
-      res.write(`data: ${JSON.stringify({ content: chatStreamDecision.answer })}\n\n`);
-      res.write(`data: ${JSON.stringify({
-        done: true,
-        sources: [],
-        followUpQuestions: [],
-        disclaimer: chatStreamDecision.disclaimer,
-        conversationId: persistedConversationId,
-      })}\n\n`);
-      return res.end();
-    }
-
-    if (lastMessage.role === 'user' && isEmergencyQuestion(lastMessage.content)) {
-      const persistedConversationId = userId
-        ? await saveConversationExchange({
-          userId,
-          conversationId,
-          userQuestion: lastMessage.content,
-          assistantAnswer: getEmergencyResponse(),
-          isEmergency: true,
-        })
-        : conversationId;
-
-      res.setHeader('Content-Type', 'text/event-stream');
-      res.write(`data: ${JSON.stringify({ content: getEmergencyResponse(), isEmergency: true })}\n\n`);
-      res.write(`data: ${JSON.stringify({ done: true, disclaimer: EMERGENCY_DISCLAIMER, conversationId: persistedConversationId })}\n\n`);
-      return res.end();
-    }
-
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no');
-
     const formattedMessages = messages.map((message: any) => ({
       role: message.role as 'user' | 'assistant',
       content: message.content,
     }));
+
+    if (!isResumeContinuation) {
+      const trustedResult = await generateTrustedAIResponse({
+        question: lastMessage.content,
+        context,
+        userId,
+        model,
+        history: formattedMessages,
+      });
+
+      const persistedConversationId = userId && lastMessage.role === 'user'
+        ? await saveConversationExchange({
+          userId,
+          conversationId,
+          userQuestion: lastMessage.content,
+          assistantAnswer: trustedResult.answer,
+          isEmergency: trustedResult.isEmergency,
+          sources: trustedResult.sources,
+        })
+        : conversationId;
+
+      return streamTrustedResult(res, trustedResult, model, persistedConversationId);
+    }
+
+    setSseHeaders(res);
 
     const profileContext = await buildUserProfileContext(userId);
     const allowProfileHints = lastMessage.role === 'user'
@@ -872,6 +751,7 @@ export const getModels = async (req: Request, res: Response, next: NextFunction)
     const models = getAvailableModels();
     res.json(successResponse({
       models,
+      taskBindings: getTaskModelBindings(),
       default: DEFAULT_MODEL_ID,
     }));
   } catch (error) {

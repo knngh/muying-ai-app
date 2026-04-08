@@ -5,13 +5,14 @@ import bcrypt from 'bcryptjs'
 
 const prisma = new PrismaClient()
 
-const SEED_USER_PREFIX = 'community_seed_'
 const TOTAL_POSTS = 100
-const TOTAL_ROOT_COMMENTS = 100
-const TOTAL_REPLY_COMMENTS = 200
+const TOTAL_ROOT_COMMENTS = 80
+const TOTAL_REPLY_COMMENTS = 120
 const PASSWORD = 'Test123456!'
+const SEED_EMAIL_PREFIX = 'community.seed.'
 
 type SeedUserProfile = {
+  username: string
   nickname: string
   gender: number
   pregnancyStatus: number
@@ -48,54 +49,54 @@ type CreatedRootComment = {
 }
 
 const seedUserProfiles: SeedUserProfile[] = [
-  { nickname: '林知夏', gender: 2, pregnancyStatus: 2 },
-  { nickname: '周周妈妈', gender: 2, pregnancyStatus: 3 },
-  { nickname: '陈可可', gender: 2, pregnancyStatus: 2 },
-  { nickname: '糖糖妈', gender: 2, pregnancyStatus: 3 },
-  { nickname: '许安宁', gender: 2, pregnancyStatus: 1 },
-  { nickname: '苏小满', gender: 2, pregnancyStatus: 2 },
-  { nickname: '念念妈妈', gender: 2, pregnancyStatus: 3 },
-  { nickname: '顾晚晴', gender: 2, pregnancyStatus: 2 },
-  { nickname: '禾禾妈', gender: 2, pregnancyStatus: 3 },
-  { nickname: '沈一宁', gender: 2, pregnancyStatus: 1 },
-  { nickname: '朵朵妈妈', gender: 2, pregnancyStatus: 3 },
-  { nickname: '程初然', gender: 2, pregnancyStatus: 2 },
-  { nickname: '果果妈', gender: 2, pregnancyStatus: 3 },
-  { nickname: '宋知微', gender: 2, pregnancyStatus: 2 },
-  { nickname: '沐沐妈妈', gender: 2, pregnancyStatus: 3 },
-  { nickname: '韩若溪', gender: 2, pregnancyStatus: 2 },
-  { nickname: '可乐爸爸', gender: 1, pregnancyStatus: 3 },
-  { nickname: '陆星野', gender: 1, pregnancyStatus: 3 },
-  { nickname: '予安妈妈', gender: 2, pregnancyStatus: 3 },
-  { nickname: '温言妈妈', gender: 2, pregnancyStatus: 2 },
-  { nickname: '唐小梨', gender: 2, pregnancyStatus: 1 },
-  { nickname: '宸宸妈', gender: 2, pregnancyStatus: 3 },
-  { nickname: '乔依依', gender: 2, pregnancyStatus: 2 },
-  { nickname: '米粒妈妈', gender: 2, pregnancyStatus: 3 },
-  { nickname: '方知意', gender: 2, pregnancyStatus: 2 },
-  { nickname: '乐乐妈咪', gender: 2, pregnancyStatus: 3 },
-  { nickname: '段嘉宁', gender: 2, pregnancyStatus: 1 },
-  { nickname: '圆圆妈妈', gender: 2, pregnancyStatus: 3 },
-  { nickname: '蒋清妍', gender: 2, pregnancyStatus: 2 },
-  { nickname: '小萄妈妈', gender: 2, pregnancyStatus: 3 },
-  { nickname: '魏诗雨', gender: 2, pregnancyStatus: 2 },
-  { nickname: '西柚妈', gender: 2, pregnancyStatus: 3 },
-  { nickname: '程予安', gender: 2, pregnancyStatus: 2 },
-  { nickname: '阿澄爸爸', gender: 1, pregnancyStatus: 3 },
-  { nickname: '楠楠妈妈', gender: 2, pregnancyStatus: 3 },
-  { nickname: '邱若宁', gender: 2, pregnancyStatus: 2 },
-  { nickname: '芝芝妈', gender: 2, pregnancyStatus: 3 },
-  { nickname: '贺清欢', gender: 2, pregnancyStatus: 2 },
-  { nickname: '糯米妈妈', gender: 2, pregnancyStatus: 3 },
-  { nickname: '姜以南', gender: 2, pregnancyStatus: 1 },
-  { nickname: '安安妈妈', gender: 2, pregnancyStatus: 3 },
-  { nickname: '许知柔', gender: 2, pregnancyStatus: 2 },
-  { nickname: '泡芙妈', gender: 2, pregnancyStatus: 3 },
-  { nickname: '乔麦妈妈', gender: 2, pregnancyStatus: 2 },
-  { nickname: '初初妈妈', gender: 2, pregnancyStatus: 3 },
-  { nickname: '郁晴', gender: 2, pregnancyStatus: 2 },
-  { nickname: '舟舟爸爸', gender: 1, pregnancyStatus: 3 },
-  { nickname: '棠棠妈', gender: 2, pregnancyStatus: 3 },
+  { username: 'beiyun_xiaoyu', nickname: '备孕小雨', gender: 2, pregnancyStatus: 1 },
+  { username: 'beiyun_anning', nickname: '备孕安宁', gender: 2, pregnancyStatus: 1 },
+  { username: 'liangdao_ganggang', nickname: '两道杠杠', gender: 2, pregnancyStatus: 1 },
+  { username: 'yesuan_rourou', nickname: '叶酸柔柔', gender: 2, pregnancyStatus: 1 },
+  { username: 'yunzao_mumu', nickname: '孕早沐沐', gender: 2, pregnancyStatus: 2 },
+  { username: 'yunzao_keke', nickname: '孕早可可', gender: 2, pregnancyStatus: 2 },
+  { username: 'yunma_anning', nickname: '孕妈阿宁', gender: 2, pregnancyStatus: 2 },
+  { username: 'yunzhong_wanwan', nickname: '孕中晚晚', gender: 2, pregnancyStatus: 2 },
+  { username: 'taidong_mama', nickname: '胎动妈妈', gender: 2, pregnancyStatus: 2 },
+  { username: 'chanjian_xiaotang', nickname: '产检小棠', gender: 2, pregnancyStatus: 2 },
+  { username: 'dayi_mama', nickname: '大姨妈妈', gender: 2, pregnancyStatus: 2 },
+  { username: 'yunyun_mama', nickname: '孕云妈妈', gender: 2, pregnancyStatus: 2 },
+  { username: 'yunwan_xiaoli', nickname: '孕晚小梨', gender: 2, pregnancyStatus: 2 },
+  { username: 'daichan_bao', nickname: '待产包包', gender: 2, pregnancyStatus: 2 },
+  { username: 'yuezi_xiaotang', nickname: '月子小棠', gender: 2, pregnancyStatus: 3 },
+  { username: 'xinshoumama_keke', nickname: '新手妈妈可可', gender: 2, pregnancyStatus: 3 },
+  { username: 'naifen_mama', nickname: '奶粉妈妈', gender: 2, pregnancyStatus: 3 },
+  { username: 'muru_xiaoqi', nickname: '母乳小七', gender: 2, pregnancyStatus: 3 },
+  { username: 'hongshui_ma', nickname: '哄睡妈妈', gender: 2, pregnancyStatus: 3 },
+  { username: 'paige_yaya', nickname: '拍嗝芽芽', gender: 2, pregnancyStatus: 3 },
+  { username: 'xinshou_yuer', nickname: '新手育儿', gender: 2, pregnancyStatus: 3 },
+  { username: 'baobao_mili', nickname: '宝宝米粒', gender: 2, pregnancyStatus: 3 },
+  { username: 'mengtong_mama', nickname: '萌童妈妈', gender: 2, pregnancyStatus: 3 },
+  { username: 'duoduo_mama', nickname: '朵朵妈妈', gender: 2, pregnancyStatus: 3 },
+  { username: 'guaiqiao_bao', nickname: '乖巧包包', gender: 2, pregnancyStatus: 3 },
+  { username: 'tuiban_baba', nickname: '托班爸爸', gender: 1, pregnancyStatus: 3 },
+  { username: 'ketang_baba', nickname: '课堂爸爸', gender: 1, pregnancyStatus: 3 },
+  { username: 'erbao_mama', nickname: '二宝妈妈', gender: 2, pregnancyStatus: 3 },
+  { username: 'ertai_wanwan', nickname: '二胎晚晚', gender: 2, pregnancyStatus: 3 },
+  { username: 'zaojiao_mumu', nickname: '早教沐沐', gender: 2, pregnancyStatus: 3 },
+  { username: 'fushimama', nickname: '辅食妈妈', gender: 2, pregnancyStatus: 3 },
+  { username: 'changgaowawa', nickname: '长高娃娃', gender: 2, pregnancyStatus: 3 },
+  { username: 'miaomiao_mama', nickname: '喵喵妈妈', gender: 2, pregnancyStatus: 3 },
+  { username: 'zhouzhou_mama', nickname: '周周妈妈', gender: 2, pregnancyStatus: 3 },
+  { username: 'nuonuo_mama', nickname: '糯糯妈妈', gender: 2, pregnancyStatus: 3 },
+  { username: 'guoguo_mama', nickname: '果果妈妈', gender: 2, pregnancyStatus: 3 },
+  { username: 'xiyou_mama', nickname: '西柚妈妈', gender: 2, pregnancyStatus: 3 },
+  { username: 'tangtang_ma', nickname: '糖糖妈', gender: 2, pregnancyStatus: 3 },
+  { username: 'chengcheng_ma', nickname: '橙橙妈妈', gender: 2, pregnancyStatus: 3 },
+  { username: 'lele_mami', nickname: '乐乐妈咪', gender: 2, pregnancyStatus: 3 },
+  { username: 'qiaomai_mama', nickname: '荞麦妈妈', gender: 2, pregnancyStatus: 3 },
+  { username: 'yuanan_mama', nickname: '予安妈妈', gender: 2, pregnancyStatus: 3 },
+  { username: 'wenyan_mama', nickname: '温言妈妈', gender: 2, pregnancyStatus: 3 },
+  { username: 'anan_mama', nickname: '安安妈妈', gender: 2, pregnancyStatus: 3 },
+  { username: 'hehe_mama', nickname: '禾禾妈妈', gender: 2, pregnancyStatus: 3 },
+  { username: 'zhizhi_mama', nickname: '芝芝妈妈', gender: 2, pregnancyStatus: 3 },
+  { username: 'paofu_mama', nickname: '泡芙妈妈', gender: 2, pregnancyStatus: 3 },
+  { username: 'zhouchou_baba', nickname: '粥粥爸爸', gender: 1, pregnancyStatus: 3 },
 ]
 
 const topicTemplates: TopicTemplate[] = [
@@ -241,12 +242,8 @@ function buildAvatarUrl(nickname: string) {
   return `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(nickname)}`
 }
 
-function toSeedUsername(index: number) {
-  return `${SEED_USER_PREFIX}${String(index + 1).padStart(3, '0')}`
-}
-
 function toSeedEmail(index: number) {
-  return `community.seed.${String(index + 1).padStart(3, '0')}@example.com`
+  return `${SEED_EMAIL_PREFIX}${String(index + 1).padStart(3, '0')}@example.com`
 }
 
 function pickTopic(index: number) {
@@ -352,8 +349,8 @@ async function main() {
 
   const existingSeedUsers = await prisma.user.findMany({
     where: {
-      username: {
-        startsWith: SEED_USER_PREFIX,
+      email: {
+        startsWith: SEED_EMAIL_PREFIX,
       },
     },
     select: { id: true },
@@ -366,32 +363,44 @@ async function main() {
   const users = []
   for (let index = 0; index < seedUserProfiles.length; index += 1) {
     const profile = seedUserProfiles[index]
-    const user = await prisma.user.upsert({
+    const seedEmail = toSeedEmail(index)
+    const existingUser = await prisma.user.findFirst({
       where: {
-        username: toSeedUsername(index),
+        OR: [
+          { email: seedEmail },
+          { username: profile.username },
+        ],
       },
-      update: {
-        nickname: profile.nickname,
-        avatar: buildAvatarUrl(profile.nickname),
-        gender: profile.gender,
-        pregnancyStatus: profile.pregnancyStatus,
-        status: 1,
-      },
-      create: {
-        username: toSeedUsername(index),
-        email: toSeedEmail(index),
-        passwordHash,
-        nickname: profile.nickname,
-        avatar: buildAvatarUrl(profile.nickname),
-        gender: profile.gender,
-        pregnancyStatus: profile.pregnancyStatus,
-        status: 1,
-      },
-      select: {
-        id: true,
-        nickname: true,
-      },
+      select: { id: true },
     })
+
+    const userData = {
+      username: profile.username,
+      email: seedEmail,
+      passwordHash,
+      nickname: profile.nickname,
+      avatar: buildAvatarUrl(profile.nickname),
+      gender: profile.gender,
+      pregnancyStatus: profile.pregnancyStatus,
+      status: 1,
+    }
+
+    const user = existingUser
+      ? await prisma.user.update({
+          where: { id: existingUser.id },
+          data: userData,
+          select: {
+            id: true,
+            nickname: true,
+          },
+        })
+      : await prisma.user.create({
+          data: userData,
+          select: {
+            id: true,
+            nickname: true,
+          },
+        })
 
     users.push(user)
   }

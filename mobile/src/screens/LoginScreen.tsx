@@ -31,7 +31,7 @@ const demoAccounts = [
     key: 'free',
     label: '免费演示账号',
     username: 'demo_free_user',
-    description: '适合演示免费 3 次 AI 额度和会员升级前状态，需要单独输入演示口令。',
+    description: '适合演示免费 3 次问答额度和会员升级前状态，需要单独输入演示口令。',
   },
   {
     key: 'vip',
@@ -129,9 +129,10 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         >
           <Card style={styles.card}>
             <Card.Content>
-              <Text style={styles.title}>母婴AI助手</Text>
+              <Text style={styles.title}>母婴问题助手</Text>
+              
               <Text style={styles.subtitle}>
-                智能问答 · 科学孕育 · 贴心陪伴
+                问题整理 · 科学孕育 · 贴心陪伴
               </Text>
 
               <SegmentedButtons

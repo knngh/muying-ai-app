@@ -6,6 +6,19 @@ import { MilvusClient } from '@zilliz/milvus2-sdk-node';
 const MILVUS_ADDRESS = process.env.MILVUS_ADDRESS || 'localhost:19530';
 const COLLECTION_NAME = 'muying_knowledge';
 
+function toVectorSafeText(input: string, maxLength = 3500): string {
+  return input.replace(/\s+/g, ' ').trim().slice(0, maxLength);
+}
+
+function buildAuthorityVectorId(sourceUrl: string): string {
+  let hash = 0;
+  for (let index = 0; index < sourceUrl.length; index += 1) {
+    hash = ((hash << 5) - hash) + sourceUrl.charCodeAt(index);
+    hash |= 0;
+  }
+  return `authority-${Math.abs(hash)}`;
+}
+
 // 初始化 Milvus 客户端
 let milvusClient: MilvusClient | null = null;
 
@@ -104,6 +117,79 @@ export async function insertDocuments(documents: Array<{
   });
   
   console.log(`✅ 插入 ${documents.length} 条文档`);
+}
+
+export async function deleteDocumentsByIds(ids: string[]): Promise<void> {
+  if (ids.length === 0) {
+    return;
+  }
+
+  const client = await getMilvusClient();
+  const quotedIds = ids.map((id) => `"${id.replace(/"/g, '\\"')}"`).join(', ');
+
+  await client.delete({
+    collection_name: COLLECTION_NAME,
+    expr: `id in [${quotedIds}]`,
+  });
+}
+
+export async function publishAuthorityDocumentsToVectorStore(documents: Array<{
+  sourceUrl: string;
+  title: string;
+  contentText: string;
+  topic: string;
+  sourceOrg: string;
+}>): Promise<{ published: number; skipped: number }> {
+  if (documents.length === 0) {
+    return { published: 0, skipped: 0 };
+  }
+
+  await createKnowledgeCollection();
+
+  const prepared = documents
+    .map((document) => {
+      const question = toVectorSafeText(document.title, 900);
+      const answer = toVectorSafeText(document.contentText, 3800);
+      if (!question || !answer) {
+        return null;
+      }
+
+      return {
+        id: buildAuthorityVectorId(document.sourceUrl),
+        sourceUrl: document.sourceUrl,
+        question,
+        answer,
+        category: toVectorSafeText(document.topic, 48) || 'authority',
+        source: toVectorSafeText(document.sourceOrg, 96) || 'Authority',
+      };
+    })
+    .filter((item): item is NonNullable<typeof item> => Boolean(item));
+
+  if (prepared.length === 0) {
+    return { published: 0, skipped: documents.length };
+  }
+
+  const ids = prepared.map((item) => item.id);
+  try {
+    await deleteDocumentsByIds(ids);
+  } catch (error) {
+    console.warn('[Vector] 删除旧权威向量失败，将尝试继续插入:', error);
+  }
+
+  const data = await Promise.all(prepared.map(async (item) => ({
+    id: item.id,
+    embedding: await getEmbedding(`${item.question} ${item.answer}`),
+    question: item.question,
+    answer: item.answer,
+    category: item.category,
+    source: item.source,
+  })));
+
+  await insertDocuments(data);
+  return {
+    published: data.length,
+    skipped: documents.length - data.length,
+  };
 }
 
 // 向量检索

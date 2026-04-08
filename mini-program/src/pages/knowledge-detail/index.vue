@@ -1,120 +1,162 @@
 <template>
   <view class="detail-page">
-    <!-- Loading -->
-    <view v-if="loading" class="loading-state">
-      <text class="loading-text">加载中...</text>
+    <view v-if="loading" class="state-box">
+      <text class="state-text">加载中...</text>
     </view>
 
-    <!-- Error -->
-    <view v-else-if="error" class="error-state">
-      <text class="error-text">{{ error }}</text>
+    <view v-else-if="error" class="state-box">
+      <text class="state-text state-text--error">{{ error }}</text>
       <view class="retry-btn" @tap="retryLoad">
         <text class="retry-btn-text">重试</text>
       </view>
     </view>
 
-    <!-- Article Content -->
     <view v-else-if="article" class="article-detail">
-      <!-- Cover Image -->
-      <image
-        v-if="article.coverImage"
-        :src="article.coverImage"
-        class="cover-image"
-        mode="aspectFill"
-      />
-
-      <!-- Title -->
       <view class="article-header">
-        <text class="article-title">{{ article.title }}</text>
-
-        <!-- Tags -->
-        <view class="tags-row">
-          <text v-if="article.category" class="tag tag-category">
-            {{ article.category.name }}
+        <view class="badge-row">
+          <text v-if="article.sourceOrg || article.source" class="badge badge-source">
+            {{ article.sourceOrg || article.source }}
           </text>
-          <text v-if="article.stage" class="tag tag-stage">
-            {{ stageLabel(article.stage) }}
-          </text>
-          <text
-            v-for="tag in (article.tags || [])"
-            :key="tag.id"
-            class="tag tag-normal"
-          >
-            {{ tag.name }}
-          </text>
+          <text v-if="article.topic" class="badge badge-topic">{{ article.topic }}</text>
+          <text v-if="article.isVerified" class="badge badge-verified">权威来源</text>
         </view>
 
-        <!-- Meta -->
+        <text class="article-title">{{ displayedTitle }}</text>
+
         <view class="meta-row">
-          <text v-if="article.author" class="meta-item">作者：{{ article.author }}</text>
+          <text v-if="article.audience" class="meta-item">{{ article.audience }}</text>
+          <text v-if="article.region" class="meta-item">{{ article.region }}</text>
           <text class="meta-item">{{ formatDate(article.publishedAt || article.createdAt) }}</text>
-          <text class="meta-item">{{ article.viewCount || 0 }} 次阅读</text>
         </view>
       </view>
 
-      <!-- Summary -->
-      <view v-if="article.summary" class="summary-box">
-        <text class="summary-label">摘要</text>
-        <text class="summary-text">{{ article.summary }}</text>
+      <view v-if="displayedSummary" class="summary-box">
+        <text class="summary-label">{{ showingTranslation ? '中文摘要' : '核心摘要' }}</text>
+        <text class="summary-text">{{ displayedSummary }}</text>
       </view>
 
-      <!-- Content -->
+      <view v-if="article.sourceUrl" class="source-box">
+        <text class="source-label">原始来源</text>
+        <text class="source-url">{{ article.sourceUrl }}</text>
+        <view class="source-btn" @tap="openSource(article.sourceUrl)">
+          <text class="source-btn-text">查看机构原文</text>
+        </view>
+      </view>
+
+      <view v-if="showTranslationEntry" class="translation-box">
+        <view class="translation-head">
+          <text class="translation-title">中文辅助阅读</text>
+          <view
+            class="translation-btn"
+            :class="{ 'translation-btn--disabled': translating || translationDisabled }"
+            @tap="toggleTranslation"
+          >
+            <text class="translation-btn-text">
+              {{ translationButtonText }}
+            </text>
+          </view>
+        </view>
+        <text class="translation-desc">
+          {{ translationDescriptionText }}
+        </text>
+      </view>
+
       <view class="article-content">
-        <rich-text :nodes="article.content" class="content-text" />
+        <text v-if="translationError" class="translation-error">{{ translationError }}</text>
+        <rich-text :nodes="displayedContent" class="content-text" />
       </view>
 
-      <!-- Action Buttons -->
-      <view class="action-bar">
-        <view class="action-btn" @tap="handleLike">
-          <text class="action-icon">👍</text>
-          <text class="action-label">{{ article.likeCount || 0 }}</text>
-        </view>
-        <view class="action-btn" @tap="handleFavorite">
-          <text class="action-icon">⭐</text>
-          <text class="action-label">{{ article.collectCount || 0 }}</text>
-        </view>
-        <view class="action-btn" @tap="handleShare">
-          <text class="action-icon">🔗</text>
-          <text class="action-label">分享</text>
-        </view>
+      <view v-if="article.disclaimer" class="disclaimer-box">
+        <text class="disclaimer-text">{{ article.disclaimer }}</text>
+      </view>
+
+      <view class="share-bar">
+        <button class="share-btn" open-type="share">
+          <text class="share-btn-text">分享给家人</text>
+        </button>
       </view>
     </view>
   </view>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { onLoad } from '@dcloudio/uni-app'
+import { computed, ref } from 'vue'
+import { onLoad, onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app'
+import { articleApi, type AuthorityArticleTranslation } from '@/api/modules'
 import { useKnowledgeStore } from '@/stores/knowledge'
 
 const knowledgeStore = useKnowledgeStore()
-
 let currentSlug = ''
 
 const article = computed(() => knowledgeStore.currentArticle)
 const loading = computed(() => knowledgeStore.loading)
 const error = computed(() => knowledgeStore.error)
+const translation = ref<AuthorityArticleTranslation | null>(null)
+const translating = ref(false)
+const translationError = ref('')
+const showingTranslation = ref(false)
+const translationPrefetchStarted = ref(false)
 
-const stageMap: Record<string, string> = {
-  'preparation': '备孕期',
-  'first-trimester': '孕早期 (1-12周)',
-  'second-trimester': '孕中期 (13-27周)',
-  'third-trimester': '孕晚期 (28-40周)',
-  '0-6-months': '0-6月',
-  '6-12-months': '6-12月',
-  '1-3-years': '1-3岁',
-}
+const displayedTitle = computed(() => (
+  showingTranslation.value && translation.value?.translatedTitle
+    ? translation.value.translatedTitle
+    : (article.value?.title || '')
+))
 
-onLoad((options) => {
-  if (options?.slug) {
-    currentSlug = options.slug
-    knowledgeStore.fetchArticleDetail(options.slug)
-  }
+const displayedSummary = computed(() => (
+  showingTranslation.value && translation.value?.translatedSummary
+    ? translation.value.translatedSummary
+    : (article.value?.summary || '')
+))
+
+const displayedContent = computed(() => (
+  showingTranslation.value && translation.value?.translatedContent
+    ? convertTextToRichHtml(translation.value.translatedContent)
+    : (article.value?.content || '')
+))
+
+const translationNoticeText = computed(() => (
+  translation.value?.translationNotice || '以下内容由系统基于权威机构原文辅助翻译，仅用于阅读理解，不替代医疗建议。请以原始来源和线下医生意见为准。'
+))
+
+const sourceLanguageSample = computed(() => stripHtmlTags([
+  article.value?.title || '',
+  article.value?.summary || '',
+  article.value?.content || '',
+].join(' ')))
+
+const isLikelyChineseSource = computed(() => (
+  Boolean(translation.value?.isSourceChinese) || isMostlyChineseText(sourceLanguageSample.value)
+))
+
+const showTranslationEntry = computed(() => !isLikelyChineseSource.value)
+
+const translationDisabled = computed(() => Boolean(isLikelyChineseSource.value && !showingTranslation.value))
+
+const translationButtonText = computed(() => {
+  if (translating.value) return '准备中...'
+  if (translation.value?.isSourceChinese) return '原文已是中文'
+  return showingTranslation.value ? '查看原文' : '查看中文'
 })
 
-function stageLabel(stage: string): string {
-  return stageMap[stage] || stage
-}
+const translationDescriptionText = computed(() => {
+  if (translation.value?.isSourceChinese) {
+    return translationNoticeText.value
+  }
+
+  if (showingTranslation.value) {
+    return translationNoticeText.value
+  }
+
+  return '打开文章后会优先准备中文阅读版，生成一次后后续直接读取缓存。'
+})
+
+onLoad((options) => {
+  if (typeof options?.slug === 'string') {
+    currentSlug = options.slug
+    void loadArticleDetail(options.slug)
+  }
+})
 
 function formatDate(dateStr?: string): string {
   if (!dateStr) return ''
@@ -125,199 +167,353 @@ function formatDate(dateStr?: string): string {
   return `${y}-${m}-${d}`
 }
 
-function handleLike() {
-  if (!article.value) return
-  knowledgeStore.likeArticle(article.value.id)
-  uni.showToast({ title: '已点赞', icon: 'success' })
-}
-
-function handleFavorite() {
-  if (!article.value) return
-  knowledgeStore.favoriteArticle(article.value.id)
-  uni.showToast({ title: '已收藏', icon: 'success' })
-}
-
-function handleShare() {
-  // #ifdef MP-WEIXIN
-  uni.showShareMenu({
-    withShareTicket: true,
-    menus: ['shareAppMessage', 'shareTimeline'],
-  })
-  // #endif
-  // #ifndef MP-WEIXIN
-  uni.showToast({ title: '分享功能仅支持微信小程序', icon: 'none' })
-  // #endif
-}
-
 function retryLoad() {
   if (currentSlug) {
-    knowledgeStore.fetchArticleDetail(currentSlug)
+    void loadArticleDetail(currentSlug)
   }
 }
+
+function stripHtmlTags(input: string): string {
+  return input.replace(/<[^>]*>/g, ' ')
+}
+
+function isMostlyChineseText(input: string): boolean {
+  const text = input.replace(/\s+/g, '')
+  if (!text) return false
+
+  const chineseCount = (text.match(/[\u3400-\u4dbf\u4e00-\u9fff]/g) || []).length
+  const latinCount = (text.match(/[A-Za-z]/g) || []).length
+
+  if (chineseCount >= 24 && chineseCount >= latinCount) {
+    return true
+  }
+
+  const letterCount = chineseCount + latinCount
+  if (!letterCount) return false
+
+  return chineseCount / letterCount >= 0.45
+}
+
+function escapeHtml(input: string): string {
+  return input
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+function convertTextToRichHtml(text: string): string {
+  return text
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => `<p>${escapeHtml(line)}</p>`)
+    .join('')
+}
+
+function openSource(url?: string) {
+  if (!url) {
+    uni.showToast({ title: '来源链接不可用', icon: 'none' })
+    return
+  }
+  uni.navigateTo({ url: `/pages/webview/index?url=${encodeURIComponent(url)}` })
+}
+
+async function toggleTranslation() {
+  if (!article.value || !currentSlug || translating.value || translationDisabled.value) {
+    return
+  }
+
+  if (showingTranslation.value) {
+    showingTranslation.value = false
+    return
+  }
+
+  if (!translation.value) {
+    translating.value = true
+    translationError.value = ''
+    try {
+      translation.value = await articleApi.getTranslation(currentSlug)
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : '翻译失败，请稍后重试'
+      translationError.value = message
+      uni.showToast({ title: '翻译失败', icon: 'none' })
+      return
+    } finally {
+      translating.value = false
+    }
+  }
+
+  showingTranslation.value = true
+}
+
+async function loadArticleDetail(slug: string) {
+  translation.value = null
+  translating.value = false
+  translationError.value = ''
+  showingTranslation.value = false
+  translationPrefetchStarted.value = false
+
+  await knowledgeStore.fetchArticleDetail(slug)
+
+  if (!isLikelyChineseSource.value) {
+    void prefetchTranslation()
+  }
+}
+
+async function prefetchTranslation() {
+  if (
+    !currentSlug
+    || translation.value
+    || translating.value
+    || translationPrefetchStarted.value
+    || isLikelyChineseSource.value
+  ) {
+    return
+  }
+
+  translationPrefetchStarted.value = true
+  try {
+    translation.value = await articleApi.getTranslation(currentSlug)
+  } catch {
+    translationPrefetchStarted.value = false
+  }
+}
+
+function buildSharePayload() {
+  const title = displayedTitle.value || article.value?.title || '贝护妈妈权威知识库'
+  const path = currentSlug
+    ? `/pages/knowledge-detail/index?slug=${encodeURIComponent(currentSlug)}`
+    : '/pages/knowledge/index'
+  const query = currentSlug ? `slug=${encodeURIComponent(currentSlug)}` : ''
+
+  return {
+    title,
+    path,
+    query,
+  }
+}
+
+onShareAppMessage(() => buildSharePayload())
+
+onShareTimeline(() => {
+  const payload = buildSharePayload()
+  return {
+    title: payload.title,
+    query: payload.query,
+  }
+})
 </script>
 
 <style scoped>
 .detail-page {
   min-height: 100vh;
-  background-color: #ffffff;
+  background: #f7f9fc;
 }
 
-/* Loading & Error */
-.loading-state,
-.error-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 200rpx 40rpx;
+.state-box {
+  padding: 220rpx 40rpx;
+  text-align: center;
 }
 
-.loading-text {
+.state-text {
+  display: block;
   font-size: 28rpx;
-  color: #999999;
+  color: #7a8697;
+  margin-bottom: 24rpx;
 }
 
-.error-text {
-  font-size: 28rpx;
-  color: #ff4444;
-  margin-bottom: 32rpx;
+.state-text--error {
+  color: #d84b4b;
 }
 
 .retry-btn {
-  padding: 16rpx 48rpx;
-  background-color: #ff6b9d;
-  border-radius: 32rpx;
+  display: inline-flex;
+  padding: 16rpx 42rpx;
+  border-radius: 999rpx;
+  background: #f36f45;
 }
 
 .retry-btn-text {
-  font-size: 28rpx;
-  color: #ffffff;
+  color: #fff;
+  font-size: 26rpx;
 }
 
-/* Cover Image */
-.cover-image {
-  width: 100%;
-  height: 400rpx;
+.article-detail {
+  padding: 28rpx;
 }
 
-/* Header */
-.article-header {
-  padding: 32rpx 32rpx 0;
-}
-
-.article-title {
-  font-size: 40rpx;
-  font-weight: bold;
-  color: #222222;
-  line-height: 1.4;
+.article-header,
+.summary-box,
+.source-box,
+.translation-box,
+.article-content,
+.disclaimer-box {
+  background: #fff;
+  border-radius: 28rpx;
   margin-bottom: 20rpx;
+  padding: 28rpx;
 }
 
-/* Tags */
-.tags-row {
+.badge-row {
   display: flex;
   flex-wrap: wrap;
   gap: 12rpx;
-  margin-bottom: 20rpx;
+  margin-bottom: 16rpx;
 }
 
-.tag {
+.badge {
+  padding: 6rpx 16rpx;
+  border-radius: 999rpx;
   font-size: 22rpx;
-  padding: 6rpx 18rpx;
-  border-radius: 16rpx;
 }
 
-.tag-category {
-  background-color: rgba(255, 107, 157, 0.1);
-  color: #ff6b9d;
+.badge-source {
+  background: rgba(31, 143, 116, 0.12);
+  color: #18755f;
 }
 
-.tag-stage {
-  background-color: rgba(74, 144, 226, 0.1);
-  color: #4a90e2;
+.badge-topic {
+  background: rgba(243, 111, 69, 0.12);
+  color: #d35b34;
 }
 
-.tag-normal {
-  background-color: #f5f5f5;
-  color: #666666;
+.badge-verified {
+  background: rgba(74, 144, 226, 0.12);
+  color: #2e73b7;
 }
 
-/* Meta */
+.article-title {
+  display: block;
+  font-size: 40rpx;
+  line-height: 1.45;
+  font-weight: 700;
+  color: #1f2a37;
+  margin-bottom: 18rpx;
+}
+
 .meta-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 20rpx;
-  padding-bottom: 24rpx;
-  border-bottom: 1rpx solid #f0f0f0;
+  gap: 16rpx;
 }
 
 .meta-item {
   font-size: 24rpx;
-  color: #999999;
+  color: #7a8697;
 }
 
-/* Summary */
-.summary-box {
-  margin: 24rpx 32rpx;
-  padding: 24rpx;
-  background-color: #f9f9f9;
-  border-radius: 16rpx;
-  border-left: 6rpx solid #ff6b9d;
-}
-
-.summary-label {
-  font-size: 24rpx;
-  font-weight: 600;
-  color: #ff6b9d;
-  margin-bottom: 12rpx;
+.summary-label,
+.source-label {
   display: block;
+  font-size: 24rpx;
+  color: #7a8697;
+  margin-bottom: 14rpx;
 }
 
-.summary-text {
-  font-size: 26rpx;
-  color: #666666;
+.summary-text,
+.source-url,
+.disclaimer-text {
+  font-size: 28rpx;
   line-height: 1.7;
+  color: #3a4653;
 }
 
-/* Content */
-.article-content {
-  padding: 24rpx 32rpx;
+.source-url {
+  word-break: break-all;
+}
+
+.source-btn {
+  display: inline-flex;
+  margin-top: 20rpx;
+  padding: 16rpx 28rpx;
+  border-radius: 999rpx;
+  background: #1f8f74;
+}
+
+.source-btn-text {
+  font-size: 26rpx;
+  color: #fff;
+  font-weight: 600;
 }
 
 .content-text {
   font-size: 30rpx;
-  color: #333333;
-  line-height: 1.8;
-  white-space: pre-wrap;
-  word-break: break-all;
+  line-height: 1.85;
+  color: #24303d;
 }
 
-/* Action Bar */
-.action-bar {
+.translation-head {
   display: flex;
-  justify-content: space-around;
-  padding: 32rpx 32rpx;
-  padding-bottom: calc(32rpx + env(safe-area-inset-bottom));
-  border-top: 1rpx solid #f0f0f0;
-  background-color: #ffffff;
-  position: sticky;
-  bottom: 0;
-}
-
-.action-btn {
-  display: flex;
-  flex-direction: column;
   align-items: center;
-  padding: 12rpx 40rpx;
+  justify-content: space-between;
+  gap: 20rpx;
+  margin-bottom: 14rpx;
 }
 
-.action-icon {
-  font-size: 40rpx;
-  margin-bottom: 8rpx;
+.translation-title {
+  font-size: 28rpx;
+  font-weight: 700;
+  color: #24303d;
 }
 
-.action-label {
-  font-size: 22rpx;
-  color: #666666;
+.translation-desc {
+  display: block;
+  font-size: 25rpx;
+  line-height: 1.7;
+  color: #66788a;
+}
+
+.translation-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14rpx 24rpx;
+  border-radius: 999rpx;
+  background: #f36f45;
+}
+
+.translation-btn--disabled {
+  opacity: 0.65;
+}
+
+.translation-btn-text {
+  color: #fff;
+  font-size: 24rpx;
+  font-weight: 600;
+}
+
+.translation-error {
+  display: block;
+  margin-bottom: 16rpx;
+  color: #d84b4b;
+  font-size: 24rpx;
+}
+
+.share-bar {
+  padding: 16rpx 0 40rpx;
+}
+
+.share-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 24rpx 0;
+  border-radius: 28rpx;
+  background: #f36f45;
+  border: none;
+  line-height: 1;
+}
+
+.share-btn::after {
+  border: none;
+}
+
+.share-btn-text {
+  font-size: 28rpx;
+  color: #fff;
+  font-weight: 600;
 }
 </style>

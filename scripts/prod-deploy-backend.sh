@@ -6,23 +6,31 @@ SSH_USER="${SSH_USER:-ubuntu}"
 SSH_HOST="${SSH_HOST:-212.64.29.211}"
 APP_DIR="${APP_DIR:-/www/wwwroot/muying-ai-app}"
 PM2_APP_NAME="${PM2_APP_NAME:-muying-api}"
+AUTHORITY_PM2_APP_NAME="${AUTHORITY_PM2_APP_NAME:-muying-authority-worker}"
 SSH_PASSWORD="${SSH_PASSWORD:-}"
 WITH_INSTALL="${WITH_INSTALL:-false}"
 WITH_DB_PUSH="${WITH_DB_PUSH:-false}"
+WITH_AUTHORITY_WORKER="${WITH_AUTHORITY_WORKER:-false}"
+AUTHORITY_SYNC_INTERVAL_MINUTES="${AUTHORITY_SYNC_INTERVAL_MINUTES:-360}"
+AUTHORITY_SYNC_MODE="${AUTHORITY_SYNC_MODE:-incremental}"
 
 usage() {
   cat <<'EOF'
 Usage:
-  scripts/prod-deploy-backend.sh [--with-install] [--with-db-push]
+  scripts/prod-deploy-backend.sh [--with-install] [--with-db-push] [--with-authority-worker]
 
 Env:
   SSH_USER       default: ubuntu
   SSH_HOST       default: 212.64.29.211
   APP_DIR        default: /www/wwwroot/muying-ai-app
   PM2_APP_NAME   default: muying-api
+  AUTHORITY_PM2_APP_NAME default: muying-authority-worker
   SSH_PASSWORD   optional; when set and sshpass exists, use password auth
   WITH_INSTALL   default: false
   WITH_DB_PUSH   default: false
+  WITH_AUTHORITY_WORKER default: false
+  AUTHORITY_SYNC_INTERVAL_MINUTES default: 360
+  AUTHORITY_SYNC_MODE default: incremental
 EOF
 }
 
@@ -46,6 +54,9 @@ while (($# > 0)); do
       ;;
     --with-db-push)
       WITH_DB_PUSH="true"
+      ;;
+    --with-authority-worker)
+      WITH_AUTHORITY_WORKER="true"
       ;;
     -h|--help)
       usage
@@ -78,6 +89,14 @@ REMOTE_COMMANDS+=(
   "pm2 restart ${PM2_APP_NAME}"
   "pm2 show ${PM2_APP_NAME} | sed -n '1,40p'"
 )
+
+if [[ "${WITH_AUTHORITY_WORKER}" == "true" ]]; then
+  REMOTE_COMMANDS+=(
+    "if pm2 describe ${AUTHORITY_PM2_APP_NAME} >/dev/null 2>&1; then AUTHORITY_SYNC_INTERVAL_MINUTES=${AUTHORITY_SYNC_INTERVAL_MINUTES} AUTHORITY_SYNC_MODE=${AUTHORITY_SYNC_MODE} AUTHORITY_SYNC_RUN_ONCE=false pm2 restart ${AUTHORITY_PM2_APP_NAME} --update-env; else AUTHORITY_SYNC_INTERVAL_MINUTES=${AUTHORITY_SYNC_INTERVAL_MINUTES} AUTHORITY_SYNC_MODE=${AUTHORITY_SYNC_MODE} AUTHORITY_SYNC_RUN_ONCE=false pm2 start dist/workers/authority-sync.worker.js --name ${AUTHORITY_PM2_APP_NAME} --time; fi"
+    "pm2 show ${AUTHORITY_PM2_APP_NAME} | sed -n '1,60p'"
+    "pm2 save"
+  )
+fi
 
 REMOTE_SCRIPT=$(printf '%s\n' "${REMOTE_COMMANDS[@]}")
 

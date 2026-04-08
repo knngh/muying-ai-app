@@ -45,7 +45,7 @@ const fallbackPlans: MembershipPlan[] = [
     originalPrice: 29.9,
     durationDays: 30,
     monthlyPriceLabel: '¥19.9 / 月',
-    description: '适合先体验 AI 无限问答和会员周报。',
+    description: '适合先体验问题助手不限次和会员周度报告。',
     features: ['ai_unlimited', 'continuous_chat', 'weekly_report', 'stage_circle'],
   },
   {
@@ -77,7 +77,7 @@ const fallbackPlans: MembershipPlan[] = [
 const previewReports: WeeklyReport[] = [
   {
     id: 'preview-weekly-report',
-    title: 'AI 个性化周报',
+    title: '个性化周度报告',
     stageLabel: '本周预览',
     createdAt: dayjs().subtract(1, 'day').toISOString(),
     highlights: [

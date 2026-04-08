@@ -1,3 +1,5 @@
+import { trackMiniEvent } from './analytics'
+
 // UUID v4 生成
 const DAY_IN_MS = 24 * 60 * 60 * 1000
 const FULL_TERM_WEEKS = 40

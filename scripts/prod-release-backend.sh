@@ -6,12 +6,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 WITH_INSTALL="${WITH_INSTALL:-false}"
 WITH_DB_PUSH="${WITH_DB_PUSH:-false}"
+WITH_AUTHORITY_WORKER="${WITH_AUTHORITY_WORKER:-false}"
 SKIP_SMOKE="${SKIP_SMOKE:-false}"
 
 usage() {
   cat <<'EOF'
 Usage:
-  scripts/prod-release-backend.sh [--with-install] [--with-db-push] [--skip-smoke]
+  scripts/prod-release-backend.sh [--with-install] [--with-db-push] [--with-authority-worker] [--skip-smoke]
 
 This script runs:
   1. prod-sync-backend.sh
@@ -31,6 +32,10 @@ while (($# > 0)); do
     --with-db-push)
       WITH_DB_PUSH="true"
       DEPLOY_ARGS+=("--with-db-push")
+      ;;
+    --with-authority-worker)
+      WITH_AUTHORITY_WORKER="true"
+      DEPLOY_ARGS+=("--with-authority-worker")
       ;;
     --skip-smoke)
       SKIP_SMOKE="true"

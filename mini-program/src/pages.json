@@ -3,16 +3,9 @@
     { "path": "pages/home/index", "style": { "navigationBarTitleText": "贝护妈妈" } },
     { "path": "pages/login/index", "style": { "navigationBarTitleText": "登录" } },
     { "path": "pages/calendar/index", "style": { "navigationBarTitleText": "孕育时间轴" } },
-    { "path": "pages/chat/index", "style": { "navigationBarTitleText": "AI答疑" } },
-    {
-      "path": "pages/community/index",
-      "style": {
-        "navigationBarTitleText": "社区交流",
-        "enablePullDownRefresh": true,
-        "backgroundTextStyle": "dark"
-      }
-    },
-    { "path": "pages/post-detail/index", "style": { "navigationBarTitleText": "帖子详情" } },
+    { "path": "pages/knowledge/index", "style": { "navigationBarTitleText": "权威知识库" } },
+    { "path": "pages/knowledge-detail/index", "style": { "navigationBarTitleText": "文章详情" } },
+    { "path": "pages/chat/index", "style": { "navigationBarTitleText": "问题助手" } },
     { "path": "pages/profile/index", "style": { "navigationBarTitleText": "我的" } },
     { "path": "pages/webview/index", "style": { "navigationBarTitleText": "来源原文" } }
   ],
@@ -35,8 +28,14 @@
         "selectedIconPath": "static/tab-home-active.png"
       },
       {
+        "pagePath": "pages/knowledge/index",
+        "text": "知识库",
+        "iconPath": "static/tab-book.png",
+        "selectedIconPath": "static/tab-book-active.png"
+      },
+      {
         "pagePath": "pages/chat/index",
-        "text": "AI答疑",
+        "text": "问题助手",
         "iconPath": "static/tab-chat.png",
         "selectedIconPath": "static/tab-chat-active.png"
       },

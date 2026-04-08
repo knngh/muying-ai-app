@@ -822,3 +822,66 @@ model AnalyticsEvent {
   @@index([clientId, createdAt])
   @@map("analytics_events")
 }
+
+// ============================================
+// 权威来源发现 URL 表
+// ============================================
+model AuthorityDiscoveredUrl {
+  id           BigInt   @id @default(autoincrement())
+  sourceId     String   @map("source_id") @db.VarChar(64)
+  url          String   @db.VarChar(1000)
+  discoveredAt DateTime @default(now()) @map("discovered_at")
+  priority     Int      @default(100)
+  status       String   @default("pending") @db.VarChar(20)
+
+  @@unique([sourceId, url(length: 255)])
+  @@index([status])
+  @@map("authority_discovered_urls")
+}
+
+// ============================================
+// 权威来源原始文档表
+// ============================================
+model AuthorityRawDocument {
+  id           BigInt   @id @default(autoincrement())
+  sourceId     String   @map("source_id") @db.VarChar(64)
+  url          String   @db.VarChar(1000)
+  httpStatus   Int      @map("http_status")
+  contentType  String   @map("content_type") @db.VarChar(120)
+  etag         String?  @db.VarChar(255)
+  lastModified String?  @map("last_modified") @db.VarChar(255)
+  contentHash  String   @map("content_hash") @db.VarChar(128)
+  fetchedAt    DateTime @default(now()) @map("fetched_at")
+  rawBody      String   @map("raw_body") @db.LongText
+
+  @@unique([sourceId, url(length: 255), contentHash])
+  @@index([fetchedAt])
+  @@map("authority_raw_documents")
+}
+
+// ============================================
+// 权威来源标准化文档表
+// ============================================
+model AuthorityNormalizedDocument {
+  id               BigInt    @id @default(autoincrement())
+  sourceId         String    @map("source_id") @db.VarChar(64)
+  sourceOrg        String    @map("source_org") @db.VarChar(120)
+  sourceUrl        String    @map("source_url") @db.VarChar(1000)
+  title            String    @db.VarChar(500)
+  updatedAt        DateTime? @map("updated_at")
+  audience         String    @db.VarChar(120)
+  topic            String    @db.VarChar(120)
+  region           String    @db.VarChar(20)
+  riskLevelDefault String    @map("risk_level_default") @db.VarChar(20)
+  summary          String    @db.Text
+  contentText      String    @map("content_text") @db.LongText
+  metadataJson     String?   @map("metadata_json") @db.LongText
+  publishStatus    String    @default("draft") @map("publish_status") @db.VarChar(20)
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  @@unique([sourceId, sourceUrl(length: 255)])
+  @@index([publishStatus])
+  @@index([updatedAt])
+  @@index([topic, publishStatus])
+  @@map("authority_normalized_documents")
+}

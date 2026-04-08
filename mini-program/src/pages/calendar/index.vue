@@ -56,6 +56,14 @@
       </view>
       <view 
         class="tab-item" 
+        :class="{ 'active': activeTab === 'todo' }" 
+        @tap="activeTab = 'todo'"
+      >
+        <text class="tab-text">待办事项</text>
+        <view class="tab-line" v-if="activeTab === 'todo'"></view>
+      </view>
+      <view 
+        class="tab-item" 
         :class="{ 'active': activeTab === 'diary' }" 
         @tap="activeTab = 'diary'"
       >
@@ -115,7 +123,10 @@
         </view>
       </view>
 
-      <!-- 核心待办 Todo -->
+    </view>
+
+    <!-- 待办事项 内容 -->
+    <view class="content-section" v-if="activeTab === 'todo'">
       <view class="info-card todo-card">
         <view class="card-header">
           <view class="header-left">
@@ -266,7 +277,7 @@ const resolveInitialWeek = () => {
 
 const currentSelectedWeek = ref(resolveInitialWeek())
 const timelineScrollTarget = ref(`week-${currentSelectedWeek.value}`)
-const activeTab = ref('guide') // 'guide' | 'diary'
+const activeTab = ref('guide') // 'guide' | 'todo' | 'diary'
 
 // 模拟日记数据库
 const userDiaries = ref<Record<number, PregnancyDiary>>({})

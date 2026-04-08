@@ -6,6 +6,7 @@ declare module '@zilliz/milvus2-sdk-node' {
     createIndex(params: any): Promise<any>;
     loadCollectionSync(params: { collection_name: string }): Promise<any>;
     insert(params: any): Promise<any>;
+    delete(params: any): Promise<any>;
     search(params: any): Promise<{ results: any[] }>;
   }
 }

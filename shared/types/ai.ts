@@ -6,11 +6,33 @@ export interface AIMessage {
   content: string
   sources?: SourceReference[]
   isEmergency?: boolean
+  triageCategory?: TriageCategory
+  riskLevel?: RiskLevel
+  structuredAnswer?: StructuredAnswer
+  uncertainty?: UncertaintyInfo
+  sourceReliability?: SourceReliability
   model?: string
   provider?: string
   route?: string
   degraded?: boolean
   createdAt: string
+}
+
+export type RiskLevel = 'green' | 'yellow' | 'red'
+export type TriageCategory = 'normal' | 'caution' | 'emergency' | 'out_of_scope'
+export type SourceReliability = 'authoritative' | 'mixed' | 'dataset_only' | 'none'
+
+export interface StructuredAnswer {
+  conclusion: string
+  reasons: string[]
+  actions: string[]
+  whenToSeekCare: string[]
+  uncertaintyNote?: string
+}
+
+export interface UncertaintyInfo {
+  level: 'none' | 'medium' | 'high'
+  message?: string
 }
 
 export interface SourceReference {
@@ -20,6 +42,14 @@ export interface SourceReference {
   relevance: number
   excerpt?: string
   category?: string
+  sourceOrg?: string
+  updatedAt?: string
+  audience?: string
+  topic?: string
+  riskLevelDefault?: RiskLevel
+  region?: string
+  sourceType?: 'authority' | 'dataset' | 'editorial' | 'unknown'
+  authoritative?: boolean
 }
 
 export interface ChatSession {
@@ -46,6 +76,11 @@ export interface AskResponse {
   isEmergency: boolean
   conversationId?: string
   disclaimer: string
+  triageCategory?: TriageCategory
+  riskLevel?: RiskLevel
+  structuredAnswer?: StructuredAnswer
+  uncertainty?: UncertaintyInfo
+  sourceReliability?: SourceReliability
   followUpQuestions?: string[]
   confidence?: number
   model?: string
@@ -67,6 +102,11 @@ export interface ChatResponse {
   isEmergency: boolean
   conversationId?: string
   disclaimer: string
+  triageCategory?: TriageCategory
+  riskLevel?: RiskLevel
+  structuredAnswer?: StructuredAnswer
+  uncertainty?: UncertaintyInfo
+  sourceReliability?: SourceReliability
   followUpQuestions?: string[]
   model?: string
   provider?: string
@@ -97,6 +137,11 @@ export interface WsServerMessage {
     sources?: SourceReference[]
     disclaimer?: string
     conversationId?: string
+    triageCategory?: TriageCategory
+    riskLevel?: RiskLevel
+    structuredAnswer?: StructuredAnswer
+    uncertainty?: UncertaintyInfo
+    sourceReliability?: SourceReliability
     followUpQuestions?: string[]
     degraded?: boolean
     model?: string

@@ -5,6 +5,19 @@ import type {
 
 export type { Category, Tag, Article, CalendarEvent, User, PaginatedResponse, PregnancyTodoProgress, PregnancyDiary, PregnancyCustomTodo }
 
+export interface AuthorityArticleTranslation {
+  slug: string
+  sourceUpdatedAt?: string
+  translatedTitle: string
+  translatedSummary: string
+  translatedContent: string
+  translationNotice: string
+  updatedAt: string
+  model?: string
+  provider?: string
+  isSourceChinese?: boolean
+}
+
 // ==================== 分类 API ====================
 export const categoryApi = {
   getAll: (params?: { parentId?: number }) =>
@@ -25,9 +38,10 @@ export const tagApi = {
 export const articleApi = {
   getList: (params?: {
     page?: number; pageSize?: number; category?: string; tag?: string;
-    difficulty?: string; contentType?: string; stage?: string; sort?: string; keyword?: string
+    difficulty?: string; contentType?: string; stage?: string; sort?: string; keyword?: string; source?: string
   }) => api.get<PaginatedResponse<Article>>('/articles', params as Record<string, unknown>),
   getBySlug: (slug: string) => api.get<Article>(`/articles/${slug}`),
+  getTranslation: (slug: string) => api.get<AuthorityArticleTranslation>(`/articles/${slug}/translation`),
   search: (keyword: string, params?: { page?: number; pageSize?: number }) =>
     api.get<PaginatedResponse<Article>>('/articles/search', { q: keyword, ...params } as Record<string, unknown>),
   getRelated: (id: number, limit = 5) =>

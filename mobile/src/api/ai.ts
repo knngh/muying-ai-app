@@ -80,5 +80,5 @@ export function getEmergencyWarning(): string {
 }
 
 export function getDisclaimer(): string {
-  return '免责声明：本AI助手提供的回答仅供参考，不构成医疗建议。如有身体不适，请立即就医。紧急情况请拨打120。'
+  return '免责声明：本功能提供的回答仅供参考，不构成医疗建议。如有身体不适，请立即就医。紧急情况请拨打120。'
 }
