@@ -35,10 +35,10 @@
         <text class="summary-text">{{ displayedSummary }}</text>
       </view>
 
-      <view v-if="article.sourceUrl" class="source-box">
+      <view v-if="displayedSourceUrl" class="source-box">
         <text class="source-label">原始来源</text>
-        <text class="source-url">{{ article.sourceUrl }}</text>
-        <view class="source-btn" @tap="openSource(article.sourceUrl)">
+        <text class="source-url">{{ displayedSourceUrl }}</text>
+        <view class="source-btn" @tap="openSource(displayedSourceUrl)">
           <text class="source-btn-text">查看机构原文</text>
         </view>
       </view>
@@ -107,6 +107,11 @@ const displayedSummary = computed(() => (
   showingTranslation.value && translation.value?.translatedSummary
     ? translation.value.translatedSummary
     : (article.value?.summary || '')
+))
+
+const displayedSourceUrl = computed(() => sanitizeAuthoritySourceUrl(
+  article.value?.sourceUrl,
+  article.value?.sourceOrg || article.value?.source || '',
 ))
 
 const displayedContent = computed(() => (
@@ -233,6 +238,79 @@ function addBlockSpacingToHtml(html: string): string {
       `<${item.tag}${appendInlineStyle(attrs, item.style)}>`
     ))
   ), html)
+}
+
+function sanitizeAuthoritySourceUrl(url?: string, sourceText = ''): string {
+  if (!url) {
+    return ''
+  }
+
+  let pathname = ''
+  try {
+    pathname = new URL(url).pathname.toLowerCase().replace(/\/+$/g, '') || '/'
+  } catch {
+    return ''
+  }
+
+  const normalizedSource = `${sourceText} ${url}`.toLowerCase()
+  const exactLandingPaths = new Set([
+    '/',
+    '/news-room',
+    '/health-topics',
+    '/health-topics/maternal-health',
+    '/health-topics/child-health',
+    '/health-topics/breastfeeding',
+    '/health-topics/vaccines-and-immunization',
+    '/pregnancy',
+    '/breastfeeding',
+    '/parents',
+    '/child-development',
+    '/vaccines-children',
+    '/vaccines-pregnancy',
+    '/vaccines-for-children',
+    '/reproductivehealth',
+    '/womens-health',
+    '/contraception',
+    '/growthcharts',
+    '/ncbddd',
+    '/act-early',
+    '/early-care',
+    '/protect-children',
+    '/medicines-and-pregnancy',
+    '/opioid-use-during-pregnancy',
+    '/pregnancy-hiv-std-tb-hepatitis',
+    '/english/ages-stages',
+    '/english/health-issues',
+    '/english/healthy-living',
+    '/english/safety-prevention',
+    '/english/family-life',
+    '/clinical',
+    '/topics',
+    '/conditions',
+    '/conditions/baby',
+    '/conditions/pregnancy-and-baby',
+    '/medicines',
+    '/vaccinations',
+    '/start-for-life',
+  ])
+
+  if (exactLandingPaths.has(pathname)) {
+    return ''
+  }
+
+  if (/chinacdc|中国疾病预防控制中心/u.test(normalizedSource)) {
+    if (pathname === '/' || pathname.endsWith('/list.html') || !/(?:\/t\d{8}_\d+\.(?:html?|shtml)|\.pdf(?:$|[?#]))/i.test(url)) {
+      return ''
+    }
+  }
+
+  if (/ndcpa|国家疾病预防控制局/u.test(normalizedSource)) {
+    if (pathname === '/' || pathname.endsWith('/list.html') || !/\/common\/content\/content_\d+\.html(?:$|[?#])/i.test(url)) {
+      return ''
+    }
+  }
+
+  return url
 }
 
 function convertTextToRichHtml(text: string): string {

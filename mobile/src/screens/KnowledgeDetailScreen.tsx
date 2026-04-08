@@ -60,10 +60,14 @@ export default function KnowledgeDetailScreen() {
   ), [sourceLanguageSample, translation?.isSourceChinese])
   const displayedTitle = showingTranslation && translation?.translatedTitle ? translation.translatedTitle : article?.title || ''
   const displayedSummary = showingTranslation && translation?.translatedSummary ? translation.translatedSummary : article?.summary || ''
+  const displayedSourceUrl = useMemo(() => sanitizeAuthoritySourceUrl(
+    article?.sourceUrl,
+    article?.sourceOrg || article?.source || '',
+  ), [article?.source, article?.sourceOrg, article?.sourceUrl])
   const displayedContentHtml = useMemo(() => {
     const rawContent = showingTranslation && translation?.translatedContent
-      ? convertTextToRichHtml(translation.translatedContent)
-      : (article?.content || '')
+      ? formatRichArticleContent(translation.translatedContent)
+      : formatRichArticleContent(article?.content || '')
     return buildSafeArticleHtml(rawContent)
   }, [article?.content, showingTranslation, translation?.translatedContent])
   const translationNoticeText = translation?.translationNotice
@@ -115,15 +119,15 @@ export default function KnowledgeDetailScreen() {
   }
 
   const handleOpenSource = async () => {
-    if (!article?.sourceUrl) return
+    if (!displayedSourceUrl) return
 
     try {
-      const canOpen = await Linking.canOpenURL(article.sourceUrl)
+      const canOpen = await Linking.canOpenURL(displayedSourceUrl)
       if (!canOpen) {
         Alert.alert('提示', '当前无法打开原始来源链接')
         return
       }
-      await Linking.openURL(article.sourceUrl)
+      await Linking.openURL(displayedSourceUrl)
     } catch {
       Alert.alert('提示', '打开原始来源失败，请稍后重试')
     }
@@ -274,10 +278,10 @@ export default function KnowledgeDetailScreen() {
           </View>
         ) : null}
 
-        {article.sourceUrl ? (
+        {displayedSourceUrl ? (
           <View style={styles.sourceBox}>
             <Text style={styles.sourceLabel}>原始来源</Text>
-            <Text style={styles.sourceUrl}>{article.sourceUrl}</Text>
+            <Text style={styles.sourceUrl}>{displayedSourceUrl}</Text>
             <Button mode="outlined" onPress={() => void handleOpenSource()} style={styles.sourceButton}>
               查看机构原文
             </Button>
@@ -583,6 +587,111 @@ function escapeHtml(input: string): string {
     .replace(/'/g, '&#39;')
 }
 
+function appendInlineStyle(attrs: string | undefined, inlineStyle: string): string {
+  const normalizedAttrs = attrs || ''
+  const styleMatch = normalizedAttrs.match(/\sstyle=(['"])(.*?)\1/i)
+
+  if (!styleMatch) {
+    return `${normalizedAttrs} style="${inlineStyle}"`
+  }
+
+  const quote = styleMatch[1]
+  const existing = styleMatch[2]?.trim() || ''
+  const merged = existing.endsWith(';') ? `${existing}${inlineStyle}` : `${existing};${inlineStyle}`
+  return normalizedAttrs.replace(/\sstyle=(['"])(.*?)\1/i, ` style=${quote}${merged}${quote}`)
+}
+
+function addBlockSpacingToHtml(html: string): string {
+  const blockStyles: Array<{ tag: string; style: string }> = [
+    { tag: 'p', style: 'margin:0 0 1.1em;line-height:1.9;display:block;' },
+    { tag: 'li', style: 'margin:0 0 0.7em;line-height:1.9;' },
+    { tag: 'ul', style: 'margin:0 0 1em 1.2em;padding:0;' },
+    { tag: 'ol', style: 'margin:0 0 1em 1.2em;padding:0;' },
+    { tag: 'h1', style: 'margin:0 0 0.9em;line-height:1.5;font-weight:700;' },
+    { tag: 'h2', style: 'margin:0 0 0.9em;line-height:1.55;font-weight:700;' },
+    { tag: 'h3', style: 'margin:0 0 0.8em;line-height:1.6;font-weight:700;' },
+  ]
+
+  return blockStyles.reduce((result, item) => (
+    result.replace(new RegExp(`<${item.tag}(\\s[^>]*)?>`, 'gi'), (_match, attrs?: string) => (
+      `<${item.tag}${appendInlineStyle(attrs, item.style)}>`
+    ))
+  ), html)
+}
+
+function sanitizeAuthoritySourceUrl(url?: string, sourceText = ''): string {
+  if (!url) {
+    return ''
+  }
+
+  let pathname = ''
+  try {
+    pathname = new URL(url).pathname.toLowerCase().replace(/\/+$/g, '') || '/'
+  } catch {
+    return ''
+  }
+
+  const normalizedSource = `${sourceText} ${url}`.toLowerCase()
+  const exactLandingPaths = new Set([
+    '/',
+    '/news-room',
+    '/health-topics',
+    '/health-topics/maternal-health',
+    '/health-topics/child-health',
+    '/health-topics/breastfeeding',
+    '/health-topics/vaccines-and-immunization',
+    '/pregnancy',
+    '/breastfeeding',
+    '/parents',
+    '/child-development',
+    '/vaccines-children',
+    '/vaccines-pregnancy',
+    '/vaccines-for-children',
+    '/reproductivehealth',
+    '/womens-health',
+    '/contraception',
+    '/growthcharts',
+    '/ncbddd',
+    '/act-early',
+    '/early-care',
+    '/protect-children',
+    '/medicines-and-pregnancy',
+    '/opioid-use-during-pregnancy',
+    '/pregnancy-hiv-std-tb-hepatitis',
+    '/english/ages-stages',
+    '/english/health-issues',
+    '/english/healthy-living',
+    '/english/safety-prevention',
+    '/english/family-life',
+    '/clinical',
+    '/topics',
+    '/conditions',
+    '/conditions/baby',
+    '/conditions/pregnancy-and-baby',
+    '/medicines',
+    '/vaccinations',
+    '/start-for-life',
+  ])
+
+  if (exactLandingPaths.has(pathname)) {
+    return ''
+  }
+
+  if (/chinacdc|中国疾病预防控制中心/u.test(normalizedSource)) {
+    if (pathname === '/' || pathname.endsWith('/list.html') || !/(?:\/t\d{8}_\d+\.(?:html?|shtml)|\.pdf(?:$|[?#]))/i.test(url)) {
+      return ''
+    }
+  }
+
+  if (/ndcpa|国家疾病预防控制局/u.test(normalizedSource)) {
+    if (pathname === '/' || pathname.endsWith('/list.html') || !/\/common\/content\/content_\d+\.html(?:$|[?#])/i.test(url)) {
+      return ''
+    }
+  }
+
+  return url
+}
+
 function convertTextToRichHtml(text: string): string {
   const normalized = text
     .replace(/\r\n/g, '\n')
@@ -611,7 +720,7 @@ function convertTextToRichHtml(text: string): string {
     }
 
     const candidate = `${current} ${line}`.trim()
-    if (current && candidate.length > 120) {
+    if (current && candidate.length > 88) {
       pushCurrent()
       current = line
       return
@@ -622,5 +731,20 @@ function convertTextToRichHtml(text: string): string {
 
   pushCurrent()
 
-  return paragraphs.map((line) => `<p>${escapeHtml(line)}</p>`).join('')
+  return paragraphs
+    .map((line) => `<p style="margin:0 0 1.1em;line-height:1.9;display:block;">${escapeHtml(line)}</p>`)
+    .join('')
+}
+
+function formatRichArticleContent(content: string): string {
+  const trimmed = content.trim()
+  if (!trimmed) {
+    return ''
+  }
+
+  if (/<[a-z][\s\S]*>/i.test(trimmed)) {
+    return addBlockSpacingToHtml(trimmed)
+  }
+
+  return convertTextToRichHtml(trimmed)
 }
