@@ -19,7 +19,7 @@ import { useNavigation } from '@react-navigation/native'
 import type { StackNavigationProp } from '@react-navigation/stack'
 import type { RootStackParamList } from '../navigation/AppNavigator'
 import { useKnowledgeStore } from '../stores/knowledgeStore'
-import { colors, spacing, fontSize, categoryColors } from '../theme'
+import { colors, spacing, fontSize, categoryColors, borderRadius } from '../theme'
 import type { Article } from '../api/modules'
 
 type KnowledgeNavProp = StackNavigationProp<RootStackParamList>
@@ -329,6 +329,7 @@ const styles = StyleSheet.create({
   },
   filterChip: {
     marginRight: spacing.xs,
+    borderRadius: borderRadius.pill,
   },
   tagScroll: {
     marginBottom: spacing.md,
@@ -339,6 +340,7 @@ const styles = StyleSheet.create({
   tagChip: {
     marginRight: spacing.xs,
     backgroundColor: colors.white,
+    borderRadius: borderRadius.pill,
   },
   tagChipText: {
     fontSize: fontSize.xs,
@@ -346,8 +348,12 @@ const styles = StyleSheet.create({
   articleCard: {
     marginBottom: spacing.md,
     backgroundColor: colors.white,
-    borderRadius: 12,
-    elevation: 1,
+    borderRadius: borderRadius.xl,
+    elevation: 0,
+    shadowColor: colors.inkSoft,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
   },
   articleTitle: {
     fontSize: fontSize.lg,

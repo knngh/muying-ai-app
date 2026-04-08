@@ -13,8 +13,8 @@ import type { CompositeNavigationProp } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import type { StackNavigationProp } from "@react-navigation/stack";
 import MaterialCommunityIcons from "react-native-vector-icons/MaterialCommunityIcons";
-import { articleApi } from "../api/modules";
-import type { Article } from "../api/modules";
+import { articleApi, calendarApi } from "../api/modules";
+import type { Article, CalendarEvent, PregnancyCustomTodo, PregnancyTodoProgress } from "../api/modules";
 import type {
   RootStackParamList,
   TabParamList,
@@ -22,13 +22,15 @@ import type {
 import { useAppStore } from "../stores/appStore";
 import { useMembershipStore } from "../stores/membershipStore";
 import type { WeeklyReport } from "../stores/membershipStore";
-import { colors, fontSize, spacing, categoryColors } from "../theme";
+import { colors, fontSize, spacing, categoryColors, eventTypeLabels, borderRadius } from "../theme";
 import { getStageSummary } from "../utils/stage";
+import { calculatePregnancyWeekFromDueDate } from "../utils";
 import {
   ScreenContainer,
   ContentSection,
   StandardCard,
 } from "../components/layout";
+import pregnancyWeekGuide from "../../../shared/data/pregnancy-week-guide.json";
 
 type HomeNavProp = CompositeNavigationProp<
   BottomTabNavigationProp<TabParamList, "Home">,
@@ -40,6 +42,17 @@ type FeatureEntry = {
   icon: string;
   route: "Chat" | "Knowledge" | "Calendar" | "Membership" | "WeeklyReport";
   type: "tab" | "stack";
+};
+
+type PregnancyWeekGuideItem = {
+  week: number;
+  content?: {
+    todo?: Array<{
+      type?: string;
+      title: string;
+      desc: string;
+    }>;
+  };
 };
 
 const featureEntries: FeatureEntry[] = [
@@ -69,6 +82,12 @@ const featureEntries: FeatureEntry[] = [
   },
 ];
 
+const AUTHORITY_KEYWORDS: Record<string, string[]> = {
+  preparing: ["备孕", "pregnancy prep", "preconception"],
+  pregnant: ["孕期", "pregnancy", "prenatal"],
+  postpartum: ["新生儿", "产后", "postpartum", "feeding"],
+};
+
 export default function HomeScreen() {
   const navigation = useNavigation<HomeNavProp>();
   const user = useAppStore((state) => state.user);
@@ -82,30 +101,94 @@ export default function HomeScreen() {
     ensureFreshQuota,
   } = useMembershipStore();
   const [articles, setArticles] = useState<Article[]>([]);
+  const [upcomingEvents, setUpcomingEvents] = useState<CalendarEvent[]>([]);
+  const [todoStats, setTodoStats] = useState<{ week: number | null; total: number; completed: number }>({
+    week: null,
+    total: 0,
+    completed: 0,
+  });
   const [loadingArticles, setLoadingArticles] = useState(false);
   const stage = useMemo(() => getStageSummary(user), [user]);
+  const currentPregnancyWeek = useMemo(() => (
+    user?.dueDate ? calculatePregnancyWeekFromDueDate(user.dueDate) : null
+  ), [user?.dueDate]);
+  const currentWeekGuide = useMemo(
+    () => (pregnancyWeekGuide as PregnancyWeekGuideItem[]).find((item) => item.week === currentPregnancyWeek) ?? null,
+    [currentPregnancyWeek],
+  );
 
   useEffect(() => {
-    loadArticles();
-  }, []);
+    void loadArticles();
+    void loadHomeCalendar();
+  }, [stage.kind, user?.dueDate]);
 
   useFocusEffect(
     React.useCallback(() => {
       ensureFreshQuota();
-    }, [ensureFreshQuota]),
+      void loadHomeCalendar();
+    }, [currentWeekGuide, currentPregnancyWeek, ensureFreshQuota]),
   );
 
   const loadArticles = async () => {
     setLoadingArticles(true);
     try {
-      const response = (await articleApi.getList({ pageSize: 4 })) as {
-        list: Article[];
-      };
-      setArticles(response.list || []);
+      const keywordCandidates = AUTHORITY_KEYWORDS[stage.kind] || [];
+      let nextArticles: Article[] = [];
+
+      for (const keyword of [...keywordCandidates, ""]) {
+        const response = (await articleApi.getList({
+          pageSize: 4,
+          contentType: "authority",
+          sort: "latest",
+          keyword: keyword || undefined,
+        })) as { list: Article[] };
+        if ((response.list || []).length > 0) {
+          nextArticles = response.list || [];
+          break;
+        }
+      }
+
+      setArticles(nextArticles);
     } catch (_error) {
       setArticles([]);
     } finally {
       setLoadingArticles(false);
+    }
+  };
+
+  const loadHomeCalendar = async () => {
+    try {
+      const startDate = new Date();
+      const endDate = new Date();
+      endDate.setDate(endDate.getDate() + 7);
+
+      const [events, customTodos, progress] = await Promise.all([
+        calendarApi.getEvents({
+          startDate: startDate.toISOString().slice(0, 10),
+          endDate: endDate.toISOString().slice(0, 10),
+        }) as Promise<CalendarEvent[]>,
+        currentPregnancyWeek
+          ? calendarApi.getCustomTodos({ week: currentPregnancyWeek }) as Promise<PregnancyCustomTodo[]>
+          : Promise.resolve([] as PregnancyCustomTodo[]),
+        currentPregnancyWeek
+          ? calendarApi.getTodoProgress({ week: currentPregnancyWeek }) as Promise<PregnancyTodoProgress[]>
+          : Promise.resolve([] as PregnancyTodoProgress[]),
+      ]);
+
+      setUpcomingEvents(events.slice(0, 3));
+      const defaultTodoKeys = (currentWeekGuide?.content?.todo || []).map((_, index) => `todo-${index}`);
+      const customTodoKeys = customTodos.map((item) => `custom-${item.id}`);
+      const validTodoKeys = new Set([...defaultTodoKeys, ...customTodoKeys]);
+      setTodoStats({
+        week: currentPregnancyWeek,
+        total: validTodoKeys.size,
+        completed: progress.filter(
+          (item) => item.week === currentPregnancyWeek && validTodoKeys.has(item.todoKey),
+        ).length,
+      });
+    } catch (_error) {
+      setUpcomingEvents([]);
+      setTodoStats({ week: currentPregnancyWeek, total: 0, completed: 0 });
     }
   };
 
@@ -119,6 +202,12 @@ export default function HomeScreen() {
     highlights: ["会员可查看完整的阶段重点与建议。"],
   }) as WeeklyReport;
   const articleCount = articles.length;
+  const statusTags = [
+    `连续打卡 ${checkInStreak} 天`,
+    `本周完成 ${weeklyCompletionRate}%`,
+    todoStats.total > 0 && todoStats.week ? `孕${todoStats.week}周待办 ${todoStats.completed}/${todoStats.total}` : null,
+    upcomingEvents[0] ? `${eventTypeLabels[upcomingEvents[0].eventType] || "提醒"} · ${upcomingEvents[0].title}` : null,
+  ].filter(Boolean) as string[];
 
   const handleFeaturePress = (entry: FeatureEntry) => {
     if (entry.type === "stack") {
@@ -232,6 +321,18 @@ export default function HomeScreen() {
           </View>
         </ContentSection>
 
+        {statusTags.length > 0 ? (
+          <ContentSection>
+            <View style={styles.tagRow}>
+              {statusTags.map((tag) => (
+                <Chip key={tag} compact style={styles.summaryChip} textStyle={styles.summaryChipText}>
+                  {tag}
+                </Chip>
+              ))}
+            </View>
+          </ContentSection>
+        ) : null}
+
         <ContentSection>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>周度报告预览</Text>
@@ -334,6 +435,33 @@ export default function HomeScreen() {
             })
           )}
         </ContentSection>
+
+        {upcomingEvents.length > 0 ? (
+          <ContentSection>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>近期提醒</Text>
+              <Button mode="text" compact onPress={() => navigation.navigate("Calendar")}>
+                查看全部
+              </Button>
+            </View>
+            {upcomingEvents.map((event) => (
+              <StandardCard key={`${event.id}-${event.eventDate}`}>
+                <Card.Content style={styles.upcomingCardContent}>
+                  <View style={styles.upcomingMeta}>
+                    <Chip compact style={styles.upcomingChip} textStyle={styles.upcomingChipText}>
+                      {eventTypeLabels[event.eventType] || "提醒"}
+                    </Chip>
+                    <Text style={styles.upcomingDate}>{event.eventDate}</Text>
+                  </View>
+                  <Text style={styles.upcomingTitle}>{event.title}</Text>
+                  {event.description ? (
+                    <Text style={styles.upcomingDesc} numberOfLines={2}>{event.description}</Text>
+                  ) : null}
+                </Card.Content>
+              </StandardCard>
+            ))}
+          </ContentSection>
+        ) : null}
         <View style={{ height: spacing.xl }} />
       </ScrollView>
     </ScreenContainer>
@@ -345,8 +473,8 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
   },
   heroCard: {
-    backgroundColor: colors.ink,
-    borderRadius: 24,
+    backgroundColor: colors.primaryLight,
+    borderRadius: borderRadius.xl,
   },
   heroTop: {
     flexDirection: "row",
@@ -360,25 +488,27 @@ const styles = StyleSheet.create({
   },
   statusChip: {
     alignSelf: "flex-start",
-    backgroundColor: "rgba(255,247,219,0.16)",
+    backgroundColor: colors.white,
     marginBottom: spacing.xs,
+    borderRadius: borderRadius.pill,
   },
   statusChipText: {
-    color: colors.gold,
+    color: colors.primaryDark,
     fontWeight: "700",
     fontSize: fontSize.xs,
   },
   heroTitle: {
-    color: colors.white,
+    color: colors.ink,
     fontSize: 26,
     fontWeight: "700",
   },
   heroSubtitle: {
-    color: "#d7e0f7",
+    color: colors.inkSoft,
     fontSize: fontSize.sm,
   },
   heroActionBtn: {
     marginTop: spacing.sm,
+    borderRadius: borderRadius.pill,
   },
   heroStats: {
     flexDirection: "row",
@@ -387,26 +517,26 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
     paddingTop: spacing.md,
     borderTopWidth: 1,
-    borderTopColor: "rgba(255,255,255,0.1)",
+    borderTopColor: "rgba(0,0,0,0.05)",
   },
   heroStat: {
     alignItems: "center",
     flex: 1,
   },
   heroStatLabel: {
-    color: "#aab7db",
+    color: colors.textSecondary,
     fontSize: fontSize.xs,
     marginTop: 2,
   },
   heroStatValue: {
-    color: colors.white,
+    color: colors.ink,
     fontSize: fontSize.lg,
     fontWeight: "700",
   },
   heroStatDivider: {
     width: 1,
     height: 24,
-    backgroundColor: "rgba(255,255,255,0.1)",
+    backgroundColor: "rgba(0,0,0,0.05)",
   },
   quickActionsRow: {
     flexDirection: "row",
@@ -419,17 +549,12 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   quickActionIconBg: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: colors.white,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.primaryLight,
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
   },
   quickActionText: {
     fontSize: fontSize.sm,
@@ -440,11 +565,26 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: spacing.md,
   },
+  tagRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+  },
+  summaryChip: {
+    backgroundColor: colors.white,
+    borderRadius: borderRadius.pill,
+  },
+  summaryChipText: {
+    color: colors.inkSoft,
+    fontSize: fontSize.xs,
+    fontWeight: "600",
+  },
   infoCard: {
     flex: 1,
+    backgroundColor: colors.white,
   },
   infoCardAccent: {
-    backgroundColor: colors.goldLight,
+    backgroundColor: colors.greenLight,
   },
   infoLabel: {
     color: colors.textSecondary,
@@ -490,6 +630,7 @@ const styles = StyleSheet.create({
   },
   reportChip: {
     backgroundColor: colors.primaryLight,
+    borderRadius: borderRadius.pill,
   },
   reportChipText: {
     color: colors.primaryDark,
@@ -519,6 +660,7 @@ const styles = StyleSheet.create({
   },
   articleChip: {
     backgroundColor: colors.primaryLight,
+    borderRadius: borderRadius.pill,
   },
   articleChipText: {
     fontSize: fontSize.xs,
@@ -528,6 +670,38 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontSize: fontSize.sm,
     color: colors.textSecondary,
+    lineHeight: 18,
+  },
+  upcomingCardContent: {
+    gap: spacing.xs,
+  },
+  upcomingMeta: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  upcomingChip: {
+    alignSelf: "flex-start",
+    backgroundColor: colors.primaryLight,
+    borderRadius: borderRadius.pill,
+  },
+  upcomingChipText: {
+    color: colors.primaryDark,
+    fontSize: fontSize.xs,
+    fontWeight: "600",
+  },
+  upcomingDate: {
+    color: colors.textSecondary,
+    fontSize: fontSize.xs,
+  },
+  upcomingTitle: {
+    color: colors.text,
+    fontSize: fontSize.md,
+    fontWeight: "600",
+  },
+  upcomingDesc: {
+    color: colors.textSecondary,
+    fontSize: fontSize.sm,
     lineHeight: 18,
   },
 });

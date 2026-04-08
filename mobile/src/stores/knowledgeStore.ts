@@ -2,6 +2,65 @@ import { create } from 'zustand'
 import { articleApi, categoryApi, tagApi } from '../api/modules'
 import type { Article, Category, Tag, PaginatedResponse } from '../api/modules'
 
+const KNOWLEDGE_CONTENT_TYPE = 'authority'
+const CHINESE_AUTHORITY_PATTERNS = [
+  /中国政府网/u,
+  /中国政府网政策解读/u,
+  /gov\.cn/i,
+  /国家卫生健康委员会/u,
+  /国家卫健委/u,
+  /中国疾控/u,
+  /中国疾病预防控制中心/u,
+  /chinacdc/i,
+]
+
+function getArticleTimestamp(article: Article): number {
+  const value = article.publishedAt || article.createdAt
+  const timestamp = value ? new Date(value).getTime() : 0
+  return Number.isNaN(timestamp) ? 0 : timestamp
+}
+
+function getArticleDateBucket(article: Article): string {
+  const value = article.publishedAt || article.createdAt
+  if (!value) return ''
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+
+  return date.toISOString().slice(0, 10)
+}
+
+function getSourcePriority(article: Article): number {
+  if (article.sourceLanguage === 'zh' || article.sourceLocale === 'zh-CN') {
+    return 0
+  }
+
+  const sourceText = [
+    article.sourceOrg || '',
+    article.source || '',
+    article.sourceUrl || '',
+    article.region || '',
+  ].join(' ')
+
+  return CHINESE_AUTHORITY_PATTERNS.some((pattern) => pattern.test(sourceText)) ? 0 : 1
+}
+
+function sortKnowledgeArticles(list: Article[]): Article[] {
+  return [...list].sort((left, right) => {
+    const dateBucketDiff = getArticleDateBucket(right).localeCompare(getArticleDateBucket(left))
+    if (dateBucketDiff !== 0) {
+      return dateBucketDiff
+    }
+
+    const sourceDiff = getSourcePriority(left) - getSourcePriority(right)
+    if (sourceDiff !== 0) {
+      return sourceDiff
+    }
+
+    return getArticleTimestamp(right) - getArticleTimestamp(left)
+  })
+}
+
 interface KnowledgeState {
   articles: Article[]
   categories: Category[]
@@ -52,13 +111,15 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
     try {
       const response = await articleApi.getList({
         page, pageSize: state.pageSize,
+        contentType: KNOWLEDGE_CONTENT_TYPE,
         category: state.selectedCategory || undefined,
         tag: state.selectedTag || undefined,
         stage: state.selectedStage || undefined,
         keyword: state.keyword || undefined,
       }) as PaginatedResponse<Article>
+      const nextArticles = params?.reset ? response.list : [...state.articles, ...response.list]
       set({
-        articles: params?.reset ? response.list : [...state.articles, ...response.list],
+        articles: sortKnowledgeArticles(nextArticles),
         total: response.pagination.total,
         page: response.pagination.page,
         loading: false,
@@ -70,11 +131,21 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
   },
 
   fetchCategories: async () => {
-    try { set({ categories: await categoryApi.getAll() as Category[] }) } catch (_e) { /* ignore */ }
+    try {
+      const categories = await categoryApi.getAll()
+      set({ categories })
+    } catch {
+      set({ categories: [] })
+    }
   },
 
   fetchTags: async () => {
-    try { set({ tags: await tagApi.getAll() as Tag[] }) } catch (_e) { /* ignore */ }
+    try {
+      const tags = await tagApi.getAll()
+      set({ tags })
+    } catch {
+      set({ tags: [] })
+    }
   },
 
   fetchArticleDetail: async (slug) => {
@@ -95,8 +166,14 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
   search: async (keyword) => {
     set({ keyword, page: 1, loading: true })
     try {
-      const response = await articleApi.search(keyword, { page: 1, pageSize: get().pageSize }) as PaginatedResponse<Article>
-      set({ articles: response.list, total: response.pagination.total, loading: false })
+      const response = await articleApi.getList({
+        page: 1,
+        pageSize: get().pageSize,
+        contentType: KNOWLEDGE_CONTENT_TYPE,
+        keyword,
+        stage: get().selectedStage || undefined,
+      }) as PaginatedResponse<Article>
+      set({ articles: sortKnowledgeArticles(response.list), total: response.pagination.total, loading: false })
     } catch (error: unknown) {
       const err = error as { message?: string }
       set({ error: err.message || '搜索失败', loading: false })

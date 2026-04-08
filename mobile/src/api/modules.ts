@@ -1,10 +1,25 @@
 import api from './index'
 import type {
   Category, Tag, Article, CalendarEvent, User, PaginatedResponse,
+  PregnancyTodoProgress, PregnancyDiary, PregnancyCustomTodo,
 } from '../../../shared/types'
 
 export type { Category, Tag, Article, CalendarEvent, User, PaginatedResponse }
+export type { PregnancyTodoProgress, PregnancyDiary, PregnancyCustomTodo }
 export type { PaginationMeta } from '../../../shared/types'
+
+export interface AuthorityArticleTranslation {
+  slug: string
+  sourceUpdatedAt?: string
+  translatedTitle: string
+  translatedSummary: string
+  translatedContent: string
+  translationNotice: string
+  updatedAt: string
+  model?: string
+  provider?: string
+  isSourceChinese?: boolean
+}
 
 function mapCalendarEventPayload(data: Partial<CalendarEvent>) {
   return {
@@ -32,6 +47,7 @@ export const articleApi = {
     difficulty?: string; contentType?: string; stage?: string; sort?: string; keyword?: string
   }) => api.get<PaginatedResponse<Article>>('/articles', { params }),
   getBySlug: (slug: string) => api.get<Article>(`/articles/${slug}`),
+  getTranslation: (slug: string) => api.get<AuthorityArticleTranslation>(`/articles/${slug}/translation`),
   search: (keyword: string, params?: { page?: number; pageSize?: number }) =>
     api.get<PaginatedResponse<Article>>('/articles/search', { params: { q: keyword, ...params } }),
   getRelated: (id: number, limit = 5) =>
@@ -54,6 +70,26 @@ export const calendarApi = {
   getWeek: (params?: { date?: string }) => api.get('/calendar/week', { params }),
   getDay: (date: string) => api.get(`/calendar/day/${date}`),
   getEventTypes: () => api.get('/calendar/event-types'),
+  getTodoProgress: (params?: { week?: number }) =>
+    api.get<{ list: PregnancyTodoProgress[] }>('/calendar/todo-progress', { params })
+      .then(res => (res as { list: PregnancyTodoProgress[] }).list),
+  updateTodoProgress: (data: { week: number; todoKey: string; completed: boolean }) =>
+    api.put<PregnancyTodoProgress>('/calendar/todo-progress', data),
+  getDiaries: (params?: { week?: number }) =>
+    api.get<{ list: PregnancyDiary[] }>('/calendar/diaries', { params })
+      .then(res => (res as { list: PregnancyDiary[] }).list),
+  saveDiary: (data: { week: number; content: string }) =>
+    api.put<PregnancyDiary>('/calendar/diaries', data),
+  deleteDiary: (week: number) => api.delete<{ week: number }>(`/calendar/diaries/${week}`),
+  getCustomTodos: (params?: { week?: number }) =>
+    api.get<{ list: PregnancyCustomTodo[] }>('/calendar/custom-todos', { params })
+      .then(res => (res as { list: PregnancyCustomTodo[] }).list),
+  createCustomTodo: (data: { week: number; content: string }) =>
+    api.post<PregnancyCustomTodo>('/calendar/custom-todos', data),
+  updateCustomTodo: (id: string, data: { content: string }) =>
+    api.put<PregnancyCustomTodo>(`/calendar/custom-todos/${id}`, data),
+  deleteCustomTodo: (id: string) =>
+    api.delete<{ id: string; week: number; todoKey: string }>(`/calendar/custom-todos/${id}`),
   createEvent: (data: Partial<CalendarEvent>) => api.post<CalendarEvent>('/calendar/events', mapCalendarEventPayload(data)),
   updateEvent: (id: number, data: Partial<CalendarEvent>) => api.put<CalendarEvent>(`/calendar/events/${id}`, mapCalendarEventPayload(data)),
   deleteEvent: (id: number) => api.delete(`/calendar/events/${id}`),

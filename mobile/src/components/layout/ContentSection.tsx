@@ -17,6 +17,6 @@ export const ContentSection: React.FC<ContentSectionProps> = ({
 const styles = StyleSheet.create({
   section: {
     paddingHorizontal: spacing.md,
-    marginBottom: spacing.md,
+    marginBottom: spacing.lg,
   },
 });

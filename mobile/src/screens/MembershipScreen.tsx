@@ -6,7 +6,7 @@ import dayjs from 'dayjs'
 import { useMembershipStore } from '../stores/membershipStore'
 import type { MembershipPlan } from '../stores/membershipStore'
 import { trackAppEvent } from '../services/analytics'
-import { colors, fontSize, spacing } from '../theme'
+import { colors, fontSize, spacing, borderRadius } from '../theme'
 
 const comparisonRows = [
   { label: '问题助手', free: '3 次/天', member: '不限次' },
@@ -173,29 +173,30 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xl,
   },
   heroCard: {
-    borderRadius: 24,
-    backgroundColor: colors.ink,
+    borderRadius: borderRadius.xl,
+    backgroundColor: colors.primaryLight,
   },
   heroTop: {
     gap: spacing.sm,
   },
   heroChip: {
     alignSelf: 'flex-start',
-    backgroundColor: colors.goldLight,
+    backgroundColor: colors.white,
+    borderRadius: borderRadius.pill,
   },
   heroChipText: {
-    color: colors.gold,
+    color: colors.primaryDark,
     fontWeight: '700',
   },
   heroTitle: {
     fontSize: fontSize.title,
     fontWeight: '700',
-    color: colors.white,
+    color: colors.ink,
   },
   heroSubtitle: {
     fontSize: fontSize.md,
     lineHeight: 22,
-    color: '#dfe7ff',
+    color: colors.inkSoft,
   },
   heroStats: {
     flexDirection: 'row',
@@ -204,27 +205,28 @@ const styles = StyleSheet.create({
   },
   heroStatCard: {
     flex: 1,
-    borderRadius: 18,
+    borderRadius: borderRadius.xl,
     padding: spacing.md,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: colors.white,
   },
   heroStatLabel: {
-    color: '#afbcdf',
+    color: colors.textSecondary,
     fontSize: fontSize.sm,
     marginBottom: spacing.xs,
   },
   heroStatValue: {
-    color: colors.white,
+    color: colors.ink,
     fontSize: fontSize.lg,
     fontWeight: '700',
   },
   expireText: {
     marginTop: spacing.md,
-    color: '#c5d0ee',
+    color: colors.textSecondary,
   },
   heroButton: {
     marginTop: spacing.md,
     alignSelf: 'flex-start',
+    borderRadius: borderRadius.pill,
   },
   section: {
     marginTop: spacing.lg,
@@ -237,12 +239,18 @@ const styles = StyleSheet.create({
   },
   planCard: {
     marginBottom: spacing.md,
-    borderRadius: 20,
+    borderRadius: borderRadius.xl,
     backgroundColor: colors.white,
+    elevation: 0,
+    shadowColor: colors.inkSoft,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
   },
   planCardActive: {
     borderWidth: 1.5,
     borderColor: colors.gold,
+    backgroundColor: colors.goldLight,
   },
   planHeader: {
     flexDirection: 'row',
@@ -261,7 +269,8 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   badgeChip: {
-    backgroundColor: colors.goldLight,
+    backgroundColor: colors.white,
+    borderRadius: borderRadius.pill,
   },
   badgeText: {
     color: colors.gold,
@@ -269,7 +278,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   planDesc: {
-    color: colors.textLight,
+    color: colors.textSecondary,
     lineHeight: 20,
     maxWidth: 190,
   },
@@ -282,7 +291,7 @@ const styles = StyleSheet.create({
     color: colors.ink,
   },
   planMonthlyPrice: {
-    color: colors.textLight,
+    color: colors.textSecondary,
   },
   planFooter: {
     marginTop: spacing.md,
@@ -294,7 +303,7 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   compareCard: {
-    borderRadius: 20,
+    borderRadius: borderRadius.xl,
     backgroundColor: colors.white,
   },
   compareRow: {

@@ -28,7 +28,7 @@ import { useAppStore } from "../stores/appStore";
 import { useChatStore } from "../stores/chatStore";
 import { useMembershipStore } from "../stores/membershipStore";
 import type { MembershipPlan, WeeklyReport } from "../stores/membershipStore";
-import { colors, fontSize, spacing } from "../theme";
+import { colors, fontSize, spacing, borderRadius } from "../theme";
 import { getStageSummary } from "../utils/stage";
 import { sessionStorage } from "../utils/storage";
 import {
@@ -535,7 +535,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   avatar: {
-    backgroundColor: colors.gold,
+    backgroundColor: colors.primaryLight,
     marginBottom: spacing.md,
   },
   headerNickname: {
@@ -636,6 +636,7 @@ const styles = StyleSheet.create({
   },
   benefitChip: {
     backgroundColor: colors.goldLight,
+    borderRadius: borderRadius.pill,
   },
   benefitChipText: {
     color: colors.gold,
@@ -664,7 +665,7 @@ const styles = StyleSheet.create({
   modalContainer: {
     margin: spacing.md,
     maxHeight: "84%",
-    borderRadius: 24,
+    borderRadius: borderRadius.xl,
     padding: spacing.lg,
     backgroundColor: colors.white,
   },
@@ -690,7 +691,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   optionButton: {
-    borderRadius: 16,
+    borderRadius: borderRadius.pill,
     borderWidth: 1,
     borderColor: colors.border,
     paddingHorizontal: spacing.md,

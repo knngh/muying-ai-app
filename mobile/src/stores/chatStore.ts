@@ -66,7 +66,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
       set({ initialized: true, loadingHistory: false })
     } catch (error: unknown) {
-      const err = error as { message?: string }
+      const err = error as { message?: string; status?: number }
+      const isMissingHistory = err.status === 404 || (err.message || '').includes('资源不存在')
+      if (isMissingHistory) {
+        set({
+          messages: [],
+          conversationId: null,
+          initialized: true,
+          loadingHistory: false,
+          error: null,
+        })
+        return
+      }
       set({
         initialized: true,
         loadingHistory: false,

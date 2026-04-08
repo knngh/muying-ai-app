@@ -129,10 +129,10 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         >
           <Card style={styles.card}>
             <Card.Content>
-              <Text style={styles.title}>母婴问题助手</Text>
+              <Text style={styles.title}>母婴问题整理</Text>
               
               <Text style={styles.subtitle}>
-                问题整理 · 科学孕育 · 贴心陪伴
+                权威知识 · 问题整理 · 科学孕育
               </Text>
 
               <SegmentedButtons

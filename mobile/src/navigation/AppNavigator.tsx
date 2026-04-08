@@ -19,7 +19,6 @@ import ChatScreen from "../screens/ChatScreen";
 import KnowledgeScreen from "../screens/KnowledgeScreen";
 import KnowledgeDetailScreen from "../screens/KnowledgeDetailScreen";
 import CalendarScreen from "../screens/CalendarScreen";
-import CommunityScreen from "../screens/CommunityScreen";
 import PostDetailScreen from "../screens/PostDetailScreen";
 import ProfileScreen from "../screens/ProfileScreen";
 import LoginScreen from "../screens/LoginScreen";
@@ -42,7 +41,7 @@ export type TabParamList = {
   Home: undefined;
   Chat: undefined;
   Knowledge: undefined;
-  Community: undefined;
+  CalendarTab: undefined;
   Profile: undefined;
 };
 
@@ -56,15 +55,25 @@ function TabNavigator() {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textSecondary,
+        tabBarInactiveTintColor: colors.textLight,
         headerShown: false,
+        tabBarStyle: {
+          backgroundColor: colors.white,
+          borderTopWidth: 0,
+          elevation: 8,
+          shadowColor: colors.inkSoft,
+          shadowOffset: { width: 0, height: -4 },
+          shadowOpacity: 0.05,
+          shadowRadius: 12,
+          paddingTop: 8,
+        },
         tabBarIcon: ({ color, size }) => {
           let iconName = "home";
           if (route.name === "Home") iconName = "home";
           else if (route.name === "Chat") iconName = "message-question-outline";
           else if (route.name === "Knowledge") iconName = "book-open-outline";
-          else if (route.name === "Community")
-            iconName = "account-group-outline";
+          else if (route.name === "CalendarTab")
+            iconName = "calendar-check-outline";
           else if (route.name === "Profile") iconName = "account-outline";
 
           return (
@@ -89,9 +98,9 @@ function TabNavigator() {
         options={{ tabBarLabel: "问题助手" }}
       />
       <Tab.Screen
-        name="Community"
-        component={CommunityScreen}
-        options={{ tabBarLabel: "社区" }}
+        name="CalendarTab"
+        component={CalendarScreen}
+        options={{ tabBarLabel: "孕育日历" }}
       />
       <Tab.Screen
         name="Profile"

@@ -15,7 +15,7 @@ import UpgradeModal from '../components/UpgradeModal'
 import { useChatStore } from '../stores/chatStore'
 import { useMembershipStore } from '../stores/membershipStore'
 import type { MembershipPlan } from '../stores/membershipStore'
-import { colors, fontSize, spacing } from '../theme'
+import { colors, fontSize, spacing, borderRadius } from '../theme'
 
 const quickQuestions = [
   '我这周最该注意的三件事是什么？',
@@ -308,7 +308,7 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
   },
   quotaCard: {
-    borderRadius: 22,
+    borderRadius: borderRadius.xl,
     backgroundColor: colors.white,
   },
   quotaHeader: {
@@ -331,6 +331,7 @@ const styles = StyleSheet.create({
   quotaChip: {
     alignSelf: 'flex-start',
     backgroundColor: colors.goldLight,
+    borderRadius: borderRadius.pill,
   },
   quotaChipText: {
     color: colors.gold,
@@ -339,11 +340,11 @@ const styles = StyleSheet.create({
   banner: {
     marginTop: spacing.sm,
     backgroundColor: colors.orangeLight,
-    borderRadius: 16,
+    borderRadius: borderRadius.lg,
   },
   errorBar: {
     marginTop: spacing.sm,
-    borderRadius: 14,
+    borderRadius: borderRadius.md,
     padding: spacing.md,
     backgroundColor: colors.redLight,
   },
@@ -377,7 +378,9 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   quickChip: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.primaryLight,
+    borderWidth: 0,
+    borderRadius: borderRadius.pill,
   },
   quickChipText: {
     color: colors.text,
@@ -395,10 +398,10 @@ const styles = StyleSheet.create({
   messageBubble: {
     maxWidth: '84%',
     padding: spacing.md,
-    borderRadius: 20,
+    borderRadius: borderRadius.xl,
   },
   userBubble: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primaryLight,
     borderBottomRightRadius: 8,
   },
   assistantBubble: {
@@ -407,6 +410,7 @@ const styles = StyleSheet.create({
   },
   messageText: {
     lineHeight: 22,
+    color: colors.ink,
   },
   userText: {
     color: colors.white,
@@ -451,8 +455,8 @@ const styles = StyleSheet.create({
   },
   sendButton: {
     margin: 0,
-    borderRadius: 18,
-    backgroundColor: colors.ink,
+    borderRadius: borderRadius.pill,
+    backgroundColor: colors.primary,
   },
   sendButtonDisabled: {
     backgroundColor: colors.textSecondary,

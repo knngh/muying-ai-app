@@ -8,15 +8,12 @@ const {getDefaultConfig, mergeConfig} = require('@react-native/metro-config');
  * @type {import('metro-config').MetroConfig}
  */
 const projectRoot = __dirname;
-const workspaceRoot = path.resolve(projectRoot, '..');
+const sharedRoot = path.resolve(projectRoot, '../shared');
 
 const config = {
-  watchFolders: [workspaceRoot],
+  watchFolders: [sharedRoot],
   resolver: {
-    nodeModulesPaths: [
-      path.resolve(projectRoot, 'node_modules'),
-      path.resolve(workspaceRoot, 'node_modules'),
-    ],
+    nodeModulesPaths: [path.resolve(projectRoot, 'node_modules')],
   },
 };
 

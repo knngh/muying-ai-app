@@ -6,7 +6,7 @@ import dayjs from 'dayjs'
 import { Button, Card, Chip, IconButton, Modal, Portal, Switch, Text, TextInput } from 'react-native-paper'
 import { useCalendarStore } from '../stores/calendarStore'
 import { useMembershipStore } from '../stores/membershipStore'
-import { colors, fontSize, spacing } from '../theme'
+import { colors, fontSize, spacing, borderRadius } from '../theme'
 
 type EventType = 'checkup' | 'vaccine' | 'reminder' | 'other'
 
@@ -75,7 +75,7 @@ export default function CalendarScreen() {
     marks[selectedDate] = {
       ...(marks[selectedDate] || {}),
       selected: true,
-      selectedColor: colors.ink,
+      selectedColor: colors.primaryLight,
     }
 
     return marks
@@ -365,7 +365,7 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    borderRadius: 18,
+    borderRadius: borderRadius.xl,
     backgroundColor: colors.white,
   },
   statLabel: {
@@ -379,7 +379,7 @@ const styles = StyleSheet.create({
   },
   calendarCard: {
     marginTop: spacing.lg,
-    borderRadius: 24,
+    borderRadius: borderRadius.xl,
     backgroundColor: colors.white,
   },
   sectionHeader: {
@@ -396,7 +396,7 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   emptyCard: {
-    borderRadius: 20,
+    borderRadius: borderRadius.xl,
     backgroundColor: colors.white,
   },
   emptyTitle: {
@@ -411,7 +411,7 @@ const styles = StyleSheet.create({
   },
   eventCard: {
     marginBottom: spacing.sm,
-    borderRadius: 20,
+    borderRadius: borderRadius.xl,
     backgroundColor: colors.white,
   },
   eventCardCompleted: {
@@ -460,7 +460,7 @@ const styles = StyleSheet.create({
   modalContainer: {
     margin: spacing.md,
     maxHeight: '82%',
-    borderRadius: 24,
+    borderRadius: borderRadius.xl,
     padding: spacing.lg,
     backgroundColor: colors.white,
   },
@@ -485,7 +485,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   typeOption: {
-    borderRadius: 16,
+    borderRadius: borderRadius.pill,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
   },
@@ -504,5 +504,6 @@ const styles = StyleSheet.create({
   saveButton: {
     marginTop: spacing.sm,
     marginBottom: spacing.sm,
+    borderRadius: borderRadius.pill,
   },
 })

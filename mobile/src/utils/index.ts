@@ -22,3 +22,24 @@ export function formatDate(date: Date | string, format = 'YYYY-MM-DD'): string {
     .replace('mm', minutes)
     .replace('ss', seconds)
 }
+
+const DAY_IN_MS = 24 * 60 * 60 * 1000
+const FULL_TERM_WEEKS = 40
+
+function normalizeDate(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate())
+}
+
+export function calculatePregnancyWeekFromDueDate(dueDate: Date | string, baseDate = new Date()): number | null {
+  const due = normalizeDate(new Date(dueDate))
+  if (Number.isNaN(due.getTime())) return null
+
+  const today = normalizeDate(baseDate)
+  const remainingDays = Math.max(0, (due.getTime() - today.getTime()) / DAY_IN_MS)
+  const remainingWeeks = Math.ceil(remainingDays / 7)
+  const week = FULL_TERM_WEEKS - remainingWeeks
+
+  if (week < 1) return 1
+  if (week > FULL_TERM_WEEKS) return FULL_TERM_WEEKS
+  return week
+}

@@ -1,26 +1,26 @@
 export const colors = {
-  primary: '#1890ff',
-  primaryLight: '#e6f7ff',
-  primaryDark: '#0f5fd7',
-  pink: '#eb2f96',
-  pinkLight: '#fff0f6',
-  green: '#52c41a',
-  greenLight: '#f6ffed',
-  orange: '#fa8c16',
-  orangeLight: '#fff7e6',
-  purple: '#722ed1',
-  purpleLight: '#f9f0ff',
-  gold: '#d4a63a',
-  goldLight: '#fff7db',
-  ink: '#16213d',
-  inkSoft: '#32446b',
-  red: '#ff4d4f',
-  redLight: '#fff1f0',
-  text: '#333333',
-  textSecondary: '#999999',
-  textLight: '#666666',
-  border: '#f0f0f0',
-  background: '#f5f5f5',
+  primary: '#FF8A8A', // Soft Peach / Warm Coral
+  primaryLight: '#FFEFEF',
+  primaryDark: '#FF6B6B',
+  pink: '#FFB6C1',
+  pinkLight: '#FFF0F5',
+  green: '#A8E6CF', // Sage / Mint Green
+  greenLight: '#E8F8F5',
+  orange: '#FFD3B6',
+  orangeLight: '#FFF5EB',
+  purple: '#DCD0FF',
+  purpleLight: '#F4F0FF',
+  gold: '#FFDFBA',
+  goldLight: '#FFF9F0',
+  ink: '#4A4A4A', // Softer dark grey/brown
+  inkSoft: '#6B605A',
+  red: '#FF9AA2',
+  redLight: '#FFEFEF',
+  text: '#4A4A4A',
+  textSecondary: '#8C8C8C',
+  textLight: '#B0B0B0',
+  border: '#EFEFEF', // Softer border
+  background: '#FAFAFA', // Soft off-white cream
   white: '#ffffff',
 }
 
@@ -30,6 +30,8 @@ export const spacing = {
   md: 16,
   lg: 24,
   xl: 32,
+  xxl: 40,
+  xxxl: 48,
 }
 
 export const fontSize = {
@@ -40,6 +42,14 @@ export const fontSize = {
   xl: 18,
   xxl: 22,
   title: 24,
+}
+
+export const borderRadius = {
+  sm: 8,
+  md: 16,
+  lg: 24,
+  xl: 32,
+  pill: 9999,
 }
 
 export const eventTypeColors: Record<string, string> = {
