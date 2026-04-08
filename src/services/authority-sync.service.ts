@@ -175,6 +175,26 @@ function isBlockedAuthorityUrl(url: string, source: AuthoritySourceConfig): bool
   return false;
 }
 
+function isHtmlLikeDocumentUrl(url: string): boolean {
+  try {
+    const pathname = new URL(url).pathname.toLowerCase();
+    return /\.(html?|shtml|pdf)$/.test(pathname);
+  } catch {
+    return false;
+  }
+}
+
+function isIndexLikeAuthorityUrl(url: string): boolean {
+  try {
+    const pathname = new URL(url).pathname.toLowerCase();
+    return pathname.endsWith('/')
+      || /\/(?:index|new_index)\.(?:html?|shtml)$/.test(pathname)
+      || /\/(?:common|second|list)\/list\.html$/.test(pathname);
+  } catch {
+    return true;
+  }
+}
+
 function isAuthorityUrlMatched(url: string, source: AuthoritySourceConfig, anchorText = ''): boolean {
   if (!isAllowedAuthorityUrl(url, source) || isBlockedAuthorityUrl(url, source)) {
     return false;
@@ -204,13 +224,23 @@ function isAuthorityUrlMatched(url: string, source: AuthoritySourceConfig, ancho
   }
 
   if (source.id === 'chinacdc-immunization') {
-    return /chinacdc\.cn/.test(normalized)
+    return !isIndexLikeAuthorityUrl(url)
+      && isHtmlLikeDocumentUrl(url)
+      && /(?:\/t\d{8}_\d+\.(?:html?|shtml)|\.pdf(?:$|[?#]))/i.test(url)
+      && /chinacdc\.cn/.test(normalized)
       && /(免疫|疫苗|接种|儿童|婴幼儿|新生儿|孕妇|孕产|母乳|喂养)/.test(normalized);
   }
 
   if (source.id === 'govcn-muying' || source.id === 'govcn-jiedu-muying') {
     return /gov\.cn/.test(normalized)
       && /(生育|母婴|托育|儿童|婴幼儿|新生儿|孕产|妇幼|疫苗|接种|产假|育儿)/.test(normalized);
+  }
+
+  if (source.id === 'ndcpa-immunization' || source.id === 'ndcpa-public-health') {
+    return !isIndexLikeAuthorityUrl(url)
+      && /\/common\/content\/content_\d+\.html(?:$|[?#])/i.test(url)
+      && /ndcpa\.gov\.cn/.test(normalized)
+      && /(免疫|疫苗|接种|儿童|青少年|婴幼儿|新生儿|孕妇|孕产|妇幼|托育|学校卫生|近视|母乳|喂养|狂犬病|麻疹|风疹|流感|手足口)/.test(normalized);
   }
 
   return true;
@@ -243,7 +273,44 @@ function filterNestedSitemapCandidates(urls: string[], source: AuthoritySourceCo
   return urls;
 }
 
-function extractIndexLinks(html: string, source: AuthoritySourceConfig): string[] {
+function buildAuthorityUrlCandidate(rawUrl: string, pageUrl: string): string | null {
+  const trimmed = rawUrl.trim();
+  if (!trimmed || /^javascript:/i.test(trimmed) || /^mailto:/i.test(trimmed) || trimmed.startsWith('#')) {
+    return null;
+  }
+
+  try {
+    const resolved = new URL(trimmed, pageUrl);
+    resolved.hash = '';
+    return resolved.toString();
+  } catch {
+    return null;
+  }
+}
+
+function extractEmbeddedIndexLinks(html: string, source: AuthoritySourceConfig, pageUrl: string): Array<{ url: string; text: string }> {
+  if (!source.id.startsWith('ndcpa-')) {
+    return [];
+  }
+
+  const items: Array<{ url: string; text: string }> = [];
+  const pattern = /"aT":"([\s\S]*?)"[\s\S]{0,800}?"aU":"\{\\"common\\":\\"([\s\S]*?)\\"\}"/g;
+
+  for (const match of html.matchAll(pattern)) {
+    const title = stripHtml((match[1] || '').replace(/\\"/g, '"')).slice(0, 200);
+    const rawUrl = (match[2] || '').replace(/\\\//g, '/').replace(/\\"/g, '"');
+    const url = buildAuthorityUrlCandidate(rawUrl, pageUrl);
+    if (!url) {
+      continue;
+    }
+
+    items.push({ url, text: title });
+  }
+
+  return items;
+}
+
+function extractIndexLinks(html: string, source: AuthoritySourceConfig, pageUrl: string): string[] {
   const links = Array.from(html.matchAll(/<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi))
     .map((match) => ({
       href: match[1]?.trim() || '',
@@ -251,20 +318,28 @@ function extractIndexLinks(html: string, source: AuthoritySourceConfig): string[
     }))
     .filter((item) => Boolean(item.href))
     .map((item) => {
-      try {
-        return {
-          url: new URL(item.href, source.baseUrl).toString(),
-          text: item.text,
-        };
-      } catch {
+      const url = buildAuthorityUrlCandidate(item.href, pageUrl);
+      if (!url) {
         return null;
       }
+
+      return {
+        url,
+        text: item.text,
+      };
     })
     .filter((item): item is { url: string; text: string } => Boolean(item));
 
-  return links
-    .filter((item) => isAuthorityUrlMatched(item.url, source, item.text))
-    .map((item) => item.url);
+  const candidates = [...links, ...extractEmbeddedIndexLinks(html, source, pageUrl)];
+  const discovered = new Map<string, string>();
+
+  for (const item of candidates) {
+    if (isAuthorityUrlMatched(item.url, source, item.text)) {
+      discovered.set(item.url, item.text);
+    }
+  }
+
+  return Array.from(discovered.keys());
 }
 
 function extractApiLinks(payload: unknown, source: AuthoritySourceConfig): string[] {
@@ -312,8 +387,9 @@ async function fetchText(url: string, headers?: Record<string, string>): Promise
   return fetch(url, {
     method: 'GET',
     headers: {
-      'User-Agent': 'muying-ai-app-authority-sync/1.0',
+      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36 muying-ai-app-authority-sync/1.0',
       Accept: 'text/html,application/xhtml+xml,application/xml,text/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
       ...headers,
     },
   });
@@ -503,8 +579,8 @@ export async function discoverAuthorityUrls(
         continue;
       }
 
-      const text = await response.text();
-      normalizedCandidates.push(...extractIndexLinks(text, source));
+      const text = await readResponseText(response, entryUrl);
+      normalizedCandidates.push(...extractIndexLinks(text, source, entryUrl));
     }
 
     for (const url of normalizedCandidates.slice(0, source.maxPagesPerRun)) {
@@ -521,6 +597,14 @@ export async function discoverAuthorityUrls(
 
   return Array.from(discovered.values()).slice(0, source.maxPagesPerRun);
 }
+
+export const __authoritySyncTestUtils = {
+  buildAuthorityUrlCandidate,
+  extractEmbeddedIndexLinks,
+  extractIndexLinks,
+  isAuthorityUrlMatched,
+  isIndexLikeAuthorityUrl,
+};
 
 export async function persistDiscoveredAuthorityUrls(urls: DiscoveredAuthorityUrl[]): Promise<void> {
   if (urls.length === 0) {

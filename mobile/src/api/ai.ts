@@ -11,6 +11,15 @@ export const aiApi = {
       isEmergency: boolean
       disclaimer: string
       conversationId?: string
+      triageCategory?: AskResponse['triageCategory']
+      riskLevel?: AskResponse['riskLevel']
+      structuredAnswer?: AskResponse['structuredAnswer']
+      uncertainty?: AskResponse['uncertainty']
+      sourceReliability?: AskResponse['sourceReliability']
+      degraded?: AskResponse['degraded']
+      model?: AskResponse['model']
+      provider?: AskResponse['provider']
+      route?: AskResponse['route']
     }>('/ai/ask', {
       question: data.question,
       context: data.context,
@@ -24,6 +33,15 @@ export const aiApi = {
       isEmergency: res.isEmergency,
       conversationId: res.conversationId,
       disclaimer: res.disclaimer,
+      triageCategory: res.triageCategory,
+      riskLevel: res.riskLevel,
+      structuredAnswer: res.structuredAnswer,
+      uncertainty: res.uncertainty,
+      sourceReliability: res.sourceReliability,
+      degraded: res.degraded,
+      model: res.model,
+      provider: res.provider,
+      route: res.route,
     } as AskResponse
   },
   chat: async (data: {
@@ -39,6 +57,15 @@ export const aiApi = {
       isEmergency: boolean
       disclaimer: string
       conversationId?: string
+      triageCategory?: ChatResponse['triageCategory']
+      riskLevel?: ChatResponse['riskLevel']
+      structuredAnswer?: ChatResponse['structuredAnswer']
+      uncertainty?: ChatResponse['uncertainty']
+      sourceReliability?: ChatResponse['sourceReliability']
+      degraded?: ChatResponse['degraded']
+      model?: ChatResponse['model']
+      provider?: ChatResponse['provider']
+      route?: ChatResponse['route']
     }>('/ai/chat', data)
 
     return {
@@ -47,6 +74,15 @@ export const aiApi = {
       isEmergency: res.isEmergency,
       conversationId: res.conversationId,
       disclaimer: res.disclaimer,
+      triageCategory: res.triageCategory,
+      riskLevel: res.riskLevel,
+      structuredAnswer: res.structuredAnswer,
+      uncertainty: res.uncertainty,
+      sourceReliability: res.sourceReliability,
+      degraded: res.degraded,
+      model: res.model,
+      provider: res.provider,
+      route: res.route,
     } as ChatResponse
   },
   getHistory: async (conversationId: string): Promise<ChatSession> => {

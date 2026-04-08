@@ -138,11 +138,11 @@ export function KnowledgeDetail() {
         </Paragraph>
 
         {/* 正文内容 */}
-        <div className="article-content" style={{ lineHeight: 1.8 }}>
-          <Paragraph style={{ whiteSpace: 'pre-wrap' }}>
-            {currentArticle.content}
-          </Paragraph>
-        </div>
+        <div
+          className="article-content"
+          style={{ lineHeight: 1.9, fontSize: 16 }}
+          dangerouslySetInnerHTML={{ __html: currentArticle.content }}
+        />
 
         <Divider />
 

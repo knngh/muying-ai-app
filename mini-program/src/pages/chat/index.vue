@@ -78,6 +78,22 @@
               </text>
             </view>
 
+            <view v-if="item.role === 'assistant' && shouldShowTrustOverview(item)" class="trust-overview">
+              <text class="trust-overview-title">本轮可信判断</text>
+              <text v-if="item.sourceReliability" class="trust-overview-text">
+                证据层级：{{ getReliabilityLabel(item.sourceReliability) }}
+              </text>
+              <text v-if="item.route" class="trust-overview-text">
+                执行路径：{{ getRouteLabel(item.route) }}
+              </text>
+              <text v-if="getAuthoritySourceCount(item) > 0" class="trust-overview-text">
+                命中权威来源：{{ getAuthoritySourceCount(item) }} 条
+              </text>
+              <text v-if="item.structuredAnswer?.conclusion" user-select class="trust-overview-conclusion">
+                {{ item.structuredAnswer.conclusion }}
+              </text>
+            </view>
+
             <view v-if="item.role === 'assistant' && item.uncertainty?.message" class="uncertainty-card">
               <text class="uncertainty-title">不确定性说明</text>
               <text user-select class="uncertainty-text">{{ item.uncertainty.message }}</text>
@@ -414,6 +430,28 @@ function getAnswerOrigin(message: AIMessage) {
   return '当前回答未附带明确权威来源，请谨慎参考并结合线下专业意见判断。'
 }
 
+function getReliabilityLabel(sourceReliability?: AIMessage['sourceReliability']) {
+  if (sourceReliability === 'authoritative') return '权威来源优先'
+  if (sourceReliability === 'mixed') return '权威 + 知识库'
+  if (sourceReliability === 'dataset_only') return '知识库兜底'
+  return '未命中可靠来源'
+}
+
+function getRouteLabel(route?: AIMessage['route']) {
+  if (route === 'trusted_rag') return '可信检索'
+  if (route === 'safety_fallback') return '保守兜底'
+  if (route === 'emergency') return '紧急规则'
+  return route || '直接回答'
+}
+
+function getAuthoritySourceCount(message: AIMessage) {
+  return (message.sources || []).filter((source) => source.sourceType === 'authority' || source.authoritative || isAuthoritativeSource(source)).length
+}
+
+function shouldShowTrustOverview(message: AIMessage) {
+  return Boolean(message.sourceReliability || message.route || message.structuredAnswer?.conclusion || getAuthoritySourceCount(message) > 0)
+}
+
 function formatSourceMeta(source: SourceReference) {
   const parts = [
     source.sourceOrg || source.source,
@@ -731,6 +769,37 @@ watch([messages, streamingContent], () => {
   border-radius: 18rpx;
   background: rgba(255, 246, 230, 0.9);
   border: 2rpx solid rgba(232, 177, 72, 0.2);
+}
+
+.trust-overview {
+  margin-top: 14rpx;
+  padding: 16rpx 18rpx;
+  border-radius: 18rpx;
+  background: rgba(247, 243, 237, 0.95);
+  border: 2rpx solid rgba(120, 104, 93, 0.1);
+}
+
+.trust-overview-title {
+  display: block;
+  font-size: 23rpx;
+  font-weight: 700;
+  color: #5f4a3d;
+}
+
+.trust-overview-text {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 23rpx;
+  line-height: 1.5;
+  color: #746456;
+}
+
+.trust-overview-conclusion {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 24rpx;
+  line-height: 1.7;
+  color: #43352c;
 }
 
 .uncertainty-title {

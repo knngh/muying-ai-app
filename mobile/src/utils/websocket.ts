@@ -4,6 +4,13 @@
 import { config } from '../config'
 import type { SourceReference } from '../api/ai'
 import { logError } from './logger'
+import type {
+  RiskLevel,
+  TriageCategory,
+  StructuredAnswer,
+  UncertaintyInfo,
+  SourceReliability,
+} from '../../../shared/types'
 
 type WsServerMessage = {
   type: 'chunk' | 'done' | 'error' | 'emergency'
@@ -15,6 +22,11 @@ type WsServerMessage = {
     disclaimer?: string
     sources?: SourceReference[]
     conversationId?: string
+    triageCategory?: TriageCategory
+    riskLevel?: RiskLevel
+    structuredAnswer?: StructuredAnswer
+    uncertainty?: UncertaintyInfo
+    sourceReliability?: SourceReliability
     followUpQuestions?: string[]
     degraded?: boolean
     model?: string

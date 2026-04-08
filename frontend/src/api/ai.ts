@@ -8,6 +8,24 @@ export interface AIMessage {
   content: string
   sources?: SourceReference[]
   isEmergency?: boolean
+  triageCategory?: 'normal' | 'caution' | 'emergency' | 'out_of_scope'
+  riskLevel?: 'green' | 'yellow' | 'red'
+  structuredAnswer?: {
+    conclusion: string
+    reasons: string[]
+    actions: string[]
+    whenToSeekCare: string[]
+    uncertaintyNote?: string
+  }
+  uncertainty?: {
+    level: 'none' | 'medium' | 'high'
+    message?: string
+  }
+  sourceReliability?: 'authoritative' | 'mixed' | 'dataset_only' | 'none'
+  degraded?: boolean
+  model?: string
+  provider?: string
+  route?: string
   createdAt: string
 }
 
@@ -18,6 +36,10 @@ export interface SourceReference {
   relevance: number
   excerpt?: string
   category?: string
+  sourceOrg?: string
+  updatedAt?: string
+  sourceType?: 'authority' | 'dataset' | 'editorial' | 'unknown'
+  authoritative?: boolean
 }
 
 export interface ChatSession {
@@ -43,6 +65,15 @@ export interface AskResponse {
   isEmergency: boolean
   conversationId?: string
   disclaimer: string
+  triageCategory?: AIMessage['triageCategory']
+  riskLevel?: AIMessage['riskLevel']
+  structuredAnswer?: AIMessage['structuredAnswer']
+  uncertainty?: AIMessage['uncertainty']
+  sourceReliability?: AIMessage['sourceReliability']
+  degraded?: AIMessage['degraded']
+  model?: string
+  provider?: string
+  route?: string
 }
 
 export interface ChatRequest {
@@ -58,6 +89,15 @@ export interface ChatResponse {
   isEmergency: boolean
   conversationId?: string
   disclaimer: string
+  triageCategory?: AIMessage['triageCategory']
+  riskLevel?: AIMessage['riskLevel']
+  structuredAnswer?: AIMessage['structuredAnswer']
+  uncertainty?: AIMessage['uncertainty']
+  sourceReliability?: AIMessage['sourceReliability']
+  degraded?: AIMessage['degraded']
+  model?: string
+  provider?: string
+  route?: string
 }
 
 // ==================== AI 问答 API ====================
@@ -71,6 +111,15 @@ export const aiApi = {
       isEmergency: boolean
       disclaimer: string
       conversationId?: string
+      triageCategory?: AskResponse['triageCategory']
+      riskLevel?: AskResponse['riskLevel']
+      structuredAnswer?: AskResponse['structuredAnswer']
+      uncertainty?: AskResponse['uncertainty']
+      sourceReliability?: AskResponse['sourceReliability']
+      degraded?: AskResponse['degraded']
+      model?: AskResponse['model']
+      provider?: AskResponse['provider']
+      route?: AskResponse['route']
     }>('/ai/ask', { question: data.question, context: data.context, conversationId: data.conversationId })
 
     return {
@@ -79,6 +128,15 @@ export const aiApi = {
       isEmergency: res.isEmergency,
       conversationId: res.conversationId,
       disclaimer: res.disclaimer,
+      triageCategory: res.triageCategory,
+      riskLevel: res.riskLevel,
+      structuredAnswer: res.structuredAnswer,
+      uncertainty: res.uncertainty,
+      sourceReliability: res.sourceReliability,
+      degraded: res.degraded,
+      model: res.model,
+      provider: res.provider,
+      route: res.route,
     }
   },
 
@@ -94,6 +152,15 @@ export const aiApi = {
       isEmergency: boolean
       disclaimer: string
       conversationId?: string
+      triageCategory?: ChatResponse['triageCategory']
+      riskLevel?: ChatResponse['riskLevel']
+      structuredAnswer?: ChatResponse['structuredAnswer']
+      uncertainty?: ChatResponse['uncertainty']
+      sourceReliability?: ChatResponse['sourceReliability']
+      degraded?: ChatResponse['degraded']
+      model?: ChatResponse['model']
+      provider?: ChatResponse['provider']
+      route?: ChatResponse['route']
     }>('/ai/chat', { messages, context: data.context, conversationId: data.conversationId })
 
     return {
@@ -102,6 +169,15 @@ export const aiApi = {
       isEmergency: res.isEmergency,
       conversationId: res.conversationId,
       disclaimer: res.disclaimer,
+      triageCategory: res.triageCategory,
+      riskLevel: res.riskLevel,
+      structuredAnswer: res.structuredAnswer,
+      uncertainty: res.uncertainty,
+      sourceReliability: res.sourceReliability,
+      degraded: res.degraded,
+      model: res.model,
+      provider: res.provider,
+      route: res.route,
     }
   },
 

@@ -14,6 +14,7 @@ import {
 
 function extractCnHealthContent(rawBody: string): string {
   const candidates = [
+    rawBody.match(/<div[^>]+id=["']detailContent["'][\s\S]*?>([\s\S]*?)<\/div>/i)?.[1],
     rawBody.match(/<div[^>]+id=["']UCAP-CONTENT["'][\s\S]*?>([\s\S]*?)<\/div>/i)?.[1],
     rawBody.match(/<div[^>]+class=["'][^"']*(pages_content|TRS_Editor|trs_editor_view|article-content|wp_articlecontent)[^"']*["'][\s\S]*?>([\s\S]*?)<\/div>/i)?.[2],
     rawBody.match(/<article[\s\S]*?>([\s\S]*?)<\/article>/i)?.[1],
@@ -36,6 +37,8 @@ function normalizeCnHealthTitle(title: string): string {
   return title
     .replace(/_[^_]+_中国政府网$/u, '')
     .replace(/_中国政府网$/u, '')
+    .replace(/[-_]\s*国家疾病预防控制局$/u, '')
+    .replace(/[-_]\s*中国疾病预防控制中心$/u, '')
     .trim();
 }
 
@@ -82,6 +85,7 @@ export const cnHealthAdapter: AuthorityDocumentAdapter = {
         || extractMetaContent(raw.rawBody, 'firstpublishedtime')
         || extractMetaContent(raw.rawBody, 'lastmodifiedtime')
         || extractMetaContent(raw.rawBody, 'publishdate')
+        || extractMetaContent(raw.rawBody, 'PubDate')
         || raw.lastModified
       ),
       audience: detectAudience(mergedText, source),

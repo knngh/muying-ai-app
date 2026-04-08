@@ -123,6 +123,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
             role: 'assistant',
             content: get().streamingContent,
             sources: msg.data.sources,
+            triageCategory: msg.data.triageCategory,
+            riskLevel: msg.data.riskLevel,
+            structuredAnswer: msg.data.structuredAnswer,
+            uncertainty: msg.data.uncertainty,
+            sourceReliability: msg.data.sourceReliability,
+            degraded: msg.data.degraded,
+            model: msg.data.model,
+            provider: msg.data.provider,
+            route: msg.data.route,
             createdAt: new Date().toISOString(),
           }
           set(state => ({
@@ -139,6 +148,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
             role: 'assistant',
             content: msg.data.content || getEmergencyWarning(),
             isEmergency: true,
+            triageCategory: msg.data.triageCategory,
+            riskLevel: msg.data.riskLevel,
+            structuredAnswer: msg.data.structuredAnswer,
+            uncertainty: msg.data.uncertainty,
+            sourceReliability: msg.data.sourceReliability,
+            degraded: msg.data.degraded,
+            model: msg.data.model,
+            provider: msg.data.provider,
+            route: msg.data.route,
             createdAt: new Date().toISOString(),
           }
           set(state => ({
@@ -174,6 +192,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
               content: response.message?.content || response.response || '',
               sources: response.sources,
               isEmergency: response.isEmergency,
+              triageCategory: response.triageCategory,
+              riskLevel: response.riskLevel,
+              structuredAnswer: response.structuredAnswer,
+              uncertainty: response.uncertainty,
+              sourceReliability: response.sourceReliability,
+              degraded: response.degraded,
+              model: response.model,
+              provider: response.provider,
+              route: response.route,
               createdAt: new Date().toISOString(),
             }
             set(state => ({

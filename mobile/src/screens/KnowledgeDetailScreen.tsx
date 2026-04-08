@@ -584,10 +584,43 @@ function escapeHtml(input: string): string {
 }
 
 function convertTextToRichHtml(text: string): string {
-  return text
-    .split(/\n+/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => `<p>${escapeHtml(line)}</p>`)
-    .join('')
+  const normalized = text
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .replace(/\u00a0/g, ' ')
+    .replace(/([。！？!?；;])(?=(第[一二三四五六七八九十百千万0-9]+[章节部分篇条]|[一二三四五六七八九十]+[、.．]|[0-9]+[、.．]|（[一二三四五六七八九十0-9]+）|附件|附：|提示|建议|结论|原因|措施|何时就医))/gu, '$1\n')
+    .trim()
+
+  const blocks = normalized.split(/\n+/).map(line => line.trim()).filter(Boolean)
+  const paragraphs: string[] = []
+  let current = ''
+
+  const pushCurrent = () => {
+    if (current.trim()) {
+      paragraphs.push(current.trim())
+      current = ''
+    }
+  }
+
+  blocks.forEach((line) => {
+    const isHeading = /^(第[一二三四五六七八九十百千万0-9]+[章节部分篇条]|[一二三四五六七八九十]+[、.．]|[0-9]+[、.．]|（[一二三四五六七八九十0-9]+）|附件|附：|提示|建议|结论|原因|措施|何时就医)/u.test(line) && !/[。！？!?；;]$/.test(line)
+    if (isHeading) {
+      pushCurrent()
+      paragraphs.push(line)
+      return
+    }
+
+    const candidate = `${current} ${line}`.trim()
+    if (current && candidate.length > 120) {
+      pushCurrent()
+      current = line
+      return
+    }
+
+    current = candidate
+  })
+
+  pushCurrent()
+
+  return paragraphs.map((line) => `<p>${escapeHtml(line)}</p>`).join('')
 }

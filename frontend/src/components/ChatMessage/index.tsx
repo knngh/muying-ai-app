@@ -1,5 +1,5 @@
 import { Typography, Card, Tag, Space, Alert } from 'antd'
-import { UserOutlined, RobotOutlined, WarningOutlined, LinkOutlined } from '@ant-design/icons'
+import { UserOutlined, RobotOutlined, WarningOutlined, LinkOutlined, SafetyCertificateOutlined } from '@ant-design/icons'
 import type { AIMessage } from '@/api/ai'
 import styles from './ChatMessage.module.css'
 import ReactMarkdown from 'react-markdown'
@@ -14,6 +14,18 @@ interface ChatMessageProps {
 export function ChatMessage({ message }: ChatMessageProps) {
   const isUser = message.role === 'user'
   const isEmergency = message.isEmergency
+  const reliabilityLabelMap = {
+    authoritative: '权威来源优先',
+    mixed: '权威 + 知识库',
+    dataset_only: '知识库兜底',
+    none: '未命中可靠来源',
+  } as const
+  const routeLabelMap = {
+    trusted_rag: '可信检索',
+    safety_fallback: '保守兜底',
+    emergency: '紧急规则',
+  } as const
+  const authorityCount = message.sources?.filter((source) => source.sourceType === 'authority' || source.authoritative).length || 0
 
   return (
     <div className={`${styles.messageWrapper} ${isUser ? styles.userMessage : styles.assistantMessage}`}>
@@ -41,6 +53,53 @@ export function ChatMessage({ message }: ChatMessageProps) {
             {message.content}
           </ReactMarkdown>
         </div>
+
+        {!isUser && (
+          <div className={styles.trustPanel}>
+            <Space wrap size={[8, 8]}>
+              {message.sourceReliability && (
+                <Tag color={message.sourceReliability === 'authoritative' ? 'green' : (message.sourceReliability === 'mixed' ? 'gold' : 'default')} icon={<SafetyCertificateOutlined />}>
+                  {reliabilityLabelMap[message.sourceReliability]}
+                </Tag>
+              )}
+              {message.riskLevel && (
+                <Tag color={message.riskLevel === 'red' ? 'red' : (message.riskLevel === 'yellow' ? 'orange' : 'green')}>
+                  {message.riskLevel === 'red' ? '红色风险' : (message.riskLevel === 'yellow' ? '黄色风险' : '绿色风险')}
+                </Tag>
+              )}
+              {message.route && (
+                <Tag>{routeLabelMap[message.route as keyof typeof routeLabelMap] || message.route}</Tag>
+              )}
+              {message.sources?.length ? (
+                <Tag>{authorityCount > 0 ? `命中权威来源 ${authorityCount} 条` : `命中来源 ${message.sources.length} 条`}</Tag>
+              ) : null}
+            </Space>
+
+            {message.structuredAnswer && (
+              <div className={styles.trustSummary}>
+                <Text strong>本轮可信判断</Text>
+                <div className={styles.trustSummaryText}>{message.structuredAnswer.conclusion}</div>
+                {message.structuredAnswer.actions?.length ? (
+                  <ul className={styles.trustList}>
+                    {message.structuredAnswer.actions.slice(0, 3).map((action) => (
+                      <li key={action}>{action}</li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            )}
+
+            {message.uncertainty?.message && (
+              <Alert
+                type="warning"
+                showIcon
+                message="不确定性说明"
+                description={message.uncertainty.message}
+                className={styles.uncertaintyAlert}
+              />
+            )}
+          </div>
+        )}
 
         {/* 来源引用 */}
         {message.sources && message.sources.length > 0 && (

@@ -126,6 +126,20 @@ export default function ChatScreen() {
 
   const renderMessage = ({ item }: { item: AIMessage }) => {
     const isUser = item.role === 'user'
+    const reliabilityLabel = item.sourceReliability === 'authoritative'
+      ? '权威来源优先'
+      : item.sourceReliability === 'mixed'
+        ? '权威 + 知识库'
+        : item.sourceReliability === 'dataset_only'
+          ? '知识库兜底'
+          : undefined
+    const routeLabel = item.route === 'trusted_rag'
+      ? '可信检索'
+      : item.route === 'safety_fallback'
+        ? '保守兜底'
+        : item.route === 'emergency'
+          ? '紧急规则'
+          : undefined
 
     return (
       <View style={[styles.messageWrap, isUser ? styles.userWrap : styles.assistantWrap]}>
@@ -133,6 +147,41 @@ export default function ChatScreen() {
           <Text style={[styles.messageText, isUser ? styles.userText : styles.assistantText]}>
             {item.content}
           </Text>
+
+          {!isUser ? (
+            <View style={styles.trustPanel}>
+              <View style={styles.trustChipRow}>
+                {reliabilityLabel ? (
+                  <Chip compact style={styles.trustChip} textStyle={styles.trustChipText}>{reliabilityLabel}</Chip>
+                ) : null}
+                {item.riskLevel ? (
+                  <Chip compact style={styles.trustChip} textStyle={styles.trustChipText}>
+                    {item.riskLevel === 'red' ? '红色风险' : item.riskLevel === 'yellow' ? '黄色风险' : '绿色风险'}
+                  </Chip>
+                ) : null}
+                {routeLabel ? (
+                  <Chip compact style={styles.trustChip} textStyle={styles.trustChipText}>{routeLabel}</Chip>
+                ) : null}
+              </View>
+
+              {item.structuredAnswer?.conclusion ? (
+                <View style={styles.trustSummaryCard}>
+                  <Text style={styles.trustSummaryTitle}>本轮可信判断</Text>
+                  <Text style={styles.trustSummaryText}>{item.structuredAnswer.conclusion}</Text>
+                  {item.structuredAnswer.actions?.slice(0, 3).map((action) => (
+                    <Text key={action} style={styles.trustBullet}>• {action}</Text>
+                  ))}
+                </View>
+              ) : null}
+
+              {item.uncertainty?.message ? (
+                <View style={styles.uncertaintyCard}>
+                  <Text style={styles.uncertaintyTitle}>不确定性说明</Text>
+                  <Text style={styles.uncertaintyText}>{item.uncertainty.message}</Text>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
 
           {!isUser && item.sources?.length ? (
             <View style={styles.sourcesWrap}>
@@ -417,6 +466,62 @@ const styles = StyleSheet.create({
   },
   assistantText: {
     color: colors.text,
+  },
+  trustPanel: {
+    marginTop: spacing.sm,
+  },
+  trustChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+  },
+  trustChip: {
+    backgroundColor: '#f3efe9',
+    borderRadius: borderRadius.pill,
+  },
+  trustChipText: {
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+  },
+  trustSummaryCard: {
+    marginTop: spacing.sm,
+    padding: spacing.sm,
+    borderRadius: borderRadius.lg,
+    backgroundColor: '#fffaf4',
+  },
+  trustSummaryTitle: {
+    fontSize: fontSize.sm,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  trustSummaryText: {
+    marginTop: spacing.xs,
+    fontSize: fontSize.sm,
+    lineHeight: 20,
+    color: colors.text,
+  },
+  trustBullet: {
+    marginTop: 4,
+    fontSize: fontSize.sm,
+    lineHeight: 20,
+    color: colors.textSecondary,
+  },
+  uncertaintyCard: {
+    marginTop: spacing.sm,
+    padding: spacing.sm,
+    borderRadius: borderRadius.lg,
+    backgroundColor: '#fff7e8',
+  },
+  uncertaintyTitle: {
+    fontSize: fontSize.sm,
+    fontWeight: '700',
+    color: '#ad6800',
+  },
+  uncertaintyText: {
+    marginTop: spacing.xs,
+    fontSize: fontSize.sm,
+    lineHeight: 20,
+    color: '#8c6a00',
   },
   sourcesWrap: {
     marginTop: spacing.md,

@@ -6,6 +6,7 @@ import { inferAuthorityLocaleDefaults } from '../config/authority-sources';
 import { successResponse, paginatedResponse, AppError, ErrorCodes } from '../middlewares/error.middleware';
 import { cache, CacheKeys, CacheTTL } from '../services/cache.service';
 import { callTaskModelDetailed } from '../services/ai-gateway.service';
+import { textToRichParagraphHtml } from '../utils/article-format';
 
 interface AuthorityCacheRecord {
   id: string;
@@ -75,15 +76,6 @@ function hashStringToPositiveInt(input: string): number {
   return Math.abs(hash) || 1;
 }
 
-function escapeHtml(input: string): string {
-  return input
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
 function countMatches(input: string, pattern: RegExp): number {
   const matched = input.match(pattern);
   return matched ? matched.length : 0;
@@ -115,12 +107,7 @@ function buildAuthoritySlug(record: AuthorityCacheRecord, index: number): string
 }
 
 function toRichTextHtml(text: string): string {
-  return text
-    .split(/\n+/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => `<p>${escapeHtml(line)}</p>`)
-    .join('');
+  return textToRichParagraphHtml(text);
 }
 
 function toAuthoritySummary(text: string): string {

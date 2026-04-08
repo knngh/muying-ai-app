@@ -98,6 +98,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
         content: response.response,
         sources: response.sources,
         isEmergency: response.isEmergency,
+        triageCategory: response.triageCategory,
+        riskLevel: response.riskLevel,
+        structuredAnswer: response.structuredAnswer,
+        uncertainty: response.uncertainty,
+        sourceReliability: response.sourceReliability,
+        degraded: response.degraded,
+        model: response.model,
+        provider: response.provider,
+        route: response.route,
         createdAt: new Date().toISOString(),
       }
 
