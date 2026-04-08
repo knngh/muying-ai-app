@@ -18,7 +18,7 @@ import {
 import { config } from '../config'
 import { authApi } from '../api/modules'
 import { useAppStore } from '../stores/appStore'
-import { colors, spacing, fontSize } from '../theme'
+import { colors, spacing, fontSize, borderRadius } from '../theme'
 import { sessionStorage } from '../utils/storage'
 
 interface LoginScreenProps {
@@ -276,7 +276,7 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: colors.white,
-    borderRadius: 16,
+    borderRadius: borderRadius.md,
     elevation: 4,
     paddingVertical: spacing.lg,
   },
@@ -299,7 +299,7 @@ const styles = StyleSheet.create({
   demoSection: {
     marginBottom: spacing.md,
     padding: spacing.md,
-    borderRadius: 16,
+    borderRadius: borderRadius.md,
     backgroundColor: colors.primaryLight,
     gap: spacing.sm,
   },

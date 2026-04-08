@@ -22,6 +22,12 @@ export const colors = {
   border: '#EFEFEF', // Softer border
   background: '#FAFAFA', // Soft off-white cream
   white: '#ffffff',
+  trustChipBg: '#f3efe9',
+  trustSummaryBg: '#fffaf4',
+  uncertaintyBg: '#fff7e8',
+  uncertaintyTitle: '#ad6800',
+  uncertaintyText: '#8c6a00',
+  divider: 'rgba(0,0,0,0.05)',
 }
 
 export const spacing = {
@@ -42,6 +48,7 @@ export const fontSize = {
   xl: 18,
   xxl: 22,
   title: 24,
+  heroTitle: 26,
 }
 
 export const borderRadius = {
