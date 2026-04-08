@@ -111,8 +111,8 @@ const displayedSummary = computed(() => (
 
 const displayedContent = computed(() => (
   showingTranslation.value && translation.value?.translatedContent
-    ? convertTextToRichHtml(translation.value.translatedContent)
-    : (article.value?.content || '')
+    ? formatRichArticleContent(translation.value.translatedContent)
+    : formatRichArticleContent(article.value?.content || '')
 ))
 
 const translationNoticeText = computed(() => (
@@ -203,6 +203,38 @@ function escapeHtml(input: string): string {
     .replace(/'/g, '&#39;')
 }
 
+function appendInlineStyle(attrs: string | undefined, inlineStyle: string): string {
+  const normalizedAttrs = attrs || ''
+  const styleMatch = normalizedAttrs.match(/\sstyle=(['"])(.*?)\1/i)
+
+  if (!styleMatch) {
+    return `${normalizedAttrs} style="${inlineStyle}"`
+  }
+
+  const quote = styleMatch[1]
+  const existing = styleMatch[2]?.trim() || ''
+  const merged = existing.endsWith(';') ? `${existing}${inlineStyle}` : `${existing};${inlineStyle}`
+  return normalizedAttrs.replace(/\sstyle=(['"])(.*?)\1/i, ` style=${quote}${merged}${quote}`)
+}
+
+function addBlockSpacingToHtml(html: string): string {
+  const blockStyles: Array<{ tag: string; style: string }> = [
+    { tag: 'p', style: 'margin:0 0 1.1em;line-height:1.9;display:block;' },
+    { tag: 'li', style: 'margin:0 0 0.7em;line-height:1.9;' },
+    { tag: 'ul', style: 'margin:0 0 1em 1.2em;padding:0;' },
+    { tag: 'ol', style: 'margin:0 0 1em 1.2em;padding:0;' },
+    { tag: 'h1', style: 'margin:0 0 0.9em;line-height:1.5;font-weight:700;' },
+    { tag: 'h2', style: 'margin:0 0 0.9em;line-height:1.55;font-weight:700;' },
+    { tag: 'h3', style: 'margin:0 0 0.8em;line-height:1.6;font-weight:700;' },
+  ]
+
+  return blockStyles.reduce((result, item) => (
+    result.replace(new RegExp(`<${item.tag}(\\s[^>]*)?>`, 'gi'), (_match, attrs?: string) => (
+      `<${item.tag}${appendInlineStyle(attrs, item.style)}>`
+    ))
+  ), html)
+}
+
 function convertTextToRichHtml(text: string): string {
   const normalized = text
     .replace(/\r\n/g, '\n')
@@ -242,7 +274,22 @@ function convertTextToRichHtml(text: string): string {
 
   pushCurrent()
 
-  return paragraphs.map((line) => `<p>${escapeHtml(line)}</p>`).join('')
+  return paragraphs
+    .map((line) => `<p style="margin:0 0 1.1em;line-height:1.9;display:block;">${escapeHtml(line)}</p>`)
+    .join('')
+}
+
+function formatRichArticleContent(content: string): string {
+  const trimmed = content.trim()
+  if (!trimmed) {
+    return ''
+  }
+
+  if (/<[a-z][\s\S]*>/i.test(trimmed)) {
+    return addBlockSpacingToHtml(trimmed)
+  }
+
+  return convertTextToRichHtml(trimmed)
 }
 
 function openSource(url?: string) {

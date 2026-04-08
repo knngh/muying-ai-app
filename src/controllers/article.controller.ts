@@ -7,6 +7,7 @@ import { successResponse, paginatedResponse, AppError, ErrorCodes } from '../mid
 import { cache, CacheKeys, CacheTTL } from '../services/cache.service';
 import { callTaskModelDetailed } from '../services/ai-gateway.service';
 import { textToRichParagraphHtml } from '../utils/article-format';
+import { shouldFilterAuthoritySourceUrl } from '../utils/authority-source-url';
 
 interface AuthorityCacheRecord {
   id: string;
@@ -189,7 +190,7 @@ function getCachedAuthorityTranslation(
 async function getAuthorityRecords(): Promise<AuthorityCacheRecord[]> {
   const cacheRecords = loadAuthorityCacheRecords();
   if (cacheRecords.length > 0) {
-    return cacheRecords;
+    return cacheRecords.filter((record) => !shouldFilterAuthoritySourceUrl(record));
   }
 
   const rows = await prisma.$queryRawUnsafe<Array<{
@@ -227,7 +228,9 @@ async function getAuthorityRecords(): Promise<AuthorityCacheRecord[]> {
      LIMIT 1000`
   );
 
-  return rows.map((row) => mapAuthorityDbRowToRecord(row));
+  return rows
+    .map((row) => mapAuthorityDbRowToRecord(row))
+    .filter((record) => !shouldFilterAuthoritySourceUrl(record));
 }
 
 async function findAuthorityRecordBySlug(slug: string): Promise<AuthorityCacheRecord | null> {

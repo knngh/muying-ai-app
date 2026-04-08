@@ -21,7 +21,7 @@ describe('article paragraph formatting', () => {
   test('renders segmented text as paragraph html', () => {
     const html = textToRichParagraphHtml('建议先观察精神状态。若持续加重，应及时就医。');
 
-    expect(html).toContain('<p>');
-    expect(html.match(/<p>/g)?.length).toBeGreaterThan(1);
+    expect(html).toContain('<p style=');
+    expect(html.match(/<p style=/g)?.length).toBeGreaterThan(1);
   });
 });

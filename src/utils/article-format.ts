@@ -6,6 +6,17 @@ function normalizeBlock(input: string): string {
     .trim();
 }
 
+const PARAGRAPH_INLINE_STYLE = 'margin:0 0 1.1em;line-height:1.9;';
+
+function escapeHtml(input: string): string {
+  return input
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function isLikelyHeading(line: string): boolean {
   const trimmed = line.trim();
   if (!trimmed) {
@@ -66,7 +77,7 @@ function splitIntoSentences(text: string): string[] {
   return matched.map((item) => item.trim()).filter(Boolean);
 }
 
-function chunkSentences(sentences: string[], maxChars = 120, maxSentences = 2): string[] {
+function chunkSentences(sentences: string[], maxChars = 88, maxSentences = 2): string[] {
   const chunks: string[] = [];
   let current = '';
   let currentCount = 0;
@@ -177,21 +188,10 @@ export function textToRichParagraphHtml(text: string): string {
   return segmentArticleText(text)
     .map((paragraph) => {
       if (/^[-*•·]\s+/.test(paragraph)) {
-        return `<p>${paragraph
-          .replace(/^[-*•·]\s+/, '')
-          .replace(/&/g, '&amp;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;')
-          .replace(/"/g, '&quot;')
-          .replace(/'/g, '&#39;')}</p>`;
+        return `<p style="${PARAGRAPH_INLINE_STYLE}">${escapeHtml(paragraph.replace(/^[-*•·]\s+/, ''))}</p>`;
       }
 
-      return `<p>${paragraph
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;')}</p>`;
+      return `<p style="${PARAGRAPH_INLINE_STYLE}">${escapeHtml(paragraph)}</p>`;
     })
     .join('');
 }

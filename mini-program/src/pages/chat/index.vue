@@ -2,7 +2,7 @@
   <view class="chat-page">
     <view class="hero">
       <view class="hero-copy">
-        <text class="hero-title">母婴问题助手</text>
+        <text class="hero-title">问题助手</text>
         <text class="hero-subtitle">把您此刻最担心的情况告诉我，我会先帮您整理可参考信息和下一步关注点。</text>
       </view>
       <view class="hero-badge">Beta</view>

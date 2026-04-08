@@ -8,6 +8,7 @@ import {
   listEnabledAuthoritySources,
   type AuthoritySourceConfig,
 } from '../config/authority-sources';
+import { isIndexLikeAuthorityUrl, shouldFilterAuthoritySourceUrl } from '../utils/authority-source-url';
 import { normalizeWithAuthorityAdapter } from './authority-adapters';
 import { stripHtml } from './authority-adapters/base.adapter';
 
@@ -184,19 +185,16 @@ function isHtmlLikeDocumentUrl(url: string): boolean {
   }
 }
 
-function isIndexLikeAuthorityUrl(url: string): boolean {
-  try {
-    const pathname = new URL(url).pathname.toLowerCase();
-    return pathname.endsWith('/')
-      || /\/(?:index|new_index)\.(?:html?|shtml)$/.test(pathname)
-      || /\/(?:common|second|list)\/list\.html$/.test(pathname);
-  } catch {
-    return true;
-  }
-}
-
 function isAuthorityUrlMatched(url: string, source: AuthoritySourceConfig, anchorText = ''): boolean {
   if (!isAllowedAuthorityUrl(url, source) || isBlockedAuthorityUrl(url, source)) {
+    return false;
+  }
+
+  if (shouldFilterAuthoritySourceUrl({
+    source_id: source.id,
+    source_org: source.org,
+    source_url: url,
+  })) {
     return false;
   }
 
