@@ -116,7 +116,7 @@ export function detectEmergency(text: string): boolean {
 }
 
 export function getEmergencyWarning(): string {
-  return '紧急情况提示\n\n检测到您可能遇到了紧急情况。\n\n请立即就医，不要等待！\n\n紧急情况请联系：\n- 拨打 120 急救电话\n- 前往最近医院急诊\n- 联系您的产科医生'
+  return '特别提示\n\n系统已识别到当前问题需要优先关注。\n\n建议尽快联系线下专业人员，结合实际情况获取进一步帮助。'
 }
 
 export function getDisclaimer(): string {

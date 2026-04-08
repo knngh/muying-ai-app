@@ -28,7 +28,7 @@
           <text class="empty-emoji">🍼</text>
         </view>
         <text class="empty-title">您可以先说说现在最担心的问题</text>
-        <text class="empty-subtitle">例如孕吐、发热、辅食、湿疹，或新生儿护理中的具体情况。</text>
+        <text class="empty-subtitle">例如作息安排、喂养节奏、辅食添加，或新生儿日常护理中的具体情况。</text>
 
         <view class="quick-list">
           <view
@@ -57,25 +57,11 @@
 
           <view
             class="bubble"
-            :class="[
-              item.role === 'user' ? 'bubble--user' : 'bubble--assistant',
-              item.isEmergency ? 'bubble--emergency' : '',
-            ]"
+            :class="item.role === 'user' ? 'bubble--user' : 'bubble--assistant'"
           >
             <text v-if="item.role === 'user'" user-select class="bubble-text">{{ getDisplayedContent(item) }}</text>
             <view v-else class="bubble-html">
               <mp-html :content="getDisplayedContent(item)" :copy-link="true" :selectable="true" />
-            </view>
-
-            <view v-if="item.role === 'assistant' && (item.triageCategory || item.riskLevel)" class="trust-chips">
-              <text v-if="item.triageCategory" class="trust-chip">{{ getTriageLabel(item.triageCategory) }}</text>
-              <text
-                v-if="item.riskLevel"
-                class="trust-chip"
-                :class="`trust-chip--${item.riskLevel}`"
-              >
-                {{ getRiskLabel(item.riskLevel) }}
-              </text>
             </view>
 
             <view v-if="item.role === 'assistant' && shouldShowTrustOverview(item)" class="trust-overview">
@@ -97,12 +83,6 @@
             <view v-if="item.role === 'assistant' && item.uncertainty?.message" class="uncertainty-card">
               <text class="uncertainty-title">不确定性说明</text>
               <text user-select class="uncertainty-text">{{ item.uncertainty.message }}</text>
-            </view>
-
-            <view v-if="item.isEmergency" class="emergency-actions">
-              <view class="emergency-btn" hover-class="emergency-btn--hover" @tap="handleEmergencyCall">
-                <text class="emergency-btn-text">🚨 拨打120急救</text>
-              </view>
             </view>
 
             <view v-if="item.role === 'assistant'" class="answer-origin">
@@ -226,9 +206,9 @@ import mpHtml from 'mp-html/dist/uni-app/components/mp-html/mp-html.vue'
 
 const quickQuestions = [
   '孕早期有哪些注意事项？',
-  '宝宝发烧先怎么处理？',
-  '母乳喂养常见问题有哪些？',
-  '新生儿黄疸需要注意什么？',
+  '宝宝作息怎么调整更顺一些？',
+  '母乳喂养有哪些常见小问题？',
+  '辅食添加一般怎么开始？',
 ]
 
 const chatStore = useChatStore()
@@ -296,12 +276,6 @@ async function handleResume() {
   syncScrollAnchor()
 }
 
-function handleEmergencyCall() {
-  uni.makePhoneCall({
-    phoneNumber: '120'
-  })
-}
-
 function handleQuickQuestion(question: string) {
   inputValue.value = question
   handleSend()
@@ -313,29 +287,6 @@ function getDisplayedContent(message: AIMessage) {
   }
 
   return message.content
-}
-
-function getRiskLabel(riskLevel?: AIMessage['riskLevel']) {
-  if (riskLevel === 'red') {
-    return '红色风险'
-  }
-  if (riskLevel === 'yellow') {
-    return '黄色风险'
-  }
-  return '绿色风险'
-}
-
-function getTriageLabel(triageCategory?: AIMessage['triageCategory']) {
-  if (triageCategory === 'emergency') {
-    return '紧急问题'
-  }
-  if (triageCategory === 'caution') {
-    return '谨慎问题'
-  }
-  if (triageCategory === 'out_of_scope') {
-    return '超出范围'
-  }
-  return '普通问题'
 }
 
 function getSourceHost(url?: string) {
@@ -373,7 +324,7 @@ function getSortedSources(message: AIMessage) {
 
 function getAnswerOrigin(message: AIMessage) {
   if (message.isEmergency) {
-    return '系统安全规则触发，已优先给出紧急就医提示。'
+    return '当前回答已按系统规则优先整理参考建议。'
   }
 
   if (message.sourceReliability === 'authoritative') {
@@ -440,7 +391,7 @@ function getReliabilityLabel(sourceReliability?: AIMessage['sourceReliability'])
 function getRouteLabel(route?: AIMessage['route']) {
   if (route === 'trusted_rag') return '可信检索'
   if (route === 'safety_fallback') return '保守兜底'
-  if (route === 'emergency') return '紧急规则'
+  if (route === 'emergency') return '规则处理'
   return route || '直接回答'
 }
 
