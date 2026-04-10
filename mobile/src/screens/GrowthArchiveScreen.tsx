@@ -1,21 +1,22 @@
 import React, { useMemo } from 'react'
 import {
   Alert,
-  SafeAreaView,
   ScrollView,
   Share,
   StyleSheet,
-  TouchableOpacity,
   View,
 } from 'react-native'
 import { Button, Card, Chip, ProgressBar, Text } from 'react-native-paper'
 import { useNavigation } from '@react-navigation/native'
 import dayjs from 'dayjs'
+import LinearGradient from 'react-native-linear-gradient'
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons'
 import { useAppStore } from '../stores/appStore'
 import { useMembershipStore } from '../stores/membershipStore'
 import { trackAppEvent } from '../services/analytics'
-import { colors, fontSize, spacing } from '../theme'
-import { getStageSummary } from '../utils/stage'
+import { ScreenContainer, StandardCard } from '../components/layout'
+import { borderRadius, colors, fontSize, spacing } from '../theme'
+import { getStageSummary, type LifecycleStageKey, type StageSummary } from '../utils/stage'
 
 type ArchiveMetric = {
   label: string
@@ -43,8 +44,8 @@ type MilestoneCard = {
   status: 'done' | 'focus' | 'next'
 }
 
-function buildProgress(user: ReturnType<typeof useAppStore.getState>['user']) {
-  if (user?.pregnancyStatus === 2 && user.dueDate) {
+function buildProgress(user: ReturnType<typeof useAppStore.getState>['user'], stage: StageSummary) {
+  if (stage.kind === 'pregnant' && user?.dueDate) {
     const dueDate = dayjs(user.dueDate)
     const daysLeft = Math.max(dueDate.diff(dayjs(), 'day'), 0)
     const passedDays = Math.max(280 - daysLeft, 0)
@@ -57,16 +58,36 @@ function buildProgress(user: ReturnType<typeof useAppStore.getState>['user']) {
     }
   }
 
-  if (user?.pregnancyStatus === 3 && user.babyBirthday) {
+  if (user?.babyBirthday) {
     const ageDays = Math.max(dayjs().diff(dayjs(user.babyBirthday), 'day'), 0)
-    const months = Math.floor(ageDays / 30)
-    const days = ageDays % 30
+    const months = Math.max(dayjs().diff(dayjs(user.babyBirthday), 'month'), 0)
+    const years = Math.floor(months / 12)
+    const phaseProgress =
+      stage.lifecycleKey === 'infant_0_6'
+        ? Math.min(months / 6, 1)
+        : stage.lifecycleKey === 'infant_6_12'
+          ? Math.min(Math.max(months - 6, 0) / 6, 1)
+          : stage.lifecycleKey === 'toddler_1_3'
+            ? Math.min(Math.max(months - 12, 0) / 24, 1)
+            : Math.min(months / 72, 1)
 
     return {
       title: '成长进度',
-      valueLabel: `宝宝 ${months} 月 ${days} 天`,
-      detail: '持续记录作息、喂养和成长变化会更有价值。',
-      progress: Math.min(ageDays / 365, 1),
+      valueLabel: stage.title,
+      detail:
+        stage.lifecycleKey === 'child_3_plus'
+          ? `已进入 ${years} 岁阶段，适合长期记录语言、行为、社交和体检变化。`
+          : '持续记录作息、喂养、行为和成长变化会更有价值。',
+      progress: Math.max(Math.min(phaseProgress, 1), Math.min(ageDays / 365, 1) * 0.2),
+    }
+  }
+
+  if (stage.kind === 'postpartum') {
+    return {
+      title: '恢复进度',
+      valueLabel: stage.title,
+      detail: '补充宝宝生日后，档案会自动切到更细的育儿阶段。',
+      progress: 0.35,
     }
   }
 
@@ -86,41 +107,75 @@ function getInsightToneColor(tone: InsightBar['tone']) {
   return colors.primary
 }
 
-function buildMilestones(stageKind: ReturnType<typeof getStageSummary>['communityStage'], timelineCount: number): MilestoneCard[] {
+function getMetricIcon(label: string) {
+  if (label.includes('打卡')) return 'calendar-check-outline'
+  if (label.includes('完成率')) return 'pulse'
+  if (label.includes('今日使用')) return 'robot-excited-outline'
+  return 'file-chart-outline'
+}
+
+function getMetricTone(label: string) {
+  if (label.includes('打卡')) return { shell: 'rgba(184,138,72,0.14)', icon: colors.gold }
+  if (label.includes('完成率')) return { shell: 'rgba(158,171,132,0.14)', icon: colors.green }
+  if (label.includes('今日使用')) return { shell: 'rgba(94,126,134,0.14)', icon: colors.techDark }
+  return { shell: 'rgba(217,144,122,0.14)', icon: colors.primaryDark }
+}
+
+function buildMilestones(stageKey: LifecycleStageKey, timelineCount: number): MilestoneCard[] {
   const base = [
     { title: '阶段资料已建立', detail: '账号、阶段信息和关键日期已经纳入成长档案。', status: 'done' as const },
     { title: '本周重点持续沉淀', detail: '结合周度报告、打卡和时间轴，逐步形成连续记录。', status: 'focus' as const },
     { title: '准备下一个阶段交接', detail: '把下一阶段的提醒、物品和注意事项提前整理给家人。', status: 'next' as const },
   ]
 
-  if (stageKind === 'preparing') {
+  if (stageKey === 'preparing') {
     base[1] = { title: '备孕节律正在形成', detail: '优先稳定作息、叶酸补充和基础检查记录。', status: 'focus' }
     base[2] = { title: '为孕早期做准备', detail: '把检查结果、用药信息和关键问题提前归档。', status: 'next' }
   }
 
-  if (stageKind === 'pregnant_early') {
+  if (stageKey === 'pregnant_early') {
     base[1] = { title: '孕早期重点追踪', detail: '适合记录早孕反应、建档、NT 和基础营养补充。', status: 'focus' }
     base[2] = { title: '为孕中期建立节奏', detail: '逐步开始沉淀产检节点和身体变化趋势。', status: 'next' }
   }
 
-  if (stageKind === 'pregnant_mid') {
+  if (stageKey === 'pregnant_mid') {
     base[1] = { title: '孕中期进入稳定期', detail: '适合持续记录胎动、糖耐、体力和睡眠变化。', status: 'focus' }
     base[2] = { title: '为孕晚期待产做准备', detail: '可以提前整理待产包、分娩偏好和家人分工。', status: 'next' }
   }
 
-  if (stageKind === 'pregnant_late') {
+  if (stageKey === 'pregnant_late') {
     base[1] = { title: '待产准备进入关键期', detail: '优先沉淀宫缩、产检、睡眠和待产包检查结果。', status: 'focus' }
     base[2] = { title: '准备切换到产后档案', detail: '把住院物品、喂养计划和家人协作信息提前归档。', status: 'next' }
   }
 
-  if (stageKind === 'postpartum_recovery') {
+  if (stageKey === 'postpartum_newborn') {
+    base[1] = { title: '母婴节奏正在建立', detail: '优先记录喂养、黄疸、排便、睡眠和妈妈恢复。', status: 'focus' }
+    base[2] = { title: '为产后恢复期做交接', detail: '把复诊、喂养节奏和家人协作固定下来。', status: 'next' }
+  }
+
+  if (stageKey === 'postpartum_recovery') {
     base[1] = { title: '产后恢复持续观察', detail: '记录伤口、恶露、情绪和开奶节奏，更容易快速回看。', status: 'focus' }
     base[2] = { title: '准备进入育儿节奏', detail: '把喂养、睡眠和宝宝变化整理成可共享摘要。', status: 'next' }
   }
 
-  if (stageKind === 'parenting') {
-    base[1] = { title: '育儿档案持续积累', detail: '优先沉淀喂养、夜醒、疫苗和成长关键节点。', status: 'focus' }
-    base[2] = { title: '建立长期回看能力', detail: `当前已累计 ${timelineCount} 个关键节点，继续记录会更有价值。`, status: 'next' }
+  if (stageKey === 'infant_0_6') {
+    base[1] = { title: '婴儿照护进入连续记录期', detail: '优先沉淀喂养、夜醒、皮肤、儿保和疫苗变化。', status: 'focus' }
+    base[2] = { title: '为辅食与作息转换做准备', detail: '把 6 月后的辅食和作息节律提前留出位置。', status: 'next' }
+  }
+
+  if (stageKey === 'infant_6_12') {
+    base[1] = { title: '辅食与发育里程碑并行', detail: '适合持续记录辅食、睡眠倒退、爬行和体检节点。', status: 'focus' }
+    base[2] = { title: '为幼儿期做准备', detail: '把 1 岁后的作息、习惯和体检安排提前归档。', status: 'next' }
+  }
+
+  if (stageKey === 'toddler_1_3') {
+    base[1] = { title: '行为与语言档案持续积累', detail: '优先沉淀语言、如厕、睡眠、挑食和情绪模式。', status: 'focus' }
+    base[2] = { title: '建立长期陪伴视角', detail: `当前已累计 ${timelineCount} 个关键节点，继续记录会更有价值。`, status: 'next' }
+  }
+
+  if (stageKey === 'child_3_plus') {
+    base[1] = { title: '长期成长档案开始成形', detail: '适合持续记录语言、行为、社交、睡眠和年度体检。', status: 'focus' }
+    base[2] = { title: '建立家庭长期回看能力', detail: `当前已累计 ${timelineCount} 个关键节点，可继续扩展为年度成长档案。`, status: 'next' }
   }
 
   return base
@@ -139,7 +194,7 @@ export default function GrowthArchiveScreen() {
   } = useMembershipStore()
   const stage = useMemo(() => getStageSummary(user), [user])
 
-  const progress = useMemo(() => buildProgress(user), [user])
+  const progress = useMemo(() => buildProgress(user, stage), [stage, user])
   const isVip = status === 'active'
 
   const metrics = useMemo<ArchiveMetric[]>(() => ([
@@ -223,7 +278,7 @@ export default function GrowthArchiveScreen() {
       items.push({
         label: '宝宝生日',
         value: dayjs(user.babyBirthday).format('YYYY-MM-DD'),
-        detail: '后续更适合积累喂养、睡眠和发育记录。',
+        detail: '后续会根据年龄自动切到更细的育儿与成长记录。',
       })
     }
 
@@ -239,21 +294,26 @@ export default function GrowthArchiveScreen() {
   }, [user, weeklyReports])
 
   const milestones = useMemo(
-    () => buildMilestones(stage.communityStage, timeline.length),
-    [stage.communityStage, timeline.length],
+    () => buildMilestones(stage.lifecycleKey, timeline.length),
+    [stage.lifecycleKey, timeline.length],
   )
+  const archiveGuides = useMemo(() => ([
+    '每周至少完成 1 次日历记录，周报与成长档案会更连续。',
+    '遇到关键身体变化或行为变化时，尽量同步补一条原因和处理结果。',
+    `当前处于${stage.lifecycleLabel}，建议把最近 2 次重点提醒整理给家人共享。`,
+  ]), [stage.lifecycleLabel])
 
   const exportPreviewLines = useMemo(() => {
     const firstHighlight = weeklyReports[0]?.highlights?.[0]
     return [
-      `阶段：${stage.title}`,
+      `阶段：${stage.lifecycleLabel}`,
       `${progress.title}：${progress.valueLabel}`,
       `连续打卡：${checkInStreak} 天`,
       `本周完成率：${weeklyCompletionRate}%`,
       `最近周度报告：${weeklyReports[0]?.title ?? '暂无周度报告'}`,
       firstHighlight ? `阶段提醒：${firstHighlight}` : '阶段提醒：持续补充记录后会生成更完整摘要',
     ]
-  }, [checkInStreak, progress.title, progress.valueLabel, stage.title, weeklyCompletionRate, weeklyReports])
+  }, [checkInStreak, progress.title, progress.valueLabel, stage.lifecycleLabel, weeklyCompletionRate, weeklyReports])
 
   const handleShareArchive = async () => {
     if (!isVip) {
@@ -271,7 +331,7 @@ export default function GrowthArchiveScreen() {
       void trackAppEvent('app_growth_archive_share', {
         page: 'GrowthArchiveScreen',
         properties: {
-          stage: stage.communityStage,
+          stage: stage.lifecycleKey,
           weeklyReportCount: weeklyReports.length,
           isVip,
         },
@@ -282,20 +342,50 @@ export default function GrowthArchiveScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <ScreenContainer style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Card style={styles.heroCard}>
-          <Card.Content>
+        <StandardCard style={styles.heroCard} elevation={2}>
+          <LinearGradient
+            colors={['#392C28', '#5E4A43', '#83685D']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.heroGradient}
+          >
+            <View style={styles.heroGlow} />
+            <View style={styles.heroRing} />
+            <View style={styles.heroContent}>
             <View style={styles.heroTop}>
-              <Chip style={styles.heroChip} textStyle={styles.heroChipText}>
-                {isVip ? '会员成长档案' : '成长档案预览'}
-              </Chip>
-              <Text style={styles.heroTitle}>把阶段变化沉淀成一份可回看的记录</Text>
+              <View style={styles.heroChipRow}>
+                <Chip style={styles.heroChip} textStyle={styles.heroChipText}>
+                  {isVip ? '会员成长档案' : '成长档案预览'}
+                </Chip>
+                <Chip style={styles.heroStageChip} textStyle={styles.heroStageChipText}>
+                  {stage.lifecycleLabel}
+                </Chip>
+              </View>
+              <Text style={styles.heroTitle}>把全生命周期变化沉淀成一份可回看的记录</Text>
               <Text style={styles.heroSubtitle}>
                 {isVip
-                  ? '这里汇总你的阶段进度、周报沉淀和执行节奏，可直接分享给家人。'
-                  : '升级后可查看完整阶段档案、连续记录摘要和可分享导出内容。'}
+                  ? '这里会按当前阶段汇总进度、周报和执行节奏，长期陪伴不再只停在孕期。'
+                  : '升级后可查看完整生命周期档案、连续记录摘要和可分享导出内容。'}
               </Text>
+            </View>
+
+            <View style={styles.heroSignalRow}>
+              <View style={styles.heroSignal}>
+                <Text style={styles.heroSignalValue}>{timeline.length}</Text>
+                <Text style={styles.heroSignalLabel}>关键节点</Text>
+              </View>
+              <View style={styles.heroSignalDivider} />
+              <View style={styles.heroSignal}>
+                <Text style={styles.heroSignalValue}>{weeklyReports.length}</Text>
+                <Text style={styles.heroSignalLabel}>周报沉淀</Text>
+              </View>
+              <View style={styles.heroSignalDivider} />
+              <View style={styles.heroSignal}>
+                <Text style={styles.heroSignalValue}>{checkInStreak}天</Text>
+                <Text style={styles.heroSignalLabel}>连续记录</Text>
+              </View>
             </View>
 
             <View style={styles.progressPanel}>
@@ -311,17 +401,26 @@ export default function GrowthArchiveScreen() {
                 buttonColor={isVip ? colors.white : colors.gold}
                 textColor={isVip ? colors.ink : colors.ink}
                 onPress={handleShareArchive}
+                style={styles.heroActionButton}
               >
                 {isVip ? '导出并分享摘要' : '升级解锁完整档案'}
               </Button>
             </View>
-          </Card.Content>
-        </Card>
+            </View>
+          </LinearGradient>
+        </StandardCard>
 
         <View style={styles.metricGrid}>
           {metrics.map((item) => (
             <Card key={item.label} style={styles.metricCard}>
               <Card.Content>
+                <View style={[styles.metricIconShell, { backgroundColor: getMetricTone(item.label).shell }]}>
+                  <MaterialCommunityIcons
+                    name={getMetricIcon(item.label)}
+                    size={18}
+                    color={getMetricTone(item.label).icon}
+                  />
+                </View>
                 <Text style={styles.metricLabel}>{item.label}</Text>
                 <Text style={styles.metricValue}>{item.value}</Text>
                 <Text style={styles.metricHint}>{isVip ? item.hint : '会员可查看更完整趋势和导出摘要。'}</Text>
@@ -338,6 +437,10 @@ export default function GrowthArchiveScreen() {
 
           <Card style={styles.insightCard}>
             <Card.Content>
+              <View style={styles.insightHeaderBar}>
+                <Text style={styles.insightHeaderTitle}>阶段信号强度</Text>
+                <Text style={styles.insightHeaderMeta}>围绕记录、执行和周报同步更新</Text>
+              </View>
               {insightBars.map((item) => (
                 <View key={item.label} style={styles.insightRow}>
                   <View style={styles.insightHeader}>
@@ -378,8 +481,12 @@ export default function GrowthArchiveScreen() {
               </View>
               <Card style={styles.timelineCard}>
                 <Card.Content>
-                  <Text style={styles.timelineLabel}>{item.label}</Text>
-                  <Text style={styles.timelineValue}>{item.value}</Text>
+                  <View style={styles.timelineCardTop}>
+                    <Text style={styles.timelineLabel}>{item.label}</Text>
+                    <View style={styles.timelineDateChip}>
+                      <Text style={styles.timelineDateChipText}>{item.value}</Text>
+                    </View>
+                  </View>
                   <Text style={styles.timelineDetail}>
                     {isVip || index === 0 ? item.detail : '升级后查看完整阶段记录和档案备注。'}
                   </Text>
@@ -392,30 +499,52 @@ export default function GrowthArchiveScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>阶段里程碑</Text>
-            <Text style={styles.sectionMeta}>{stage.communityStageLabel}</Text>
+            <Text style={styles.sectionMeta}>{stage.lifecycleLabel}</Text>
           </View>
 
           {milestones.map((item) => (
             <Card key={item.title} style={styles.milestoneCard}>
               <Card.Content style={styles.milestoneContent}>
-                <View
-                  style={[
-                    styles.milestoneBadge,
-                    item.status === 'done' && styles.milestoneBadgeDone,
-                    item.status === 'focus' && styles.milestoneBadgeFocus,
-                    item.status === 'next' && styles.milestoneBadgeNext,
-                  ]}
-                >
-                  <Text
+                <View style={styles.milestoneLead}>
+                  <View
                     style={[
-                      styles.milestoneBadgeText,
-                      item.status === 'done' && styles.milestoneBadgeTextDone,
-                      item.status === 'focus' && styles.milestoneBadgeTextFocus,
-                      item.status === 'next' && styles.milestoneBadgeTextNext,
+                      styles.milestoneIconShell,
+                      item.status === 'done' && styles.milestoneBadgeDone,
+                      item.status === 'focus' && styles.milestoneBadgeFocus,
+                      item.status === 'next' && styles.milestoneBadgeNext,
                     ]}
                   >
-                    {item.status === 'done' ? '已建立' : item.status === 'focus' ? '当前重点' : '下一步'}
-                  </Text>
+                    <MaterialCommunityIcons
+                      name={item.status === 'done' ? 'check-bold' : item.status === 'focus' ? 'radar' : 'arrow-top-right'}
+                      size={16}
+                      color={
+                        item.status === 'done'
+                          ? colors.green
+                          : item.status === 'focus'
+                            ? colors.gold
+                            : colors.primaryDark
+                      }
+                    />
+                  </View>
+                  <View
+                    style={[
+                      styles.milestoneBadge,
+                      item.status === 'done' && styles.milestoneBadgeDone,
+                      item.status === 'focus' && styles.milestoneBadgeFocus,
+                      item.status === 'next' && styles.milestoneBadgeNext,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.milestoneBadgeText,
+                        item.status === 'done' && styles.milestoneBadgeTextDone,
+                        item.status === 'focus' && styles.milestoneBadgeTextFocus,
+                        item.status === 'next' && styles.milestoneBadgeTextNext,
+                      ]}
+                    >
+                      {item.status === 'done' ? '已建立' : item.status === 'focus' ? '当前重点' : '下一步'}
+                    </Text>
+                  </View>
                 </View>
                 <View style={styles.milestoneBody}>
                   <Text style={styles.milestoneTitle}>{item.title}</Text>
@@ -434,8 +563,15 @@ export default function GrowthArchiveScreen() {
             <Text style={styles.sectionMeta}>{isVip ? '可直接分享' : '会员可导出分享'}</Text>
           </View>
 
-          <Card style={styles.exportCard}>
-            <Card.Content>
+          <StandardCard style={styles.exportCard} elevation={2}>
+            <LinearGradient
+              colors={['#4A403B', '#69544C', '#8B7468']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.exportGradient}
+            >
+            <View style={styles.exportGlow} />
+            <View style={styles.exportContent}>
               <View style={styles.exportTop}>
                 <Chip style={styles.exportChip} textStyle={styles.exportChipText}>
                   {isVip ? '家人共享版' : '预览'}
@@ -454,38 +590,41 @@ export default function GrowthArchiveScreen() {
                   <Text style={styles.exportText}>{isVip ? line : '升级后查看完整摘要内容'}</Text>
                 </View>
               ))}
-            </Card.Content>
-          </Card>
+            </View>
+            </LinearGradient>
+          </StandardCard>
         </View>
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>档案建议</Text>
-            <Text style={styles.sectionMeta}>MVP 版</Text>
+            <Text style={styles.sectionTitle}>持续建议</Text>
+            <Text style={styles.sectionMeta}>长期陪伴</Text>
           </View>
-          {[
-            '每周至少完成 1 次日历打卡，周报会更完整。',
-            '遇到关键身体变化时，可以结合问题助手和知识库内容做记录。',
-            '阶段快切换时，建议回看最近 2 份周报，整理重点提醒给家人。',
-          ].map((item) => (
-            <TouchableOpacity key={item} activeOpacity={0.9}>
+          {archiveGuides.map((item, index) => (
+            <View key={item}>
               <Card style={styles.tipCard}>
-                <Card.Content>
+                <Card.Content style={styles.tipContent}>
+                  <View style={styles.tipIconShell}>
+                    <MaterialCommunityIcons
+                      name={index === 0 ? 'calendar-clock-outline' : index === 1 ? 'stethoscope' : 'account-group-outline'}
+                      size={18}
+                      color={index === 1 ? colors.techDark : colors.primaryDark}
+                    />
+                  </View>
                   <Text style={styles.tipText}>{isVip ? item : '升级后查看完整档案建议与导出内容。'}</Text>
                 </Card.Content>
               </Card>
-            </TouchableOpacity>
+            </View>
           ))}
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </ScreenContainer>
   )
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
   },
   content: {
     padding: spacing.md,
@@ -493,9 +632,40 @@ const styles = StyleSheet.create({
   },
   heroCard: {
     borderRadius: 26,
-    backgroundColor: colors.ink,
+    backgroundColor: 'transparent',
+  },
+  heroGradient: {
+    borderRadius: 26,
+    overflow: 'hidden',
+  },
+  heroGlow: {
+    position: 'absolute',
+    top: -44,
+    right: -30,
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  heroRing: {
+    position: 'absolute',
+    top: 28,
+    right: 22,
+    width: 118,
+    height: 118,
+    borderRadius: 59,
+    borderWidth: 1,
+    borderColor: 'rgba(220,236,238,0.18)',
+  },
+  heroContent: {
+    padding: spacing.md,
   },
   heroTop: {
+    gap: spacing.sm,
+  },
+  heroChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: spacing.sm,
   },
   heroChip: {
@@ -506,23 +676,63 @@ const styles = StyleSheet.create({
     color: colors.gold,
     fontWeight: '700',
   },
+  heroStageChip: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(220,236,238,0.18)',
+  },
+  heroStageChipText: {
+    color: '#dcecee',
+    fontWeight: '700',
+  },
   heroTitle: {
     color: colors.white,
     fontSize: fontSize.title,
     fontWeight: '700',
   },
   heroSubtitle: {
-    color: '#d1dcff',
+    color: '#eadfd8',
     lineHeight: 22,
+  },
+  heroSignalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: spacing.lg,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
+    borderRadius: borderRadius.lg,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(220,236,238,0.08)',
+  },
+  heroSignal: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  heroSignalValue: {
+    color: colors.white,
+    fontSize: fontSize.lg,
+    fontWeight: '700',
+  },
+  heroSignalLabel: {
+    marginTop: 4,
+    color: '#d7cbc4',
+    fontSize: fontSize.xs,
+  },
+  heroSignalDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: 'rgba(255,255,255,0.12)',
   },
   progressPanel: {
     marginTop: spacing.lg,
     borderRadius: 22,
     padding: spacing.md,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(220,236,238,0.08)',
   },
   progressLabel: {
-    color: '#c6d3f7',
+    color: '#dbcfc7',
     marginBottom: spacing.xs,
   },
   progressValue: {
@@ -532,7 +742,7 @@ const styles = StyleSheet.create({
   },
   progressHint: {
     marginTop: spacing.xs,
-    color: '#afbcdf',
+    color: '#e7d7cd',
   },
   progressBar: {
     marginTop: spacing.md,
@@ -543,6 +753,9 @@ const styles = StyleSheet.create({
   heroActions: {
     marginTop: spacing.lg,
   },
+  heroActionButton: {
+    borderRadius: borderRadius.pill,
+  },
   metricGrid: {
     marginTop: spacing.lg,
     flexDirection: 'row',
@@ -552,7 +765,21 @@ const styles = StyleSheet.create({
   metricCard: {
     width: '47%',
     borderRadius: 20,
-    backgroundColor: colors.white,
+    backgroundColor: colors.surfaceRaised,
+    borderWidth: 1,
+    borderColor: 'rgba(184,138,72,0.12)',
+    shadowColor: colors.shadowStrong,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+  },
+  metricIconShell: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.sm,
   },
   metricLabel: {
     color: colors.textSecondary,
@@ -570,7 +797,24 @@ const styles = StyleSheet.create({
   },
   insightCard: {
     borderRadius: 22,
-    backgroundColor: colors.white,
+    backgroundColor: colors.surfaceRaised,
+    borderWidth: 1,
+    borderColor: 'rgba(184,138,72,0.12)',
+  },
+  insightHeaderBar: {
+    marginBottom: spacing.md,
+    paddingBottom: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(184,138,72,0.12)',
+  },
+  insightHeaderTitle: {
+    color: colors.text,
+    fontSize: fontSize.lg,
+    fontWeight: '700',
+  },
+  insightHeaderMeta: {
+    marginTop: spacing.xs,
+    color: colors.textSecondary,
   },
   insightRow: {
     marginBottom: spacing.lg,
@@ -649,31 +893,59 @@ const styles = StyleSheet.create({
   timelineCard: {
     flex: 1,
     borderRadius: 20,
-    backgroundColor: colors.white,
+    backgroundColor: colors.surfaceRaised,
+    borderWidth: 1,
+    borderColor: 'rgba(184,138,72,0.12)',
+  },
+  timelineCardTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: spacing.md,
+    marginBottom: spacing.sm,
   },
   timelineLabel: {
-    color: colors.textSecondary,
-    marginBottom: spacing.xs,
-  },
-  timelineValue: {
+    flex: 1,
     color: colors.text,
-    fontSize: fontSize.lg,
+    fontWeight: '700',
+  },
+  timelineDateChip: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    borderRadius: borderRadius.pill,
+    backgroundColor: 'rgba(94,126,134,0.1)',
+  },
+  timelineDateChipText: {
+    color: colors.techDark,
+    fontSize: fontSize.xs,
     fontWeight: '700',
   },
   timelineDetail: {
-    marginTop: spacing.sm,
     color: colors.textLight,
     lineHeight: 20,
   },
   milestoneCard: {
     marginBottom: spacing.md,
     borderRadius: 20,
-    backgroundColor: colors.white,
+    backgroundColor: colors.surfaceRaised,
+    borderWidth: 1,
+    borderColor: 'rgba(184,138,72,0.12)',
   },
   milestoneContent: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: spacing.md,
+  },
+  milestoneLead: {
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+  },
+  milestoneIconShell: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   milestoneBadge: {
     paddingHorizontal: spacing.sm,
@@ -717,7 +989,23 @@ const styles = StyleSheet.create({
   },
   exportCard: {
     borderRadius: 22,
-    backgroundColor: colors.inkSoft,
+    backgroundColor: 'transparent',
+  },
+  exportGradient: {
+    borderRadius: 22,
+    overflow: 'hidden',
+  },
+  exportGlow: {
+    position: 'absolute',
+    top: -20,
+    right: -16,
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  exportContent: {
+    padding: spacing.md,
   },
   exportTop: {
     gap: spacing.xs,
@@ -761,9 +1049,25 @@ const styles = StyleSheet.create({
   tipCard: {
     marginBottom: spacing.md,
     borderRadius: 18,
-    backgroundColor: colors.white,
+    backgroundColor: colors.surfaceRaised,
+    borderWidth: 1,
+    borderColor: 'rgba(184,138,72,0.12)',
+  },
+  tipContent: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.md,
+  },
+  tipIconShell: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(217,144,122,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   tipText: {
+    flex: 1,
     color: colors.text,
     lineHeight: 22,
   },

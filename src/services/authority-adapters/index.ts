@@ -4,9 +4,13 @@ import type { AuthorityDocumentAdapter } from './base.adapter';
 import { aapAdapter } from './aap.adapter';
 import { acogAdapter } from './acog.adapter';
 import { cdcAdapter } from './cdc.adapter';
+import { chunyuAdapter } from './chunyu.adapter';
 import { cnHealthAdapter } from './cn-health.adapter';
+import { dxyAdapter } from './dxy.adapter';
+import { familydoctorAdapter } from './familydoctor.adapter';
 import { nhsAdapter } from './nhs.adapter';
 import { whoAdapter } from './who.adapter';
+import { youlaiAdapter } from './youlai.adapter';
 
 const adapters: AuthorityDocumentAdapter[] = [
   whoAdapter,
@@ -15,6 +19,10 @@ const adapters: AuthorityDocumentAdapter[] = [
   acogAdapter,
   nhsAdapter,
   cnHealthAdapter,
+  dxyAdapter,
+  chunyuAdapter,
+  youlaiAdapter,
+  familydoctorAdapter,
 ];
 
 export function resolveAuthorityAdapter(

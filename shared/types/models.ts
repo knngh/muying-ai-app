@@ -45,6 +45,8 @@ export interface Article {
   sourceUrl?: string
   sourceLanguage?: 'zh' | 'en'
   sourceLocale?: string
+  sourceUpdatedAt?: string
+  lastSyncedAt?: string
   audience?: string
   topic?: string
   region?: string
@@ -89,6 +91,12 @@ export interface User {
   dueDate?: string
   babyBirthday?: string
   babyGender?: number | string
+  caregiverRole?: number | string
+  childNickname?: string
+  childBirthMode?: number | string
+  feedingMode?: number | string
+  developmentConcerns?: string
+  familyNotes?: string
   createdAt: string
 }
 

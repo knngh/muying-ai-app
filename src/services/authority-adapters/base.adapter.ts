@@ -7,6 +7,13 @@ export interface AuthorityDocumentAdapter {
   normalize(source: AuthoritySourceConfig, raw: AuthorityRawDocument): NormalizedAuthorityDocument | null;
 }
 
+interface DetectionInput {
+  sourceUrl?: string;
+  title?: string;
+  summary?: string;
+  contentText?: string;
+}
+
 export function stripHtml(input: string): string {
   return input
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
@@ -19,14 +26,32 @@ export function stripHtml(input: string): string {
     .trim();
 }
 
+export function sanitizeAuthorityTitle(input: string): string {
+  return stripHtml(input)
+    .replace(/^value is what coveo indexes and uses as the title in search results\.?\s*-*>\s*/i, '')
+    .replace(/\s*(?:\||-)\s*(?:HealthyChildren\.org|ACOG|WHO|CDC|NHS|Mayo Clinic|NIH)$/i, '')
+    .replace(/\s*-\s*HealthyChildren(?:\.org)?$/i, '')
+    .replace(/^[-:>\s]+/, '')
+    .trim()
+    .slice(0, 300);
+}
+
 export function extractTitle(rawBody: string): string {
-  const titleMatch = rawBody.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
-  if (titleMatch?.[1]) {
-    return stripHtml(titleMatch[1]).slice(0, 300);
+  const candidates = [
+    extractMetaContent(rawBody, 'og:title'),
+    extractMetaContent(rawBody, 'twitter:title'),
+    rawBody.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i)?.[1],
+    rawBody.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1],
+  ].filter(Boolean) as string[];
+
+  for (const candidate of candidates) {
+    const title = sanitizeAuthorityTitle(candidate);
+    if (title) {
+      return title;
+    }
   }
 
-  const h1Match = rawBody.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
-  return h1Match?.[1] ? stripHtml(h1Match[1]).slice(0, 300) : 'Untitled authority document';
+  return 'Untitled authority document';
 }
 
 export function extractMetaContent(rawBody: string, name: string): string | undefined {
@@ -55,46 +80,108 @@ export function detectRiskLevelDefault(text: string): 'green' | 'yellow' | 'red'
   return 'green';
 }
 
-export function detectTopic(text: string, source: AuthoritySourceConfig): string {
-  const normalized = text.toLowerCase();
-  if (/政策|指南|规范|通知|解读|意见|方案|决定|纲要|条例|制度|办法/u.test(normalized)) {
-    return 'policy';
+function normalizeDetectionInput(input: string | DetectionInput): { primary: string; extended: string; sourceUrl: string } {
+  if (typeof input === 'string') {
+    const normalized = input.toLowerCase();
+    return {
+      primary: normalized,
+      extended: normalized,
+      sourceUrl: '',
+    };
   }
-  if (/vaccine|vaccin|immuni|接种|疫苗/u.test(normalized)) {
-    return 'vaccination';
-  }
-  if (/newborn|neonat|infant|新生儿/u.test(normalized)) {
-    return 'newborn';
-  }
-  if (/pregnan|prenatal|postpartum|孕|产后/u.test(normalized)) {
-    return 'pregnancy';
-  }
-  if (/breastfeed|feeding|喂养|母乳/u.test(normalized)) {
-    return 'feeding';
-  }
-  if (/发育|成长|里程碑|development/u.test(normalized)) {
-    return 'development';
-  }
-  if (/policy|guidance/u.test(normalized)) {
-    return 'policy';
-  }
-  if (/fever|diarrhea|symptom|发热|腹泻/u.test(normalized)) {
-    return 'common-symptoms';
-  }
-  return source.topics[0] || 'general';
+
+  const sourceUrl = (input.sourceUrl || '').toLowerCase();
+  const title = (input.title || '').toLowerCase();
+  const summary = (input.summary || '').toLowerCase();
+  const contentText = (input.contentText || '').slice(0, 1600).toLowerCase();
+  const primary = [sourceUrl, title, summary].filter(Boolean).join(' ');
+  const extended = [primary, contentText].filter(Boolean).join(' ');
+
+  return { primary, extended, sourceUrl };
 }
 
-export function detectAudience(text: string, source: AuthoritySourceConfig): string {
-  if (/newborn|infant|baby|child|children|新生儿|婴儿|婴幼儿|儿童|育儿|托育/u.test(text)) {
+export function detectTopic(input: string | DetectionInput, source: AuthoritySourceConfig): string {
+  const { primary, extended, sourceUrl } = normalizeDetectionInput(input);
+
+  if (/政策|指南|规范|通知|解读|意见|方案|决定|纲要|条例|制度|办法/u.test(primary)) {
+    return 'policy';
+  }
+
+  if (/\/(vaccines?|vaccinations?|immunization|immunisation)\//.test(sourceUrl) || /vaccine|vaccin|immuni|接种|疫苗/u.test(primary)) {
+    return 'vaccination';
+  }
+
+  if (/\/(parents?|parenting|toddler|preschool|school|development|developmental-disability|milestone|child-development|ages-stages)\//.test(sourceUrl)
+    || /parenting|toddler|preschool|school-age|developmental disabilit|developmental delay|milestone|discipline|behavior|development|child development|learn the signs|act early|autism|adhd|语言发育|里程碑|如厕|学步|学龄前|成长发育|发展迟缓|发育障碍|育儿|自闭/u.test(primary)) {
+    return 'development';
+  }
+
+  if (/\/(newborn|baby|infant|neonat|ages-stages\/baby)\//.test(sourceUrl) || /newborn|neonat|infant|新生儿|婴儿|宝宝/u.test(primary)) {
+    return 'newborn';
+  }
+
+  if (/\/(breastfeed|feeding|formula|nutrition|lactation)\//.test(sourceUrl) || /breastfeed|feeding|喂养|母乳/u.test(primary)) {
+    return 'feeding';
+  }
+
+  if (/\/(pregnancy|prenatal|postpartum|womens-health|fertility|contraception)\//.test(sourceUrl) || /pregnan|prenatal|postpartum|孕|产后/u.test(primary)) {
+    return 'pregnancy';
+  }
+
+  if (/policy|guidance/u.test(primary)) {
+    return 'policy';
+  }
+
+  if (/fever|diarrhea|symptom|发热|腹泻/u.test(primary)) {
+    return 'common-symptoms';
+  }
+
+  if (/政策|指南|规范|通知|解读|意见|方案|决定|纲要|条例|制度|办法/u.test(extended)) {
+    return 'policy';
+  }
+
+  if (/fever|diarrhea|symptom|发热|腹泻/u.test(extended)) {
+    return 'common-symptoms';
+  }
+
+  return source.topics.length === 1 ? source.topics[0] : 'general';
+}
+
+export function detectAudience(input: string | DetectionInput, source: AuthoritySourceConfig): string {
+  const { primary, extended, sourceUrl } = normalizeDetectionInput(input);
+
+  if (/\/(toddler|preschool|school|parenting)\//.test(sourceUrl)
+    || /toddler|preschool|school-age|potty|discipline|behavior|如厕|学步|学龄前|幼儿/u.test(primary)) {
+    return '幼儿家长';
+  }
+
+  if (/\/(development|developmental-disability|milestone|child-development|autism|adhd)\//.test(sourceUrl)
+    || /developmental disabilit|developmental delay|child development|learn the signs|act early|milestone|autism|adhd|speech delay|language development|成长发育|里程碑|发展迟缓|发育障碍|自闭/u.test(primary)) {
+    return '母婴家庭';
+  }
+
+  if (/\/(newborn|baby|infant|child|children|ages-stages\/baby)\//.test(sourceUrl)
+    || /newborn|infant|baby|child|children|新生儿|婴儿|婴幼儿|儿童|育儿|托育/u.test(primary)) {
     return '婴幼儿家长';
   }
-  if (/pregnan|prenatal|postpartum|孕妇|孕期|产后/u.test(text)) {
+
+  if (/\/(pregnancy|prenatal|postpartum|womens-health|fertility|contraception)\//.test(sourceUrl) || /pregnan|prenatal|postpartum|孕妇|孕期|产后/u.test(primary)) {
     return '孕妇';
   }
-  if (/备孕|婚检|孕前/u.test(text)) {
+
+  if (/备孕|婚检|孕前/u.test(primary)) {
     return '备孕家庭';
   }
-  return source.audience[0] || '母婴家庭';
+
+  if (/newborn|infant|baby|child|children|新生儿|婴儿|婴幼儿|儿童|育儿|托育/u.test(extended)) {
+    return '婴幼儿家长';
+  }
+
+  if (/pregnan|prenatal|postpartum|孕妇|孕期|产后/u.test(extended)) {
+    return '孕妇';
+  }
+
+  return source.audience.length === 1 ? source.audience[0] : '母婴家庭';
 }
 
 export function isMaternalInfantRelevant(sourceUrl: string, title: string, text: string): boolean {

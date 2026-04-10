@@ -44,4 +44,40 @@ describe('authority source url filtering', () => {
       source_url: 'https://www.cdc.gov/pregnancy/meds/treatingfortwo/index.html',
     })).toBe(false);
   });
+
+  test('filters DXY category pages but keeps concrete article pages', () => {
+    expect(shouldFilterAuthoritySourceUrl({
+      source_id: 'dxy-maternal',
+      source_url: 'https://m.dxy.com/articles/24826',
+    })).toBe(true);
+
+    expect(shouldFilterAuthoritySourceUrl({
+      source_id: 'dxy-maternal',
+      source_url: 'https://dxy.com/article/26760',
+    })).toBe(false);
+  });
+
+  test('keeps Youlai pregnancy guide pages but filters unrelated special pages', () => {
+    expect(shouldFilterAuthoritySourceUrl({
+      source_id: 'youlai-pregnancy-guide',
+      source_url: 'https://m.youlai.cn/special/advisor/vezz0BpCQ3.html',
+    })).toBe(false);
+
+    expect(shouldFilterAuthoritySourceUrl({
+      source_id: 'youlai-pregnancy-guide',
+      source_url: 'https://m.youlai.cn/special/pregnancy/PyevheSdNw.html',
+    })).toBe(true);
+  });
+
+  test('filters FamilyDoctor category pages but keeps concrete article pages', () => {
+    expect(shouldFilterAuthoritySourceUrl({
+      source_id: 'familydoctor-maternal',
+      source_url: 'https://www.familydoctor.com.cn/yc/',
+    })).toBe(true);
+
+    expect(shouldFilterAuthoritySourceUrl({
+      source_id: 'familydoctor-maternal',
+      source_url: 'https://www.familydoctor.com.cn/baby/a/202604/3948358.html',
+    })).toBe(false);
+  });
 });

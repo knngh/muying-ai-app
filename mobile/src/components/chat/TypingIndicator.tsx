@@ -38,6 +38,9 @@ export default function TypingIndicator({ streamingContent }: TypingIndicatorPro
     return (
       <View style={[styles.messageWrap, styles.assistantWrap]}>
         <View style={[styles.messageBubble, styles.assistantBubble]}>
+          <View style={styles.streamingHeader}>
+            <View style={styles.streamingBadge} />
+          </View>
           <MarkdownText>{streamingContent}</MarkdownText>
         </View>
       </View>
@@ -47,6 +50,9 @@ export default function TypingIndicator({ streamingContent }: TypingIndicatorPro
   return (
     <View style={[styles.messageWrap, styles.assistantWrap]}>
       <View style={[styles.messageBubble, styles.assistantBubble]}>
+        <View style={styles.streamingHeader}>
+          <View style={styles.streamingBadge} />
+        </View>
         <View style={styles.dotRow}>
           <Dot delay={0} />
           <Dot delay={150} />
@@ -71,8 +77,23 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.xl,
   },
   assistantBubble: {
-    backgroundColor: colors.white,
+    backgroundColor: 'rgba(255, 249, 244, 0.96)',
     borderBottomLeftRadius: borderRadius.sm,
+    borderWidth: 1,
+    borderColor: 'rgba(184,138,72,0.14)',
+    shadowColor: colors.inkSoft,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.05,
+    shadowRadius: 14,
+  },
+  streamingHeader: {
+    marginBottom: spacing.sm,
+  },
+  streamingBadge: {
+    width: 64,
+    height: 10,
+    borderRadius: borderRadius.pill,
+    backgroundColor: 'rgba(94,126,134,0.14)',
   },
   dotRow: {
     flexDirection: 'row',

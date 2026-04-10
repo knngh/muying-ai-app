@@ -75,6 +75,9 @@
               <text v-if="getAuthoritySourceCount(item) > 0" class="trust-overview-text">
                 命中权威来源：{{ getAuthoritySourceCount(item) }} 条
               </text>
+              <text v-if="getChineseAuthoritySourceCount(item) > 0" class="trust-overview-text">
+                其中中文权威来源：{{ getChineseAuthoritySourceCount(item) }} 条
+              </text>
               <text v-if="item.structuredAnswer?.conclusion" user-select class="trust-overview-conclusion">
                 {{ item.structuredAnswer.conclusion }}
               </text>
@@ -92,27 +95,109 @@
 
             <view v-if="item.sources?.length" class="source-list-container">
               <text class="source-title">具体参考来源</text>
-              <scroll-view scroll-x class="source-list-scroll">
-                <view class="source-list-inner">
-                  <view
-                    v-for="source in getSortedSources(item)"
-                    :key="`${item.id}-${source.title}`"
-                    class="source-card"
-                  >
-                    <text user-select class="source-name">{{ source.title }}</text>
-                    <text user-select class="source-meta">{{ formatSourceMeta(source) }}</text>
-                    <text v-if="source.excerpt" user-select class="source-excerpt">{{ source.excerpt }}</text>
+              <view v-if="getChineseOfficialSources(item).length" class="source-group">
+                <text class="source-group-title">中国权威依据</text>
+                <scroll-view scroll-x class="source-list-scroll">
+                  <view class="source-list-inner">
                     <view
-                      v-if="source.url"
-                      class="source-link"
-                      hover-class="source-link--hover"
-                      @tap="handleOpenSource(source)"
+                      v-for="source in getChineseOfficialSources(item)"
+                      :key="`${item.id}-official-cn-${source.title}`"
+                      class="source-card"
+                      :class="`source-card--${getOfficialRegionTag(source)}`"
                     >
-                      <text class="source-link-text">查看原文</text>
+                      <text class="source-region-chip" :class="`source-region-chip--${getOfficialRegionTag(source)}`">{{ getOfficialRegionLabel(source) }}</text>
+                      <text user-select class="source-name">{{ source.title }}</text>
+                      <text user-select class="source-meta">{{ formatSourceMeta(source) }}</text>
+                      <text v-if="source.excerpt" user-select class="source-excerpt">{{ source.excerpt }}</text>
+                      <view
+                        v-if="source.url"
+                        class="source-link"
+                        hover-class="source-link--hover"
+                        @tap="handleOpenSource(source)"
+                      >
+                        <text class="source-link-text">查看原文</text>
+                      </view>
                     </view>
                   </view>
-                </view>
-              </scroll-view>
+                </scroll-view>
+              </view>
+
+              <view v-if="getGlobalOfficialSources(item).length" class="source-group">
+                <text class="source-group-title">国际权威依据</text>
+                <scroll-view scroll-x class="source-list-scroll">
+                  <view class="source-list-inner">
+                    <view
+                      v-for="source in getGlobalOfficialSources(item)"
+                      :key="`${item.id}-official-global-${source.title}`"
+                      class="source-card"
+                      :class="`source-card--${getOfficialRegionTag(source)}`"
+                    >
+                      <text class="source-region-chip" :class="`source-region-chip--${getOfficialRegionTag(source)}`">{{ getOfficialRegionLabel(source) }}</text>
+                      <text user-select class="source-name">{{ source.title }}</text>
+                      <text user-select class="source-meta">{{ formatSourceMeta(source) }}</text>
+                      <text v-if="source.excerpt" user-select class="source-excerpt">{{ source.excerpt }}</text>
+                      <view
+                        v-if="source.url"
+                        class="source-link"
+                        hover-class="source-link--hover"
+                        @tap="handleOpenSource(source)"
+                      >
+                        <text class="source-link-text">查看原文</text>
+                      </view>
+                    </view>
+                  </view>
+                </scroll-view>
+              </view>
+
+              <view v-if="getMedicalPlatformSources(item).length" class="source-group">
+                <text class="source-group-title">平台补充依据</text>
+                <scroll-view scroll-x class="source-list-scroll">
+                  <view class="source-list-inner">
+                    <view
+                      v-for="source in getMedicalPlatformSources(item)"
+                      :key="`${item.id}-platform-${source.title}`"
+                      class="source-card"
+                    >
+                      <text user-select class="source-name">{{ source.title }}</text>
+                      <text user-select class="source-meta">{{ formatSourceMeta(source) }}</text>
+                      <text v-if="source.excerpt" user-select class="source-excerpt">{{ source.excerpt }}</text>
+                      <view
+                        v-if="source.url"
+                        class="source-link"
+                        hover-class="source-link--hover"
+                        @tap="handleOpenSource(source)"
+                      >
+                        <text class="source-link-text">查看原文</text>
+                      </view>
+                    </view>
+                  </view>
+                </scroll-view>
+              </view>
+
+              <view v-if="getOtherSources(item).length" class="source-group">
+                <text class="source-group-title">其他来源</text>
+                <scroll-view scroll-x class="source-list-scroll">
+                  <view class="source-list-inner">
+                    <view
+                      v-for="source in getOtherSources(item)"
+                      :key="`${item.id}-other-${source.title}`"
+                      class="source-card"
+                    >
+                      <text user-select class="source-name">{{ source.title }}</text>
+                      <text user-select class="source-meta">{{ formatSourceMeta(source) }}</text>
+                      <text v-if="source.excerpt" user-select class="source-excerpt">{{ source.excerpt }}</text>
+                      <view
+                        v-if="source.url"
+                        class="source-link"
+                        hover-class="source-link--hover"
+                        @tap="handleOpenSource(source)"
+                      >
+                        <text class="source-link-text">查看原文</text>
+                      </view>
+                    </view>
+                  </view>
+                </scroll-view>
+              </view>
             </view>
           </view>
         </view>
@@ -203,6 +288,7 @@ import { onHide, onShow } from '@dcloudio/uni-app'
 import { useChatStore } from '@/stores/chat'
 import { getDisclaimer, type AIMessage, type SourceReference } from '@/api/ai'
 import mpHtml from 'mp-html/dist/uni-app/components/mp-html/mp-html.vue'
+import { getAuthorityRegionLabel, getAuthorityRegionTag, isChineseAuthoritySource } from '@/utils/authority-source'
 
 const quickQuestions = [
   '孕早期有哪些注意事项？',
@@ -220,9 +306,11 @@ const scrollAnchor = ref('chat-bottom')
 const scrollTop = ref(0)
 const canSend = computed(() => inputValue.value.trim().length > 0 && !loading.value)
 const isResumingInPlace = computed(() => loading.value && !!resumeMessageId.value)
-const AUTHORITY_DOMAINS = [
+const OFFICIAL_DOMAINS = [
   'gov.cn',
   'nhc.gov.cn',
+  'ndcpa.gov.cn',
+  'chinacdc.cn',
   'who.int',
   'nih.gov',
   'cdc.gov',
@@ -231,9 +319,11 @@ const AUTHORITY_DOMAINS = [
   'nhs.uk',
   'mayoclinic.org',
 ]
-const AUTHORITY_NAMES = [
+const OFFICIAL_NAMES = [
   '国家卫健委',
   '中国政府网',
+  '国家疾病预防控制局',
+  '中国疾控',
   'who',
   'nih',
   'cdc',
@@ -241,6 +331,14 @@ const AUTHORITY_NAMES = [
   '美国儿科学会',
   'nhs',
   '梅奥',
+]
+const MEDICAL_PLATFORM_DOMAINS = [
+  'dxy.com',
+  'chunyuyisheng.com',
+]
+const MEDICAL_PLATFORM_NAMES = [
+  '丁香医生',
+  '春雨医生',
 ]
 
 function syncScrollAnchor() {
@@ -303,22 +401,91 @@ function getSourceHost(url?: string) {
 
 function isAuthoritativeSource(source: SourceReference) {
   const host = getSourceHost(source.url)
-  if (host && AUTHORITY_DOMAINS.some(domain => host === domain || host.endsWith(`.${domain}`))) {
+  if (host && OFFICIAL_DOMAINS.some(domain => host === domain || host.endsWith(`.${domain}`))) {
     return true
   }
 
-  const sourceName = (source.source || '').toLowerCase()
-  return AUTHORITY_NAMES.some(name => sourceName.includes(name))
+  const sourceName = `${source.source || ''} ${source.sourceOrg || ''}`.toLowerCase()
+  return OFFICIAL_NAMES.some(name => sourceName.includes(name))
+}
+
+function isMedicalPlatformSource(source: SourceReference) {
+  const host = getSourceHost(source.url)
+  if (host && MEDICAL_PLATFORM_DOMAINS.some(domain => host === domain || host.endsWith(`.${domain}`))) {
+    return true
+  }
+
+  const sourceName = `${source.source || ''} ${source.sourceOrg || ''}`.toLowerCase()
+  return MEDICAL_PLATFORM_NAMES.some(name => sourceName.includes(name))
+}
+
+function getSourceClass(source: SourceReference): 'official' | 'medical_platform' | 'dataset' | 'unknown' {
+  if (source.sourceClass === 'official' || source.sourceType === 'authority' || source.authoritative || isAuthoritativeSource(source)) {
+    return 'official'
+  }
+
+  if (source.sourceClass === 'medical_platform' || source.sourceType === 'editorial' || isMedicalPlatformSource(source)) {
+    return 'medical_platform'
+  }
+
+  if (source.sourceClass === 'dataset' || source.sourceType === 'dataset') {
+    return 'dataset'
+  }
+
+  return 'unknown'
 }
 
 function getSortedSources(message: AIMessage) {
   return [...(message.sources || [])].sort((left, right) => {
-    const authorityGap = Number(isAuthoritativeSource(right)) - Number(isAuthoritativeSource(left))
-    if (authorityGap !== 0) {
-      return authorityGap
+    const priorityMap = {
+      official: 0,
+      medical_platform: 1,
+      dataset: 2,
+      unknown: 3,
+    } as const
+    const classGap = priorityMap[getSourceClass(left)] - priorityMap[getSourceClass(right)]
+    if (classGap !== 0) {
+      return classGap
     }
 
     return (right.relevance || 0) - (left.relevance || 0)
+  })
+}
+
+function getOfficialSources(message: AIMessage) {
+  return getSortedSources(message).filter(source => getSourceClass(source) === 'official')
+}
+
+function getChineseOfficialSources(message: AIMessage) {
+  return getOfficialSources(message).filter(source => isChineseAuthoritySource({
+    source: source.source,
+    sourceOrg: source.sourceOrg,
+    sourceUrl: source.url,
+    url: source.url,
+    region: source.region,
+    title: source.title,
+  }))
+}
+
+function getGlobalOfficialSources(message: AIMessage) {
+  return getOfficialSources(message).filter(source => !isChineseAuthoritySource({
+    source: source.source,
+    sourceOrg: source.sourceOrg,
+    sourceUrl: source.url,
+    url: source.url,
+    region: source.region,
+    title: source.title,
+  }))
+}
+
+function getMedicalPlatformSources(message: AIMessage) {
+  return getSortedSources(message).filter(source => getSourceClass(source) === 'medical_platform')
+}
+
+function getOtherSources(message: AIMessage) {
+  return getSortedSources(message).filter(source => {
+    const sourceClass = getSourceClass(source)
+    return sourceClass === 'dataset' || sourceClass === 'unknown'
   })
 }
 
@@ -328,11 +495,19 @@ function getAnswerOrigin(message: AIMessage) {
   }
 
   if (message.sourceReliability === 'authoritative') {
-    return '当前回答已优先展示权威来源。'
+    return getChineseAuthoritySourceCount(message) > 0
+      ? '当前回答已优先展示中国权威来源，并按需补充国际权威资料。'
+      : '当前回答已优先展示权威来源。'
   }
 
   if (message.sourceReliability === 'mixed') {
-    return '当前回答同时参考了权威来源和一般知识条目，请结合线下判断。'
+    return getChineseAuthoritySourceCount(message) > 0
+      ? '当前回答优先参考中国权威来源，并补充国际指南、平台医学内容或知识库信息。'
+      : '当前回答优先参考官方权威来源，并补充了平台医学内容或知识库信息。'
+  }
+
+  if (message.sourceReliability === 'medical_platform_only') {
+    return '当前回答主要参考第三方医学平台内容，可作辅助参考，但不属于官方指南。'
   }
 
   if (message.sourceReliability === 'dataset_only') {
@@ -341,7 +516,7 @@ function getAnswerOrigin(message: AIMessage) {
 
   const authoritativeLabels = Array.from(new Set(
     getSortedSources(message)
-      .filter(isAuthoritativeSource)
+      .filter((source) => getSourceClass(source) === 'official')
       .map((source) => {
         const sourceName = source.source?.trim()
         const title = source.title?.trim()
@@ -383,7 +558,8 @@ function getAnswerOrigin(message: AIMessage) {
 
 function getReliabilityLabel(sourceReliability?: AIMessage['sourceReliability']) {
   if (sourceReliability === 'authoritative') return '权威来源优先'
-  if (sourceReliability === 'mixed') return '权威 + 知识库'
+  if (sourceReliability === 'mixed') return '权威 + 补充来源'
+  if (sourceReliability === 'medical_platform_only') return '平台医学内容'
   if (sourceReliability === 'dataset_only') return '知识库兜底'
   return '未命中可靠来源'
 }
@@ -396,17 +572,46 @@ function getRouteLabel(route?: AIMessage['route']) {
 }
 
 function getAuthoritySourceCount(message: AIMessage) {
-  return (message.sources || []).filter((source) => source.sourceType === 'authority' || source.authoritative || isAuthoritativeSource(source)).length
+  return getOfficialSources(message).length
+}
+
+function getChineseAuthoritySourceCount(message: AIMessage) {
+  return getChineseOfficialSources(message).length
 }
 
 function shouldShowTrustOverview(message: AIMessage) {
   return Boolean(message.sourceReliability || message.route || message.structuredAnswer?.conclusion || getAuthoritySourceCount(message) > 0)
 }
 
+function getOfficialRegionLabel(source: SourceReference) {
+  return getAuthorityRegionLabel({
+    source: source.source,
+    sourceOrg: source.sourceOrg,
+    sourceUrl: source.url,
+    url: source.url,
+    region: source.region,
+    title: source.title,
+  })
+}
+
+function getOfficialRegionTag(source: SourceReference) {
+  return getAuthorityRegionTag({
+    source: source.source,
+    sourceOrg: source.sourceOrg,
+    sourceUrl: source.url,
+    url: source.url,
+    region: source.region,
+    title: source.title,
+  })
+}
+
 function formatSourceMeta(source: SourceReference) {
+  const sourceClass = getSourceClass(source)
   const parts = [
     source.sourceOrg || source.source,
-    source.sourceType === 'authority' ? '权威来源' : (source.sourceType === 'dataset' ? '知识库/数据集' : undefined),
+    sourceClass === 'official'
+      ? (getOfficialRegionTag(source) === 'cn' ? '中国权威' : '国际权威')
+      : (sourceClass === 'medical_platform' ? '平台医学内容' : (sourceClass === 'dataset' ? '知识库/数据集' : undefined)),
     source.updatedAt ? `更新于 ${source.updatedAt.slice(0, 10)}` : undefined,
     `相关度 ${Math.round(source.relevance * 100)}%`,
   ].filter(Boolean)
@@ -904,6 +1109,18 @@ watch([messages, streamingContent], () => {
   color: #7f6958;
 }
 
+.source-group {
+  margin-top: 10rpx;
+}
+
+.source-group-title {
+  display: block;
+  margin-bottom: 10rpx;
+  font-size: 21rpx;
+  font-weight: 700;
+  color: #96755f;
+}
+
 .source-list-scroll {
   width: 100%;
   white-space: nowrap;
@@ -924,6 +1141,33 @@ watch([messages, streamingContent], () => {
   background: #f7f8ff;
   box-sizing: border-box;
   white-space: normal;
+}
+
+.source-card--cn {
+  background: rgba(241, 247, 255, 0.98);
+}
+
+.source-card--global {
+  background: rgba(248, 245, 255, 0.98);
+}
+
+.source-region-chip {
+  align-self: flex-start;
+  margin-bottom: 8rpx;
+  padding: 6rpx 14rpx;
+  border-radius: 999rpx;
+  font-size: 20rpx;
+  font-weight: 700;
+}
+
+.source-region-chip--cn {
+  background: rgba(41, 121, 255, 0.12);
+  color: #285eb7;
+}
+
+.source-region-chip--global {
+  background: rgba(126, 87, 194, 0.1);
+  color: #6b4ab1;
 }
 
 .source-name {

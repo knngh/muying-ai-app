@@ -2,19 +2,45 @@ import { Request, Response, NextFunction } from 'express';
 import prisma from '../config/database';
 import { successResponse, AppError, ErrorCodes } from '../middlewares/error.middleware';
 
+const TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
+const parseTimeString = (value: unknown): Date | null => {
+  if (value === undefined) {
+    return null;
+  }
+
+  if (value === null || value === '') {
+    return null;
+  }
+
+  if (typeof value !== 'string') {
+    throw new AppError('时间格式无效', ErrorCodes.PARAM_ERROR, 400);
+  }
+
+  const normalized = value.trim();
+  const match = TIME_PATTERN.exec(normalized);
+  if (!match) {
+    throw new AppError('时间格式无效，请使用 HH:mm', ErrorCodes.PARAM_ERROR, 400);
+  }
+
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  return new Date(Date.UTC(1970, 0, 1, hours, minutes, 0, 0));
+};
+
+const formatUtcTime = (value: Date | null | undefined): string | null => {
+  if (!value) return null;
+  const date = new Date(value);
+  return `${String(date.getUTCHours()).padStart(2, '0')}:${String(date.getUTCMinutes()).padStart(2, '0')}`;
+};
+
 // 辅助函数：将 Prisma CalendarEvent 序列化为前端期望的格式
 const serializeEvent = (event: any) => {
   const { eventTime, endTime, isAllDay, isRecurring, status, ...rest } = event;
-  // eventTime (Date) → startTime (HH:mm 字符串)
-  const formatTime = (t: Date | null | undefined): string | null => {
-    if (!t) return null;
-    const d = new Date(t);
-    return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
-  };
   return {
     ...rest,
-    startTime: formatTime(eventTime),
-    endTime: formatTime(endTime),
+    startTime: formatUtcTime(eventTime),
+    endTime: formatUtcTime(endTime),
     isAllDay: isAllDay === 1,
     isRecurring: isRecurring === 1,
     isCompleted: status === 1,
@@ -613,9 +639,9 @@ export const createEvent = async (req: Request, res: Response, next: NextFunctio
         description,
         eventType,
         eventDate: new Date(eventDate),
-        eventTime: eventTime ? new Date(`1970-01-01T${eventTime}`) : null,
+        eventTime: parseTimeString(eventTime),
         endDate: endDate ? new Date(endDate) : null,
-        endTime: endTime ? new Date(`1970-01-01T${endTime}`) : null,
+        endTime: parseTimeString(endTime),
         isAllDay: isAllDay ? 1 : 0,
         isRecurring: isRecurring ? 1 : 0,
         recurrenceRule,
@@ -659,9 +685,9 @@ export const updateEvent = async (req: Request, res: Response, next: NextFunctio
         ...(description !== undefined && { description }),
         ...(eventType !== undefined && { eventType }),
         ...(eventDate !== undefined && { eventDate: new Date(eventDate) }),
-        ...(eventTime !== undefined && { eventTime: eventTime ? new Date(`1970-01-01T${eventTime}`) : null }),
+        ...(eventTime !== undefined && { eventTime: parseTimeString(eventTime) }),
         ...(endDate !== undefined && { endDate: endDate ? new Date(endDate) : null }),
-        ...(endTime !== undefined && { endTime: endTime ? new Date(`1970-01-01T${endTime}`) : null }),
+        ...(endTime !== undefined && { endTime: parseTimeString(endTime) }),
         ...(isAllDay !== undefined && { isAllDay: isAllDay ? 1 : 0 }),
         ...(isRecurring !== undefined && { isRecurring: isRecurring ? 1 : 0 }),
         ...(recurrenceRule !== undefined && { recurrenceRule }),
@@ -701,8 +727,8 @@ export const dragEvent = async (req: Request, res: Response, next: NextFunction)
       eventDate: new Date(newDate)
     };
 
-    if (newTime) {
-      updateData.eventTime = new Date(`1970-01-01T${newTime}`);
+    if (newTime !== undefined) {
+      updateData.eventTime = parseTimeString(newTime);
     }
 
     const event = await prisma.calendarEvent.update({
@@ -745,7 +771,7 @@ export const batchUpdateEvents = async (req: Request, res: Response, next: NextF
       if (title !== undefined) safeData.title = title;
       if (description !== undefined) safeData.description = description;
       if (eventDate !== undefined) safeData.eventDate = new Date(eventDate);
-      if (eventTime !== undefined) safeData.eventTime = new Date(`1970-01-01T${eventTime}`);
+      if (eventTime !== undefined) safeData.eventTime = parseTimeString(eventTime);
       if (status !== undefined) safeData.status = status;
 
       const updated = await prisma.calendarEvent.update({

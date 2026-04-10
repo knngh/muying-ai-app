@@ -17,6 +17,7 @@
           <text v-if="article.sourceOrg || article.source" class="badge badge-source">
             {{ article.sourceOrg || article.source }}
           </text>
+          <text class="badge" :class="`badge-tier--${authorityRegionTag}`">{{ authorityRegionLabel }}</text>
           <text v-if="article.topic" class="badge badge-topic">{{ article.topic }}</text>
           <text v-if="article.isVerified" class="badge badge-verified">权威来源</text>
         </view>
@@ -26,8 +27,14 @@
         <view class="meta-row">
           <text v-if="article.audience" class="meta-item">{{ article.audience }}</text>
           <text v-if="article.region" class="meta-item">{{ article.region }}</text>
-          <text class="meta-item">{{ formatDate(article.publishedAt || article.createdAt) }}</text>
+          <text class="meta-item">来源更新 {{ formatDate(article.sourceUpdatedAt || article.publishedAt || article.createdAt) }}</text>
+          <text v-if="article.lastSyncedAt" class="meta-item">同步 {{ formatDate(article.lastSyncedAt) }}</text>
         </view>
+      </view>
+
+      <view class="authority-callout" :class="`authority-callout--${authorityRegionTag}`">
+        <text class="authority-callout-label">{{ authorityRegionLabel }}</text>
+        <text class="authority-callout-text">{{ authorityCalloutText }}</text>
       </view>
 
       <view v-if="displayedSummary" class="summary-box">
@@ -84,6 +91,7 @@ import { computed, ref } from 'vue'
 import { onLoad, onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app'
 import { articleApi, type AuthorityArticleTranslation } from '@/api/modules'
 import { useKnowledgeStore } from '@/stores/knowledge'
+import { getAuthorityRegionLabel, getAuthorityRegionTag, isChineseAuthoritySource } from '@/utils/authority-source'
 
 const knowledgeStore = useKnowledgeStore()
 let currentSlug = ''
@@ -154,6 +162,16 @@ const translationDescriptionText = computed(() => {
   }
 
   return '打开文章后会优先准备中文阅读版，生成一次后后续直接读取缓存。'
+})
+
+const authorityRegionLabel = computed(() => getAuthorityRegionLabel(article.value))
+const authorityRegionTag = computed(() => getAuthorityRegionTag(article.value))
+const authorityCalloutText = computed(() => {
+  if (isChineseAuthoritySource(article.value)) {
+    return '这篇内容来自中国权威机构公开资料，默认展示中文原文与同步时间。'
+  }
+
+  return '这篇内容来自国际权威机构公开资料，可切换中文辅助阅读并查看原文链接。'
 })
 
 onLoad((options) => {
@@ -503,6 +521,7 @@ onShareTimeline(() => {
 }
 
 .article-header,
+.authority-callout,
 .summary-box,
 .source-box,
 .translation-box,
@@ -542,6 +561,16 @@ onShareTimeline(() => {
   color: #2e73b7;
 }
 
+.badge-tier--cn {
+  background: rgba(41, 121, 255, 0.12);
+  color: #285eb7;
+}
+
+.badge-tier--global {
+  background: rgba(126, 87, 194, 0.1);
+  color: #6b4ab1;
+}
+
 .article-title {
   display: block;
   font-size: 40rpx;
@@ -560,6 +589,35 @@ onShareTimeline(() => {
 .meta-item {
   font-size: 24rpx;
   color: #7a8697;
+}
+
+.authority-callout {
+  border: 2rpx solid transparent;
+}
+
+.authority-callout--cn {
+  background: rgba(41, 121, 255, 0.06);
+  border-color: rgba(41, 121, 255, 0.12);
+}
+
+.authority-callout--global {
+  background: rgba(126, 87, 194, 0.06);
+  border-color: rgba(126, 87, 194, 0.12);
+}
+
+.authority-callout-label {
+  display: block;
+  font-size: 24rpx;
+  font-weight: 700;
+  color: #24303d;
+}
+
+.authority-callout-text {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 25rpx;
+  line-height: 1.7;
+  color: #526072;
 }
 
 .summary-label,

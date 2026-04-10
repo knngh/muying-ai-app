@@ -92,6 +92,8 @@ const styles = StyleSheet.create({
     padding: spacing.sm,
     borderRadius: borderRadius.lg,
     backgroundColor: colors.trustSummaryBg,
+    borderWidth: 1,
+    borderColor: 'rgba(184,138,72,0.1)',
   },
   trustSummaryTitle: {
     fontSize: fontSize.sm,
@@ -115,6 +117,8 @@ const styles = StyleSheet.create({
     padding: spacing.sm,
     borderRadius: borderRadius.lg,
     backgroundColor: colors.uncertaintyBg,
+    borderWidth: 1,
+    borderColor: 'rgba(184,138,72,0.1)',
   },
   uncertaintyTitle: {
     fontSize: fontSize.sm,

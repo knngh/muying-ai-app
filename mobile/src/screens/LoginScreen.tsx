@@ -14,7 +14,9 @@ import {
   Button,
   SegmentedButtons,
   HelperText,
+  Chip,
 } from 'react-native-paper'
+import LinearGradient from 'react-native-linear-gradient'
 import { config } from '../config'
 import { authApi } from '../api/modules'
 import { useAppStore } from '../stores/appStore'
@@ -29,15 +31,15 @@ interface LoginScreenProps {
 const demoAccounts = [
   {
     key: 'free',
-    label: '免费演示账号',
+    label: '基础状态',
     username: 'demo_free_user',
-    description: '适合演示免费 3 次问答额度和会员升级前状态，需要单独输入演示口令。',
+    description: '快速填入未开通陪伴方案的账号名，口令仍需单独输入。',
   },
   {
     key: 'vip',
-    label: '会员演示账号',
+    label: '陪伴状态',
     username: 'demo_vip_user',
-    description: '适合直接演示会员权益、周报和无限额度，需要单独输入演示口令。',
+    description: '快速填入已开通陪伴方案的账号名，口令仍需单独输入。',
   },
 ]
 
@@ -50,6 +52,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [secureEntry, setSecureEntry] = useState(true)
+  const [showDevAssist, setShowDevAssist] = useState(false)
 
   const { setUser, setToken } = useAppStore()
 
@@ -129,10 +132,24 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         >
           <Card style={styles.card}>
             <Card.Content>
-              <Text style={styles.title}>母婴问题整理</Text>
-              
-              <Text style={styles.subtitle}>
-                权威知识 · 问题整理 · 科学孕育
+              <LinearGradient
+                colors={['rgba(246,225,212,0.96)', 'rgba(250,242,235,0.94)']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.heroPanel}
+              >
+                <View style={styles.heroGlow} />
+                <Chip compact style={styles.heroChip} textStyle={styles.heroChipText}>
+                  全生命周期陪伴
+                </Chip>
+                <Text style={styles.title}>贝护妈妈</Text>
+                <Text style={styles.heroSubtitle}>
+                  从备孕到育儿，把知识、问答和成长日历放进同一条连续时间线。
+                </Text>
+              </LinearGradient>
+
+              <Text style={styles.introText}>
+                使用账号登录后，首页、问题助手、日历和周报会围绕你的当前阶段联动。
               </Text>
 
               <SegmentedButtons
@@ -150,9 +167,21 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
 
               {config.enableDemoAccounts ? (
                 <View style={styles.demoSection}>
-                  <Text style={styles.demoTitle}>演示账号</Text>
-                  <Text style={styles.demoHint}>仅填充演示用户名，口令请通过测试环境单独发放。</Text>
-                  {demoAccounts.map((account) => (
+                  <View style={styles.demoHeader}>
+                    <View style={styles.demoHeaderText}>
+                      <Text style={styles.demoTitle}>本机调试辅助</Text>
+                      <Text style={styles.demoHint}>只在开发环境显示，用于快速填入示例账号名。</Text>
+                    </View>
+                    <Button
+                      compact
+                      mode={showDevAssist ? 'outlined' : 'text'}
+                      onPress={() => setShowDevAssist((prev) => !prev)}
+                      textColor={colors.techDark}
+                    >
+                      {showDevAssist ? '收起' : '展开'}
+                    </Button>
+                  </View>
+                  {showDevAssist ? demoAccounts.map((account) => (
                     <View key={account.key} style={styles.demoCard}>
                       <View style={styles.demoTextWrap}>
                         <Text style={styles.demoCardTitle}>{account.label}</Text>
@@ -164,10 +193,10 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                         onPress={() => applyDemoAccount(account)}
                         textColor={colors.primary}
                       >
-                        填充账号
+                        使用
                       </Button>
                     </View>
-                  ))}
+                  )) : null}
                 </View>
               ) : null}
 
@@ -273,24 +302,66 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: 'center',
     paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.xl,
   },
   card: {
     backgroundColor: colors.white,
-    borderRadius: borderRadius.md,
-    elevation: 4,
+    borderRadius: borderRadius.xl,
+    elevation: 0,
     paddingVertical: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    shadowColor: colors.inkSoft,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.08,
+    shadowRadius: 24,
+  },
+  heroPanel: {
+    marginBottom: spacing.lg,
+    padding: spacing.lg,
+    borderRadius: borderRadius.xl,
+    overflow: 'hidden',
+  },
+  heroGlow: {
+    position: 'absolute',
+    top: -24,
+    right: -16,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: 'rgba(255,249,244,0.44)',
+  },
+  heroChip: {
+    alignSelf: 'flex-start',
+    marginBottom: spacing.sm,
+    backgroundColor: 'rgba(255,253,249,0.88)',
+  },
+  heroChipText: {
+    color: colors.primaryDark,
+    fontSize: fontSize.xs,
+    fontWeight: '700',
   },
   title: {
-    fontSize: fontSize.title,
-    fontWeight: 'bold',
-    color: colors.primary,
-    textAlign: 'center',
+    fontSize: 30,
+    fontWeight: '700',
+    color: colors.ink,
     marginBottom: spacing.xs,
   },
   subtitle: {
     fontSize: fontSize.md,
     color: colors.textSecondary,
-    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: spacing.lg,
+  },
+  heroSubtitle: {
+    fontSize: fontSize.md,
+    color: colors.inkSoft,
+    lineHeight: 22,
+  },
+  introText: {
+    fontSize: fontSize.md,
+    color: colors.textSecondary,
+    lineHeight: 22,
     marginBottom: spacing.lg,
   },
   segmented: {
@@ -298,18 +369,30 @@ const styles = StyleSheet.create({
   },
   demoSection: {
     marginBottom: spacing.md,
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
-    backgroundColor: colors.primaryLight,
+    padding: spacing.sm + 4,
+    borderRadius: borderRadius.lg,
+    backgroundColor: 'rgba(250,243,236,0.58)',
+    borderWidth: 1,
+    borderColor: 'rgba(94,126,134,0.12)',
     gap: spacing.sm,
   },
+  demoHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+  },
+  demoHeaderText: {
+    flex: 1,
+    gap: 2,
+  },
   demoTitle: {
-    fontSize: fontSize.lg,
+    fontSize: fontSize.sm,
     fontWeight: '700',
-    color: colors.primary,
+    color: colors.techDark,
   },
   demoHint: {
-    fontSize: fontSize.sm,
+    fontSize: fontSize.xs,
     color: colors.textSecondary,
   },
   demoCard: {
@@ -319,7 +402,7 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     padding: spacing.sm,
     borderRadius: 14,
-    backgroundColor: colors.white,
+    backgroundColor: 'rgba(255,252,248,0.92)',
   },
   demoTextWrap: {
     flex: 1,

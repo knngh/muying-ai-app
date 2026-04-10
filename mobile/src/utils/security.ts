@@ -65,7 +65,7 @@ export function sanitizeHtml(html: string): string {
 }
 
 export function buildSafeArticleHtml(content: string): string {
-  return `<html><head><meta name="viewport" content="width=device-width, initial-scale=1"><style>body{font-size:16px;line-height:1.8;color:#333;padding:0;margin:0}img{max-width:100%;height:auto}a{color:#176db8;text-decoration:none}</style></head><body>${sanitizeHtml(content)}</body></html>`
+  return `<html><head><meta name="viewport" content="width=device-width, initial-scale=1"><style>body{font-size:16px;line-height:1.9;color:#35261E;background:#FFF9F4;padding:0;margin:0}img{max-width:100%;height:auto;border-radius:16px;margin:12px 0}a{color:#9F4E2E;text-decoration:none}p,li{color:#70554A}h1,h2,h3,h4{color:#241813;line-height:1.45}blockquote{margin:16px 0;padding:12px 16px;border-left:4px solid #D98A5D;background:#F8EBDD;border-radius:12px;color:#70554A}</style></head><body>${sanitizeHtml(content)}</body></html>`
 }
 
 export function shouldAllowWebViewNavigation(url?: string): boolean {

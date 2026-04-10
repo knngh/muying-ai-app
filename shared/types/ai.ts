@@ -20,7 +20,7 @@ export interface AIMessage {
 
 export type RiskLevel = 'green' | 'yellow' | 'red'
 export type TriageCategory = 'normal' | 'caution' | 'emergency' | 'out_of_scope'
-export type SourceReliability = 'authoritative' | 'mixed' | 'dataset_only' | 'none'
+export type SourceReliability = 'authoritative' | 'mixed' | 'medical_platform_only' | 'dataset_only' | 'none'
 
 export interface StructuredAnswer {
   conclusion: string
@@ -49,6 +49,7 @@ export interface SourceReference {
   riskLevelDefault?: RiskLevel
   region?: string
   sourceType?: 'authority' | 'dataset' | 'editorial' | 'unknown'
+  sourceClass?: 'official' | 'medical_platform' | 'dataset' | 'unknown'
   authoritative?: boolean
 }
 

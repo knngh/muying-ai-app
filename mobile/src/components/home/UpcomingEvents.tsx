@@ -17,13 +17,14 @@ export default function UpcomingEvents({ events, onViewAll }: UpcomingEventsProp
     <View>
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>近期提醒</Text>
-        <Button mode="text" compact onPress={onViewAll}>
+        <Button mode="text" textColor={colors.primaryDark} compact onPress={onViewAll}>
           查看全部
         </Button>
       </View>
       {events.map((event) => (
-        <StandardCard key={`${event.id}-${event.eventDate}`}>
+        <StandardCard key={`${event.id}-${event.eventDate}`} style={styles.upcomingCard}>
           <Card.Content style={styles.upcomingCardContent}>
+            <View style={styles.upcomingWash} />
             <View style={styles.upcomingMeta}>
               <Chip compact style={styles.upcomingChip} textStyle={styles.upcomingChipText}>
                 {eventTypeLabels[event.eventType] || '提醒'}
@@ -57,6 +58,20 @@ const styles = StyleSheet.create({
   },
   upcomingCardContent: {
     gap: spacing.xs,
+    overflow: 'hidden',
+  },
+  upcomingCard: {
+    backgroundColor: colors.surfaceRaised,
+    borderColor: 'rgba(184,138,72,0.14)',
+  },
+  upcomingWash: {
+    position: 'absolute',
+    top: -12,
+    right: -8,
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: 'rgba(220,236,238,0.22)',
   },
   upcomingMeta: {
     flexDirection: 'row',
@@ -65,7 +80,7 @@ const styles = StyleSheet.create({
   },
   upcomingChip: {
     alignSelf: 'flex-start',
-    backgroundColor: colors.primaryLight,
+    backgroundColor: 'rgba(248, 230, 213, 0.9)',
     borderRadius: borderRadius.pill,
   },
   upcomingChipText: {
@@ -76,6 +91,7 @@ const styles = StyleSheet.create({
   upcomingDate: {
     color: colors.textSecondary,
     fontSize: fontSize.xs,
+    letterSpacing: 0.4,
   },
   upcomingTitle: {
     color: colors.text,

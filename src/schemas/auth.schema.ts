@@ -38,6 +38,12 @@ export const updateProfileBody = z.object({
   dueDate: dateString.optional().nullable(),
   babyBirthday: dateString.optional().nullable(),
   babyGender: z.coerce.number().int().min(0).max(2).optional(),
+  caregiverRole: z.coerce.number().int().min(0).max(4).optional(),
+  childNickname: z.string().min(1).max(30).optional().nullable(),
+  childBirthMode: z.coerce.number().int().min(0).max(2).optional(),
+  feedingMode: z.coerce.number().int().min(0).max(4).optional(),
+  developmentConcerns: z.string().min(1).max(200).optional().nullable(),
+  familyNotes: z.string().min(1).max(500).optional().nullable(),
 }).refine(data => Object.keys(data).length > 0, {
   message: '请提供至少一个需要更新的字段',
 });

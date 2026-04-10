@@ -3,6 +3,16 @@ import { articleApi, categoryApi, tagApi } from '../api/modules'
 import type { Article, Category, Tag, PaginatedResponse } from '../api/modules'
 
 const KNOWLEDGE_CONTENT_TYPE = 'authority'
+const STAGE_QUERY_MAP: Record<string, { apiStage?: string; fallbackKeyword?: string }> = {
+  preparation: { apiStage: 'preparation', fallbackKeyword: '备孕 叶酸 孕前检查' },
+  'first-trimester': { apiStage: 'first-trimester', fallbackKeyword: '孕早期 建档 早孕反应' },
+  'second-trimester': { apiStage: 'second-trimester', fallbackKeyword: '孕中期 胎动 糖耐' },
+  'third-trimester': { apiStage: 'third-trimester', fallbackKeyword: '孕晚期 待产 分娩征兆' },
+  '0-6-months': { apiStage: '0-6-months', fallbackKeyword: '新生儿 喂养 夜醒 疫苗' },
+  '6-12-months': { apiStage: '6-12-months', fallbackKeyword: '辅食 睡眠倒退 发育 疫苗' },
+  '1-3-years': { apiStage: '1-3-years', fallbackKeyword: '语言发展 如厕 情绪 挑食' },
+  '3-years-plus': { fallbackKeyword: '儿童 语言 情绪行为 睡眠 习惯 入园' },
+}
 const CHINESE_AUTHORITY_PATTERNS = [
   /中国政府网/u,
   /中国政府网政策解读/u,
@@ -61,6 +71,23 @@ function sortKnowledgeArticles(list: Article[]): Article[] {
   })
 }
 
+function buildKnowledgeQuery(selectedStage: string | null, keyword: string) {
+  const stageConfig = selectedStage ? STAGE_QUERY_MAP[selectedStage] : undefined
+  const normalizedKeyword = keyword.trim()
+
+  if (normalizedKeyword) {
+    return {
+      stage: stageConfig?.apiStage,
+      keyword: normalizedKeyword,
+    }
+  }
+
+  return {
+    stage: stageConfig?.apiStage,
+    keyword: stageConfig?.apiStage ? undefined : stageConfig?.fallbackKeyword,
+  }
+}
+
 interface KnowledgeState {
   articles: Article[]
   categories: Category[]
@@ -109,13 +136,14 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
     const page = params?.page || state.page
     set({ loading: true, error: null })
     try {
+      const query = buildKnowledgeQuery(state.selectedStage, state.keyword)
       const response = await articleApi.getList({
         page, pageSize: state.pageSize,
         contentType: KNOWLEDGE_CONTENT_TYPE,
         category: state.selectedCategory || undefined,
         tag: state.selectedTag || undefined,
-        stage: state.selectedStage || undefined,
-        keyword: state.keyword || undefined,
+        stage: query.stage,
+        keyword: query.keyword,
       }) as PaginatedResponse<Article>
       const nextArticles = params?.reset ? response.list : [...state.articles, ...response.list]
       set({
@@ -166,12 +194,13 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
   search: async (keyword) => {
     set({ keyword, page: 1, loading: true })
     try {
+      const query = buildKnowledgeQuery(get().selectedStage, keyword)
       const response = await articleApi.getList({
         page: 1,
         pageSize: get().pageSize,
         contentType: KNOWLEDGE_CONTENT_TYPE,
-        keyword,
-        stage: get().selectedStage || undefined,
+        keyword: query.keyword,
+        stage: query.stage,
       }) as PaginatedResponse<Article>
       set({ articles: sortKnowledgeArticles(response.list), total: response.pagination.total, loading: false })
     } catch (error: unknown) {
@@ -183,14 +212,52 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
   likeArticle: async (id) => {
     try {
       const result = await articleApi.like(id) as { liked: boolean }
-      set(state => ({ articles: state.articles.map(a => a.id === id ? { ...a, liked: result.liked } : a) }))
+      set((state) => ({
+        articles: state.articles.map((a) => (
+          a.id === id
+            ? {
+                ...a,
+                isLiked: result.liked,
+                likeCount: result.liked ? a.likeCount + 1 : Math.max(a.likeCount - 1, 0),
+              }
+            : a
+        )),
+        currentArticle: state.currentArticle?.id === id
+          ? {
+              ...state.currentArticle,
+              isLiked: result.liked,
+              likeCount: result.liked
+                ? state.currentArticle.likeCount + 1
+                : Math.max(state.currentArticle.likeCount - 1, 0),
+            }
+          : state.currentArticle,
+      }))
     } catch (_e) { /* ignore */ }
   },
 
   favoriteArticle: async (id) => {
     try {
       const result = await articleApi.favorite(id) as { favorited: boolean }
-      set(state => ({ articles: state.articles.map(a => a.id === id ? { ...a, favorited: result.favorited } : a) }))
+      set((state) => ({
+        articles: state.articles.map((a) => (
+          a.id === id
+            ? {
+                ...a,
+                isFavorited: result.favorited,
+                collectCount: result.favorited ? a.collectCount + 1 : Math.max(a.collectCount - 1, 0),
+              }
+            : a
+        )),
+        currentArticle: state.currentArticle?.id === id
+          ? {
+              ...state.currentArticle,
+              isFavorited: result.favorited,
+              collectCount: result.favorited
+                ? state.currentArticle.collectCount + 1
+                : Math.max(state.currentArticle.collectCount - 1, 0),
+            }
+          : state.currentArticle,
+      }))
     } catch (_e) { /* ignore */ }
   },
 

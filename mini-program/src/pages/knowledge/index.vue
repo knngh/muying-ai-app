@@ -2,7 +2,7 @@
   <view class="knowledge-page">
     <view class="hero">
       <text class="hero-title">权威知识库</text>
-      <text class="hero-subtitle">优先展示中国政府网、WHO、CDC、AAP、ACOG、NHS 等公开资料，减少经验帖干扰。</text>
+      <text class="hero-subtitle">优先展示中国政府网、国家卫健委、中国疾控、国家疾控局及 WHO、CDC、AAP、ACOG、NHS 等公开资料，减少经验帖干扰。</text>
     </view>
 
     <view class="search-bar">
@@ -67,6 +67,7 @@
         <view class="article-header">
           <view class="badge-row">
             <text class="source-badge">{{ article.sourceOrg || article.source || '权威来源' }}</text>
+            <text :class="['tier-badge', `tier-badge--${getAuthorityRegionTag(article)}`]">{{ getAuthorityRegionLabel(article) }}</text>
             <text v-if="article.topic" class="topic-badge">{{ article.topic }}</text>
           </view>
           <text class="article-title">{{ article.title }}</text>
@@ -77,11 +78,11 @@
         <view class="article-meta">
           <text v-if="article.audience" class="meta-item">{{ article.audience }}</text>
           <text v-if="article.region" class="meta-item">{{ article.region }}</text>
-          <text class="meta-item">{{ formatDate(article.publishedAt || article.createdAt) }}</text>
+          <text class="meta-item">来源更新 {{ formatDate(article.sourceUpdatedAt || article.publishedAt || article.createdAt) }}</text>
         </view>
 
         <view class="article-footer">
-          <text class="verified-text">已校验来源</text>
+          <text class="verified-text">已校验来源 · 同步 {{ formatDate(article.lastSyncedAt || article.updatedAt || article.createdAt) }}</text>
           <text class="read-more">查看详情</text>
         </view>
       </view>
@@ -101,6 +102,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useKnowledgeStore } from '@/stores/knowledge'
+import { getAuthorityRegionLabel, getAuthorityRegionTag } from '@/utils/authority-source'
 
 const knowledgeStore = useKnowledgeStore()
 
@@ -110,6 +112,9 @@ const selectedStageIndex = ref(0)
 const sourceOptions = [
   { label: '全部', value: 'all' },
   { label: '中国政府网', value: '中国政府网' },
+  { label: '国家卫健委', value: '国家卫生健康委员会' },
+  { label: '中国疾控', value: '中国疾病预防控制中心' },
+  { label: '国家疾控局', value: '国家疾病预防控制局' },
   { label: 'WHO', value: 'who' },
   { label: 'CDC', value: 'cdc' },
   { label: 'AAP', value: 'aap' },
@@ -133,7 +138,6 @@ const loading = computed(() => knowledgeStore.loading)
 const total = computed(() => knowledgeStore.total)
 const selectedSource = computed(() => knowledgeStore.selectedSource)
 const selectedStageLabel = computed(() => stageOptions[selectedStageIndex.value]?.label || '全部阶段')
-
 async function loadArticles(reset = true) {
   await knowledgeStore.fetchArticles({ reset, page: reset ? 1 : knowledgeStore.page + 1 })
 }
@@ -351,6 +355,7 @@ function formatDate(dateStr?: string): string {
 }
 
 .source-badge,
+.tier-badge,
 .topic-badge {
   padding: 6rpx 16rpx;
   border-radius: 999rpx;
@@ -360,6 +365,16 @@ function formatDate(dateStr?: string): string {
 .source-badge {
   background: rgba(31, 143, 116, 0.12);
   color: #18755f;
+}
+
+.tier-badge--cn {
+  background: rgba(41, 121, 255, 0.12);
+  color: #285eb7;
+}
+
+.tier-badge--global {
+  background: rgba(126, 87, 194, 0.1);
+  color: #6b4ab1;
 }
 
 .topic-badge {

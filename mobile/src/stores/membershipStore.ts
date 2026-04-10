@@ -45,7 +45,7 @@ const fallbackPlans: MembershipPlan[] = [
     originalPrice: 29.9,
     durationDays: 30,
     monthlyPriceLabel: '¥19.9 / 月',
-    description: '适合先体验问题助手不限次和会员周度报告。',
+    description: '适合先体验问题助手不限次和生命周期周报。',
     features: ['ai_unlimited', 'continuous_chat', 'weekly_report', 'stage_circle'],
   },
   {
@@ -57,7 +57,7 @@ const fallbackPlans: MembershipPlan[] = [
     durationDays: 90,
     monthlyPriceLabel: '折合 ¥16.6 / 月',
     badge: '省 17%',
-    description: '适合孕中期到产后连续使用。',
+    description: '适合跨阶段连续使用，把成长节奏和周报持续沉淀。',
     features: ['ai_unlimited', 'continuous_chat', 'weekly_report', 'stage_circle', 'growth_export'],
   },
   {
@@ -69,7 +69,7 @@ const fallbackPlans: MembershipPlan[] = [
     durationDays: 365,
     monthlyPriceLabel: '折合 ¥12.3 / 月',
     badge: '最划算',
-    description: '覆盖备孕、孕期、产后完整周期。',
+    description: '覆盖备孕、孕期、育儿与更长期的完整周期。',
     features: ['ai_unlimited', 'continuous_chat', 'weekly_report', 'growth_export', 'stage_circle', 'ad_free'],
   },
 ]
@@ -78,7 +78,7 @@ const previewReports: WeeklyReport[] = [
   {
     id: 'preview-weekly-report',
     title: '个性化周度报告',
-    stageLabel: '本周预览',
+    stageLabel: '生命周期预览',
     createdAt: dayjs().subtract(1, 'day').toISOString(),
     highlights: [
       '系统会结合你的阶段信息给出本周重点提醒。',

@@ -5,8 +5,11 @@ import DateTimePicker from '@react-native-community/datetimepicker'
 import dayjs from 'dayjs'
 import { colors, fontSize, spacing, borderRadius } from '../../theme'
 
-const PREGNANCY_STATUSES = ['备孕中', '孕期中', '产后']
+const PREGNANCY_STATUSES = ['备孕中', '孕期中', '育儿中']
 const GENDER_OPTIONS = ['男', '女', '未知']
+const CAREGIVER_ROLE_OPTIONS = ['妈妈', '爸爸', '祖辈', '其他', '未知']
+const CHILDBIRTH_MODE_OPTIONS = ['顺产', '剖宫产', '未知']
+const FEEDING_MODE_OPTIONS = ['母乳', '配方奶', '混合喂养', '辅食为主', '未知']
 
 interface EditProfileModalProps {
   visible: boolean
@@ -15,11 +18,23 @@ interface EditProfileModalProps {
   dueDate: string
   babyBirthday: string
   babyGender: string
+  caregiverRole: string
+  childNickname: string
+  childBirthMode: string
+  feedingMode: string
+  developmentConcerns: string
+  familyNotes: string
   onChangeNickname: (v: string) => void
   onChangePregnancyStatus: (v: string) => void
   onChangeDueDate: (v: string) => void
   onChangeBabyBirthday: (v: string) => void
   onChangeBabyGender: (v: string) => void
+  onChangeCaregiverRole: (v: string) => void
+  onChangeChildNickname: (v: string) => void
+  onChangeChildBirthMode: (v: string) => void
+  onChangeFeedingMode: (v: string) => void
+  onChangeDevelopmentConcerns: (v: string) => void
+  onChangeFamilyNotes: (v: string) => void
   onSave: () => void
   onDismiss: () => void
 }
@@ -31,11 +46,23 @@ export default function EditProfileModal({
   dueDate,
   babyBirthday,
   babyGender,
+  caregiverRole,
+  childNickname,
+  childBirthMode,
+  feedingMode,
+  developmentConcerns,
+  familyNotes,
   onChangeNickname,
   onChangePregnancyStatus,
   onChangeDueDate,
   onChangeBabyBirthday,
   onChangeBabyGender,
+  onChangeCaregiverRole,
+  onChangeChildNickname,
+  onChangeChildBirthMode,
+  onChangeFeedingMode,
+  onChangeDevelopmentConcerns,
+  onChangeFamilyNotes,
   onSave,
   onDismiss,
 }: EditProfileModalProps) {
@@ -80,7 +107,16 @@ export default function EditProfileModal({
             activeOutlineColor={colors.primary}
           />
 
-          <Text style={styles.fieldLabel}>孕育状态</Text>
+          <TextInput
+            label="孩子昵称"
+            value={childNickname}
+            onChangeText={onChangeChildNickname}
+            mode="outlined"
+            style={styles.input}
+            activeOutlineColor={colors.primary}
+          />
+
+          <Text style={styles.fieldLabel}>家庭状态</Text>
           <View style={styles.optionRow}>
             {PREGNANCY_STATUSES.map((statusLabel) => (
               <TouchableOpacity
@@ -104,6 +140,7 @@ export default function EditProfileModal({
           </View>
 
           <Text style={styles.fieldLabel}>预产期</Text>
+          <Text style={styles.fieldHint}>选择孕期中时会使用预产期自动判断孕早、中、晚期。</Text>
           <TouchableOpacity
             style={styles.dateButton}
             onPress={() => setShowDueDatePicker(true)}
@@ -129,6 +166,7 @@ export default function EditProfileModal({
           )}
 
           <Text style={styles.fieldLabel}>宝宝生日</Text>
+          <Text style={styles.fieldHint}>选择育儿中后，App 会根据宝宝生日自动切换到新生儿、0-6月、1-3岁和 3 岁以上阶段。</Text>
           <TouchableOpacity
             style={styles.dateButton}
             onPress={() => setShowBabyBirthdayPicker(true)}
@@ -176,6 +214,99 @@ export default function EditProfileModal({
             ))}
           </View>
 
+          <Text style={styles.fieldLabel}>照护者角色</Text>
+          <View style={styles.optionRow}>
+            {CAREGIVER_ROLE_OPTIONS.map((role) => (
+              <TouchableOpacity
+                key={role}
+                onPress={() => onChangeCaregiverRole(role)}
+                style={[
+                  styles.optionButton,
+                  caregiverRole === role && styles.optionButtonSelected,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.optionText,
+                    caregiverRole === role && styles.optionTextSelected,
+                  ]}
+                >
+                  {role}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text style={styles.fieldLabel}>分娩方式</Text>
+          <View style={styles.optionRow}>
+            {CHILDBIRTH_MODE_OPTIONS.map((mode) => (
+              <TouchableOpacity
+                key={mode}
+                onPress={() => onChangeChildBirthMode(mode)}
+                style={[
+                  styles.optionButton,
+                  childBirthMode === mode && styles.optionButtonSelected,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.optionText,
+                    childBirthMode === mode && styles.optionTextSelected,
+                  ]}
+                >
+                  {mode}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text style={styles.fieldLabel}>喂养方式</Text>
+          <View style={styles.optionRow}>
+            {FEEDING_MODE_OPTIONS.map((mode) => (
+              <TouchableOpacity
+                key={mode}
+                onPress={() => onChangeFeedingMode(mode)}
+                style={[
+                  styles.optionButton,
+                  feedingMode === mode && styles.optionButtonSelected,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.optionText,
+                    feedingMode === mode && styles.optionTextSelected,
+                  ]}
+                >
+                  {mode}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <TextInput
+            label="发育关注点"
+            value={developmentConcerns}
+            onChangeText={onChangeDevelopmentConcerns}
+            mode="outlined"
+            multiline
+            numberOfLines={3}
+            style={styles.input}
+            activeOutlineColor={colors.primary}
+            placeholder="例如：夜醒、语言发展、挑食、如厕训练"
+          />
+
+          <TextInput
+            label="家庭备注"
+            value={familyNotes}
+            onChangeText={onChangeFamilyNotes}
+            mode="outlined"
+            multiline
+            numberOfLines={4}
+            style={styles.input}
+            activeOutlineColor={colors.primary}
+            placeholder="例如：主要照护节奏、家庭协作分工、长期观察重点"
+          />
+
           <View style={styles.modalActions}>
             <Button mode="text" onPress={onDismiss}>
               取消
@@ -212,6 +343,12 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
     color: colors.textSecondary,
     fontSize: fontSize.sm,
+  },
+  fieldHint: {
+    marginBottom: spacing.xs,
+    color: colors.textLight,
+    fontSize: fontSize.xs,
+    lineHeight: 18,
   },
   optionRow: {
     marginBottom: spacing.md,

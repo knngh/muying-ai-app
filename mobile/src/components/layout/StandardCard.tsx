@@ -30,14 +30,15 @@ export const StandardCard: React.FC<StandardCardProps> = ({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.surfaceGlass,
     borderRadius: borderRadius.lg,
     overflow: "hidden",
     marginBottom: spacing.sm,
-    // Add subtle shadow manually if needed, overriding react-native-paper's harsh shadow
-    shadowColor: colors.inkSoft,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04,
-    shadowRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(185, 104, 66, 0.14)",
+    shadowColor: colors.shadowStrong,
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.12,
+    shadowRadius: 26,
   },
 });

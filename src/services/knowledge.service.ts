@@ -30,13 +30,16 @@ export interface QAPair {
   updated_at: string;
   published_at: string;
   source: string;
+  source_id?: string;
   source_org?: string;
+  source_class?: 'official' | 'medical_platform' | 'dataset' | 'unknown';
   source_url?: string;
   url?: string;
   audience?: string;
   topic?: string;
   risk_level_default?: KnowledgeRiskLevel;
   region?: string;
+  metadata?: Record<string, unknown>;
   original_id: string;
 }
 
@@ -56,6 +59,7 @@ export interface SourceReference {
   riskLevelDefault?: KnowledgeRiskLevel;
   region?: string;
   sourceType?: 'authority' | 'dataset' | 'editorial' | 'unknown';
+  sourceClass?: 'official' | 'medical_platform' | 'dataset' | 'unknown';
   authoritative?: boolean;
 }
 
@@ -73,7 +77,11 @@ const AUTHORITATIVE_SOURCE_PATTERNS = [
   /nih/i,
   /nhs/i,
   /fda/i,
+  /国家卫生健康委员会/u,
   /卫健委/u,
+  /中国疾控/u,
+  /中国疾病预防控制中心/u,
+  /国家疾病预防控制局/u,
   /中国政府网/u,
 ];
 
@@ -733,7 +741,23 @@ function inferRiskLevelDefault(qa: QAPair): KnowledgeRiskLevel {
 }
 
 function buildSourceMetadata(qa: QAPair) {
+  const sourceText = `${qa.source_id || ''} ${qa.source_org || ''} ${qa.source || ''} ${qa.source_url || ''} ${qa.url || ''}`;
   const authoritative = isAuthoritativeSource(qa);
+  const metadataSourceClass = typeof qa.metadata?.sourceClass === 'string'
+    ? qa.metadata.sourceClass
+    : undefined;
+  const sourceClass: SourceReference['sourceClass'] = authoritative
+    ? 'official'
+    : (
+      qa.source_class
+      || (metadataSourceClass === 'official' || metadataSourceClass === 'medical_platform' || metadataSourceClass === 'dataset' || metadataSourceClass === 'unknown'
+        ? metadataSourceClass
+        : undefined)
+      || (/dxy|丁香/u.test(sourceText) || /chunyu|春雨/u.test(sourceText) ? 'medical_platform' : ((qa.source || '').includes('数据集') ? 'dataset' : 'unknown'))
+    );
+  const sourceType: SourceReference['sourceType'] = authoritative
+    ? 'authority'
+    : (sourceClass === 'medical_platform' ? 'editorial' : ((qa.source || '').includes('数据集') ? 'dataset' : 'unknown'));
 
   return {
     sourceOrg: qa.source_org || qa.source || '知识库',
@@ -742,7 +766,8 @@ function buildSourceMetadata(qa: QAPair) {
     topic: qa.topic || CATEGORY_TOPIC_MAP[qa.category] || qa.category,
     riskLevelDefault: inferRiskLevelDefault(qa),
     region: qa.region || 'CN',
-    sourceType: authoritative ? 'authority' : ((qa.source || '').includes('数据集') ? 'dataset' : 'unknown'),
+    sourceType,
+    sourceClass,
     authoritative,
     url: qa.source_url || qa.url,
   } as const;
@@ -764,6 +789,7 @@ function buildSourceReference(qa: QAPair, score: number, signals?: QuerySignals)
     riskLevelDefault: metadata.riskLevelDefault,
     region: metadata.region,
     sourceType: metadata.sourceType,
+    sourceClass: metadata.sourceClass,
     authoritative: metadata.authoritative,
   };
 }

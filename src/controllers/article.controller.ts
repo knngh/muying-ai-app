@@ -2,11 +2,18 @@ import fs from 'fs';
 import path from 'path';
 import { Request, Response, NextFunction } from 'express';
 import prisma from '../config/database';
-import { inferAuthorityLocaleDefaults } from '../config/authority-sources';
+import { getAuthoritySourceConfig, inferAuthorityLocaleDefaults } from '../config/authority-sources';
 import { successResponse, paginatedResponse, AppError, ErrorCodes } from '../middlewares/error.middleware';
 import { cache, CacheKeys, CacheTTL } from '../services/cache.service';
 import { callTaskModelDetailed } from '../services/ai-gateway.service';
+import { detectAudience, detectTopic, sanitizeAuthorityTitle } from '../services/authority-adapters/base.adapter';
 import { textToRichParagraphHtml } from '../utils/article-format';
+import {
+  buildAuthorityDisplayTags,
+  normalizeAuthorityAudienceLabel,
+  normalizeAuthorityTopicLabel,
+} from '../utils/authority-metadata';
+import { inferAuthorityStages } from '../utils/authority-stage';
 import { shouldFilterAuthoritySourceUrl } from '../utils/authority-source-url';
 
 interface AuthorityCacheRecord {
@@ -30,9 +37,12 @@ interface AuthorityCacheRecord {
   source?: string;
   source_id?: string;
   source_org?: string;
+  source_class?: 'official' | 'medical_platform' | 'dataset' | 'unknown';
   source_url?: string;
   source_language?: 'zh' | 'en';
   source_locale?: string;
+  source_updated_at?: string;
+  last_synced_at?: string;
   url?: string;
   audience?: string;
   topic?: string;
@@ -379,32 +389,94 @@ function mapAuthorityDbRowToRecord(row: {
   let metadataTags: string[] = [];
   let metadataSourceLanguage: 'zh' | 'en' | undefined;
   let metadataSourceLocale: string | undefined;
+  let metadataSourceClass: 'official' | 'medical_platform' | 'dataset' | 'unknown' | undefined;
+  let metadataFetchedAt: string | undefined;
   try {
     const parsed = row.metadataJson ? JSON.parse(row.metadataJson) as {
       tags?: unknown;
       sourceLanguage?: unknown;
       sourceLocale?: unknown;
+      sourceClass?: unknown;
+      fetchedAt?: unknown;
     } : {};
     metadataTags = Array.isArray(parsed.tags) ? parsed.tags.map((tag) => String(tag)) : [];
     metadataSourceLanguage = parsed.sourceLanguage === 'zh' || parsed.sourceLanguage === 'en'
       ? parsed.sourceLanguage
       : undefined;
     metadataSourceLocale = typeof parsed.sourceLocale === 'string' ? parsed.sourceLocale : undefined;
+    metadataSourceClass = parsed.sourceClass === 'official'
+      || parsed.sourceClass === 'medical_platform'
+      || parsed.sourceClass === 'dataset'
+      || parsed.sourceClass === 'unknown'
+      ? parsed.sourceClass
+      : undefined;
+    metadataFetchedAt = typeof parsed.fetchedAt === 'string' ? parsed.fetchedAt : undefined;
   } catch {
     metadataTags = [];
   }
 
+  const cleanedTitle = sanitizeAuthorityTitle(row.title);
   const localeDefaults = inferAuthorityLocaleDefaults(row.sourceId, row.region);
   const stableDate = row.updatedAt || row.createdAt;
+  const sourceConfig = getAuthoritySourceConfig(row.sourceId);
+  const inferredAudience = detectAudience({
+    sourceUrl: row.sourceUrl,
+    title: cleanedTitle,
+    summary: row.summary,
+    contentText: row.contentText,
+  }, sourceConfig || {
+    id: row.sourceId,
+    org: row.sourceOrg,
+    baseUrl: row.sourceUrl,
+    allowedDomains: [],
+    discoveryType: 'index_page',
+    entryUrls: [],
+    region: row.region as 'US' | 'UK' | 'CN' | 'GLOBAL',
+    language: localeDefaults.sourceLanguage,
+    locale: localeDefaults.sourceLocale,
+    audience: [row.audience || '母婴家庭'],
+    topics: [row.topic || 'general'],
+    enabled: true,
+    fetchIntervalMinutes: 360,
+    maxPagesPerRun: 1,
+    parserId: row.sourceId,
+  });
+  const inferredTopic = detectTopic({
+    sourceUrl: row.sourceUrl,
+    title: cleanedTitle,
+    summary: row.summary,
+    contentText: row.contentText,
+  }, sourceConfig || {
+    id: row.sourceId,
+    org: row.sourceOrg,
+    baseUrl: row.sourceUrl,
+    allowedDomains: [],
+    discoveryType: 'index_page',
+    entryUrls: [],
+    region: row.region as 'US' | 'UK' | 'CN' | 'GLOBAL',
+    language: localeDefaults.sourceLanguage,
+    locale: localeDefaults.sourceLocale,
+    audience: [row.audience || '母婴家庭'],
+    topics: [row.topic || 'general'],
+    enabled: true,
+    fetchIntervalMinutes: 360,
+    maxPagesPerRun: 1,
+    parserId: row.sourceId,
+  });
 
   return {
     id: `authority-db-${row.id.toString()}`,
     content_type: 'authority',
-    question: row.title,
+    question: cleanedTitle,
     answer: row.contentText,
     summary: row.summary,
-    category: row.topic,
-    tags: metadataTags,
+    category: inferredTopic,
+    tags: buildAuthorityDisplayTags({
+      topic: inferredTopic,
+      audience: inferredAudience,
+      tags: metadataTags,
+      sourceOrg: row.sourceOrg,
+    }),
     difficulty: 'authoritative',
     is_verified: true,
     status: 'published',
@@ -416,12 +488,15 @@ function mapAuthorityDbRowToRecord(row: {
     source_id: row.sourceId,
     source: row.sourceOrg,
     source_org: row.sourceOrg,
+    source_class: metadataSourceClass || 'official',
     source_url: row.sourceUrl,
     source_language: metadataSourceLanguage || localeDefaults.sourceLanguage,
     source_locale: metadataSourceLocale || localeDefaults.sourceLocale,
+    source_updated_at: stableDate.toISOString(),
+    last_synced_at: metadataFetchedAt || row.createdAt.toISOString(),
     url: row.sourceUrl,
-    audience: row.audience,
-    topic: row.topic,
+    audience: inferredAudience,
+    topic: inferredTopic,
     region: row.region,
     original_id: row.sourceUrl,
   };
@@ -431,10 +506,71 @@ function mapAuthorityRecordToArticle(record: AuthorityCacheRecord, index: number
   const sourceOrg = record.source_org || record.source || '权威机构';
   const { sourceLanguage, sourceLocale } = resolveAuthorityLocale(record);
   const slug = buildAuthoritySlug(record, index);
-  const tags = [record.topic, record.audience, ...(record.tags || [])]
-    .filter(Boolean)
-    .slice(0, 6)
-    .map((tag, tagIndex) => ({
+  const localeDefaults = inferAuthorityLocaleDefaults(
+    record.source_id,
+    record.region,
+  );
+  const sourceConfig = getAuthoritySourceConfig(record.source_id || '');
+  const inferredAudience = detectAudience({
+    sourceUrl: record.source_url || record.url,
+    title: record.question,
+    summary: record.summary,
+    contentText: record.answer,
+  }, sourceConfig || {
+    id: record.source_id || sourceOrg,
+    org: sourceOrg,
+    baseUrl: record.source_url || record.url || '',
+    allowedDomains: [],
+    discoveryType: 'index_page',
+    entryUrls: [],
+    region: (record.region as 'US' | 'UK' | 'CN' | 'GLOBAL') || 'GLOBAL',
+    language: localeDefaults.sourceLanguage,
+    locale: localeDefaults.sourceLocale,
+    audience: [record.audience || '母婴家庭'],
+    topics: [record.topic || record.category || 'general'],
+    enabled: true,
+    fetchIntervalMinutes: 360,
+    maxPagesPerRun: 1,
+    parserId: record.source_id || sourceOrg,
+  });
+  const inferredTopic = detectTopic({
+    sourceUrl: record.source_url || record.url,
+    title: record.question,
+    summary: record.summary,
+    contentText: record.answer,
+  }, sourceConfig || {
+    id: record.source_id || sourceOrg,
+    org: sourceOrg,
+    baseUrl: record.source_url || record.url || '',
+    allowedDomains: [],
+    discoveryType: 'index_page',
+    entryUrls: [],
+    region: (record.region as 'US' | 'UK' | 'CN' | 'GLOBAL') || 'GLOBAL',
+    language: localeDefaults.sourceLanguage,
+    locale: localeDefaults.sourceLocale,
+    audience: [record.audience || '母婴家庭'],
+    topics: [record.topic || record.category || 'general'],
+    enabled: true,
+    fetchIntervalMinutes: 360,
+    maxPagesPerRun: 1,
+    parserId: record.source_id || sourceOrg,
+  });
+  const inferredStages = inferAuthorityStages({
+    title: record.question,
+    summary: record.summary,
+    contentText: record.answer,
+    audience: inferredAudience,
+    topic: inferredTopic,
+  });
+  const targetStages = inferredStages.length > 0
+    ? inferredStages
+    : (record.target_stage?.length ? record.target_stage : []);
+  const tags = buildAuthorityDisplayTags({
+    topic: inferredTopic,
+    audience: inferredAudience,
+    tags: record.tags,
+    sourceOrg,
+  }).map((tag, tagIndex) => ({
       id: tagIndex + 1,
       name: String(tag),
       slug: String(tag).toLowerCase().replace(/[^a-z0-9\u4e00-\u9fa5]+/g, '-'),
@@ -463,7 +599,8 @@ function mapAuthorityRecordToArticle(record: AuthorityCacheRecord, index: number
     viewCount: record.view_count || 0,
     likeCount: record.like_count || 0,
     collectCount: 0,
-    stage: record.target_stage?.[0],
+    stage: targetStages[0],
+    targetStages,
     difficulty: record.difficulty || 'authoritative',
     contentType: 'authority',
     isVerified: record.is_verified !== false,
@@ -479,16 +616,22 @@ function mapAuthorityRecordToArticle(record: AuthorityCacheRecord, index: number
     sourceUrl: record.source_url || record.url,
     sourceLanguage,
     sourceLocale,
-    audience: record.audience,
-    topic: record.topic || record.category,
+    sourceUpdatedAt: record.source_updated_at || record.published_at || record.updated_at || record.created_at,
+    lastSyncedAt: record.last_synced_at || record.updated_at || record.created_at,
+    audience: normalizeAuthorityAudienceLabel(inferredAudience),
+    topic: normalizeAuthorityTopicLabel(inferredTopic || record.category),
     region: record.region,
     originalId: record.original_id || record.id,
   };
 }
 
+function isOfficialAuthorityRecord(record: AuthorityCacheRecord): boolean {
+  return (record.source_class || 'official') === 'official';
+}
+
 async function getAuthorityArticles() {
   const records = await getAuthorityRecords();
-  return records.map(mapAuthorityRecordToArticle);
+  return records.filter(isOfficialAuthorityRecord).map(mapAuthorityRecordToArticle);
 }
 
 function getAuthorityArticleTimestamp(article: ReturnType<typeof mapAuthorityRecordToArticle>): number {
@@ -530,7 +673,10 @@ function filterAuthorityArticles(
   const source = typeof filters.source === 'string' ? filters.source.trim().toLowerCase() : '';
 
   return articles.filter((article) => {
-    if (typeof filters.stage === 'string' && filters.stage && article.stage !== filters.stage) {
+    const articleStages = Array.isArray(article.targetStages) && article.targetStages.length > 0
+      ? article.targetStages
+      : (article.stage ? [article.stage] : []);
+    if (typeof filters.stage === 'string' && filters.stage && !articleStages.includes(filters.stage)) {
       return false;
     }
 
@@ -922,13 +1068,15 @@ export const getRelatedArticles = async (req: Request, res: Response, next: Next
  */
 export const searchArticles = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { q, page = 1, pageSize = 20 } = req.query;
+    const { q, page = 1, pageSize = 20, contentType } = req.query;
 
     if (!q || typeof q !== 'string') {
       throw new AppError('请输入搜索关键词', ErrorCodes.PARAM_ERROR, 400);
     }
 
-    const skip = (Number(page) - 1) * Number(pageSize);
+    const currentPage = Number(page);
+    const currentPageSize = Number(pageSize);
+    const skip = (currentPage - 1) * currentPageSize;
 
     // 记录搜索日志（异步执行）
     prisma.searchLog.create({
@@ -940,26 +1088,73 @@ export const searchArticles = async (req: Request, res: Response, next: NextFunc
       }
     }).catch(err => console.error('[Search] Failed to log search:', err));
 
-    // 使用全文搜索
+    if (contentType === 'authority') {
+      const filtered = filterAuthorityArticles(await getAuthorityArticles(), {
+        keyword: q,
+      });
+      const paged = filtered.slice(skip, skip + currentPageSize);
+      res.json(paginatedResponse(paged, currentPage, currentPageSize, filtered.length));
+      return;
+    }
+
+    try {
+      const [articles, total] = await Promise.all([
+        prisma.$queryRaw`
+          SELECT id, title, slug, summary, cover_image, view_count, published_at
+          FROM articles
+          WHERE status = 1
+          AND deleted_at IS NULL
+          AND MATCH(title, content) AGAINST(${q} IN NATURAL LANGUAGE MODE)
+          LIMIT ${currentPageSize} OFFSET ${skip}
+        `,
+        prisma.$queryRaw`
+          SELECT COUNT(*) as total
+          FROM articles
+          WHERE status = 1
+          AND deleted_at IS NULL
+          AND MATCH(title, content) AGAINST(${q} IN NATURAL LANGUAGE MODE)
+        `
+      ]);
+
+      res.json(paginatedResponse(articles as unknown[], currentPage, currentPageSize, Number((total as any)[0]?.total || 0)));
+      return;
+    } catch (searchError) {
+      console.error('[Search] Fulltext query failed, fallback to LIKE search:', searchError);
+    }
+
+    const where = {
+      status: 1,
+      deletedAt: null,
+      OR: [
+        { title: { contains: q } },
+        { summary: { contains: q } },
+        { content: { contains: q } },
+      ],
+    };
+
     const [articles, total] = await Promise.all([
-      prisma.$queryRaw`
-        SELECT id, title, slug, summary, cover_image, view_count, published_at
-        FROM articles
-        WHERE status = 1 
-        AND deleted_at IS NULL
-        AND MATCH(title, content) AGAINST(${q} IN NATURAL LANGUAGE MODE)
-        LIMIT ${Number(pageSize)} OFFSET ${skip}
-      `,
-      prisma.$queryRaw`
-        SELECT COUNT(*) as total
-        FROM articles
-        WHERE status = 1 
-        AND deleted_at IS NULL
-        AND MATCH(title, content) AGAINST(${q} IN NATURAL LANGUAGE MODE)
-      `
+      prisma.article.findMany({
+        where,
+        skip,
+        take: currentPageSize,
+        orderBy: [
+          { publishedAt: 'desc' },
+          { id: 'desc' },
+        ],
+        select: {
+          id: true,
+          title: true,
+          slug: true,
+          summary: true,
+          coverImage: true,
+          viewCount: true,
+          publishedAt: true,
+        }
+      }),
+      prisma.article.count({ where }),
     ]);
 
-    res.json(paginatedResponse(articles as unknown[], Number(page), Number(pageSize), Number((total as any)[0]?.total || 0)));
+    res.json(paginatedResponse(articles, currentPage, currentPageSize, total));
   } catch (error) {
     next(error);
   }

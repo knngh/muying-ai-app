@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useFocusEffect } from '@react-navigation/native'
 import { articleApi, calendarApi } from '../api/modules'
-import type { Article, CalendarEvent, PregnancyCustomTodo, PregnancyTodoProgress } from '../api/modules'
+import type { Article, CalendarEvent, PaginatedResponse, PregnancyCustomTodo, PregnancyTodoProgress } from '../api/modules'
 import { useAppStore } from '../stores/appStore'
 import { useMembershipStore } from '../stores/membershipStore'
 import type { WeeklyReport } from '../stores/membershipStore'
@@ -19,12 +19,6 @@ type PregnancyWeekGuideItem = {
       desc: string
     }>
   }
-}
-
-const AUTHORITY_KEYWORDS: Record<string, string[]> = {
-  preparing: ['备孕', 'pregnancy prep', 'preconception'],
-  pregnant: ['孕期', 'pregnancy', 'prenatal'],
-  postpartum: ['新生儿', '产后', 'postpartum', 'feeding'],
 }
 
 export function useHomeData() {
@@ -62,20 +56,43 @@ export function useHomeData() {
   const loadArticles = useCallback(async () => {
     setLoadingArticles(true)
     try {
-      const keywordCandidates = AUTHORITY_KEYWORDS[stage.kind] || []
       let nextArticles: Article[] = []
 
-      for (const keyword of [...keywordCandidates, '']) {
+      for (const stageKey of stage.knowledgeStages) {
         const response = (await articleApi.getList({
           pageSize: 4,
           contentType: 'authority',
           sort: 'latest',
-          keyword: keyword || undefined,
-        })) as { list: Article[] }
+          stage: stageKey,
+        })) as PaginatedResponse<Article>
         if ((response.list || []).length > 0) {
           nextArticles = response.list || []
           break
         }
+      }
+
+      if (nextArticles.length === 0) {
+        for (const keyword of stage.knowledgeKeywords) {
+          const response = (await articleApi.getList({
+            pageSize: 4,
+            contentType: 'authority',
+            sort: 'latest',
+            keyword,
+          })) as PaginatedResponse<Article>
+          if ((response.list || []).length > 0) {
+            nextArticles = response.list || []
+            break
+          }
+        }
+      }
+
+      if (nextArticles.length === 0) {
+        const fallbackResponse = (await articleApi.getList({
+          pageSize: 4,
+          contentType: 'authority',
+          sort: 'latest',
+        })) as PaginatedResponse<Article>
+        nextArticles = fallbackResponse.list || []
       }
 
       setArticles(nextArticles)
@@ -84,7 +101,7 @@ export function useHomeData() {
     } finally {
       setLoadingArticles(false)
     }
-  }, [stage.kind])
+  }, [stage.knowledgeKeywords, stage.knowledgeStages])
 
   const loadHomeCalendar = useCallback(async () => {
     try {
@@ -97,10 +114,10 @@ export function useHomeData() {
           startDate: startDate.toISOString().slice(0, 10),
           endDate: endDate.toISOString().slice(0, 10),
         }) as Promise<CalendarEvent[]>,
-        currentPregnancyWeek
+        stage.kind === 'pregnant' && currentPregnancyWeek
           ? (calendarApi.getCustomTodos({ week: currentPregnancyWeek }) as Promise<PregnancyCustomTodo[]>)
           : Promise.resolve([] as PregnancyCustomTodo[]),
-        currentPregnancyWeek
+        stage.kind === 'pregnant' && currentPregnancyWeek
           ? (calendarApi.getTodoProgress({ week: currentPregnancyWeek }) as Promise<PregnancyTodoProgress[]>)
           : Promise.resolve([] as PregnancyTodoProgress[]),
       ])
@@ -120,7 +137,7 @@ export function useHomeData() {
       setUpcomingEvents([])
       setTodoStats({ week: currentPregnancyWeek, total: 0, completed: 0 })
     }
-  }, [currentPregnancyWeek, currentWeekGuide])
+  }, [currentPregnancyWeek, currentWeekGuide, stage.kind])
 
   useEffect(() => {
     void loadArticles()
@@ -145,6 +162,7 @@ export function useHomeData() {
   }) as WeeklyReport
 
   const statusTags = [
+    ...stage.statusTags,
     `连续打卡 ${checkInStreak} 天`,
     `本周完成 ${weeklyCompletionRate}%`,
     todoStats.total > 0 && todoStats.week ? `孕${todoStats.week}周待办 ${todoStats.completed}/${todoStats.total}` : null,

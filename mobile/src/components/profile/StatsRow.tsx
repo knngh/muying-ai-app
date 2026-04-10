@@ -1,6 +1,7 @@
 import React from 'react'
 import { StyleSheet, View } from 'react-native'
-import { Card, Text } from 'react-native-paper'
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons'
+import { Text } from 'react-native-paper'
 import { StandardCard } from '../layout'
 import { colors, fontSize, spacing } from '../../theme'
 
@@ -11,26 +12,43 @@ interface StatsRowProps {
 }
 
 export default function StatsRow({ usageLabel, checkInStreak, weeklyCompletionRate }: StatsRowProps) {
+  const metrics = [
+    {
+      label: '今日使用',
+      value: usageLabel,
+      icon: 'flash-outline',
+      accent: colors.copper,
+      shell: 'rgba(185, 104, 66, 0.12)',
+    },
+    {
+      label: '连续打卡',
+      value: `${checkInStreak}`,
+      icon: 'fire',
+      accent: colors.primaryDark,
+      shell: 'rgba(217, 138, 93, 0.14)',
+    },
+    {
+      label: '周完成率',
+      value: `${weeklyCompletionRate}%`,
+      icon: 'chart-donut',
+      accent: colors.techDark,
+      shell: 'rgba(94, 126, 134, 0.12)',
+    },
+  ]
+
   return (
     <View style={styles.statRow}>
-      <StandardCard style={styles.statCard}>
-        <Card.Content style={styles.statContent}>
-          <Text style={styles.statLabel}>今日使用</Text>
-          <Text style={styles.statValue}>{usageLabel}</Text>
-        </Card.Content>
-      </StandardCard>
-      <StandardCard style={styles.statCard}>
-        <Card.Content style={styles.statContent}>
-          <Text style={styles.statLabel}>连续打卡</Text>
-          <Text style={styles.statValue}>{checkInStreak}</Text>
-        </Card.Content>
-      </StandardCard>
-      <StandardCard style={styles.statCard}>
-        <Card.Content style={styles.statContent}>
-          <Text style={styles.statLabel}>周完成率</Text>
-          <Text style={styles.statValue}>{weeklyCompletionRate}%</Text>
-        </Card.Content>
-      </StandardCard>
+      {metrics.map((metric) => (
+        <StandardCard key={metric.label} style={styles.statCard}>
+          <View style={styles.statContent}>
+            <View style={[styles.iconShell, { backgroundColor: metric.shell }]}>
+              <MaterialCommunityIcons name={metric.icon} size={18} color={metric.accent} />
+            </View>
+            <Text style={styles.statLabel}>{metric.label}</Text>
+            <Text style={styles.statValue}>{metric.value}</Text>
+          </View>
+        </StandardCard>
+      ))}
     </View>
   )
 }
@@ -45,17 +63,28 @@ const styles = StyleSheet.create({
     marginBottom: 0,
   },
   statContent: {
-    alignItems: 'center',
+    alignItems: 'flex-start',
     paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    minHeight: 116,
+  },
+  iconShell: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.sm,
   },
   statLabel: {
-    color: colors.textSecondary,
+    color: colors.inkSoft,
     fontSize: fontSize.sm,
     marginBottom: spacing.xs,
+    fontWeight: '600',
   },
   statValue: {
     fontSize: fontSize.xl,
     fontWeight: 'bold',
-    color: colors.text,
+    color: colors.inkDeep,
   },
 })

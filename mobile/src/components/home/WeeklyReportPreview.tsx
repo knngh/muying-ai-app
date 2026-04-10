@@ -15,20 +15,21 @@ export default function WeeklyReportPreview({ report, status, onViewMore }: Week
   return (
     <View>
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>周度报告预览</Text>
-        <Button mode="text" onPress={onViewMore} compact>
-          {status === 'active' ? '查看历史' : '升级解锁'}
+        <Text style={styles.sectionTitle}>本周周报</Text>
+        <Button mode="text" textColor={colors.primaryDark} onPress={onViewMore} compact>
+          {status === 'active' ? '查看历史' : '查看方案'}
         </Button>
       </View>
-      <StandardCard>
-        <Card.Content>
+      <StandardCard style={styles.reportCard}>
+        <Card.Content style={styles.reportContent}>
+          <View style={styles.reportWash} />
           <View style={styles.reportHeader}>
             <View>
               <Text style={styles.reportTitle}>{report.title}</Text>
               <Text style={styles.reportMeta}>{report.stageLabel}</Text>
             </View>
             <Chip style={styles.reportChip} textStyle={styles.reportChipText} compact>
-              {status === 'active' ? '会员专属' : '升级解锁'}
+              {status === 'active' ? '持续更新' : '预览中'}
             </Chip>
           </View>
 
@@ -63,6 +64,24 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: spacing.sm,
+    gap: spacing.md,
+  },
+  reportCard: {
+    backgroundColor: colors.surfaceRaised,
+    borderColor: 'rgba(184,138,72,0.14)',
+  },
+  reportContent: {
+    gap: spacing.xs,
+    overflow: 'hidden',
+  },
+  reportWash: {
+    position: 'absolute',
+    top: -14,
+    right: -8,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: 'rgba(248, 230, 213, 0.28)',
   },
   reportTitle: {
     fontSize: fontSize.md,
@@ -73,9 +92,10 @@ const styles = StyleSheet.create({
     fontSize: fontSize.xs,
     color: colors.textSecondary,
     marginTop: 2,
+    letterSpacing: 0.6,
   },
   reportChip: {
-    backgroundColor: colors.primaryLight,
+    backgroundColor: 'rgba(248, 230, 213, 0.92)',
     borderRadius: borderRadius.pill,
   },
   reportChipText: {
@@ -86,7 +106,7 @@ const styles = StyleSheet.create({
   reportItem: {
     fontSize: fontSize.sm,
     color: colors.text,
-    lineHeight: 20,
+    lineHeight: 21,
     marginBottom: spacing.xs,
   },
 })

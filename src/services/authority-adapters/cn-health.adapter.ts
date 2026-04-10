@@ -37,7 +37,9 @@ function normalizeCnHealthTitle(title: string): string {
   return title
     .replace(/_[^_]+_中国政府网$/u, '')
     .replace(/_中国政府网$/u, '')
+    .replace(/[-_]\s*国家卫生健康委员会(?:妇幼健康司|人口监测与家庭发展司)?$/u, '')
     .replace(/[-_]\s*国家疾病预防控制局$/u, '')
+    .replace(/[-_]\s*中国疾病预防控制中心营养与健康所$/u, '')
     .replace(/[-_]\s*中国疾病预防控制中心$/u, '')
     .trim();
 }
@@ -88,8 +90,8 @@ export const cnHealthAdapter: AuthorityDocumentAdapter = {
         || extractMetaContent(raw.rawBody, 'PubDate')
         || raw.lastModified
       ),
-      audience: detectAudience(mergedText, source),
-      topic: detectTopic(mergedText, source),
+      audience: detectAudience({ sourceUrl: raw.url, title, summary: description, contentText }, source),
+      topic: detectTopic({ sourceUrl: raw.url, title, summary: description, contentText }, source),
       region: source.region,
       riskLevelDefault: detectRiskLevelDefault(mergedText),
       summary: (description || contentText).slice(0, 300),

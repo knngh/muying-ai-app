@@ -16,10 +16,10 @@ interface CalendarState {
   fetchEvents: (startDate?: string, endDate?: string) => Promise<void>
   fetchTodoContext: (week: number) => Promise<void>
   fetchDiaries: (week?: number) => Promise<void>
-  createEvent: (data: Partial<CalendarEvent>) => Promise<void>
-  updateEvent: (id: number, data: Partial<CalendarEvent>) => Promise<void>
+  createEvent: (data: Partial<CalendarEvent>) => Promise<CalendarEvent>
+  updateEvent: (id: number, data: Partial<CalendarEvent>) => Promise<CalendarEvent>
   deleteEvent: (id: number) => Promise<void>
-  completeEvent: (id: number) => Promise<void>
+  completeEvent: (id: number) => Promise<CalendarEvent>
   toggleTodoProgress: (week: number, todoKey: string, completed: boolean) => Promise<void>
   saveDiary: (week: number, content: string) => Promise<void>
   deleteDiary: (week: number) => Promise<void>
@@ -90,9 +90,11 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
     try {
       const newEvent = await calendarApi.createEvent(data) as CalendarEvent
       set(state => ({ events: [...state.events, newEvent], loading: false }))
+      return newEvent
     } catch (error: unknown) {
       const err = error as { message?: string }
       set({ error: err.message || '创建事件失败', loading: false })
+      throw error
     }
   },
 
@@ -101,9 +103,11 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
     try {
       const updated = await calendarApi.updateEvent(id, data) as CalendarEvent
       set(state => ({ events: state.events.map(e => e.id === id ? updated : e), loading: false }))
+      return updated
     } catch (error: unknown) {
       const err = error as { message?: string }
       set({ error: err.message || '更新事件失败', loading: false })
+      throw error
     }
   },
 
@@ -122,8 +126,10 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
     try {
       const updated = await calendarApi.completeEvent(id) as CalendarEvent
       set(state => ({ events: state.events.map(e => e.id === id ? updated : e) }))
+      return updated
     } catch (_e) {
       logError('CalendarStore.completeEvent', _e)
+      throw _e
     }
   },
 

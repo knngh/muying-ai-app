@@ -21,6 +21,24 @@ export interface AuthorityArticleTranslation {
   isSourceChinese?: boolean
 }
 
+function normalizeCalendarEvent(event: CalendarEvent | Record<string, unknown>) {
+  const raw = event as Record<string, unknown>
+
+  return {
+    ...raw,
+    id: Number(raw.id),
+    userId: String(raw.userId ?? ''),
+    eventDate: String(raw.eventDate ?? '').slice(0, 10),
+    startTime: raw.startTime ? String(raw.startTime).slice(0, 5) : undefined,
+    endTime: raw.endTime ? String(raw.endTime).slice(0, 5) : undefined,
+    isCompleted: Boolean(raw.isCompleted),
+    isAllDay: Boolean(raw.isAllDay),
+    reminderEnabled: Boolean(raw.reminderEnabled),
+    reminderMinutes: raw.reminderMinutes !== undefined ? Number(raw.reminderMinutes) : undefined,
+    status: String(raw.status ?? ''),
+  } as CalendarEvent
+}
+
 function mapCalendarEventPayload(data: Partial<CalendarEvent>) {
   return {
     ...data,
@@ -66,7 +84,7 @@ export const calendarApi = {
         endDate: params?.endDate,
         type: params?.eventType,
       },
-    }).then(res => (res as { list: CalendarEvent[] }).list),
+    }).then(res => (res as { list: CalendarEvent[] }).list.map(normalizeCalendarEvent)),
   getWeek: (params?: { date?: string }) => api.get('/calendar/week', { params }),
   getDay: (date: string) => api.get(`/calendar/day/${date}`),
   getEventTypes: () => api.get('/calendar/event-types'),
@@ -90,14 +108,18 @@ export const calendarApi = {
     api.put<PregnancyCustomTodo>(`/calendar/custom-todos/${id}`, data),
   deleteCustomTodo: (id: string) =>
     api.delete<{ id: string; week: number; todoKey: string }>(`/calendar/custom-todos/${id}`),
-  createEvent: (data: Partial<CalendarEvent>) => api.post<CalendarEvent>('/calendar/events', mapCalendarEventPayload(data)),
-  updateEvent: (id: number, data: Partial<CalendarEvent>) => api.put<CalendarEvent>(`/calendar/events/${id}`, mapCalendarEventPayload(data)),
+  createEvent: (data: Partial<CalendarEvent>) =>
+    api.post<CalendarEvent>('/calendar/events', mapCalendarEventPayload(data)).then(normalizeCalendarEvent),
+  updateEvent: (id: number, data: Partial<CalendarEvent>) =>
+    api.put<CalendarEvent>(`/calendar/events/${id}`, mapCalendarEventPayload(data)).then(normalizeCalendarEvent),
   deleteEvent: (id: number) => api.delete(`/calendar/events/${id}`),
-  completeEvent: (id: number) => api.post<CalendarEvent>(`/calendar/events/${id}/complete`),
-  dragEvent: (id: number, data: { newDate: string; newStartTime?: string }) => api.patch<CalendarEvent>(`/calendar/events/${id}/drag`, {
-    newDate: data.newDate,
-    newTime: data.newStartTime,
-  }),
+  completeEvent: (id: number) =>
+    api.post<CalendarEvent>(`/calendar/events/${id}/complete`).then(normalizeCalendarEvent),
+  dragEvent: (id: number, data: { newDate: string; newStartTime?: string }) =>
+    api.patch<CalendarEvent>(`/calendar/events/${id}/drag`, {
+      newDate: data.newDate,
+      newTime: data.newStartTime,
+    }).then(normalizeCalendarEvent),
 }
 
 export const userApi = {
@@ -122,7 +144,9 @@ export const authApi = {
   refresh: () => api.post<{ token: string }>('/auth/refresh'),
   updateProfile: (data: {
     nickname?: string; avatar?: string; pregnancyStatus?: number;
-    dueDate?: string; babyBirthday?: string; babyGender?: number
+    dueDate?: string | null; babyBirthday?: string | null; babyGender?: number;
+    caregiverRole?: number; childNickname?: string | null; childBirthMode?: number;
+    feedingMode?: number; developmentConcerns?: string | null; familyNotes?: string | null;
   }) => api.put<User>('/auth/profile', data),
   changePassword: (data: { oldPassword: string; newPassword: string }) => api.put('/auth/password', data),
   logout: () => api.post('/auth/logout'),

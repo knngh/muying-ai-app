@@ -13,6 +13,36 @@ const genderMap: Record<string, number> = {
   female: 2,
 };
 
+const caregiverRoleMap: Record<string, number> = {
+  mother: 1,
+  mom: 1,
+  mama: 1,
+  father: 2,
+  dad: 2,
+  papa: 2,
+  grandparent: 3,
+  grandma: 3,
+  grandpa: 3,
+  elder: 3,
+  other: 4,
+};
+
+const childBirthModeMap: Record<string, number> = {
+  vaginal: 1,
+  natural: 1,
+  csection: 2,
+  'c-section': 2,
+  cesarean: 2,
+};
+
+const feedingModeMap: Record<string, number> = {
+  breastfeeding: 1,
+  breast: 1,
+  formula: 2,
+  mixed: 3,
+  solids: 4,
+};
+
 function normalizeNumber(value: unknown): number | undefined {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return value;
@@ -58,6 +88,45 @@ export function normalizeGender(value: unknown): number | undefined {
 
   if (typeof value === 'string') {
     return genderMap[value.trim().toLowerCase()];
+  }
+
+  return undefined;
+}
+
+export function normalizeCaregiverRole(value: unknown): number | undefined {
+  const numericValue = normalizeNumber(value);
+  if (numericValue !== undefined && numericValue >= 0 && numericValue <= 4) {
+    return numericValue;
+  }
+
+  if (typeof value === 'string') {
+    return caregiverRoleMap[value.trim().toLowerCase()];
+  }
+
+  return undefined;
+}
+
+export function normalizeChildBirthMode(value: unknown): number | undefined {
+  const numericValue = normalizeNumber(value);
+  if (numericValue !== undefined && numericValue >= 0 && numericValue <= 2) {
+    return numericValue;
+  }
+
+  if (typeof value === 'string') {
+    return childBirthModeMap[value.trim().toLowerCase()];
+  }
+
+  return undefined;
+}
+
+export function normalizeFeedingMode(value: unknown): number | undefined {
+  const numericValue = normalizeNumber(value);
+  if (numericValue !== undefined && numericValue >= 0 && numericValue <= 4) {
+    return numericValue;
+  }
+
+  if (typeof value === 'string') {
+    return feedingModeMap[value.trim().toLowerCase()];
   }
 
   return undefined;

@@ -31,6 +31,12 @@ model User {
   dueDate         DateTime? @db.Date
   babyBirthday    DateTime? @db.Date
   babyGender      Int      @default(0)
+  caregiverRole   Int      @default(0) // 0-未知, 1-妈妈, 2-爸爸, 3-祖辈, 4-其他照护者
+  childNickname   String?  @db.VarChar(50)
+  childBirthMode  Int      @default(0) // 0-未知, 1-顺产, 2-剖宫产
+  feedingMode     Int      @default(0) // 0-未知, 1-母乳, 2-配方奶, 3-混合喂养, 4-辅食为主
+  developmentConcerns String? @db.VarChar(300)
+  familyNotes     String?  @db.VarChar(500)
   
   // 账户状态
   status          Int      @default(1) // 0-禁用, 1-正常

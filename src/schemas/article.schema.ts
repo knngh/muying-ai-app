@@ -14,4 +14,5 @@ export const getArticlesQuery = paginationQuery.extend({
 
 export const searchArticlesQuery = paginationQuery.extend({
   q: z.string().min(1, '请输入搜索关键词').max(100, '搜索关键词过长'),
+  contentType: z.string().optional(),
 });

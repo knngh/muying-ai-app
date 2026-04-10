@@ -8,9 +8,11 @@ import {
   listEnabledAuthoritySources,
   type AuthoritySourceConfig,
 } from '../config/authority-sources';
+import { inferAuthorityStages } from '../utils/authority-stage';
+import { buildAuthorityDisplayTags } from '../utils/authority-metadata';
 import { isIndexLikeAuthorityUrl, shouldFilterAuthoritySourceUrl } from '../utils/authority-source-url';
 import { normalizeWithAuthorityAdapter } from './authority-adapters';
-import { stripHtml } from './authority-adapters/base.adapter';
+import { detectAudience, detectTopic, sanitizeAuthorityTitle, stripHtml } from './authority-adapters/base.adapter';
 
 export interface DiscoveredAuthorityUrl {
   url: string;
@@ -81,7 +83,13 @@ export interface ListAuthorityDocumentsOptions {
 }
 
 let ensureAuthorityTablesPromise: Promise<void> | null = null;
+let lastAuthorityFetchAt = 0;
+
+const AUTHORITY_REQUEST_DELAY_MS = Math.max(0, Number(process.env.AUTHORITY_REQUEST_DELAY_MS || 0));
+const AUTHORITY_RETRY_429_LIMIT = Math.max(0, Number(process.env.AUTHORITY_RETRY_429_LIMIT || 0));
+const AUTHORITY_RETRY_429_DELAY_MS = Math.max(0, Number(process.env.AUTHORITY_RETRY_429_DELAY_MS || 3000));
 const AUTHORITY_CACHE_PATH = path.join(process.cwd(), 'data', 'authority-knowledge-cache.json');
+const AUTHORITY_VECTOR_PUBLISH_ENABLED = /^true$/i.test(process.env.AUTHORITY_VECTOR_PUBLISH_ENABLED || '');
 
 function toMysqlDateTime(input?: string | Date | null): string | null {
   if (!input) {
@@ -110,6 +118,45 @@ function hashText(input: string): string {
     hash |= 0;
   }
   return `${hash}`;
+}
+
+function sleep(ms: number): Promise<void> {
+  if (ms <= 0) {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+async function throttleAuthorityFetch(): Promise<void> {
+  if (AUTHORITY_REQUEST_DELAY_MS <= 0) {
+    return;
+  }
+
+  const elapsed = Date.now() - lastAuthorityFetchAt;
+  if (elapsed < AUTHORITY_REQUEST_DELAY_MS) {
+    await sleep(AUTHORITY_REQUEST_DELAY_MS - elapsed);
+  }
+}
+
+function parseRetryAfterMs(value: string | null): number | null {
+  if (!value) {
+    return null;
+  }
+
+  const seconds = Number(value.trim());
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    return seconds * 1000;
+  }
+
+  const retryAt = Date.parse(value);
+  if (Number.isNaN(retryAt)) {
+    return null;
+  }
+
+  return Math.max(0, retryAt - Date.now());
 }
 
 function isAllowedAuthorityUrl(url: string, source: AuthoritySourceConfig): boolean {
@@ -169,7 +216,24 @@ function isBlockedAuthorityUrl(url: string, source: AuthoritySourceConfig): bool
     return /\/english\/news\//.test(normalized);
   }
 
-  if (source.id === 'nhc-fys') {
+  if (source.id === 'dxy-maternal') {
+    return /\/(login|register|search|diseases|hospitals|surgerys|vaccines|firstaids)(?:\/|$)/.test(normalized);
+  }
+
+  if (source.id === 'chunyu-maternal') {
+    return /\/(ask|problem|search|doctors|wx_qr_page|cooperation\/wap\/quick_login)(?:\/|$)/.test(normalized);
+  }
+
+  if (source.id === 'youlai-pregnancy-guide') {
+    return /\/(customer|cse\/search|doctorasklist|doctorphonelist|doctorregisterlist|super|video|voice|ask|yyk\/docindex)(?:\/|$)/.test(normalized);
+  }
+
+  if (source.id === 'familydoctor-maternal') {
+    return /^https?:\/\/v\.familydoctor\.com\.cn\//.test(normalized)
+      || /\/(ask|yyk|jbk|ypk|doctor|hospital|disease|topic|topics|search|register|login|apps)(?:\/|$)/.test(normalized);
+  }
+
+  if (source.id === 'nhc-fys' || source.id === 'nhc-rkjt') {
     return /\/video\//.test(normalized) || /\.(mp4|mp3|avi|wmv)($|[?#])/i.test(normalized);
   }
 
@@ -216,9 +280,33 @@ function isAuthorityUrlMatched(url: string, source: AuthoritySourceConfig, ancho
     return /(pregnan|maternal|newborn|infant|child|children|breastfeed|breastfeeding|immuni|vaccin|reproductive|family-planning|contracept|postpartum|antenatal|prenatal|labou?r|birth)/.test(normalized);
   }
 
+  if (source.id === 'dxy-maternal') {
+    return /dxy\.com\/article\/\d+\/?(?:$|[?#])/i.test(url)
+      && /(备孕|怀孕|孕期|产后|分娩|母乳|喂养|辅食|新生儿|婴儿|婴幼儿|宝宝|儿童|儿科|疫苗|接种|黄疸|发热|腹泻|咳嗽)/.test(normalized);
+  }
+
+  if (source.id === 'chunyu-maternal') {
+    return /chunyuyisheng\.com\/m\/article\/\d+\/?(?:$|[?#])/i.test(url)
+      && /(备孕|怀孕|孕期|产后|分娩|母乳|喂养|辅食|新生儿|婴儿|婴幼儿|宝宝|儿童|儿科|疫苗|接种|黄疸|发热|腹泻|咳嗽|过敏)/.test(normalized);
+  }
+
+  if (source.id === 'youlai-pregnancy-guide') {
+    return /m\.youlai\.cn\/special\/advisor\/[A-Za-z0-9]+\.html(?:$|[?#])/i.test(url);
+  }
+
+  if (source.id === 'familydoctor-maternal') {
+    return /familydoctor\.com\.cn\/(?:baby\/)?a\/\d{6}\/\d+\.html(?:$|[?#])/i.test(url)
+      && /(备孕|怀孕|孕期|产后|分娩|母乳|喂养|辅食|新生儿|婴儿|婴幼儿|宝宝|儿童|儿科|发热|发烧|腹泻|咳嗽|黄疸|湿疹|疫苗|接种|营养|成长|发育)/.test(normalized);
+  }
+
   if (source.id === 'nhc-fys') {
     return /\/(fys|wjw|wsb)\//.test(normalized)
       && /(妇幼|孕产|孕妇|母婴|婴幼儿|新生儿|儿童|托育|生育|母乳|哺乳|接种|疫苗|出生|产后)/.test(normalized);
+  }
+
+  if (source.id === 'nhc-rkjt') {
+    return /\/rkjcyjtfzs\//.test(normalized)
+      && /(托育|婴幼儿|新生儿|儿童|育儿|生育|孕产|孕妇|母乳|喂养|照护|家庭发展)/.test(normalized);
   }
 
   if (source.id === 'chinacdc-immunization') {
@@ -227,6 +315,14 @@ function isAuthorityUrlMatched(url: string, source: AuthoritySourceConfig, ancho
       && /(?:\/t\d{8}_\d+\.(?:html?|shtml)|\.pdf(?:$|[?#]))/i.test(url)
       && /chinacdc\.cn/.test(normalized)
       && /(免疫|疫苗|接种|儿童|婴幼儿|新生儿|孕妇|孕产|母乳|喂养)/.test(normalized);
+  }
+
+  if (source.id === 'chinacdc-nutrition') {
+    return !isIndexLikeAuthorityUrl(url)
+      && isHtmlLikeDocumentUrl(url)
+      && /(?:\/t\d{8}_\d+\.(?:html?|shtml)|\.pdf(?:$|[?#]))/i.test(url)
+      && /chinacdc\.cn/.test(normalized)
+      && /(营养|喂养|母乳|辅食|婴幼儿|新生儿|儿童|孕妇|孕产|乳母|配方奶|膳食)/.test(normalized);
   }
 
   if (source.id === 'govcn-muying' || source.id === 'govcn-jiedu-muying') {
@@ -272,7 +368,9 @@ function filterNestedSitemapCandidates(urls: string[], source: AuthoritySourceCo
 }
 
 function buildAuthorityUrlCandidate(rawUrl: string, pageUrl: string): string | null {
-  const trimmed = rawUrl.trim();
+  const trimmed = rawUrl
+    .trim()
+    .replace(/&amp;/gi, '&');
   if (!trimmed || /^javascript:/i.test(trimmed) || /^mailto:/i.test(trimmed) || trimmed.startsWith('#')) {
     return null;
   }
@@ -308,6 +406,47 @@ function extractEmbeddedIndexLinks(html: string, source: AuthoritySourceConfig, 
   return items;
 }
 
+function extractDxyIndexLinks(html: string, source: AuthoritySourceConfig): Array<{ url: string; text: string }> {
+  if (source.id !== 'dxy-maternal') {
+    return [];
+  }
+
+  const match = html.match(/window\.\$\$data\s*=\s*(\{[\s\S]*?\})\s*<\/script>/i);
+  if (!match?.[1]) {
+    return [];
+  }
+
+  try {
+    const payload = JSON.parse(match[1]) as {
+      list?: {
+        items?: Array<{
+          id?: number | string;
+          title?: string;
+          content_brief?: string;
+        }>;
+      };
+    };
+
+    return (payload.list?.items || [])
+      .map((item) => {
+        const id = typeof item.id === 'number' || typeof item.id === 'string'
+          ? `${item.id}`.trim()
+          : '';
+        if (!/^\d+$/u.test(id)) {
+          return null;
+        }
+
+        return {
+          url: `https://dxy.com/article/${id}`,
+          text: `${item.title || ''} ${item.content_brief || ''}`.trim(),
+        };
+      })
+      .filter((item): item is { url: string; text: string } => Boolean(item));
+  } catch {
+    return [];
+  }
+}
+
 function extractIndexLinks(html: string, source: AuthoritySourceConfig, pageUrl: string): string[] {
   const links = Array.from(html.matchAll(/<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi))
     .map((match) => ({
@@ -328,7 +467,11 @@ function extractIndexLinks(html: string, source: AuthoritySourceConfig, pageUrl:
     })
     .filter((item): item is { url: string; text: string } => Boolean(item));
 
-  const candidates = [...links, ...extractEmbeddedIndexLinks(html, source, pageUrl)];
+  const candidates = [
+    ...links,
+    ...extractEmbeddedIndexLinks(html, source, pageUrl),
+    ...extractDxyIndexLinks(html, source),
+  ];
   const discovered = new Map<string, string>();
 
   for (const item of candidates) {
@@ -338,6 +481,64 @@ function extractIndexLinks(html: string, source: AuthoritySourceConfig, pageUrl:
   }
 
   return Array.from(discovered.keys());
+}
+
+function isPaginationAnchorText(text: string): boolean {
+  const normalized = text.trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+
+  return /^(?:上一页|下一页|上页|下页|首页|尾页|next|prev(?:ious)?|more|更多|\d{1,3}|(?:\d{1,2}\s*周))$/i.test(normalized);
+}
+
+function isPaginationLikeUrl(url: string, currentPageUrl: string): boolean {
+  try {
+    const candidate = new URL(url);
+    const searchKeys = ['page', 'p', 'pn', 'pageNo', 'pageNO', 'pageno', 'currentPage', 'curpage', 'curPage'];
+
+    if (searchKeys.some((key) => candidate.searchParams.has(key))) {
+      return true;
+    }
+
+    return /(?:^|\/)(?:list|index|new_index)(?:[_-]\d+)?\.(?:html?|shtml)$/i.test(candidate.pathname)
+      || /(?:^|\/)(?:page|p)\/\d+(?:\/|$)/i.test(candidate.pathname)
+      || /(?:^|[/?=&_-])page(?:[=/_-]|\D*\b)\d+/i.test(candidate.toString());
+  } catch {
+    return false;
+  }
+}
+
+function extractPaginationLinks(html: string, source: AuthoritySourceConfig, pageUrl: string): string[] {
+  const discovered = new Set<string>();
+
+  for (const match of html.matchAll(/<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi)) {
+    const rawHref = match[1]?.trim() || '';
+    const text = stripHtml(match[2] || '').slice(0, 80);
+    const url = buildAuthorityUrlCandidate(rawHref, pageUrl);
+    if (!url || url === pageUrl) {
+      continue;
+    }
+
+    if (!isAllowedAuthorityUrl(url, source) || isBlockedAuthorityUrl(url, source)) {
+      continue;
+    }
+
+    const allowContentPagination = source.id === 'youlai-pregnancy-guide'
+      && /\/special\/advisor\/[A-Za-z0-9]+\.html(?:$|[?#])/i.test(url);
+
+    if (!allowContentPagination && !isIndexLikeAuthorityUrl(url)) {
+      continue;
+    }
+
+    if (!isPaginationAnchorText(text) && !isPaginationLikeUrl(url, pageUrl)) {
+      continue;
+    }
+
+    discovered.add(url);
+  }
+
+  return Array.from(discovered);
 }
 
 function extractApiLinks(payload: unknown, source: AuthoritySourceConfig): string[] {
@@ -382,15 +583,27 @@ function extractApiLinks(payload: unknown, source: AuthoritySourceConfig): strin
 }
 
 async function fetchText(url: string, headers?: Record<string, string>): Promise<Response> {
-  return fetch(url, {
-    method: 'GET',
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36 muying-ai-app-authority-sync/1.0',
-      Accept: 'text/html,application/xhtml+xml,application/xml,text/xml;q=0.9,*/*;q=0.8',
-      'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-      ...headers,
-    },
-  });
+  for (let attempt = 0; ; attempt += 1) {
+    await throttleAuthorityFetch();
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36 muying-ai-app-authority-sync/1.0',
+        Accept: 'text/html,application/xhtml+xml,application/xml,text/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+        ...headers,
+      },
+    });
+    lastAuthorityFetchAt = Date.now();
+
+    if (response.status !== 429 || attempt >= AUTHORITY_RETRY_429_LIMIT) {
+      return response;
+    }
+
+    const retryAfterMs = parseRetryAfterMs(response.headers.get('retry-after'));
+    const delayMs = retryAfterMs ?? (AUTHORITY_RETRY_429_DELAY_MS * (attempt + 1));
+    await sleep(delayMs);
+  }
 }
 
 function detectResponseCharset(response: Response, buffer: Buffer): string {
@@ -553,6 +766,58 @@ export async function discoverAuthorityUrls(
     return pageUrls.slice(0, source.maxPagesPerRun);
   }
 
+  async function collectIndexPageUrls(urls: string[]): Promise<string[]> {
+    const pageUrls: string[] = [];
+    const visited = new Set<string>();
+    const queue = [...urls];
+    const maxIndexPages = Math.max(1, source.maxDiscoveryIndexPages || 3);
+
+    while (queue.length > 0 && visited.size < maxIndexPages && pageUrls.length < source.maxPagesPerRun) {
+      const currentUrl = queue.shift();
+      if (!currentUrl || visited.has(currentUrl)) {
+        continue;
+      }
+      visited.add(currentUrl);
+
+      const response = await fetchText(currentUrl);
+      if (!response.ok) {
+        continue;
+      }
+
+      const text = await readResponseText(response, currentUrl);
+
+      if (isAuthorityUrlMatched(currentUrl, source) && !pageUrls.includes(currentUrl)) {
+        pageUrls.push(currentUrl);
+        if (pageUrls.length >= source.maxPagesPerRun) {
+          break;
+        }
+      }
+
+      const articleCandidates = extractIndexLinks(text, source, currentUrl);
+      for (const articleUrl of articleCandidates) {
+        if (!pageUrls.includes(articleUrl)) {
+          pageUrls.push(articleUrl);
+        }
+        if (pageUrls.length >= source.maxPagesPerRun) {
+          break;
+        }
+      }
+
+      if (pageUrls.length >= source.maxPagesPerRun) {
+        break;
+      }
+
+      const paginationCandidates = extractPaginationLinks(text, source, currentUrl);
+      for (const paginationUrl of paginationCandidates) {
+        if (!visited.has(paginationUrl) && !queue.includes(paginationUrl)) {
+          queue.push(paginationUrl);
+        }
+      }
+    }
+
+    return pageUrls.slice(0, source.maxPagesPerRun);
+  }
+
   for (const entryUrl of source.entryUrls) {
     const normalizedCandidates: string[] = [];
 
@@ -572,13 +837,7 @@ export async function discoverAuthorityUrls(
         continue;
       }
     } else {
-      const response = await fetchText(entryUrl);
-      if (!response.ok) {
-        continue;
-      }
-
-      const text = await readResponseText(response, entryUrl);
-      normalizedCandidates.push(...extractIndexLinks(text, source, entryUrl));
+      normalizedCandidates.push(...await collectIndexPageUrls([entryUrl]));
     }
 
     for (const url of normalizedCandidates.slice(0, source.maxPagesPerRun)) {
@@ -600,6 +859,7 @@ export const __authoritySyncTestUtils = {
   buildAuthorityUrlCandidate,
   extractEmbeddedIndexLinks,
   extractIndexLinks,
+  extractPaginationLinks,
   isAuthorityUrlMatched,
   isIndexLikeAuthorityUrl,
 };
@@ -872,20 +1132,79 @@ export async function exportPublishedAuthoritySnapshot(): Promise<void> {
   );
 
   const payload = rows.map((row, index) => {
+    const cleanedTitle = sanitizeAuthorityTitle(row.title);
     const localeDefaults = inferAuthorityLocaleDefaults(row.sourceId, row.region);
     const metadata = row.metadataJson ? JSON.parse(row.metadataJson) : {};
     const stableDate = row.updatedAt || row.createdAt;
+    const inferredAudience = detectAudience({
+      sourceUrl: row.sourceUrl,
+      title: cleanedTitle,
+      summary: row.summary,
+      contentText: row.contentText,
+    }, getAuthoritySourceConfig(row.sourceId) || {
+      id: row.sourceId,
+      org: row.sourceOrg,
+      baseUrl: row.sourceUrl,
+      allowedDomains: [],
+      discoveryType: 'index_page',
+      entryUrls: [],
+      region: row.region as 'US' | 'UK' | 'CN' | 'GLOBAL',
+      language: localeDefaults.sourceLanguage,
+      locale: localeDefaults.sourceLocale,
+      audience: [row.audience || '母婴家庭'],
+      topics: [row.topic || 'general'],
+      enabled: true,
+      fetchIntervalMinutes: 360,
+      maxPagesPerRun: 1,
+      parserId: row.sourceId,
+    });
+    const inferredTopic = detectTopic({
+      sourceUrl: row.sourceUrl,
+      title: cleanedTitle,
+      summary: row.summary,
+      contentText: row.contentText,
+    }, getAuthoritySourceConfig(row.sourceId) || {
+      id: row.sourceId,
+      org: row.sourceOrg,
+      baseUrl: row.sourceUrl,
+      allowedDomains: [],
+      discoveryType: 'index_page',
+      entryUrls: [],
+      region: row.region as 'US' | 'UK' | 'CN' | 'GLOBAL',
+      language: localeDefaults.sourceLanguage,
+      locale: localeDefaults.sourceLocale,
+      audience: [row.audience || '母婴家庭'],
+      topics: [row.topic || 'general'],
+      enabled: true,
+      fetchIntervalMinutes: 360,
+      maxPagesPerRun: 1,
+      parserId: row.sourceId,
+    });
+    const targetStages = inferAuthorityStages({
+      title: cleanedTitle,
+      summary: row.summary,
+      contentText: row.contentText,
+      audience: inferredAudience,
+      topic: inferredTopic,
+    });
 
     return {
       id: `authority-${row.sourceId}-${index + 1}`,
       source_id: row.sourceId,
+      source_class: typeof (metadata as { sourceClass?: unknown }).sourceClass === 'string'
+        ? (metadata as { sourceClass: 'official' | 'medical_platform' | 'dataset' | 'unknown' }).sourceClass
+        : 'official',
       content_type: 'authority',
-      question: row.title,
+      question: cleanedTitle,
       answer: row.contentText,
       summary: row.summary,
-      category: row.topic,
-      tags: [row.topic, row.audience].filter(Boolean),
-      target_stage: [],
+      category: inferredTopic,
+      tags: buildAuthorityDisplayTags({
+        topic: inferredTopic,
+        audience: inferredAudience,
+        sourceOrg: row.sourceOrg,
+      }),
+      target_stage: targetStages,
       difficulty: 'authoritative',
       read_time: Math.max(1, Math.ceil((row.contentText || '').length / 600)),
       author: {
@@ -904,23 +1223,36 @@ export async function exportPublishedAuthoritySnapshot(): Promise<void> {
       source_url: row.sourceUrl,
       source_language: localeDefaults.sourceLanguage,
       source_locale: localeDefaults.sourceLocale,
+      source_updated_at: stableDate.toISOString(),
+      last_synced_at: typeof (metadata as { fetchedAt?: unknown }).fetchedAt === 'string'
+        ? (metadata as { fetchedAt: string }).fetchedAt
+        : row.createdAt.toISOString(),
       url: row.sourceUrl,
-      audience: row.audience,
-      topic: row.topic,
+      audience: inferredAudience,
+      topic: inferredTopic,
       risk_level_default: row.riskLevelDefault,
       region: row.region,
       original_id: row.sourceUrl,
       metadata: {
         ...metadata,
         sourceId: row.sourceId,
+        sourceClass: typeof (metadata as { sourceClass?: unknown }).sourceClass === 'string'
+          ? (metadata as { sourceClass: 'official' | 'medical_platform' | 'dataset' | 'unknown' }).sourceClass
+          : 'official',
         sourceLanguage: localeDefaults.sourceLanguage,
         sourceLocale: localeDefaults.sourceLocale,
+        targetStages,
       },
     };
   });
 
   fs.mkdirSync(path.dirname(AUTHORITY_CACHE_PATH), { recursive: true });
   fs.writeFileSync(AUTHORITY_CACHE_PATH, JSON.stringify(payload, null, 2), 'utf-8');
+
+  if (!AUTHORITY_VECTOR_PUBLISH_ENABLED) {
+    console.log('[Authority Sync] AUTHORITY_VECTOR_PUBLISH_ENABLED=false，已跳过向量发布');
+    return;
+  }
 
   try {
     const { publishAuthorityDocumentsToVectorStore } = await import('./vector.service.js');

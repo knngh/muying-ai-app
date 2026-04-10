@@ -3,7 +3,14 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import prisma from '../config/database';
 import { successResponse, AppError, ErrorCodes } from '../middlewares/error.middleware';
-import { calculateDueDateFromPregnancyWeek, normalizeGender, normalizePregnancyStatus } from '../utils/pregnancy';
+import {
+  calculateDueDateFromPregnancyWeek,
+  normalizeCaregiverRole,
+  normalizeChildBirthMode,
+  normalizeFeedingMode,
+  normalizeGender,
+  normalizePregnancyStatus,
+} from '../utils/pregnancy';
 import { env } from '../config/env';
 
 // 生成 JWT Token
@@ -52,6 +59,12 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
           dueDate: true,
           babyBirthday: true,
           babyGender: true,
+          caregiverRole: true,
+          childNickname: true,
+          childBirthMode: true,
+          feedingMode: true,
+          developmentConcerns: true,
+          familyNotes: true,
           createdAt: true
         }
       });
@@ -144,7 +157,15 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
         phone: user.phone,
         email: user.email,
         pregnancyStatus: user.pregnancyStatus,
-        dueDate: user.dueDate
+        dueDate: user.dueDate,
+        babyBirthday: user.babyBirthday,
+        babyGender: user.babyGender,
+        caregiverRole: user.caregiverRole,
+        childNickname: user.childNickname,
+        childBirthMode: user.childBirthMode,
+        feedingMode: user.feedingMode,
+        developmentConcerns: user.developmentConcerns,
+        familyNotes: user.familyNotes,
       },
       token
     }, '登录成功'));
@@ -173,6 +194,12 @@ export const getMe = async (req: Request, res: Response, next: NextFunction) => 
         dueDate: true,
         babyBirthday: true,
         babyGender: true,
+        caregiverRole: true,
+        childNickname: true,
+        childBirthMode: true,
+        feedingMode: true,
+        developmentConcerns: true,
+        familyNotes: true,
         createdAt: true
       }
     });
@@ -231,11 +258,32 @@ export const refreshToken = async (req: Request, res: Response, next: NextFuncti
 export const updateProfile = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.userId;
-    const { nickname, phone, email, avatar, pregnancyStatus, dueDate, babyBirthday, babyGender } = req.body;
+    const {
+      nickname,
+      phone,
+      email,
+      avatar,
+      pregnancyStatus,
+      dueDate,
+      babyBirthday,
+      babyGender,
+      caregiverRole,
+      childNickname,
+      childBirthMode,
+      feedingMode,
+      developmentConcerns,
+      familyNotes,
+    } = req.body;
     const normalizedPregnancyStatus = normalizePregnancyStatus(pregnancyStatus);
     const normalizedBabyGender = normalizeGender(babyGender);
+    const normalizedCaregiverRole = normalizeCaregiverRole(caregiverRole);
+    const normalizedChildBirthMode = normalizeChildBirthMode(childBirthMode);
+    const normalizedFeedingMode = normalizeFeedingMode(feedingMode);
     const normalizedPhone = typeof phone === 'string' ? phone.trim() : undefined;
     const normalizedEmail = typeof email === 'string' ? email.trim() : undefined;
+    const normalizedChildNickname = typeof childNickname === 'string' ? childNickname.trim() : undefined;
+    const normalizedDevelopmentConcerns = typeof developmentConcerns === 'string' ? developmentConcerns.trim() : undefined;
+    const normalizedFamilyNotes = typeof familyNotes === 'string' ? familyNotes.trim() : undefined;
     const phonePattern = /^1\d{10}$/;
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -285,7 +333,13 @@ export const updateProfile = async (req: Request, res: Response, next: NextFunct
         pregnancyStatus: normalizedPregnancyStatus,
         dueDate: dueDate ? new Date(dueDate) : undefined,
         babyBirthday: babyBirthday ? new Date(babyBirthday) : undefined,
-        babyGender: normalizedBabyGender
+        babyGender: normalizedBabyGender,
+        caregiverRole: normalizedCaregiverRole,
+        childNickname: normalizedChildNickname !== undefined ? (normalizedChildNickname || null) : undefined,
+        childBirthMode: normalizedChildBirthMode,
+        feedingMode: normalizedFeedingMode,
+        developmentConcerns: normalizedDevelopmentConcerns !== undefined ? (normalizedDevelopmentConcerns || null) : undefined,
+        familyNotes: normalizedFamilyNotes !== undefined ? (normalizedFamilyNotes || null) : undefined,
       },
       select: {
         id: true,
@@ -300,6 +354,12 @@ export const updateProfile = async (req: Request, res: Response, next: NextFunct
         dueDate: true,
         babyBirthday: true,
         babyGender: true,
+        caregiverRole: true,
+        childNickname: true,
+        childBirthMode: true,
+        feedingMode: true,
+        developmentConcerns: true,
+        familyNotes: true,
         createdAt: true
       }
     });

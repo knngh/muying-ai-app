@@ -7,6 +7,8 @@ import MarkdownText from './MarkdownText'
 import TrustPanel from './TrustPanel'
 import SourcesList from './SourcesList'
 
+const ASSISTANT_REFERENCE_NOTICE = '以上内容仅供一般信息参考，请结合实际情况判断。'
+
 interface MessageBubbleProps {
   item: AIMessage
   onCopied?: () => void
@@ -43,7 +45,16 @@ function MessageBubbleInner({ item, onCopied }: MessageBubbleProps) {
           </Text>
         ) : (
           <View>
+            <View style={styles.assistantHeader}>
+              <View style={styles.assistantBadge}>
+                <Text style={styles.assistantBadgeText}>参考答复</Text>
+              </View>
+              {item.sources?.length ? (
+                <Text style={styles.assistantMeta}>已关联 {item.sources.length} 条来源</Text>
+              ) : null}
+            </View>
             <MarkdownText>{item.content}</MarkdownText>
+            <Text style={styles.referenceNotice}>{ASSISTANT_REFERENCE_NOTICE}</Text>
           </View>
         )}
 
@@ -98,12 +109,24 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.xl,
   },
   userBubble: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.techDark,
     borderBottomRightRadius: borderRadius.sm,
+    borderWidth: 1,
+    borderColor: 'rgba(220,236,238,0.18)',
+    shadowColor: colors.techDark,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
   },
   assistantBubble: {
-    backgroundColor: colors.white,
+    backgroundColor: 'rgba(255, 249, 244, 0.96)',
     borderBottomLeftRadius: borderRadius.sm,
+    borderWidth: 1,
+    borderColor: 'rgba(184,138,72,0.14)',
+    shadowColor: colors.inkSoft,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.05,
+    shadowRadius: 14,
   },
   messageText: {
     lineHeight: 22,
@@ -112,10 +135,38 @@ const styles = StyleSheet.create({
   userText: {
     color: colors.white,
   },
+  assistantHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  assistantBadge: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: borderRadius.pill,
+    backgroundColor: 'rgba(220,236,238,0.58)',
+  },
+  assistantBadgeText: {
+    color: colors.techDark,
+    fontSize: fontSize.sm,
+    fontWeight: '700',
+  },
+  assistantMeta: {
+    color: colors.textLight,
+    fontSize: fontSize.sm,
+  },
   actionRow: {
     flexDirection: 'row',
     marginTop: spacing.xs,
     marginLeft: -spacing.sm,
+  },
+  referenceNotice: {
+    marginTop: spacing.sm,
+    color: colors.textSecondary,
+    fontSize: fontSize.sm,
+    lineHeight: 20,
   },
   actionButton: {
     margin: 0,

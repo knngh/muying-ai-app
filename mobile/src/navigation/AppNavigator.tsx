@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { StyleSheet, View } from "react-native";
 import {
   NavigationContainer,
   createNavigationContainerRef,
@@ -25,6 +26,7 @@ import LoginScreen from "../screens/LoginScreen";
 import MembershipScreen from "../screens/MembershipScreen";
 import WeeklyReportScreen from "../screens/WeeklyReportScreen";
 import GrowthArchiveScreen from "../screens/GrowthArchiveScreen";
+import FamilyProfileScreen from "../screens/FamilyProfileScreen";
 
 export type RootStackParamList = {
   Login: undefined;
@@ -35,6 +37,7 @@ export type RootStackParamList = {
   Membership: undefined;
   WeeklyReport: undefined;
   GrowthArchive: undefined;
+  FamilyProfile: undefined;
 };
 
 export type TabParamList = {
@@ -55,19 +58,40 @@ function TabNavigator() {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textLight,
+        tabBarInactiveTintColor: colors.textSecondary,
         headerShown: false,
+        tabBarHideOnKeyboard: true,
         tabBarStyle: {
-          backgroundColor: colors.white,
+          position: "absolute",
+          left: 16,
+          right: 16,
+          bottom: 14,
+          backgroundColor: "rgba(255, 250, 246, 0.95)",
           borderTopWidth: 0,
-          elevation: 8,
-          shadowColor: colors.inkSoft,
-          shadowOffset: { width: 0, height: -4 },
-          shadowOpacity: 0.05,
-          shadowRadius: 12,
-          paddingTop: 8,
+          elevation: 0,
+          shadowColor: colors.shadowStrong,
+          shadowOffset: { width: 0, height: 14 },
+          shadowOpacity: 0.16,
+          shadowRadius: 28,
+          height: 84,
+          paddingTop: 10,
+          paddingBottom: 10,
+          paddingHorizontal: 8,
+          borderRadius: 30,
+          borderWidth: 1,
+          borderColor: "rgba(94, 126, 134, 0.12)",
         },
-        tabBarIcon: ({ color, size }) => {
+        tabBarItemStyle: {
+          borderRadius: 24,
+          marginHorizontal: 2,
+        },
+        tabBarLabelStyle: {
+          fontSize: 10,
+          fontWeight: "700",
+          paddingBottom: 1,
+          letterSpacing: 0.2,
+        },
+        tabBarIcon: ({ color, size, focused }) => {
           let iconName = "home";
           if (route.name === "Home") iconName = "home";
           else if (route.name === "Chat") iconName = "message-question-outline";
@@ -77,7 +101,10 @@ function TabNavigator() {
           else if (route.name === "Profile") iconName = "account-outline";
 
           return (
-            <MaterialCommunityIcons name={iconName} size={size} color={color} />
+            <View style={[styles.tabIconShell, focused && styles.tabIconShellActive]}>
+              {focused ? <View style={styles.tabActiveBeam} /> : null}
+              <MaterialCommunityIcons name={iconName} size={size} color={color} />
+            </View>
           );
         },
       })}
@@ -100,7 +127,7 @@ function TabNavigator() {
       <Tab.Screen
         name="CalendarTab"
         component={CalendarScreen}
-        options={{ tabBarLabel: "孕育日历" }}
+        options={{ tabBarLabel: "成长日历" }}
       />
       <Tab.Screen
         name="Profile"
@@ -110,6 +137,30 @@ function TabNavigator() {
     </Tab.Navigator>
   );
 }
+
+const styles = StyleSheet.create({
+  tabIconShell: {
+    width: 42,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  tabIconShellActive: {
+    backgroundColor: "rgba(94,126,134,0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(94,126,134,0.14)",
+  },
+  tabActiveBeam: {
+    position: "absolute",
+    top: 5,
+    width: 18,
+    height: 3,
+    borderRadius: 999,
+    backgroundColor: colors.copper,
+  },
+});
 
 export default function AppNavigator() {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
@@ -142,7 +193,20 @@ export default function AppNavigator() {
 
   return (
     <NavigationContainer ref={navigationRef}>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Navigator
+        screenOptions={{
+          headerShown: false,
+          headerStyle: {
+            backgroundColor: colors.surfaceRaised,
+          },
+          headerTintColor: colors.ink,
+          headerTitleStyle: {
+            color: colors.ink,
+            fontWeight: "700",
+          },
+          headerShadowVisible: false,
+        }}
+      >
         {!isLoggedIn ? (
           <Stack.Screen name="Login">
             {(props) => (
@@ -171,7 +235,7 @@ export default function AppNavigator() {
             <Stack.Screen
               name="Calendar"
               component={CalendarScreen}
-              options={{ headerShown: true, title: "孕育日历" }}
+              options={{ headerShown: true, title: "成长日历" }}
             />
             <Stack.Screen
               name="Membership"
@@ -187,6 +251,11 @@ export default function AppNavigator() {
               name="GrowthArchive"
               component={GrowthArchiveScreen}
               options={{ headerShown: true, title: "成长档案" }}
+            />
+            <Stack.Screen
+              name="FamilyProfile"
+              component={FamilyProfileScreen}
+              options={{ headerShown: true, title: "家庭档案" }}
             />
           </>
         )}

@@ -1,17 +1,7 @@
 import { defineStore } from 'pinia'
 import { articleApi } from '@/api/modules'
 import type { Article, PaginatedResponse } from '@/api/modules'
-
-const CHINESE_AUTHORITY_PATTERNS = [
-  /中国政府网/u,
-  /中国政府网政策解读/u,
-  /gov\.cn/i,
-  /国家卫生健康委员会/u,
-  /国家卫健委/u,
-  /中国疾控/u,
-  /中国疾病预防控制中心/u,
-  /chinacdc/i,
-]
+import { getAuthorityRegionPriority } from '@/utils/authority-source'
 
 function getArticleTimestamp(article: Article): number {
   const value = article.publishedAt || article.createdAt
@@ -30,18 +20,7 @@ function getArticleDateBucket(article: Article): string {
 }
 
 function getSourcePriority(article: Article): number {
-  if (article.sourceLanguage === 'zh' || article.sourceLocale === 'zh-CN') {
-    return 0
-  }
-
-  const sourceText = [
-    article.sourceOrg || '',
-    article.source || '',
-    article.sourceUrl || '',
-    article.region || '',
-  ].join(' ')
-
-  return CHINESE_AUTHORITY_PATTERNS.some((pattern) => pattern.test(sourceText)) ? 0 : 1
+  return getAuthorityRegionPriority(article)
 }
 
 function sortKnowledgeArticles(list: Article[]): Article[] {

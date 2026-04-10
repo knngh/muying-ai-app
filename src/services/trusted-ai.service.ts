@@ -23,7 +23,7 @@ import {
 
 export type TrustedRiskLevel = 'green' | 'yellow' | 'red';
 export type TrustedTriageCategory = 'normal' | 'caution' | 'emergency' | 'out_of_scope';
-export type TrustedSourceReliability = 'authoritative' | 'mixed' | 'dataset_only' | 'none';
+export type TrustedSourceReliability = 'authoritative' | 'mixed' | 'medical_platform_only' | 'dataset_only' | 'none';
 
 export interface TrustedStructuredAnswer {
   conclusion: string;
@@ -69,6 +69,7 @@ const EMERGENCY_DISCLAIMER = '重要提示：当前命中高风险规则，请�
 const CLARIFICATION_DISCLAIMER = '当前信息不足，系统不会继续猜测，请先补充关键信息或直接线下就医。';
 const OUT_OF_SCOPE_DISCLAIMER = '当前仅支持母婴、孕产、喂养、护理、成长发育相关问题。';
 const DATASET_ONLY_NOTICE = '当前检索结果主要来自内部知识库或公开问答数据，不属于权威临床指南，不能替代线下面诊。';
+const MEDICAL_PLATFORM_NOTICE = '当前检索结果包含第三方医学平台内容，可作为辅助参考，但不等同于官方指南或临床规范。';
 
 const EXPLICIT_STAGE_PATTERNS = [
   /孕早期|怀孕早期|怀孕初期|刚怀孕/u,
@@ -277,6 +278,7 @@ function inferSourceReliability(sources: SourceReference[]): TrustedSourceReliab
   }
 
   const authoritativeCount = sources.filter((source) => source.authoritative).length;
+  const medicalPlatformCount = sources.filter((source) => source.sourceClass === 'medical_platform' || source.sourceType === 'editorial').length;
   if (authoritativeCount === sources.length) {
     return 'authoritative';
   }
@@ -285,7 +287,27 @@ function inferSourceReliability(sources: SourceReference[]): TrustedSourceReliab
     return 'mixed';
   }
 
+  if (medicalPlatformCount > 0) {
+    return 'medical_platform_only';
+  }
+
   return 'dataset_only';
+}
+
+function getSourceLabel(source: SourceReference): string {
+  if (source.sourceClass === 'official' || source.sourceType === 'authority') {
+    return '权威来源';
+  }
+
+  if (source.sourceClass === 'medical_platform' || source.sourceType === 'editorial') {
+    return '平台医学内容';
+  }
+
+  if (source.sourceClass === 'dataset' || source.sourceType === 'dataset') {
+    return '数据集/知识库';
+  }
+
+  return '一般来源';
 }
 
 function determineRiskLevel(question: string, context: unknown, results: KnowledgeSearchResult[]): TrustedRiskLevel {
@@ -330,6 +352,13 @@ function buildUncertainty(
     return {
       level: 'high',
       message: DATASET_ONLY_NOTICE,
+    };
+  }
+
+  if (sourceReliability === 'medical_platform_only') {
+    return {
+      level: 'medium',
+      message: MEDICAL_PLATFORM_NOTICE,
     };
   }
 
@@ -555,7 +584,7 @@ function renderSources(sources: SourceReference[]): string[] {
   return sources.slice(0, 3).map((source) => {
     const details = [
       source.sourceOrg || source.source,
-      source.sourceType === 'authority' ? '权威来源' : (source.sourceType === 'dataset' ? '数据集/知识库' : '一般来源'),
+      getSourceLabel(source),
       source.updatedAt ? `更新于 ${source.updatedAt.slice(0, 10)}` : undefined,
     ].filter(Boolean).join(' · ');
 
@@ -597,6 +626,7 @@ function buildReferencePrompt(sources: SourceReference[]): string {
       `标题：${source.title}`,
       `来源机构：${source.sourceOrg || source.source}`,
       `来源类型：${source.sourceType || 'unknown'}`,
+      `来源层级：${source.sourceClass || 'unknown'}`,
       `主题：${source.topic || source.category || '未知'}`,
       `默认风险：${source.riskLevelDefault || 'yellow'}`,
       `更新时间：${source.updatedAt || '未知'}`,
@@ -789,7 +819,7 @@ function estimateConfidence(
   const base = Math.min(0.3 + (sources[0]?.relevance || 0) * 0.5, 0.82);
   const reliabilityBoost = sourceReliability === 'authoritative'
     ? 0.12
-    : (sourceReliability === 'mixed' ? 0.04 : -0.1);
+    : (sourceReliability === 'mixed' ? 0.04 : (sourceReliability === 'medical_platform_only' ? -0.02 : -0.1));
   const riskPenalty = riskLevel === 'green' ? 0 : (riskLevel === 'yellow' ? -0.08 : -0.16);
 
   return Math.max(0.2, Math.min(0.92, Number((base + reliabilityBoost + riskPenalty).toFixed(2))));
@@ -941,8 +971,12 @@ export async function generateTrustedAIResponse(request: TrustedAIRequest): Prom
   const structuredAnswer = generation.structuredAnswer;
   const degraded = generation.degraded;
 
-  if ((sourceReliability === 'dataset_only' || sourceReliability === 'none') && !structuredAnswer.uncertaintyNote) {
-    structuredAnswer.uncertaintyNote = DATASET_ONLY_NOTICE;
+  if (!structuredAnswer.uncertaintyNote) {
+    if (sourceReliability === 'medical_platform_only') {
+      structuredAnswer.uncertaintyNote = MEDICAL_PLATFORM_NOTICE;
+    } else if (sourceReliability === 'dataset_only' || sourceReliability === 'none') {
+      structuredAnswer.uncertaintyNote = DATASET_ONLY_NOTICE;
+    }
   }
 
   return {
@@ -954,7 +988,9 @@ export async function generateTrustedAIResponse(request: TrustedAIRequest): Prom
     structuredAnswer,
     uncertainty,
     sourceReliability,
-    disclaimer: sourceReliability === 'authoritative' ? AI_DISCLAIMER : `${AI_DISCLAIMER} ${DATASET_ONLY_NOTICE}`,
+    disclaimer: sourceReliability === 'authoritative'
+      ? AI_DISCLAIMER
+      : `${AI_DISCLAIMER} ${sourceReliability === 'medical_platform_only' ? MEDICAL_PLATFORM_NOTICE : DATASET_ONLY_NOTICE}`,
     followUpQuestions: triageCategory === 'normal' ? knowledgePack.followUpQuestions : knowledgePack.followUpQuestions.slice(0, 2),
     confidence: estimateConfidence(knowledgePack.sources, sourceReliability, riskLevel),
     degraded,

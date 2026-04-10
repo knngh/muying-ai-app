@@ -26,10 +26,10 @@ type HomeNavProp = CompositeNavigationProp<
 >
 
 const featureEntries: FeatureEntry[] = [
-  { title: '知识库', icon: 'book-open-page-variant-outline', route: 'Knowledge', type: 'tab' },
-  { title: '问题助手', icon: 'message-question-outline', route: 'Chat', type: 'tab' },
-  { title: '孕育日历', icon: 'calendar-check-outline', route: 'Calendar', type: 'stack' },
-  { title: '周度报告', icon: 'chart-box-outline', route: 'WeeklyReport', type: 'stack' },
+  { title: '知识库', subtitle: '权威内容与中文阅读', icon: 'book-open-page-variant-outline', route: 'Knowledge', type: 'tab' },
+  { title: '问题助手', subtitle: '母婴常见问题参考', icon: 'message-question-outline', route: 'Chat', type: 'tab' },
+  { title: '成长日历', subtitle: '拖拽安排待办提醒', icon: 'calendar-check-outline', route: 'Calendar', type: 'stack' },
+  { title: '周度报告', subtitle: '每周阶段重点总结', icon: 'chart-box-outline', route: 'WeeklyReport', type: 'stack' },
 ]
 
 export default function HomeScreen() {
@@ -80,6 +80,7 @@ export default function HomeScreen() {
             remainingAiText={remainingAiText}
             checkInStreak={checkInStreak}
             weeklyCompletionRate={weeklyCompletionRate}
+            actionLabel={stage.actionLabel}
             onAction={() =>
               navigation.navigate(status === 'active' ? 'Calendar' : 'Membership')
             }
@@ -152,8 +153,10 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   summaryChip: {
-    backgroundColor: colors.white,
+    backgroundColor: 'rgba(255, 251, 246, 0.94)',
     borderRadius: borderRadius.pill,
+    borderWidth: 1,
+    borderColor: 'rgba(184,138,72,0.12)',
   },
   summaryChipText: {
     color: colors.inkSoft,

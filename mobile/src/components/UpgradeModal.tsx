@@ -24,9 +24,9 @@ export default function UpgradeModal({
   return (
     <Portal>
       <Modal visible={visible} onDismiss={onDismiss} contentContainerStyle={styles.modalContainer}>
-        <Text style={styles.modalTitle}>今日免费额度已用完</Text>
+        <Text style={styles.modalTitle}>今日提问次数已用完</Text>
         <Text style={styles.modalSubtitle}>
-          开通会员后可继续追问，且支持周度报告、专属内容和成长档案增强。
+          开通后可继续追问，并把本阶段的问题、周报和成长记录持续沉淀下来。
         </Text>
 
         {plans.map((plan) => (
@@ -50,7 +50,7 @@ export default function UpgradeModal({
         ))}
 
         <Button mode="text" onPress={onViewMembership}>
-          查看完整权益说明
+          查看完整方案说明
         </Button>
       </Modal>
     </Portal>

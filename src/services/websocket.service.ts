@@ -56,7 +56,7 @@ interface WsServerMessage {
       level: 'none' | 'medium' | 'high'
       message?: string
     }
-    sourceReliability?: 'authoritative' | 'mixed' | 'dataset_only' | 'none'
+    sourceReliability?: 'authoritative' | 'mixed' | 'medical_platform_only' | 'dataset_only' | 'none'
     model?: string
     provider?: string
     route?: string

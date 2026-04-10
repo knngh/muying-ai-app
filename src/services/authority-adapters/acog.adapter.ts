@@ -63,8 +63,8 @@ export const acogAdapter: AuthorityDocumentAdapter = {
       updatedAt: extractMetaContent(raw.rawBody, 'article:modified_time')
         || extractMetaContent(raw.rawBody, 'last_updated')
         || raw.lastModified,
-      audience: detectAudience(mergedText, source),
-      topic: detectTopic(mergedText, source),
+      audience: detectAudience({ sourceUrl: raw.url, title, summary: description, contentText }, source),
+      topic: detectTopic({ sourceUrl: raw.url, title, summary: description, contentText }, source),
       region: source.region,
       riskLevelDefault: detectRiskLevelDefault(mergedText),
       summary: (description || contentText).slice(0, 300),

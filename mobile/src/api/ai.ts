@@ -116,5 +116,5 @@ export function getEmergencyWarning(): string {
 }
 
 export function getDisclaimer(): string {
-  return '免责声明：本功能提供的回答仅供参考，不构成医疗建议。如有身体不适，请立即就医。紧急情况请拨打120。'
+  return '本功能提供母婴一般知识信息参考，不替代专业医疗建议。'
 }
