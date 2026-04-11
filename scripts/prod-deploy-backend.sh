@@ -13,6 +13,8 @@ WITH_DB_PUSH="${WITH_DB_PUSH:-false}"
 WITH_AUTHORITY_WORKER="${WITH_AUTHORITY_WORKER:-false}"
 AUTHORITY_SYNC_INTERVAL_MINUTES="${AUTHORITY_SYNC_INTERVAL_MINUTES:-360}"
 AUTHORITY_SYNC_MODE="${AUTHORITY_SYNC_MODE:-incremental}"
+LOCAL_HEALTH_URL="${LOCAL_HEALTH_URL:-http://127.0.0.1:3000/health}"
+HEALTH_TIMEOUT_SECONDS="${HEALTH_TIMEOUT_SECONDS:-30}"
 
 usage() {
   cat <<'EOF'
@@ -31,6 +33,8 @@ Env:
   WITH_AUTHORITY_WORKER default: false
   AUTHORITY_SYNC_INTERVAL_MINUTES default: 360
   AUTHORITY_SYNC_MODE default: incremental
+  LOCAL_HEALTH_URL default: http://127.0.0.1:3000/health
+  HEALTH_TIMEOUT_SECONDS default: 30
 EOF
 }
 
@@ -87,6 +91,8 @@ fi
 REMOTE_COMMANDS+=(
   "npm run build"
   "pm2 restart ${PM2_APP_NAME}"
+  "echo '[health] waiting for ${PM2_APP_NAME} at ${LOCAL_HEALTH_URL} (timeout ${HEALTH_TIMEOUT_SECONDS}s)'"
+  "for i in \$(seq 1 ${HEALTH_TIMEOUT_SECONDS}); do if curl -fsS --max-time 2 ${LOCAL_HEALTH_URL} >/dev/null 2>&1; then echo \"[health] ${PM2_APP_NAME} healthy after \${i}s\"; break; fi; if [ \$i -eq ${HEALTH_TIMEOUT_SECONDS} ]; then echo '[health] ${PM2_APP_NAME} did not become healthy within ${HEALTH_TIMEOUT_SECONDS}s' >&2; pm2 logs ${PM2_APP_NAME} --lines 40 --nostream || true; exit 1; fi; sleep 1; done"
   "pm2 show ${PM2_APP_NAME} | sed -n '1,40p'"
 )
 

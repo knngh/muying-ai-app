@@ -1,6 +1,6 @@
 import prisma from '../config/database';
 
-interface UserProfileContext {
+export interface UserProfileContext {
   prompt?: string;
   retrievalHints: string[];
 }

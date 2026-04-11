@@ -355,6 +355,7 @@ const SIGNAL_GROUPS: Array<{
 
 let qaData: QAPair[] = [];
 let authorityQaData: QAPair[] = [];
+let allQaData: QAPair[] = [];
 let isLoaded = false;
 
 interface QuerySignals {
@@ -1257,6 +1258,8 @@ export function loadKnowledgeBase(): void {
     console.error('⚠️ 权威知识快照加载失败:', error);
     authorityQaData = [];
   }
+
+  allQaData = qaData.concat(authorityQaData);
 }
 
 function ensureKnowledgeLoaded(): void {
@@ -1284,8 +1287,7 @@ export function searchQA(
   const terms = extractSearchTerms(query);
   const signals = collectQuerySignals(query);
 
-  const scoredResults = qaData
-    .concat(authorityQaData)
+  const scoredResults = allQaData
     .filter(qa => qa.status === 'published')
     .filter(qa => !options.category || qa.category === options.category)
     .map((qa) => {

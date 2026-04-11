@@ -12,14 +12,15 @@ import {
 import { buildKnowledgePack, type SourceReference } from './knowledge.service';
 import { buildUserProfileContext } from './ai-user-context.service';
 import { appendConversationAssistantAnswer, saveConversationExchange } from './ai-session.service';
-import {
-  classifyMaternalChildQuestion,
-  hasExcludedDomainSignal,
-  hasHealthOrCareSignal,
-  hasMaternalChildSignal,
-} from './ai-domain.service';
 import { consumeAiQuota } from './subscription.service';
 import { chunkTrustedAnswer, generateTrustedAIResponse } from './trusted-ai.service';
+import {
+  normalizeContext,
+  buildMergedContext,
+  shouldUseProfileHints,
+  buildAnswerPolicy,
+  isResumeContinuationContext,
+} from './ai-context.service';
 // WebSocket 消息协议类型（与 shared/types/ai.ts 保持一致）
 interface WsClientMessage {
   type: 'ask_stream' | 'chat_stream' | 'ping' | 'cancel'
@@ -77,86 +78,6 @@ interface AuthenticatedWebSocket extends WebSocket {
 // Rate limiting constants
 const RATE_LIMIT_MAX_REQUESTS = 10;
 const RATE_LIMIT_WINDOW_MS = 60_000; // 60 seconds
-const EXPLICIT_STAGE_PATTERNS = [
-  /孕早期|怀孕早期|怀孕初期|刚怀孕/u,
-  /孕中期|怀孕中期/u,
-  /孕晚期|怀孕晚期|怀孕后期/u,
-  /备孕/u,
-  /产后|月子/u,
-  /新生儿/u,
-  /\d{1,2}\s*周/u,
-  /怀孕\d{1,2}\s*个?月/u,
-  /\d{1,2}\s*个?月龄/u,
-  /\d{1,2}\s*个?月宝宝/u,
-];
-const CHILDCARE_SCENE_PATTERNS = [
-  /(宝宝|婴儿|新生儿|幼儿|孩子|儿童).{0,8}(发烧|发热|咳嗽|腹泻|拉肚子|便秘|吐奶|湿疹|黄疸|皮疹|疫苗|奶量|喂奶|吃奶|夜醒|夜里总醒|夜间醒|睡觉|睡眠|哄睡|哭闹|闹觉|安抚|便便|辅食|厌奶|发育|体重|身高)/u,
-  /(发烧|发热|咳嗽|腹泻|拉肚子|便秘|吐奶|湿疹|黄疸|皮疹|疫苗|奶量|喂奶|吃奶|夜醒|夜里总醒|夜间醒|睡觉|睡眠|哄睡|哭闹|闹觉|安抚|便便|辅食|厌奶|发育|体重|身高).{0,8}(宝宝|婴儿|新生儿|幼儿|孩子|儿童)/u,
-  /宝宝月龄|婴儿护理|儿童护理|儿科|宝宝作息|宝宝睡眠/u,
-  /\d{1,2}\s*个?月(宝宝|婴儿|孩子|儿童)/u,
-];
-
-function hasExplicitStageSignal(text?: string): boolean {
-  if (!text) {
-    return false;
-  }
-
-  return EXPLICIT_STAGE_PATTERNS.some((pattern) => pattern.test(text));
-}
-
-function hasChildcareSceneSignal(text?: string): boolean {
-  if (!text) {
-    return false;
-  }
-
-  return CHILDCARE_SCENE_PATTERNS.some((pattern) => pattern.test(text));
-}
-
-function normalizeContextText(context: unknown): string | undefined {
-  if (!context) {
-    return undefined;
-  }
-
-  if (typeof context === 'string') {
-    const trimmed = context.trim();
-    return trimmed || undefined;
-  }
-
-  if (typeof context !== 'object' || Array.isArray(context)) {
-    return undefined;
-  }
-
-  const lines = Object.entries(context as Record<string, unknown>)
-    .filter(([, value]) => value !== undefined && value !== null && value !== '')
-    .slice(0, 8)
-    .map(([key, value]) => `${key} ${String(value).trim()}`)
-    .filter(Boolean);
-
-  return lines.length > 0 ? lines.join('\n') : undefined;
-}
-
-function buildDisplayContext(context: unknown): string | undefined {
-  if (!context) {
-    return undefined;
-  }
-
-  if (typeof context === 'string') {
-    const trimmed = context.trim();
-    return trimmed ? `用户补充背景：\n${trimmed}` : undefined;
-  }
-
-  if (typeof context !== 'object' || Array.isArray(context)) {
-    return undefined;
-  }
-
-  const lines = Object.entries(context as Record<string, unknown>)
-    .filter(([, value]) => value !== undefined && value !== null && value !== '')
-    .slice(0, 8)
-    .map(([key, value]) => `- ${key}：${String(value).trim()}`)
-    .filter(Boolean);
-
-  return lines.length > 0 ? `用户补充背景：\n${lines.join('\n')}` : undefined;
-}
 
 function buildWsQuotaFingerprint(type: WsClientMessage['type'], payload: WsClientMessage['payload']): string {
   return JSON.stringify({
@@ -169,53 +90,15 @@ function buildWsQuotaFingerprint(type: WsClientMessage['type'], payload: WsClien
   });
 }
 
-function shouldUseProfileHints(question: string, context?: unknown): boolean {
-  const contextText = normalizeContextText(context);
-  return !hasExplicitStageSignal(question)
-    && !hasExplicitStageSignal(contextText)
-    && !hasChildcareSceneSignal(question)
-    && !hasChildcareSceneSignal(contextText);
-}
-
-function buildAnswerPolicy(question: string, context?: unknown): string {
-  const contextText = normalizeContextText(context);
-  const explicitStage = hasExplicitStageSignal(question) || hasExplicitStageSignal(contextText);
-  const childcareScene = hasChildcareSceneSignal(question) || hasChildcareSceneSignal(contextText);
-  const lines = [
-    '回答策略：',
-    '- 以用户当前问题和本轮补充信息为优先。',
-    '- 用户历史档案仅作辅助参考，可能不是最新状态。',
-  ];
-
-  if (explicitStage) {
-    lines.push('- 本轮问题中已明确给出阶段、孕周或月龄时，请以本轮描述为准，不要被历史档案覆盖。');
-    lines.push('- 如果本轮描述和历史档案不一致，先回答当前问题，只在结尾用一句话提醒用户确认最新阶段。');
-  } else if (childcareScene) {
-    lines.push('- 本轮问题明显指向宝宝/儿童护理场景时，不要套用孕期档案或孕周信息。');
-  } else {
-    lines.push('- 若用户未明确说明阶段、孕周或月龄，可谨慎参考历史档案补充建议。');
-  }
-
-  return lines.join('\n');
-}
-
 function buildPromptContext(question: string, context: unknown, profilePrompt?: string, knowledgeContext?: string): string {
   const allowProfileHints = shouldUseProfileHints(question, context);
 
-  return [
+  return buildMergedContext(
     buildAnswerPolicy(question, context),
     allowProfileHints ? profilePrompt : undefined,
-    buildDisplayContext(context),
+    normalizeContext(context),
     knowledgeContext,
-  ].filter(Boolean).join('\n\n');
-}
-
-function isResumeContinuationContext(context: unknown): boolean {
-  if (!context || typeof context !== 'object' || Array.isArray(context)) {
-    return false;
-  }
-
-  return (context as Record<string, unknown>).模式 === '原答案续写';
+  );
 }
 
 function isRequestCanceled(ws: AuthenticatedWebSocket, requestId: string): boolean {
@@ -224,43 +107,6 @@ function isRequestCanceled(ws: AuthenticatedWebSocket, requestId: string): boole
 
 function clearRequestCancellation(ws: AuthenticatedWebSocket, requestId: string): void {
   ws.canceledRequestIds?.delete(requestId);
-}
-
-async function resolveDomainDecision(
-  userId: string | undefined,
-  question: string,
-  options?: {
-    context?: unknown;
-    history?: Array<string | { role?: string; content?: string }>;
-  },
-) {
-  const initialDecision = classifyMaternalChildQuestion(question, {
-    context: options?.context,
-    history: options?.history,
-  });
-
-  if (initialDecision.status === 'in_scope' || !userId) {
-    return initialDecision;
-  }
-
-  if (hasExcludedDomainSignal(question, { context: options?.context, history: options?.history })) {
-    return initialDecision;
-  }
-
-  if (!hasHealthOrCareSignal(question, { context: options?.context, history: options?.history })) {
-    return initialDecision;
-  }
-
-  const profileContext = await buildUserProfileContext(userId);
-  const profileSignal = profileContext.retrievalHints.join('\n').trim();
-
-  if (!profileSignal) {
-    return initialDecision;
-  }
-
-  return hasMaternalChildSignal(profileSignal)
-    ? { status: 'in_scope' as const }
-    : initialDecision;
 }
 
 export function setupWebSocket(server: HttpServer): WebSocketServer {

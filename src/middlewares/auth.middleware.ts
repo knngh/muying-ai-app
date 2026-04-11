@@ -45,10 +45,10 @@ export const authMiddleware = async (
 
     req.userId = decoded.userId;
     next();
-  } catch (error: any) {
-    if (error.name === 'TokenExpiredError') {
+  } catch (error: unknown) {
+    if (error instanceof jwt.TokenExpiredError) {
       next(new AppError('Token 已过期', ErrorCodes.TOKEN_EXPIRED, 401));
-    } else if (error.name === 'JsonWebTokenError') {
+    } else if (error instanceof jwt.JsonWebTokenError) {
       next(new AppError('Token 无效', ErrorCodes.TOKEN_INVALID, 401));
     } else {
       next(error);

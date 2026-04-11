@@ -1,4 +1,17 @@
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
+import type { Request } from 'express';
+
+/**
+ * 用户维度优先的 key 生成器：已登录用户按 userId 限流，未登录回退到 IP。
+ * 避免同一 IP 下多个合法用户互相触发限流（办公室/校园网共享出口场景）。
+ */
+function userOrIpKeyGenerator(req: Request, res: any): string {
+  const userId = (req as any).userId;
+  if (userId) {
+    return `user:${userId}`;
+  }
+  return `ip:${ipKeyGenerator(req.ip || '', 64)}`;
+}
 
 /**
  * 分类化限流策略
@@ -77,7 +90,7 @@ export const checkRateLimiter = rateLimit({
   legacyHeaders: false
 });
 
-// 问答接口限流：1分钟10次
+// 问答接口限流：1分钟10次（按用户维度，未登录回退 IP）
 export const aiRateLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 10,
@@ -86,5 +99,6 @@ export const aiRateLimiter = rateLimit({
     message: '请求次数已达上限，请1分钟后再试'
   },
   standardHeaders: true,
-  legacyHeaders: false
+  legacyHeaders: false,
+  keyGenerator: userOrIpKeyGenerator,
 });

@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import prisma from '../config/database';
 import { successResponse, AppError, ErrorCodes } from '../middlewares/error.middleware';
 import {
   isEmergencyQuestion,
@@ -19,165 +20,22 @@ import {
   getUserChatSession,
   softDeleteUserChatSession,
 } from '../services/ai-session.service';
-import {
-  classifyMaternalChildQuestion,
-  hasExcludedDomainSignal,
-  hasHealthOrCareSignal,
-  hasMaternalChildSignal,
-  type AIDomainDecision,
-} from '../services/ai-domain.service';
+import { type AIDomainDecision } from '../services/ai-domain.service';
 import { chunkTrustedAnswer, generateTrustedAIResponse } from '../services/trusted-ai.service';
+import {
+  normalizeContext,
+  buildMergedContext,
+  shouldUseProfileHints,
+  buildAnswerPolicy,
+  resolveKnowledge,
+  isResumeContinuationContext,
+} from '../services/ai-context.service';
+import { logger, genRequestId } from '../utils/logger';
 
 const AI_DISCLAIMER = '温馨提示：这份答复用于帮助您先做初步了解，不能替代医生面诊；如果症状明显、持续加重，或您仍然不放心，请及时就医。';
 const EMERGENCY_DISCLAIMER = '🚨 重要提示：如遇紧急情况，请立即就医！';
 const DEGRADED_DISCLAIMER = '温馨提示：当前问答服务暂时不可用，以下内容由知识库整理，供您先参考；若身体不适明显，请及时就医。';
 const DEFAULT_MODEL_ID = getDefaultModel();
-const EXPLICIT_STAGE_PATTERNS = [
-  /孕早期|怀孕早期|怀孕初期|刚怀孕/u,
-  /孕中期|怀孕中期/u,
-  /孕晚期|怀孕晚期|怀孕后期/u,
-  /备孕/u,
-  /产后|月子/u,
-  /新生儿/u,
-  /\d{1,2}\s*周/u,
-  /怀孕\d{1,2}\s*个?月/u,
-  /\d{1,2}\s*个?月龄/u,
-  /\d{1,2}\s*个?月宝宝/u,
-];
-const CHILDCARE_SCENE_PATTERNS = [
-  /(宝宝|婴儿|新生儿|幼儿|孩子|儿童).{0,8}(发烧|发热|咳嗽|腹泻|拉肚子|便秘|吐奶|湿疹|黄疸|皮疹|疫苗|奶量|喂奶|吃奶|夜醒|夜里总醒|夜间醒|睡觉|睡眠|哄睡|哭闹|闹觉|安抚|便便|辅食|厌奶|发育|体重|身高)/u,
-  /(发烧|发热|咳嗽|腹泻|拉肚子|便秘|吐奶|湿疹|黄疸|皮疹|疫苗|奶量|喂奶|吃奶|夜醒|夜里总醒|夜间醒|睡觉|睡眠|哄睡|哭闹|闹觉|安抚|便便|辅食|厌奶|发育|体重|身高).{0,8}(宝宝|婴儿|新生儿|幼儿|孩子|儿童)/u,
-  /宝宝月龄|婴儿护理|儿童护理|儿科|宝宝作息|宝宝睡眠/u,
-  /\d{1,2}\s*个?月(宝宝|婴儿|孩子|儿童)/u,
-];
-
-function normalizeContext(context: unknown): string | undefined {
-  if (!context) {
-    return undefined;
-  }
-
-  if (typeof context === 'string') {
-    const trimmed = context.trim();
-    return trimmed || undefined;
-  }
-
-  if (typeof context !== 'object' || Array.isArray(context)) {
-    return undefined;
-  }
-
-  const labelMap: Record<string, string> = {
-    stage: '当前阶段',
-    weeks: '孕周',
-    week: '孕周',
-    babyAge: '宝宝年龄',
-    ageMonths: '宝宝月龄',
-    symptoms: '补充症状',
-    notes: '补充说明',
-  };
-
-  const lines = Object.entries(context as Record<string, unknown>)
-    .filter(([, value]) => value !== undefined && value !== null && value !== '')
-    .slice(0, 8)
-    .map(([key, value]) => `- ${labelMap[key] || key}：${String(value)}`);
-
-  if (lines.length === 0) {
-    return undefined;
-  }
-
-  return `用户补充背景：\n${lines.join('\n')}`;
-}
-
-function buildMergedContext(...parts: Array<string | undefined>): string {
-  return parts.filter(Boolean).join('\n\n');
-}
-
-function hasExplicitStageSignal(text?: string): boolean {
-  if (!text) {
-    return false;
-  }
-
-  return EXPLICIT_STAGE_PATTERNS.some((pattern) => pattern.test(text));
-}
-
-function hasChildcareSceneSignal(text?: string): boolean {
-  if (!text) {
-    return false;
-  }
-
-  return CHILDCARE_SCENE_PATTERNS.some((pattern) => pattern.test(text));
-}
-
-function getContextSignalText(context: unknown): string | undefined {
-  if (!context) {
-    return undefined;
-  }
-
-  if (typeof context === 'string') {
-    const trimmed = context.trim();
-    return trimmed || undefined;
-  }
-
-  if (typeof context !== 'object' || Array.isArray(context)) {
-    return undefined;
-  }
-
-  const parts = Object.entries(context as Record<string, unknown>)
-    .filter(([, value]) => value !== undefined && value !== null && value !== '')
-    .slice(0, 8)
-    .map(([key, value]) => `${key} ${String(value).trim()}`)
-    .filter(Boolean);
-
-  return parts.length > 0 ? parts.join('\n') : undefined;
-}
-
-function hasExplicitStructuredContext(context: unknown): boolean {
-  if (!context) {
-    return false;
-  }
-
-  if (typeof context === 'string') {
-    return hasExplicitStageSignal(context);
-  }
-
-  if (typeof context !== 'object' || Array.isArray(context)) {
-    return false;
-  }
-
-  const record = context as Record<string, unknown>;
-  return ['stage', 'weeks', 'week', 'babyAge', 'ageMonths'].some((key) => {
-    const value = record[key];
-    return value !== undefined && value !== null && value !== '';
-  });
-}
-
-function shouldUseProfileHints(question: string, userContext: unknown): boolean {
-  const contextSignals = getContextSignalText(userContext);
-  return !hasExplicitStageSignal(question)
-    && !hasExplicitStructuredContext(userContext)
-    && !hasChildcareSceneSignal(question)
-    && !hasChildcareSceneSignal(contextSignals);
-}
-
-function buildAnswerPolicy(question: string, userContext: unknown): string {
-  const explicitStage = hasExplicitStageSignal(question) || hasExplicitStructuredContext(userContext);
-  const childcareScene = hasChildcareSceneSignal(question) || hasChildcareSceneSignal(getContextSignalText(userContext));
-  const lines = [
-    '回答策略：',
-    '- 以用户当前问题和本轮补充信息为优先。',
-    '- 用户历史档案仅作辅助参考，可能不是最新状态。',
-  ];
-
-  if (explicitStage) {
-    lines.push('- 本轮问题中已明确给出阶段、孕周或月龄时，请以本轮描述为准，不要被历史档案覆盖。');
-    lines.push('- 如果本轮描述和历史档案不一致，先回答当前问题，只在结尾用一句话提醒用户确认最新阶段。');
-  } else if (childcareScene) {
-    lines.push('- 本轮问题明显指向宝宝/儿童护理场景时，不要套用孕期档案或孕周信息。');
-  } else {
-    lines.push('- 若用户未明确说明阶段、孕周或月龄，可谨慎参考历史档案补充建议。');
-  }
-
-  return lines.join('\n');
-}
 
 function buildGatewayFallbackAnswer(
   question: string,
@@ -215,23 +73,6 @@ function estimateConfidence(score?: number): number {
   return Math.max(0.35, Math.min(0.96, Number((score / 100).toFixed(2))));
 }
 
-async function resolveKnowledge(question: string, userId?: string, userContext?: unknown) {
-  const profileContext = await buildUserProfileContext(userId);
-  const retrievalQuery = shouldUseProfileHints(question, userContext)
-    ? [question, ...profileContext.retrievalHints].filter(Boolean).join(' ')
-    : question;
-  const knowledgePack = buildKnowledgePack(retrievalQuery, { limit: 3 });
-
-  return {
-    profileContext,
-    knowledgePack,
-    finalContext: buildMergedContext(
-      profileContext.prompt,
-      knowledgePack.context,
-    ),
-  };
-}
-
 function buildPromptContext(
   question: string,
   userContext: unknown,
@@ -266,43 +107,6 @@ async function persistDomainDecisionExchange(
   });
 }
 
-async function resolveDomainDecision(
-  question: string,
-  options: {
-    userId?: string;
-    context?: unknown;
-    history?: Array<string | { role?: string; content?: string }>;
-  },
-): Promise<AIDomainDecision> {
-  const initialDecision = classifyMaternalChildQuestion(question, {
-    context: options.context,
-    history: options.history,
-  });
-
-  if (initialDecision.status === 'in_scope' || !options.userId) {
-    return initialDecision;
-  }
-
-  if (hasExcludedDomainSignal(question, { context: options.context, history: options.history })) {
-    return initialDecision;
-  }
-
-  if (!hasHealthOrCareSignal(question, { context: options.context, history: options.history })) {
-    return initialDecision;
-  }
-
-  const profileContext = await buildUserProfileContext(options.userId);
-  const profileSignal = profileContext.retrievalHints.join('\n').trim();
-
-  if (!profileSignal) {
-    return initialDecision;
-  }
-
-  return hasMaternalChildSignal(profileSignal)
-    ? { status: 'in_scope' }
-    : initialDecision;
-}
-
 function respondWithDomainDecision(
   res: Response,
   decision: AIDomainDecision,
@@ -319,14 +123,6 @@ function respondWithDomainDecision(
     model: model || DEFAULT_MODEL_ID,
     conversationId,
   }));
-}
-
-function isResumeContinuationContext(context: unknown): boolean {
-  if (!context || typeof context !== 'object' || Array.isArray(context)) {
-    return false;
-  }
-
-  return (context as Record<string, unknown>).模式 === '原答案续写';
 }
 
 function buildTrustedResponsePayload(
@@ -399,6 +195,8 @@ function streamTrustedResult(
 
 // 用户提问（单轮）- 非流式
 export const askQuestion = async (req: Request, res: Response, next: NextFunction) => {
+  const requestId = genRequestId();
+  const startedAt = Date.now();
   try {
     const { question, context, model, conversationId } = req.body;
     const userId = req.userId;
@@ -406,6 +204,15 @@ export const askQuestion = async (req: Request, res: Response, next: NextFunctio
     if (!question) {
       throw new AppError('请输入问题', ErrorCodes.PARAM_ERROR, 400);
     }
+
+    logger.info('ai.ask.start', {
+      component: 'ai.controller',
+      event: 'ask.start',
+      requestId,
+      userId,
+      questionPreview: String(question).slice(0, 80),
+      model,
+    });
 
     const result = await generateTrustedAIResponse({
       question,
@@ -424,14 +231,38 @@ export const askQuestion = async (req: Request, res: Response, next: NextFunctio
       })
       : conversationId;
 
+    logger.info('ai.ask.done', {
+      component: 'ai.controller',
+      event: 'ask.done',
+      requestId,
+      userId,
+      durationMs: Date.now() - startedAt,
+      isEmergency: result.isEmergency,
+      riskLevel: result.riskLevel,
+      degraded: result.degraded,
+      provider: result.provider,
+      route: result.route,
+      sourceCount: result.sources?.length || 0,
+    });
+
     res.json(successResponse(buildTrustedResponsePayload(result, model, persistedConversationId)));
   } catch (error) {
+    logger.error('ai.ask.error', {
+      component: 'ai.controller',
+      event: 'ask.error',
+      requestId,
+      userId: req.userId,
+      durationMs: Date.now() - startedAt,
+      err: error,
+    });
     next(error);
   }
 };
 
 // 用户提问（流式响应）
 export const askQuestionStream = async (req: Request, res: Response, next: NextFunction) => {
+  const requestId = genRequestId();
+  const startedAt = Date.now();
   try {
     const { question, context, model, conversationId } = req.body;
     const userId = req.userId;
@@ -439,6 +270,15 @@ export const askQuestionStream = async (req: Request, res: Response, next: NextF
     if (!question) {
       throw new AppError('请输入问题', ErrorCodes.PARAM_ERROR, 400);
     }
+
+    logger.info('ai.ask_stream.start', {
+      component: 'ai.controller',
+      event: 'ask_stream.start',
+      requestId,
+      userId,
+      questionPreview: String(question).slice(0, 80),
+      model,
+    });
 
     const result = await generateTrustedAIResponse({
       question,
@@ -457,8 +297,29 @@ export const askQuestionStream = async (req: Request, res: Response, next: NextF
       })
       : conversationId;
 
+    logger.info('ai.ask_stream.done', {
+      component: 'ai.controller',
+      event: 'ask_stream.done',
+      requestId,
+      userId,
+      durationMs: Date.now() - startedAt,
+      isEmergency: result.isEmergency,
+      riskLevel: result.riskLevel,
+      degraded: result.degraded,
+      provider: result.provider,
+      route: result.route,
+    });
+
     streamTrustedResult(res, result, model, persistedConversationId);
   } catch (error) {
+    logger.error('ai.ask_stream.error', {
+      component: 'ai.controller',
+      event: 'ask_stream.error',
+      requestId,
+      userId: req.userId,
+      durationMs: Date.now() - startedAt,
+      err: error,
+    });
     next(error);
   }
 };
@@ -529,7 +390,12 @@ export const chat = async (req: Request, res: Response, next: NextFunction) => {
       answer = result.answer;
       routeInfo = result.route;
     } catch (chatError) {
-      console.error('[AI Chat] Error:', chatError);
+      logger.error('ai.chat.gateway_error', {
+        component: 'ai.controller',
+        event: 'chat.gateway_error',
+        userId,
+        err: chatError,
+      });
       answer = buildGatewayFallbackAnswer(lastMessage.content, knowledgePack);
       degraded = true;
     }
@@ -673,7 +539,12 @@ export const chatStream = async (req: Request, res: Response, next: NextFunction
       })}\n\n`);
       res.end();
     } catch (streamError) {
-      console.error('[AI Chat Stream] Error:', streamError);
+      logger.error('ai.chat_stream.gateway_error', {
+        component: 'ai.controller',
+        event: 'chat_stream.gateway_error',
+        userId,
+        err: streamError,
+      });
       const fallbackAnswer = buildGatewayFallbackAnswer(lastMessage.content, knowledgePack);
       const persistedConversationId = userId && lastMessage.role === 'user'
         ? await saveConversationExchange({
@@ -818,7 +689,24 @@ export const submitFeedback = async (req: Request, res: Response, next: NextFunc
       throw new AppError('请提供完整的反馈信息', ErrorCodes.PARAM_ERROR, 400);
     }
 
-    console.log(`[AI QA Feedback] User: ${userId}, QA: ${qaId}, Feedback: ${feedback}, Comment: ${comment || 'N/A'}`);
+    // 持久化到 analytics_events（复用已有通用事件表，无需新迁移）
+    try {
+      await prisma.analyticsEvent.create({
+        data: {
+          userId: userId ? BigInt(userId) : null,
+          eventName: 'ai_qa_feedback',
+          source: 'ai_controller',
+          properties: {
+            qaId: String(qaId),
+            feedback: String(feedback),
+            comment: comment ? String(comment).slice(0, 500) : null,
+          },
+        },
+      });
+    } catch (persistError) {
+      // 写入失败不影响业务主流程，仅记日志
+      console.error('[AI QA Feedback] 持久化失败:', persistError);
+    }
 
     res.json(successResponse({ received: true }, '感谢您的反馈'));
   } catch (error) {
