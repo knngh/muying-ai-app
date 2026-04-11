@@ -15,7 +15,7 @@ export const ScreenContainer: React.FC<ScreenContainerProps> = ({
   return (
     <SafeAreaView style={[styles.container, style]}>
       <LinearGradient
-        colors={[colors.backgroundSoft, colors.background, colors.backgroundDeep]}
+        colors={[colors.backgroundSoft, colors.techLight, colors.background]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.backgroundGradient}

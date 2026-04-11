@@ -33,7 +33,7 @@ export default function HeroCard({
   return (
     <StandardCard style={styles.heroCard} elevation={2}>
       <LinearGradient
-        colors={['#FAE7DB', '#F2CDB6', '#ECD9C8']}
+        colors={['#FFF2EA', '#EBE4F0', '#DCEEF0']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.heroGradient}

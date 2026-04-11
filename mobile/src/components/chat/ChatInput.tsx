@@ -81,9 +81,9 @@ const styles = StyleSheet.create({
   dock: {
     padding: spacing.sm,
     borderRadius: borderRadius.xl,
-    backgroundColor: 'rgba(255, 250, 245, 0.96)',
+    backgroundColor: colors.surfaceGlass,
     borderWidth: 1,
-    borderColor: 'rgba(184,138,72,0.14)',
+    borderColor: 'rgba(255, 255, 255, 0.5)',
     shadowColor: colors.inkSoft,
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.08,
@@ -145,14 +145,14 @@ const styles = StyleSheet.create({
   sendButton: {
     margin: 0,
     borderRadius: borderRadius.pill,
-    backgroundColor: colors.techDark,
-    shadowColor: colors.techDark,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.18,
-    shadowRadius: 14,
+    backgroundColor: colors.copper,
+    shadowColor: colors.copper,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
   },
   sendButtonDisabled: {
-    backgroundColor: colors.textSecondary,
+    backgroundColor: 'rgba(255, 255, 255, 0.5)',
     shadowOpacity: 0,
   },
 })

@@ -152,7 +152,7 @@ export default function ChatScreen() {
       <View style={styles.listHeader}>
         <StandardCard style={styles.heroCard} elevation={2}>
           <LinearGradient
-            colors={['#F8E3D6', '#EECBB7', '#F8F1E9']}
+            colors={['rgba(248, 227, 214, 0.6)', 'rgba(238, 203, 183, 0.4)', 'rgba(248, 241, 233, 0.6)']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.heroGradient}
@@ -341,7 +341,9 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   heroChip: {
-    backgroundColor: 'rgba(255,253,249,0.9)',
+    backgroundColor: 'rgba(255, 255, 255, 0.7)',
+    borderColor: 'rgba(255, 255, 255, 0.8)',
+    borderWidth: 1,
   },
   heroChipText: {
     color: colors.primaryDark,
@@ -349,7 +351,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   heroAssistChip: {
-    backgroundColor: 'rgba(220,236,238,0.74)',
+    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+    borderColor: 'rgba(255, 255, 255, 0.6)',
+    borderWidth: 1,
   },
   heroAssistChipText: {
     color: colors.techDark,
@@ -378,7 +382,8 @@ const styles = StyleSheet.create({
     margin: 0,
     borderRadius: borderRadius.pill,
     borderWidth: 1,
-    borderColor: 'rgba(184,138,72,0.14)',
+    borderColor: 'rgba(255, 255, 255, 0.5)',
+    backgroundColor: 'rgba(255, 255, 255, 0.6)',
   },
   signalRow: {
     flexDirection: 'row',
@@ -387,8 +392,9 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
   signalChip: {
-    backgroundColor: 'rgba(255, 250, 245, 0.9)',
-    borderColor: 'rgba(184,138,72,0.14)',
+    backgroundColor: 'rgba(255, 255, 255, 0.6)',
+    borderColor: 'rgba(255, 255, 255, 0.8)',
+    borderWidth: 1,
   },
   signalChipText: {
     color: colors.primaryDark,

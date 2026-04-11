@@ -72,7 +72,11 @@ export default function HomeScreen() {
 
   return (
     <ScreenContainer>
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        showsVerticalScrollIndicator={false}
+        style={styles.scrollContainer}
+        contentContainerStyle={styles.scrollContent}
+      >
         <ContentSection style={styles.heroSection}>
           <HeroCard
             stage={stage}
@@ -137,13 +141,19 @@ export default function HomeScreen() {
           />
         </ContentSection>
 
-        <View style={{ height: spacing.xl }} />
       </ScrollView>
     </ScreenContainer>
   )
 }
 
 const styles = StyleSheet.create({
+  scrollContainer: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
+  scrollContent: {
+    paddingBottom: spacing.xxl,
+  },
   heroSection: {
     paddingTop: spacing.md,
   },
@@ -153,10 +163,10 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   summaryChip: {
-    backgroundColor: 'rgba(255, 251, 246, 0.94)',
+    backgroundColor: 'rgba(255, 255, 255, 0.6)',
     borderRadius: borderRadius.pill,
     borderWidth: 1,
-    borderColor: 'rgba(184,138,72,0.12)',
+    borderColor: 'rgba(255, 255, 255, 0.8)',
   },
   summaryChipText: {
     color: colors.inkSoft,
