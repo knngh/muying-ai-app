@@ -15,7 +15,7 @@ import {
   type AIDomainDecision,
 } from './ai-domain.service';
 import { buildUserProfileContext } from './ai-user-context.service';
-import { buildKnowledgePack } from './knowledge.service';
+import { buildKnowledgePackWithRewrite } from './knowledge.service';
 
 // ============================================================
 // Pattern 定义（唯一来源）
@@ -246,7 +246,7 @@ export async function resolveKnowledge(
   const retrievalQuery = useHints
     ? [question, ...profileContext.retrievalHints].filter(Boolean).join(' ')
     : question;
-  const knowledgePack = buildKnowledgePack(retrievalQuery, { limit: 3 });
+  const knowledgePack = await buildKnowledgePackWithRewrite(retrievalQuery, { limit: 3 });
 
   return {
     profileContext,

@@ -72,7 +72,7 @@ export interface TrustedAIRequest {
 
 const AI_DISCLAIMER = '温馨提示：本回答用于母婴健康信息参考，不能替代医生面诊、检查和专业判断。';
 const EMERGENCY_DISCLAIMER = '重要提示：当前命中高风险规则，请优先立即线下就医。';
-const CLARIFICATION_DISCLAIMER = '当前信息不足，系统不会继续猜测，请先补充关键信息或直接线下就医。';
+const CLARIFICATION_DISCLAIMER = '当前缺少足够的权威依据，问题助手已暂停继续生成，请先补充关键信息或直接线下就医。';
 const OUT_OF_SCOPE_DISCLAIMER = '当前仅支持母婴、孕产、喂养、护理、成长发育相关问题。';
 const DATASET_ONLY_NOTICE = '当前检索结果主要来自内部知识库或公开问答数据，不属于权威临床指南，不能替代线下面诊。';
 const MEDICAL_PLATFORM_NOTICE = '当前检索结果包含第三方医学平台内容，可作为辅助参考，但不等同于官方指南或临床规范。';
@@ -767,7 +767,7 @@ export async function generateTrustedAIResponse(request: TrustedAIRequest): Prom
   if (knowledgePack.sources.length === 0) {
     const structuredAnswer = {
       ...fallbackStructured,
-      conclusion: '当前没有检索到可支撑判断的来源，无法安全给出更具体的回答。',
+      conclusion: '当前没有检索到可支撑判断的权威来源，系统已拦截继续生成，暂不提供更具体的结论。',
     };
 
     return {

@@ -116,6 +116,44 @@ export const AUTHORITY_SOURCES: AuthoritySourceConfig[] = [
     parserId: 'nhs',
   },
   {
+    id: 'mayo-clinic-zh',
+    org: 'Mayo Clinic',
+    baseUrl: 'https://www.mayoclinic.org',
+    allowedDomains: ['mayoclinic.org'],
+    discoveryType: 'sitemap',
+    entryUrls: [
+      'https://www.mayoclinic.org/chinese_patient_consumer_web.xml',
+    ],
+    region: 'US',
+    language: 'zh',
+    locale: 'zh-CN',
+    audience: ['孕妇', '新生儿家长', '婴幼儿家长', '母婴家庭'],
+    topics: ['pregnancy', 'newborn', 'feeding', 'vaccination', 'common-symptoms', 'development'],
+    enabled: true,
+    fetchIntervalMinutes: 720,
+    maxPagesPerRun: 180,
+    parserId: 'mayo',
+  },
+  {
+    id: 'msd-manuals-cn',
+    org: 'MSD Manuals',
+    baseUrl: 'https://www.msdmanuals.cn',
+    allowedDomains: ['msdmanuals.cn', 'www.msdmanuals.cn'],
+    discoveryType: 'sitemap',
+    entryUrls: [
+      'https://www.msdmanuals.cn/sitemap-index.xml',
+    ],
+    region: 'GLOBAL',
+    language: 'zh',
+    locale: 'zh-CN',
+    audience: ['孕妇', '新生儿家长', '婴幼儿家长', '母婴家庭'],
+    topics: ['pregnancy', 'newborn', 'feeding', 'vaccination', 'common-symptoms'],
+    enabled: true,
+    fetchIntervalMinutes: 720,
+    maxPagesPerRun: 180,
+    parserId: 'msd-manuals',
+  },
+  {
     id: 'nhc-fys',
     org: '国家卫生健康委员会妇幼健康司',
     baseUrl: 'https://www.nhc.gov.cn',
@@ -273,8 +311,8 @@ export const AUTHORITY_SOURCES: AuthoritySourceConfig[] = [
     maxPagesPerRun: 120,
     parserId: 'cn-health',
   },
-  // Third-party medical content platform. Keep disabled until crawl permission
-  // and product classification are explicitly approved.
+  // Third-party medical content platform. Disabled by default because the
+  // site's robots policy explicitly forbids large-language-model crawlers.
   {
     id: 'dxy-maternal',
     org: '丁香医生',
@@ -291,7 +329,7 @@ export const AUTHORITY_SOURCES: AuthoritySourceConfig[] = [
     locale: 'zh-CN',
     audience: ['备孕家庭', '孕妇', '新生儿家长', '婴幼儿家长'],
     topics: ['pregnancy', 'newborn', 'feeding', 'common-symptoms'],
-    enabled: true,
+    enabled: false,
     fetchIntervalMinutes: 720,
     maxPagesPerRun: 60,
     maxDiscoveryIndexPages: 3,
@@ -362,12 +400,34 @@ export const AUTHORITY_SOURCES: AuthoritySourceConfig[] = [
   },
 ];
 
+export const OFFICIAL_AUTHORITY_SOURCE_IDS = new Set([
+  'who',
+  'cdc',
+  'aap',
+  'acog',
+  'nhs',
+  'mayo-clinic-zh',
+  'msd-manuals-cn',
+  'nhc-fys',
+  'nhc-rkjt',
+  'chinacdc-immunization',
+  'chinacdc-nutrition',
+  'govcn-muying',
+  'govcn-jiedu-muying',
+  'ndcpa-immunization',
+  'ndcpa-public-health',
+]);
+
 export function getAuthoritySourceConfig(sourceId: string): AuthoritySourceConfig | undefined {
   return AUTHORITY_SOURCES.find((source) => source.id === sourceId);
 }
 
 export function listEnabledAuthoritySources(): AuthoritySourceConfig[] {
   return AUTHORITY_SOURCES.filter((source) => source.enabled);
+}
+
+export function listEnabledOfficialAuthoritySources(): AuthoritySourceConfig[] {
+  return AUTHORITY_SOURCES.filter((source) => source.enabled && OFFICIAL_AUTHORITY_SOURCE_IDS.has(source.id));
 }
 
 export function inferAuthorityLocaleDefaults(

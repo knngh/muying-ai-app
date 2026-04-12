@@ -11,7 +11,7 @@ import {
 import { useFocusEffect } from '@react-navigation/native'
 import { Calendar, type DateData } from 'react-native-calendars'
 import dayjs from 'dayjs'
-import { Button, Card, Chip, IconButton, Modal, Portal, Snackbar, Switch, Text, TextInput } from 'react-native-paper'
+import { Button, Card, Chip, Modal, Portal, Snackbar, Switch, Text, TextInput } from 'react-native-paper'
 import LinearGradient from 'react-native-linear-gradient'
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons'
 import { useCalendarStore } from '../stores/calendarStore'
@@ -36,6 +36,14 @@ const EVENT_TYPES: EventType[] = ['checkup', 'vaccine', 'reminder', 'exercise', 
 const DEFAULT_EVENT_TIME = '08:00'
 const DEFAULT_REMINDER_MINUTES = 12 * 60
 const DEFAULT_REMINDER_LABEL = '默认提醒：前一晚 20:00'
+
+function formatEventSchedule(event: CalendarEventView) {
+  return `${dayjs(event.eventDate).format('M月D日')} ${event.startTime || DEFAULT_EVENT_TIME}`
+}
+
+function getEventReminderLabel(event: CalendarEventView) {
+  return event.reminderEnabled ? DEFAULT_REMINDER_LABEL : '未开启提醒'
+}
 
 interface CalendarEventView {
   id: number
@@ -128,6 +136,18 @@ function resolveSelectedDateForMonth(nextMonth: string, previousSelectedDate: st
   return monthStart.date(clampedDay).format('YYYY-MM-DD')
 }
 
+function getCalendarFetchRange(currentMonth: string, todayString: string) {
+  const currentMonthStart = dayjs(`${currentMonth}-01`).startOf('month')
+  const currentMonthEnd = currentMonthStart.endOf('month')
+  const todayMonthStart = dayjs(todayString).startOf('month')
+  const todayMonthEnd = dayjs(todayString).endOf('month')
+
+  return {
+    start: (currentMonthStart.isBefore(todayMonthStart) ? currentMonthStart : todayMonthStart).format('YYYY-MM-DD'),
+    end: (currentMonthEnd.isAfter(todayMonthEnd) ? currentMonthEnd : todayMonthEnd).format('YYYY-MM-DD'),
+  }
+}
+
 function DraggableSuggestionCard({
   suggestion,
   actionLabel,
@@ -194,43 +214,54 @@ function DraggableSuggestionCard({
       ]}
     >
       <View style={styles.suggestionCard}>
-        <View style={styles.suggestionEyebrowRow}>
-          <View style={styles.suggestionLead}>
-            <View style={styles.suggestionIconShell}>
-              <MaterialCommunityIcons
-                name={EVENT_TYPE_CONFIG[suggestion.eventType].icon}
-                size={16}
-                color={colors.primaryDark}
-              />
+        <View style={styles.suggestionCardBody}>
+          <View style={styles.suggestionEyebrowRow}>
+            <View style={styles.suggestionLead}>
+              <View style={styles.suggestionIconShell}>
+                <MaterialCommunityIcons
+                  name={EVENT_TYPE_CONFIG[suggestion.eventType].icon}
+                  size={16}
+                  color={colors.primaryDark}
+                />
+              </View>
+              <View style={styles.suggestionLeadText}>
+                <Text style={styles.suggestionEyebrow}>建议时间窗</Text>
+                <Text numberOfLines={1} style={styles.suggestionMiniLabel}>{suggestion.windowLabel}</Text>
+              </View>
             </View>
-            <View style={styles.suggestionLeadText}>
-              <Text style={styles.suggestionEyebrow}>建议时间窗</Text>
-              <Text style={styles.suggestionMiniLabel}>{suggestion.windowLabel}</Text>
+            <View style={styles.dragHandle} {...panResponder.panHandlers}>
+              <View style={styles.dragHandleBar} />
+              <View style={styles.dragHandleBar} />
             </View>
           </View>
-          <View style={styles.dragHandle} {...panResponder.panHandlers}>
-            <View style={styles.dragHandleBar} />
-            <View style={styles.dragHandleBar} />
+
+          <Text numberOfLines={2} style={styles.suggestionTitle}>{suggestion.title}</Text>
+          <Text numberOfLines={2} style={styles.suggestionDescription}>{suggestion.description}</Text>
+
+          <View style={styles.suggestionChipRow}>
+            <Chip compact style={styles.windowChip} textStyle={styles.windowChipText}>
+              {suggestion.windowLabel}
+            </Chip>
+            <Chip compact style={styles.windowChip} textStyle={styles.windowChipText}>
+              {suggestion.reminderLabel}
+            </Chip>
           </View>
-        </View>
 
-        <Text style={styles.suggestionTitle}>{suggestion.title}</Text>
-        <Text style={styles.suggestionDescription}>{suggestion.description}</Text>
+          <View style={styles.suggestionInfoBar}>
+            <MaterialCommunityIcons name="calendar-range" size={15} color={colors.techDark} />
+            <Text numberOfLines={2} style={styles.suggestionRangeText}>
+              可拖入 {formatSuggestionRange(suggestion)} 任意日期
+            </Text>
+          </View>
 
-        <View style={styles.suggestionChipRow}>
-          <Chip compact style={styles.windowChip} textStyle={styles.windowChipText}>
-            {suggestion.windowLabel}
-          </Chip>
-          <Chip compact style={styles.windowChip} textStyle={styles.windowChipText}>
-            {suggestion.reminderLabel}
-          </Chip>
+          {!selectedDateAllowed ? (
+            <Text numberOfLines={2} style={styles.suggestionHint}>
+              将日历定位到 {focusDateLabel} 后，可直接点按加入。
+            </Text>
+          ) : (
+            <View style={styles.suggestionHintSpacer} />
+          )}
         </View>
-
-        <View style={styles.suggestionInfoBar}>
-          <MaterialCommunityIcons name="calendar-range" size={15} color={colors.techDark} />
-          <Text style={styles.suggestionRangeText}>可拖入 {formatSuggestionRange(suggestion)} 任意日期</Text>
-        </View>
-        {!selectedDateAllowed ? <Text style={styles.suggestionHint}>将日历定位到 {focusDateLabel} 后，可直接点按加入。</Text> : null}
 
         <TouchableOpacity
           activeOpacity={0.88}
@@ -280,18 +311,17 @@ export default function CalendarScreen() {
   const [snackMessage, setSnackMessage] = useState('')
   const dateCellNodesRef = useRef<Record<string, View | null>>({})
   const dateCellRectsRef = useRef<Record<string, Rect>>({})
+  const todayString = dayjs().format('YYYY-MM-DD')
 
   useFocusEffect(
     useCallback(() => {
-      const start = dayjs(currentMonth).startOf('month').format('YYYY-MM-DD')
-      const end = dayjs(currentMonth).endOf('month').format('YYYY-MM-DD')
+      const { start, end } = getCalendarFetchRange(currentMonth, todayString)
       fetchEvents(start, end)
       ensureFreshQuota()
-    }, [currentMonth, ensureFreshQuota, fetchEvents]),
+    }, [currentMonth, ensureFreshQuota, fetchEvents, todayString]),
   )
 
   const calendarEvents = events as unknown as CalendarEventView[]
-  const todayString = dayjs().format('YYYY-MM-DD')
 
   const markedDates = useMemo(() => {
     const marks: Record<string, DayMark> = {}
@@ -317,11 +347,66 @@ export default function CalendarScreen() {
     () => calendarEvents.filter((event) => event.eventDate === selectedDate),
     [calendarEvents, selectedDate],
   )
+  const todayEvents = useMemo(
+    () => calendarEvents.filter((event) => event.eventDate === todayString),
+    [calendarEvents, todayString],
+  )
+  const todayPendingEvents = useMemo(
+    () => todayEvents.filter((event) => !event.isCompleted),
+    [todayEvents],
+  )
+  const hasCheckedInToday = todayEvents.some((event) => event.isCompleted)
 
-  const completedToday = eventsForSelectedDate.filter((event) => event.isCompleted).length
-  const pendingToday = Math.max(eventsForSelectedDate.length - completedToday, 0)
+  const completedForSelectedDate = eventsForSelectedDate.filter((event) => event.isCompleted).length
+  const pendingForSelectedDate = Math.max(eventsForSelectedDate.length - completedForSelectedDate, 0)
   const activeSuggestionWindow = draggingSuggestion ? formatSuggestionRange(draggingSuggestion) : null
   const selectedDateIsToday = selectedDate === todayString
+  const selectedDateBadge = selectedDateIsToday ? '今天' : dayjs(selectedDate).format('MM-DD')
+  const selectedDateLabel = selectedDateIsToday ? '今天' : dayjs(selectedDate).format('M月D日')
+  const statCards = [
+    {
+      label: '当前阶段',
+      value: stage.lifecycleLabel,
+      icon: 'radar',
+      tone: 'copper' as const,
+      badge: '已同步',
+      note: '首页、档案与日历联动',
+      gradient: ['#FFF7F1', '#F7E2D4'],
+      accent: colors.primaryDark,
+    },
+    {
+      label: '本周完成',
+      value: `${weeklyCompletionRate}%`,
+      icon: 'chart-arc',
+      tone: 'green' as const,
+      badge: '周进度',
+      note: '完成任一安排自动计入',
+      gradient: ['#F7FAF2', '#E6EFD8'],
+      accent: colors.green,
+    },
+    {
+      label: '待办事项',
+      value: `${pendingForSelectedDate} 项`,
+      icon: 'calendar-clock-outline',
+      tone: 'tech' as const,
+      badge: selectedDateBadge,
+      note: `${selectedDateLabel}还有待处理安排`,
+      gradient: ['#F3F9FA', '#DCECEF'],
+      accent: colors.techDark,
+    },
+    {
+      label: '已完成',
+      value: `${completedForSelectedDate} 项`,
+      icon: 'check-decagram-outline',
+      tone: 'gold' as const,
+      badge: selectedDateIsToday ? (hasCheckedInToday ? '已签到' : '可签到') : selectedDateBadge,
+      note: selectedDateIsToday
+        ? (hasCheckedInToday ? '今天已累计连续打卡' : '完成一项即可完成签到')
+        : `${selectedDateLabel}已完成安排`,
+      gradient: ['#FFF9F0', '#F7E7CA'],
+      accent: colors.gold,
+    },
+  ]
 
   const measureDateCell = useCallback((dateString: string) => {
     requestAnimationFrame(() => {
@@ -473,14 +558,65 @@ export default function CalendarScreen() {
     try {
       if (event.isCompleted) {
         await updateEvent(event.id, { isCompleted: false })
+        await ensureFreshQuota()
         return
       }
 
       await completeEvent(event.id)
+      await ensureFreshQuota()
     } catch (_error) {
       setSnackMessage('状态更新失败，请稍后重试')
     }
-  }, [completeEvent, updateEvent])
+  }, [completeEvent, ensureFreshQuota, updateEvent])
+
+  const handleQuickCheckIn = useCallback(async () => {
+    try {
+      setSelectedDate(todayString)
+      if (todayString.slice(0, 7) !== currentMonth) {
+        setCurrentMonth(todayString.slice(0, 7))
+      }
+      setHoveredDate(null)
+      setDraggingSuggestion(null)
+
+      if (hasCheckedInToday) {
+        setSnackMessage('今天已经签到，继续完成其他安排也会计入周完成度')
+        return
+      }
+
+      if (todayPendingEvents[0]) {
+        await completeEvent(todayPendingEvents[0].id)
+        await ensureFreshQuota()
+        setSnackMessage(`今日已签到，并完成“${todayPendingEvents[0].title}”`)
+        return
+      }
+
+      const created = await createEvent({
+        title: '今日签到',
+        description: '没有现成安排时，可用这条记录保持连续打卡。',
+        eventDate: todayString,
+        eventType: 'reminder',
+        startTime: DEFAULT_EVENT_TIME,
+        reminderEnabled: false,
+        reminderMinutes: 0,
+        isCompleted: false,
+      })
+
+      await completeEvent(created.id)
+      await ensureFreshQuota()
+      setSnackMessage('今日已签到')
+    } catch (_error) {
+      setSnackMessage('签到失败，请稍后重试')
+    }
+  }, [
+    completeEvent,
+    currentMonth,
+    createEvent,
+    ensureFreshQuota,
+    hasCheckedInToday,
+    setCurrentMonth,
+    todayPendingEvents,
+    todayString,
+  ])
 
   const syncCalendarDate = useCallback((dateString: string) => {
     setSelectedDate(dateString)
@@ -593,21 +729,32 @@ export default function CalendarScreen() {
                     {stage.lifecycleLabel}
                   </Chip>
                   <Chip compact style={styles.heroAssistChip} textStyle={styles.heroAssistChipText}>
-                    拖拽排程
+                    日程安排
                   </Chip>
                 </View>
                 <Text style={styles.headerTitle}>{stage.calendarTitle}</Text>
                 <Text style={styles.headerSubtitle}>{stage.calendarSubtitle}</Text>
               </View>
-              <Button
-                mode="contained"
-                icon="plus"
-                onPress={openCreateModal}
-                buttonColor={colors.ink}
-                style={styles.heroActionButton}
-              >
-                添加安排
-              </Button>
+              <View style={styles.heroActionColumn}>
+                <Button
+                  mode="contained"
+                  icon={hasCheckedInToday ? 'check-circle' : 'calendar-check-outline'}
+                  onPress={() => void handleQuickCheckIn()}
+                  buttonColor={hasCheckedInToday ? colors.green : colors.techDark}
+                  style={styles.heroActionButton}
+                >
+                  {hasCheckedInToday ? '今日已签到' : '今日签到'}
+                </Button>
+                <Button
+                  mode="contained"
+                  icon="plus"
+                  onPress={openCreateModal}
+                  buttonColor={colors.ink}
+                  style={styles.heroActionButton}
+                >
+                  添加安排
+                </Button>
+              </View>
             </View>
 
             <View style={styles.heroSignalPanel}>
@@ -617,12 +764,12 @@ export default function CalendarScreen() {
               </View>
               <View style={styles.heroSignalDivider} />
               <View style={styles.heroSignalItem}>
-                <Text style={styles.heroSignalValue}>{pendingToday}</Text>
+                <Text style={styles.heroSignalValue}>{pendingForSelectedDate}</Text>
                 <Text style={styles.heroSignalLabel}>待安排</Text>
               </View>
               <View style={styles.heroSignalDivider} />
               <View style={styles.heroSignalItem}>
-                <Text style={styles.heroSignalValue}>{completedToday}</Text>
+                <Text style={styles.heroSignalValue}>{completedForSelectedDate}</Text>
                 <Text style={styles.heroSignalLabel}>已完成</Text>
               </View>
               <View style={styles.heroSignalDivider} />
@@ -631,44 +778,57 @@ export default function CalendarScreen() {
                 <Text style={styles.heroSignalLabel}>连续打卡</Text>
               </View>
             </View>
+
+            <View style={styles.checkInHintCard}>
+              <View style={styles.checkInHintLead}>
+                <MaterialCommunityIcons
+                  name={hasCheckedInToday ? 'check-decagram' : 'information-outline'}
+                  size={18}
+                  color={hasCheckedInToday ? colors.green : colors.techDark}
+                />
+                <Text style={styles.checkInHintTitle}>
+                  {hasCheckedInToday ? '今天已完成签到' : '签到规则'}
+                </Text>
+              </View>
+              <Text style={styles.checkInHintText}>
+                {hasCheckedInToday
+                  ? '今天已经有至少一项安排被标记为完成，连续打卡会自动累计。'
+                  : '完成今天任一安排就会记为签到；如果今天还没安排，可以直接点上方“今日签到”。'}
+              </Text>
+            </View>
           </LinearGradient>
         </StandardCard>
 
         <View style={styles.statsRow}>
-          {[
-            { label: '当前阶段', value: stage.lifecycleLabel, icon: 'radar', tone: 'copper' },
-            { label: '本周完成', value: `${weeklyCompletionRate}%`, icon: 'chart-arc', tone: 'green' },
-            { label: '今日待办', value: `${pendingToday} 项`, icon: 'calendar-clock-outline', tone: 'tech' },
-            { label: '已完成', value: `${completedToday} 项`, icon: 'check-decagram-outline', tone: 'gold' },
-          ].map((item) => (
-            <Card key={item.label} style={styles.statCard}>
-              <Card.Content>
-                <View
-                  style={[
-                    styles.statIconShell,
-                    item.tone === 'green' && styles.statIconShellGreen,
-                    item.tone === 'tech' && styles.statIconShellTech,
-                    item.tone === 'gold' && styles.statIconShellGold,
-                  ]}
-                >
-                  <MaterialCommunityIcons
-                    name={item.icon}
-                    size={17}
-                    color={
-                      item.tone === 'green'
-                        ? colors.green
-                        : item.tone === 'tech'
-                          ? colors.techDark
-                          : item.tone === 'gold'
-                            ? colors.gold
-                            : colors.primaryDark
-                    }
-                  />
+          {statCards.map((item) => (
+            <View key={item.label} style={styles.statCard}>
+              <LinearGradient colors={item.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.statCardGradient}>
+                <View style={styles.statCardGlow} />
+                <View style={styles.statCardTop}>
+                  <View
+                    style={[
+                      styles.statIconShell,
+                      item.tone === 'green' && styles.statIconShellGreen,
+                      item.tone === 'tech' && styles.statIconShellTech,
+                      item.tone === 'gold' && styles.statIconShellGold,
+                    ]}
+                  >
+                    <MaterialCommunityIcons name={item.icon} size={17} color={item.accent} />
+                  </View>
+                  <View style={[styles.statBadge, { borderColor: `${item.accent}22`, backgroundColor: `${item.accent}12` }]}>
+                    <Text style={[styles.statBadgeText, { color: item.accent }]}>{item.badge}</Text>
+                  </View>
                 </View>
-                <Text style={styles.statLabel}>{item.label}</Text>
-                <Text style={styles.statValue}>{item.value}</Text>
-              </Card.Content>
-            </Card>
+
+                <Text numberOfLines={1} style={styles.statLabel}>{item.label}</Text>
+                <Text numberOfLines={1} style={styles.statValue}>{item.value}</Text>
+
+                <View style={styles.statNoteRow}>
+                  <View style={[styles.statNoteDot, { backgroundColor: item.accent }]} />
+                  <Text numberOfLines={2} style={styles.statNote}>{item.note}</Text>
+                </View>
+              </LinearGradient>
+            </View>
           ))}
         </View>
 
@@ -705,12 +865,12 @@ export default function CalendarScreen() {
         <Card style={styles.engineCard}>
           <LinearGradient colors={['#3B2923', '#754534', '#DB9B65']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.engineGradient}>
             <View style={styles.engineGlow} />
-            <Text style={styles.engineEyebrow}>拖拽安排</Text>
-            <Text style={styles.engineTitle}>建议卡先给时间窗，再拖到窗口内任意日期</Text>
+            <Text style={styles.engineEyebrow}>安排建议</Text>
+            <Text style={styles.engineTitle}>先看建议时间窗，再放到合适日期</Text>
             <Text style={styles.engineDescription}>
               {draggingSuggestion
                 ? `${draggingSuggestion.title}：${draggingSuggestion.windowLabel}，当前有效日期 ${activeSuggestionWindow}`
-                : '拖动下方建议卡到高亮日期，系统默认在事件前一晚 20:00 提醒。'}
+                : '把下方建议卡放到高亮日期，系统默认在事件前一晚 20:00 提醒。'}
             </Text>
 
             <View style={styles.engineSignalPanel}>
@@ -730,7 +890,7 @@ export default function CalendarScreen() {
                 {hoveredDate ? `准备放到 ${dayjs(hoveredDate).format('MM-DD')}` : DEFAULT_REMINDER_LABEL}
               </Chip>
               <Chip compact style={styles.engineChip} textStyle={styles.engineChipText}>
-                允许日期会自动高亮
+                可安排日期会自动高亮
               </Chip>
             </View>
           </LinearGradient>
@@ -815,10 +975,13 @@ export default function CalendarScreen() {
         <View style={styles.sectionHeaderRow}>
           <View>
             <Text style={styles.sectionTitle}>{stage.eventHeadline}</Text>
-            <Text style={styles.sectionMeta}>已完成 {completedToday} 项，待处理 {pendingToday} 项</Text>
+            <Text style={styles.sectionMeta}>
+              {selectedDateLabel}已完成 {completedForSelectedDate} 项，待处理 {pendingForSelectedDate} 项
+              {selectedDateIsToday ? '，完成任一项即记为签到' : ''}
+            </Text>
           </View>
           <View style={styles.sectionTag}>
-            <Text style={styles.sectionTagText}>当天安排</Text>
+            <Text style={styles.sectionTagText}>{selectedDateIsToday ? '当天安排' : '所选日期'}</Text>
           </View>
         </View>
 
@@ -836,47 +999,111 @@ export default function CalendarScreen() {
           eventsForSelectedDate.map((event) => {
             const typeConfig = EVENT_TYPE_CONFIG[event.eventType] ?? EVENT_TYPE_CONFIG.other
             return (
-              <Card key={event.id} style={[styles.eventCard, event.isCompleted && styles.eventCardCompleted]}>
-                <Card.Content>
+              <Card
+                key={event.id}
+                style={[
+                  styles.eventCard,
+                  { borderLeftColor: typeConfig.color, borderLeftWidth: 4 },
+                  event.isCompleted && styles.eventCardCompleted,
+                ]}
+              >
+                <Card.Content style={styles.eventCardContent}>
                   <View style={styles.eventHeader}>
                     <View style={styles.eventLead}>
                       <View style={[styles.eventIconShell, { backgroundColor: `${typeConfig.color}20` }]}>
                         <MaterialCommunityIcons name={typeConfig.icon} size={16} color={typeConfig.color} />
                       </View>
                       <View style={styles.eventHeaderText}>
+                        <View style={styles.eventMetaTopRow}>
+                          <Chip compact style={[styles.typeChip, { backgroundColor: `${typeConfig.color}20` }]} textStyle={[styles.typeChipText, { color: typeConfig.color }]}>
+                            {typeConfig.label}
+                          </Chip>
+                          <View
+                            style={[
+                              styles.eventStateBadge,
+                              event.isCompleted ? styles.eventStateBadgeCompleted : styles.eventStateBadgePending,
+                            ]}
+                          >
+                            <MaterialCommunityIcons
+                              name={event.isCompleted ? 'check-circle' : 'clock-outline'}
+                              size={13}
+                              color={event.isCompleted ? colors.green : colors.techDark}
+                            />
+                            <Text
+                              style={[
+                                styles.eventStateBadgeText,
+                                event.isCompleted ? styles.eventStateBadgeTextCompleted : styles.eventStateBadgeTextPending,
+                              ]}
+                            >
+                              {event.isCompleted ? '已完成' : '待完成'}
+                            </Text>
+                          </View>
+                        </View>
+
                         <View style={styles.eventTitleRow}>
                           <Text style={[styles.eventTitle, event.isCompleted && styles.eventTitleCompleted]}>
                             {event.title}
                           </Text>
-                          <Chip compact style={[styles.typeChip, { backgroundColor: `${typeConfig.color}20` }]} textStyle={[styles.typeChipText, { color: typeConfig.color }]}>
-                            {typeConfig.label}
-                          </Chip>
                         </View>
-                        <Text style={styles.eventDate}>{dayjs(event.eventDate).format('YYYY-MM-DD')}</Text>
+
+                        {event.description ? (
+                          <Text numberOfLines={2} style={styles.eventDescription}>
+                            {event.description}
+                          </Text>
+                        ) : (
+                          <Text style={styles.eventDescriptionMuted}>建议提前确认时间与准备物品</Text>
+                        )}
                       </View>
                     </View>
                   </View>
 
-                  {event.description ? <Text style={styles.eventDescription}>{event.description}</Text> : null}
-
                   <View style={styles.eventMetaRow}>
-                    <Chip compact style={styles.eventMetaChip} textStyle={styles.eventMetaChipText}>
-                      {event.reminderEnabled ? DEFAULT_REMINDER_LABEL : '未开启提醒'}
-                    </Chip>
+                    <View style={styles.eventMetaItem}>
+                      <MaterialCommunityIcons name="calendar-month-outline" size={14} color={colors.techDark} />
+                      <Text style={styles.eventMetaItemText}>{formatEventSchedule(event)}</Text>
+                    </View>
+                    <View style={styles.eventMetaItem}>
+                      <MaterialCommunityIcons
+                        name={event.reminderEnabled ? 'bell-ring-outline' : 'bell-off-outline'}
+                        size={14}
+                        color={event.reminderEnabled ? colors.primaryDark : colors.textLight}
+                      />
+                      <Text style={styles.eventMetaItemText}>{getEventReminderLabel(event)}</Text>
+                    </View>
                   </View>
 
                   <View style={styles.eventActions}>
-                    <Button
-                      compact
-                      mode="text"
-                      icon={event.isCompleted ? 'check-circle' : 'circle-outline'}
+                    <TouchableOpacity
+                      activeOpacity={0.88}
                       onPress={() => void handleComplete(event)}
-                      textColor={event.isCompleted ? colors.green : colors.textLight}
+                      style={[
+                        styles.eventPrimaryAction,
+                        event.isCompleted && styles.eventPrimaryActionCompleted,
+                      ]}
                     >
-                      {event.isCompleted ? '已完成' : '完成'}
-                    </Button>
-                    <IconButton icon="pencil" size={18} onPress={() => openEditModal(event)} />
-                    <IconButton icon="delete" size={18} iconColor={colors.red} onPress={() => handleDelete(event)} />
+                      <MaterialCommunityIcons
+                        name={event.isCompleted ? 'backup-restore' : 'check-circle-outline'}
+                        size={16}
+                        color={event.isCompleted ? colors.green : colors.white}
+                      />
+                      <Text
+                        style={[
+                          styles.eventPrimaryActionText,
+                          event.isCompleted && styles.eventPrimaryActionTextCompleted,
+                        ]}
+                      >
+                        {event.isCompleted ? '撤销完成' : '标记完成'}
+                      </Text>
+                    </TouchableOpacity>
+
+                    <View style={styles.eventActionIcons}>
+                      <TouchableOpacity activeOpacity={0.88} onPress={() => openEditModal(event)} style={styles.eventIconAction}>
+                        <MaterialCommunityIcons name="pencil-outline" size={18} color={colors.techDark} />
+                      </TouchableOpacity>
+                      <TouchableOpacity activeOpacity={0.88} onPress={() => handleDelete(event)} style={styles.eventIconActionDanger}>
+                        <MaterialCommunityIcons name="trash-can-outline" size={18} color={colors.red} />
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 </Card.Content>
               </Card>
@@ -961,8 +1188,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    padding: spacing.md,
-    paddingBottom: spacing.xl,
+    padding: spacing.sm,
+    paddingBottom: spacing.xxxl * 3 + spacing.sm,
   },
   heroCard: {
     backgroundColor: 'transparent',
@@ -971,7 +1198,7 @@ const styles = StyleSheet.create({
   heroGradient: {
     borderRadius: borderRadius.xl,
     overflow: 'hidden',
-    padding: spacing.md,
+    padding: spacing.sm,
   },
   heroGlow: {
     position: 'absolute',
@@ -996,7 +1223,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    gap: spacing.md,
+    gap: spacing.sm,
+  },
+  heroActionColumn: {
+    width: 112,
+    gap: spacing.xs,
   },
   heroTopText: {
     flex: 1,
@@ -1004,8 +1235,8 @@ const styles = StyleSheet.create({
   heroChipRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: spacing.sm,
-    marginBottom: spacing.sm,
+    gap: spacing.xs,
+    marginBottom: spacing.xs,
   },
   heroChip: {
     backgroundColor: 'rgba(255,253,249,0.9)',
@@ -1025,11 +1256,11 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.pill,
   },
   heroSignalPanel: {
-    marginTop: spacing.lg,
+    marginTop: spacing.md,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.xs,
     borderRadius: borderRadius.lg,
     backgroundColor: 'rgba(255,253,249,0.72)',
     borderWidth: 1,
@@ -1041,7 +1272,7 @@ const styles = StyleSheet.create({
   },
   heroSignalValue: {
     color: colors.ink,
-    fontSize: fontSize.lg,
+    fontSize: fontSize.md,
     fontWeight: '700',
   },
   heroSignalLabel: {
@@ -1051,8 +1282,33 @@ const styles = StyleSheet.create({
   },
   heroSignalDivider: {
     width: 1,
-    height: 30,
+    height: 24,
     backgroundColor: colors.divider,
+  },
+  checkInHintCard: {
+    marginTop: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.lg,
+    backgroundColor: 'rgba(255,253,249,0.72)',
+    borderWidth: 1,
+    borderColor: 'rgba(94,126,134,0.1)',
+  },
+  checkInHintLead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginBottom: 2,
+  },
+  checkInHintTitle: {
+    color: colors.inkDeep,
+    fontSize: fontSize.xs,
+    fontWeight: '700',
+  },
+  checkInHintText: {
+    color: colors.textSecondary,
+    fontSize: fontSize.xs,
+    lineHeight: 16,
   },
   header: {
     flexDirection: 'row',
@@ -1064,61 +1320,111 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   headerTitle: {
-    fontSize: fontSize.title,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  headerSubtitle: {
-    marginTop: spacing.xs,
-    color: colors.inkSoft,
-    lineHeight: 20,
-  },
-  statsRow: {
-    marginTop: spacing.lg,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.md,
-  },
-  statCard: {
-    width: '47%',
-    borderRadius: borderRadius.xl,
-    backgroundColor: colors.surfaceRaised,
-    borderWidth: 1,
-    borderColor: 'rgba(184,138,72,0.12)',
-    shadowColor: colors.shadowStrong,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.08,
-    shadowRadius: 18,
-  },
-  statIconShell: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: 'rgba(197,108,71,0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.sm,
-  },
-  statIconShellGreen: {
-    backgroundColor: 'rgba(158,171,132,0.14)',
-  },
-  statIconShellTech: {
-    backgroundColor: 'rgba(94,126,134,0.14)',
-  },
-  statIconShellGold: {
-    backgroundColor: 'rgba(184,138,72,0.14)',
-  },
-  statLabel: {
-    color: colors.textSecondary,
-    marginBottom: spacing.xs,
-  },
-  statValue: {
     fontSize: fontSize.xl,
     fontWeight: '700',
     color: colors.text,
   },
+  headerSubtitle: {
+    marginTop: 4,
+    color: colors.inkSoft,
+    lineHeight: 18,
+  },
+  statsRow: {
+    marginTop: spacing.md,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  statCard: {
+    width: '47%',
+    borderRadius: borderRadius.xl,
+    borderWidth: 1,
+    borderColor: 'rgba(184,138,72,0.14)',
+    overflow: 'hidden',
+    shadowColor: colors.shadowStrong,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+  },
+  statCardGradient: {
+    height: 132,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+    justifyContent: 'space-between',
+    position: 'relative',
+  },
+  statCardGlow: {
+    position: 'absolute',
+    top: -18,
+    right: -8,
+    width: 82,
+    height: 82,
+    borderRadius: 41,
+    backgroundColor: 'rgba(255,255,255,0.36)',
+  },
+  statCardTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  statIconShell: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgba(197,108,71,0.14)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statIconShellGreen: {
+    backgroundColor: 'rgba(158,171,132,0.18)',
+  },
+  statIconShellTech: {
+    backgroundColor: 'rgba(94,126,134,0.18)',
+  },
+  statIconShellGold: {
+    backgroundColor: 'rgba(184,138,72,0.18)',
+  },
+  statBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: borderRadius.pill,
+    borderWidth: 1,
+  },
+  statBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  statLabel: {
+    color: colors.textSecondary,
+    marginTop: spacing.sm,
+    marginBottom: 4,
+    fontSize: fontSize.xs,
+  },
+  statValue: {
+    fontSize: fontSize.lg,
+    fontWeight: '700',
+    color: colors.inkDeep,
+    lineHeight: 24,
+  },
+  statNoteRow: {
+    marginTop: spacing.xs,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  statNoteDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  statNote: {
+    flex: 1,
+    color: colors.textSecondary,
+    fontSize: 11,
+    lineHeight: 15,
+  },
   stageCard: {
-    marginTop: spacing.lg,
+    marginTop: spacing.md,
     borderRadius: borderRadius.xl,
     backgroundColor: 'transparent',
     overflow: 'hidden',
@@ -1132,7 +1438,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    gap: spacing.md,
+    gap: spacing.sm,
   },
   stageCardLead: {
     flex: 1,
@@ -1141,9 +1447,9 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   stageIconShell: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     backgroundColor: 'rgba(94,126,134,0.14)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1156,17 +1462,17 @@ const styles = StyleSheet.create({
     color: colors.primaryDark,
     fontWeight: '700',
     letterSpacing: 1,
-    marginBottom: 4,
+    marginBottom: 2,
   },
   stageCardTitle: {
-    fontSize: fontSize.lg,
+    fontSize: fontSize.md,
     fontWeight: '700',
     color: colors.text,
   },
   stageCardSubtitle: {
-    marginTop: spacing.xs,
+    marginTop: 4,
     color: colors.textSecondary,
-    lineHeight: 20,
+    lineHeight: 18,
   },
   stageChip: {
     backgroundColor: 'rgba(255, 253, 249, 0.82)',
@@ -1177,10 +1483,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   stageTagRow: {
-    marginTop: spacing.md,
+    marginTop: spacing.xs,
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: spacing.sm,
+    gap: spacing.xs,
   },
   stageTagChip: {
     backgroundColor: 'rgba(255, 253, 249, 0.74)',
@@ -1192,7 +1498,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   engineCard: {
-    marginTop: spacing.lg,
+    marginTop: spacing.md,
     borderRadius: borderRadius.xl,
     overflow: 'hidden',
     borderWidth: 1,
@@ -1200,7 +1506,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   engineGradient: {
-    padding: spacing.lg,
+    padding: spacing.md,
     position: 'relative',
   },
   engineGlow: {
@@ -1219,23 +1525,23 @@ const styles = StyleSheet.create({
     color: '#F6D7B1',
   },
   engineTitle: {
-    marginTop: spacing.xs,
-    fontSize: 21,
-    lineHeight: 28,
+    marginTop: 4,
+    fontSize: 18,
+    lineHeight: 24,
     fontWeight: '700',
     color: colors.white,
   },
   engineDescription: {
-    marginTop: spacing.sm,
-    lineHeight: 20,
+    marginTop: spacing.xs,
+    lineHeight: 18,
     color: 'rgba(255,253,249,0.82)',
   },
   engineSignalPanel: {
-    marginTop: spacing.md,
+    marginTop: spacing.sm,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.xs,
     borderRadius: borderRadius.lg,
     backgroundColor: 'rgba(255,248,240,0.12)',
     borderWidth: 1,
@@ -1247,7 +1553,7 @@ const styles = StyleSheet.create({
   },
   engineSignalValue: {
     color: colors.white,
-    fontSize: fontSize.lg,
+    fontSize: fontSize.md,
     fontWeight: '700',
   },
   engineSignalLabel: {
@@ -1257,14 +1563,14 @@ const styles = StyleSheet.create({
   },
   engineSignalDivider: {
     width: 1,
-    height: 30,
+    height: 24,
     backgroundColor: 'rgba(255,253,249,0.16)',
   },
   engineChipRow: {
-    marginTop: spacing.md,
+    marginTop: spacing.sm,
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: spacing.sm,
+    gap: spacing.xs,
   },
   engineChip: {
     backgroundColor: 'rgba(255, 248, 240, 0.14)',
@@ -1280,27 +1586,28 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   sectionHeaderRow: {
-    marginTop: spacing.xl,
-    marginBottom: spacing.md,
+    marginTop: spacing.lg,
+    marginBottom: spacing.sm,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-end',
-    gap: spacing.md,
+    gap: spacing.sm,
   },
   sectionTitle: {
-    fontSize: fontSize.xl,
+    fontSize: fontSize.lg,
     fontWeight: '700',
     color: colors.text,
   },
   sectionMeta: {
-    marginTop: spacing.xs,
+    marginTop: 2,
     color: colors.textSecondary,
+    fontSize: fontSize.xs,
   },
   sectionTag: {
     paddingHorizontal: spacing.sm,
-    paddingVertical: 6,
+    paddingVertical: 5,
     borderRadius: borderRadius.pill,
-    backgroundColor: 'rgba(220,236,238,0.52)',
+    backgroundColor: 'rgba(220,236,238,0.6)',
   },
   sectionTagText: {
     color: colors.techDark,
@@ -1308,19 +1615,20 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   suggestionScrollContent: {
-    gap: spacing.md,
+    gap: spacing.sm,
     paddingBottom: spacing.xs,
     paddingRight: spacing.md,
   },
   suggestionCardWrap: {
-    width: 244,
+    width: 226,
   },
   suggestionCardWrapDragging: {
     zIndex: 20,
   },
   suggestionCard: {
+    minHeight: 258,
     borderRadius: borderRadius.xl,
-    padding: spacing.md,
+    padding: spacing.sm,
     backgroundColor: colors.surfaceRaised,
     borderWidth: 1,
     borderColor: 'rgba(197,108,71,0.16)',
@@ -1328,12 +1636,16 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.08,
     shadowRadius: 16,
+    justifyContent: 'space-between',
+  },
+  suggestionCardBody: {
+    flexGrow: 1,
   },
   suggestionEyebrowRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: spacing.sm,
+    marginBottom: spacing.xs,
   },
   suggestionLead: {
     flexDirection: 'row',
@@ -1342,9 +1654,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   suggestionIconShell: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     backgroundColor: 'rgba(197,108,71,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1377,18 +1689,19 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primaryDark,
   },
   suggestionTitle: {
-    fontSize: fontSize.lg,
+    fontSize: fontSize.md,
     fontWeight: '700',
     color: colors.text,
-  },
-  suggestionDescription: {
-    marginTop: spacing.xs,
-    color: colors.textSecondary,
-    lineHeight: 20,
     minHeight: 40,
   },
+  suggestionDescription: {
+    marginTop: 4,
+    color: colors.textSecondary,
+    lineHeight: 18,
+    minHeight: 36,
+  },
   suggestionChipRow: {
-    marginTop: spacing.md,
+    marginTop: spacing.sm,
     gap: spacing.xs,
   },
   windowChip: {
@@ -1407,7 +1720,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   suggestionInfoBar: {
-    marginTop: spacing.sm,
+    marginTop: spacing.xs,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
@@ -1418,12 +1731,16 @@ const styles = StyleSheet.create({
     fontSize: fontSize.xs,
     lineHeight: 18,
   },
+  suggestionHintSpacer: {
+    marginTop: spacing.xs,
+    minHeight: 36,
+  },
   suggestionActionButton: {
-    marginTop: spacing.md,
+    marginTop: spacing.sm,
     borderRadius: borderRadius.md,
     backgroundColor: colors.ink,
-    paddingVertical: 10,
-    paddingHorizontal: spacing.md,
+    paddingVertical: 8,
+    paddingHorizontal: spacing.sm,
   },
   suggestionActionButtonSecondary: {
     backgroundColor: colors.surface,
@@ -1439,7 +1756,7 @@ const styles = StyleSheet.create({
     color: colors.ink,
   },
   calendarCard: {
-    marginTop: spacing.lg,
+    marginTop: spacing.md,
     borderRadius: borderRadius.xl,
     backgroundColor: 'transparent',
     borderWidth: 1,
@@ -1447,11 +1764,11 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   calendarCardGradient: {
-    padding: spacing.md,
+    padding: spacing.sm,
   },
   calendarHud: {
-    marginBottom: spacing.md,
-    padding: spacing.md,
+    marginBottom: spacing.sm,
+    padding: spacing.sm,
     borderRadius: borderRadius.lg,
     backgroundColor: 'rgba(255, 248, 240, 0.82)',
     borderWidth: 1,
@@ -1459,7 +1776,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    gap: spacing.md,
+    gap: spacing.sm,
   },
   calendarHudEyebrow: {
     fontSize: fontSize.xs,
@@ -1468,8 +1785,8 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   calendarHudTitle: {
-    marginTop: spacing.xs,
-    fontSize: fontSize.lg,
+    marginTop: 4,
+    fontSize: fontSize.md,
     fontWeight: '700',
     color: colors.text,
   },
@@ -1478,9 +1795,9 @@ const styles = StyleSheet.create({
   },
   calendarHudTodayButton: {
     alignSelf: 'flex-start',
-    marginTop: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 8,
+    marginTop: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
     borderRadius: borderRadius.pill,
     backgroundColor: 'rgba(255, 255, 255, 0.88)',
     borderWidth: 1,
@@ -1495,14 +1812,14 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   calendarHudMetric: {
-    fontSize: fontSize.xxl,
+    fontSize: fontSize.xl,
     fontWeight: '700',
     color: colors.ink,
   },
   calendarHudMeta: {
     marginTop: 2,
     color: colors.textSecondary,
-    fontSize: fontSize.sm,
+    fontSize: fontSize.xs,
   },
   dayShell: {
     width: 42,
@@ -1626,9 +1943,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceRaised,
     borderWidth: 1,
     borderColor: 'rgba(184,138,72,0.12)',
+    overflow: 'hidden',
   },
   eventCardCompleted: {
-    opacity: 0.72,
+    backgroundColor: '#FFF6F0',
+  },
+  eventCardContent: {
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.sm,
   },
   eventHeader: {
     alignItems: 'flex-start',
@@ -1648,54 +1970,136 @@ const styles = StyleSheet.create({
   eventHeaderText: {
     flex: 1,
   },
+  eventMetaTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+    marginBottom: 6,
+  },
   eventTitleRow: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
   },
   eventTitle: {
-    flex: 1,
-    fontSize: fontSize.lg,
+    fontSize: 15,
     fontWeight: '700',
     color: colors.text,
+    lineHeight: 21,
   },
   eventTitleCompleted: {
     textDecorationLine: 'line-through',
     color: colors.textSecondary,
   },
-  eventDate: {
-    marginTop: spacing.xs,
+  eventDescription: {
+    marginTop: 6,
     color: colors.textSecondary,
+    lineHeight: 18,
     fontSize: fontSize.sm,
   },
-  eventDescription: {
-    marginTop: spacing.sm,
-    color: colors.textSecondary,
-    lineHeight: 20,
+  eventDescriptionMuted: {
+    marginTop: 6,
+    color: colors.textLight,
+    lineHeight: 18,
+    fontSize: fontSize.sm,
   },
   eventMetaRow: {
     marginTop: spacing.sm,
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: spacing.sm,
+    gap: spacing.xs,
   },
-  eventMetaChip: {
-    backgroundColor: colors.primaryLight,
+  eventMetaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
     borderRadius: borderRadius.pill,
+    backgroundColor: 'rgba(255,246,238,0.95)',
+    borderWidth: 1,
+    borderColor: 'rgba(184,138,72,0.12)',
   },
-  eventMetaChipText: {
-    color: colors.primaryDark,
+  eventMetaItemText: {
+    color: colors.inkSoft,
     fontSize: fontSize.xs,
+    fontWeight: '600',
+  },
+  eventStateBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: borderRadius.pill,
+    borderWidth: 1,
+  },
+  eventStateBadgePending: {
+    backgroundColor: 'rgba(94,126,134,0.10)',
+    borderColor: 'rgba(94,126,134,0.16)',
+  },
+  eventStateBadgeCompleted: {
+    backgroundColor: 'rgba(158,171,132,0.12)',
+    borderColor: 'rgba(158,171,132,0.2)',
+  },
+  eventStateBadgeText: {
+    fontSize: 10,
     fontWeight: '700',
+  },
+  eventStateBadgeTextPending: {
+    color: colors.techDark,
+  },
+  eventStateBadgeTextCompleted: {
+    color: colors.green,
   },
   eventActions: {
     marginTop: spacing.sm,
     flexDirection: 'row',
-    justifyContent: 'flex-end',
+    justifyContent: 'space-between',
     alignItems: 'center',
     gap: spacing.xs,
+  },
+  eventPrimaryAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: borderRadius.pill,
+    backgroundColor: colors.techDark,
+  },
+  eventPrimaryActionCompleted: {
+    backgroundColor: 'rgba(158,171,132,0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(158,171,132,0.22)',
+  },
+  eventPrimaryActionText: {
+    color: colors.white,
+    fontSize: fontSize.sm,
+    fontWeight: '700',
+  },
+  eventPrimaryActionTextCompleted: {
+    color: colors.green,
+  },
+  eventActionIcons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  eventIconAction: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(94,126,134,0.08)',
+  },
+  eventIconActionDanger: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(212,123,97,0.10)',
   },
   typeChip: {
     borderRadius: borderRadius.pill,

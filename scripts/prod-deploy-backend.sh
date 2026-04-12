@@ -90,7 +90,7 @@ fi
 
 REMOTE_COMMANDS+=(
   "npm run build"
-  "pm2 restart ${PM2_APP_NAME}"
+  "pm2 restart ${PM2_APP_NAME} --update-env"
   "echo '[health] waiting for ${PM2_APP_NAME} at ${LOCAL_HEALTH_URL} (timeout ${HEALTH_TIMEOUT_SECONDS}s)'"
   "for i in \$(seq 1 ${HEALTH_TIMEOUT_SECONDS}); do if curl -fsS --max-time 2 ${LOCAL_HEALTH_URL} >/dev/null 2>&1; then echo \"[health] ${PM2_APP_NAME} healthy after \${i}s\"; break; fi; if [ \$i -eq ${HEALTH_TIMEOUT_SECONDS} ]; then echo '[health] ${PM2_APP_NAME} did not become healthy within ${HEALTH_TIMEOUT_SECONDS}s' >&2; pm2 logs ${PM2_APP_NAME} --lines 40 --nostream || true; exit 1; fi; sleep 1; done"
   "pm2 show ${PM2_APP_NAME} | sed -n '1,40p'"

@@ -25,7 +25,7 @@ export default function GrowthArchiveCard({ status, onPress }: GrowthArchiveCard
         <Card.Content>
           <View style={styles.archiveTopRow}>
             <View>
-              <Text style={styles.archiveEyebrow}>长期档案</Text>
+              <Text style={styles.archiveEyebrow}>成长档案</Text>
               <Text style={styles.archiveTitle}>
                 把备孕、孕期、育儿和长期家庭记录整理成一份可回看的成长档案。
               </Text>
@@ -101,7 +101,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    gap: spacing.md,
+    gap: spacing.sm,
   },
   archiveIconShell: {
     width: 40,
@@ -122,21 +122,21 @@ const styles = StyleSheet.create({
     fontSize: fontSize.md,
     fontWeight: 'bold',
     color: colors.text,
-    lineHeight: 22,
+    lineHeight: 20,
   },
   featureRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: spacing.sm,
-    marginTop: spacing.md,
+    gap: spacing.xs + 2,
+    marginTop: spacing.sm,
   },
   featureBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     backgroundColor: 'rgba(94, 126, 134, 0.1)',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
     borderRadius: borderRadius.pill,
   },
   featureBadgeText: {
@@ -146,7 +146,8 @@ const styles = StyleSheet.create({
   },
   archiveNote: {
     marginTop: spacing.sm,
-    padding: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs + 3,
     borderRadius: borderRadius.md,
     backgroundColor: 'rgba(255,253,249,0.72)',
     borderWidth: 1,
@@ -154,11 +155,11 @@ const styles = StyleSheet.create({
   },
   archiveSubtitle: {
     color: colors.textSecondary,
-    lineHeight: 20,
+    lineHeight: 18,
     fontSize: fontSize.sm,
   },
   archiveButton: {
-    marginTop: spacing.md,
+    marginTop: spacing.sm,
     alignSelf: 'flex-start',
     borderRadius: 999,
   },

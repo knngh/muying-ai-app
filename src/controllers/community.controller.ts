@@ -4,6 +4,7 @@ import prisma from '../config/database';
 import { successResponse, paginatedResponse, AppError, ErrorCodes } from '../middlewares/error.middleware';
 import { assertCommunityContentAllowed } from '../services/community-moderation.service';
 import { applyCommunityReportAction, CommunityReportAction, reviewCommunityReport } from '../services/community-report-review.service';
+import { getCurrentStageCircle } from '../services/stage-circle.service';
 
 const formatCommunityPost = (
   post: any,
@@ -169,6 +170,20 @@ const formatCommunityReport = (report: any) => ({
     } : null,
   } : null,
 });
+
+export const getCurrentCircle = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.userId;
+    if (!userId) {
+      throw new AppError('未授权，请先登录', ErrorCodes.TOKEN_INVALID, 401);
+    }
+
+    const snapshot = await getCurrentStageCircle(userId);
+    res.json(successResponse(snapshot));
+  } catch (error) {
+    next(error);
+  }
+};
 
 /**
  * 获取帖子列表

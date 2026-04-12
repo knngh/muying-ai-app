@@ -5,7 +5,8 @@ import {
   removeFavorite,
   getReadHistory,
   recordReadHistory,
-  getUserStats
+  getUserStats,
+  getPregnancyProfile,
 } from '../controllers/user.controller';
 import { authMiddleware } from '../middlewares/auth.middleware';
 import { queryRateLimiter, writeRateLimiter } from '../middlewares/rateLimiter.middleware';
@@ -29,5 +30,6 @@ router.post('/read-history', writeRateLimiter, validate({ body: recordReadHistor
 
 // 统计数据
 router.get('/stats', queryRateLimiter, getUserStats);
+router.get('/pregnancy-profile', queryRateLimiter, getPregnancyProfile);
 
 export default router;

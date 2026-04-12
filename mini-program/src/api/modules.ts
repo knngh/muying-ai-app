@@ -1,9 +1,13 @@
 import api from './request'
 import type {
-  Category, Tag, Article, CalendarEvent, User, PaginatedResponse, PregnancyTodoProgress, PregnancyDiary, PregnancyCustomTodo,
+  Category, Tag, Article, CalendarEvent, User, PaginatedResponse,
+  PregnancyTodoProgress, PregnancyDiary, PregnancyCustomTodo, PregnancyProfile,
 } from '../../../shared/types'
 
-export type { Category, Tag, Article, CalendarEvent, User, PaginatedResponse, PregnancyTodoProgress, PregnancyDiary, PregnancyCustomTodo }
+export type {
+  Category, Tag, Article, CalendarEvent, User, PaginatedResponse,
+  PregnancyTodoProgress, PregnancyDiary, PregnancyCustomTodo, PregnancyProfile,
+}
 
 export interface AuthorityArticleTranslation {
   slug: string
@@ -111,6 +115,7 @@ export const userApi = {
   recordRead: (data: { articleId: number; duration?: number; progress?: number }) =>
     api.post('/user/read-history', { articleId: data.articleId, readDuration: data.duration, progress: data.progress }),
   getStats: () => api.get('/user/stats'),
+  getPregnancyProfile: () => api.get<PregnancyProfile>('/user/pregnancy-profile'),
 }
 
 // ==================== 认证 API ====================
@@ -125,7 +130,7 @@ export const authApi = {
   refresh: () => api.post<{ token: string }>('/auth/refresh'),
   updateProfile: (data: {
     nickname?: string; phone?: string; email?: string; avatar?: string; pregnancyStatus?: number;
-    dueDate?: string; babyBirthday?: string; babyGender?: number
+    dueDate?: string | null; babyBirthday?: string | null; babyGender?: number
   }) => api.put<User>('/auth/profile', data),
   changePassword: (data: { oldPassword: string; newPassword: string }) => api.put('/auth/password', data),
   logout: () => api.post('/auth/logout'),

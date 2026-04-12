@@ -4,6 +4,7 @@ import prisma from '../config/database';
 import { cache } from './cache.service';
 import { AppError, ErrorCodes } from '../middlewares/error.middleware';
 import { recordServerAnalyticsEvent } from './analytics.service';
+import { resolveLifecycleStage } from '../utils/pregnancy';
 
 const FREE_AI_LIMIT = 3;
 const MEMBER_AI_LIMIT = 9999;
@@ -212,8 +213,9 @@ function getStageLabel(user: {
   babyBirthday: Date | null;
 }): string {
   const now = dayjs();
+  const lifecycleStage = resolveLifecycleStage(user.pregnancyStatus, user.dueDate, user.babyBirthday);
 
-  if (user.pregnancyStatus === 2 && user.dueDate) {
+  if (lifecycleStage === 'pregnant' && user.dueDate) {
     const dueDate = dayjs(user.dueDate);
     const elapsedDays = Math.max(0, 280 - dueDate.diff(now, 'day'));
     const week = Math.max(1, Math.floor(elapsedDays / 7) + 1);
@@ -221,7 +223,7 @@ function getStageLabel(user: {
     return `孕 ${week} 周 ${day} 天`;
   }
 
-  if (user.pregnancyStatus === 3 && user.babyBirthday) {
+  if (lifecycleStage === 'postpartum' && user.babyBirthday) {
     const ageDays = Math.max(0, now.diff(dayjs(user.babyBirthday), 'day'));
     const month = Math.floor(ageDays / 30);
     const day = ageDays % 30;

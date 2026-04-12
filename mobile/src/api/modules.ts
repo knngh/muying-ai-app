@@ -1,11 +1,11 @@
 import api from './index'
 import type {
   Category, Tag, Article, CalendarEvent, User, PaginatedResponse,
-  PregnancyTodoProgress, PregnancyDiary, PregnancyCustomTodo,
+  PregnancyTodoProgress, PregnancyDiary, PregnancyCustomTodo, PregnancyProfile,
 } from '../../../shared/types'
 
 export type { Category, Tag, Article, CalendarEvent, User, PaginatedResponse }
-export type { PregnancyTodoProgress, PregnancyDiary, PregnancyCustomTodo }
+export type { PregnancyTodoProgress, PregnancyDiary, PregnancyCustomTodo, PregnancyProfile }
 export type { PaginationMeta } from '../../../shared/types'
 
 export interface AuthorityArticleTranslation {
@@ -133,6 +133,7 @@ export const userApi = {
     progress: data.progress,
   }),
   getStats: () => api.get('/user/stats'),
+  getPregnancyProfile: () => api.get<PregnancyProfile>('/user/pregnancy-profile'),
 }
 
 export const authApi = {

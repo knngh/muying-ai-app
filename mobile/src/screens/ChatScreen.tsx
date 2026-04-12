@@ -12,7 +12,7 @@ import LinearGradient from 'react-native-linear-gradient'
 import { getDisclaimer } from '../api/ai'
 import type { AIMessage } from '../api/ai'
 import UpgradeModal from '../components/UpgradeModal'
-import { QuotaCard, MessageBubble, EmptyState, ChatInput, TypingIndicator, ChatSkeleton } from '../components/chat'
+import { MessageBubble, EmptyState, ChatInput, TypingIndicator, ChatSkeleton } from '../components/chat'
 import { ScreenContainer, StandardCard } from '../components/layout'
 import { useChatLogic } from '../hooks/useChatLogic'
 import { useAppStore } from '../stores/appStore'
@@ -152,62 +152,58 @@ export default function ChatScreen() {
       <View style={styles.listHeader}>
         <StandardCard style={styles.heroCard} elevation={2}>
           <LinearGradient
-            colors={['rgba(248, 227, 214, 0.6)', 'rgba(238, 203, 183, 0.4)', 'rgba(248, 241, 233, 0.6)']}
+            colors={['#254652', '#3B6670', '#E7D5C7']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.heroGradient}
           >
             <View style={styles.heroGlow} />
             <View style={styles.heroRing} />
-            <View style={styles.headerRow}>
-              <View style={styles.headerBlock}>
-                <View style={styles.headerChipRow}>
-                  <Chip compact style={styles.heroChip} textStyle={styles.heroChipText}>
-                    {stage.lifecycleLabel}
-                  </Chip>
-                  <Chip compact style={styles.heroAssistChip} textStyle={styles.heroAssistChipText}>
-                    一般知识参考
-                  </Chip>
-                </View>
-                <Text style={styles.headerEyebrow}>问题助手</Text>
-                <Text style={styles.headerTitle}>先把最具体的问题问清</Text>
-                <Text style={styles.headerSubtitle}>
-                  先锁定一个问题，再追问执行顺序和观察信号。
+            <View style={styles.heroGrid} />
+            <View style={styles.heroBeam} />
+            <View style={styles.heroBottomLine} />
+            <View pointerEvents="none" style={styles.heroFrame}>
+              <View style={styles.heroCornerTop} />
+              <View style={styles.heroCornerBottom} />
+            </View>
+            <View style={[styles.statusStrip, status === 'active' ? styles.statusStripActive : styles.statusStripFree]}>
+              <View style={styles.statusMeta}>
+                <View style={[styles.statusSignalDot, status === 'active' ? styles.statusSignalDotActive : styles.statusSignalDotFree]} />
+                <Text style={[styles.statusStripLabel, status === 'active' ? styles.statusStripLabelActive : styles.statusStripLabelFree]}>
+                  {status === 'active' ? '会员已开通' : '非会员模式'}
                 </Text>
+              </View>
+              <Text style={[styles.statusStripValue, status === 'active' ? styles.statusStripValueActive : styles.statusStripValueFree]}>
+                {status === 'active' ? '不限次连续追问' : `今日剩余 ${remainingCount} 次回答`}
+              </Text>
+            </View>
+
+            <View style={styles.headerTopRow}>
+              <View style={styles.headerChipRow}>
+                <Chip compact style={styles.heroChip} textStyle={styles.heroChipText}>
+                  {stage.lifecycleLabel}
+                </Chip>
+                <Chip compact style={styles.heroAssistChip} textStyle={styles.heroAssistChipText}>
+                  知识参考
+                </Chip>
               </View>
 
               <IconButton
                 icon="delete-outline"
-                iconColor={colors.primaryDark}
-                containerColor="rgba(255, 250, 245, 0.92)"
-                size={18}
+                iconColor="#F2FBFC"
+                containerColor="rgba(8, 26, 32, 0.08)"
+                size={15}
                 style={styles.clearButton}
                 onPress={clearMessages}
               />
             </View>
 
-            <View style={styles.signalRow}>
-              <Chip compact style={styles.signalChip} textStyle={styles.signalChipText}>
-                当前阶段 · {stage.lifecycleLabel}
-              </Chip>
-              <Chip compact style={styles.signalChip} textStyle={styles.signalChipText}>
-                支持连续追问
-              </Chip>
+            <View style={styles.headerTitleRow}>
+              <View style={styles.headerTitleAccent} />
+              <Text numberOfLines={1} style={styles.headerTitle}>围绕当前阶段，把需要优先确认的问题和线索先梳理清楚</Text>
             </View>
           </LinearGradient>
         </StandardCard>
-
-        <QuotaCard
-          status={status}
-          planName={activePlan?.name}
-          remainingCount={remainingCount}
-          subtitle={
-            status === 'active'
-              ? `${stage.lifecycleLabel}可继续沉淀长期记录与周报。`
-              : `${stage.lifecycleLabel}建议优先把最关键的问题问清，升级后可不限次连续追问。`
-          }
-          onUpgrade={() => setUpgradeVisible(true)}
-        />
 
         {error ? (
           <View style={styles.errorBar}>
@@ -216,7 +212,7 @@ export default function ChatScreen() {
         ) : null}
       </View>
     ),
-    [activePlan?.name, clearMessages, error, remainingCount, setUpgradeVisible, stage.lifecycleLabel, status],
+    [clearMessages, error, remainingCount, status],
   )
 
   return (
@@ -300,30 +296,88 @@ const styles = StyleSheet.create({
   },
   heroCard: {
     backgroundColor: 'transparent',
+    marginHorizontal: -4,
   },
   heroGradient: {
     borderRadius: borderRadius.xl,
     overflow: 'hidden',
-    padding: spacing.md,
+    paddingHorizontal: spacing.sm + 2,
+    paddingTop: spacing.sm + 2,
+    paddingBottom: spacing.md + 4,
   },
   heroGlow: {
     position: 'absolute',
-    top: -28,
-    right: -20,
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    backgroundColor: 'rgba(255,248,242,0.48)',
+    top: -54,
+    right: -18,
+    width: 196,
+    height: 196,
+    borderRadius: 98,
+    backgroundColor: 'rgba(255,255,255,0.12)',
   },
   heroRing: {
     position: 'absolute',
-    top: 18,
-    right: 22,
-    width: 110,
-    height: 110,
-    borderRadius: 55,
+    top: 12,
+    right: 16,
+    width: 124,
+    height: 124,
+    borderRadius: 62,
     borderWidth: 1,
-    borderColor: 'rgba(94,126,134,0.12)',
+    borderColor: 'rgba(223, 244, 248, 0.22)',
+  },
+  heroGrid: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    opacity: 0.4,
+    borderRadius: borderRadius.xl,
+    backgroundColor: 'rgba(255,255,255,0.02)',
+    borderWidth: 1,
+    borderColor: 'rgba(229, 245, 248, 0.16)',
+  },
+  heroBeam: {
+    position: 'absolute',
+    left: -26,
+    top: 54,
+    width: 186,
+    height: 70,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255, 210, 176, 0.16)',
+    transform: [{ rotate: '-10deg' }],
+  },
+  heroBottomLine: {
+    position: 'absolute',
+    left: 18,
+    right: 18,
+    bottom: 14,
+    height: 1,
+    backgroundColor: 'rgba(228, 244, 247, 0.2)',
+  },
+  heroFrame: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    bottom: 10,
+    left: 10,
+    justifyContent: 'space-between',
+  },
+  heroCornerTop: {
+    width: 72,
+    height: 20,
+    borderTopWidth: 1,
+    borderLeftWidth: 1,
+    borderColor: 'rgba(233, 246, 248, 0.38)',
+    borderTopLeftRadius: borderRadius.md,
+  },
+  heroCornerBottom: {
+    width: 72,
+    height: 20,
+    alignSelf: 'flex-end',
+    borderBottomWidth: 1,
+    borderRightWidth: 1,
+    borderColor: 'rgba(255, 223, 193, 0.38)',
+    borderBottomRightRadius: borderRadius.md,
   },
   headerRow: {
     flexDirection: 'row',
@@ -334,72 +388,146 @@ const styles = StyleSheet.create({
   headerBlock: {
     flex: 1,
   },
+  headerTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+    marginBottom: 6,
+  },
   headerChipRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: spacing.sm,
-    marginBottom: spacing.xs,
+    gap: spacing.xs,
+    flex: 1,
   },
   heroChip: {
-    backgroundColor: 'rgba(255, 255, 255, 0.7)',
-    borderColor: 'rgba(255, 255, 255, 0.8)',
+    minHeight: 25,
+    backgroundColor: 'rgba(242, 252, 255, 0.12)',
+    borderColor: 'rgba(223, 244, 248, 0.22)',
     borderWidth: 1,
   },
   heroChipText: {
-    color: colors.primaryDark,
-    fontSize: 11,
+    color: '#F6FCFD',
+    fontSize: 9,
     fontWeight: '700',
+    letterSpacing: 0.35,
   },
   heroAssistChip: {
-    backgroundColor: 'rgba(255, 255, 255, 0.5)',
-    borderColor: 'rgba(255, 255, 255, 0.6)',
+    minHeight: 25,
+    backgroundColor: 'rgba(255, 231, 211, 0.1)',
+    borderColor: 'rgba(255, 228, 205, 0.2)',
     borderWidth: 1,
   },
   heroAssistChipText: {
-    color: colors.techDark,
-    fontSize: 11,
+    color: '#FFE7D2',
+    fontSize: 9,
     fontWeight: '700',
+    letterSpacing: 0.35,
   },
-  headerEyebrow: {
-    color: colors.primaryDark,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1.1,
+  headerTitleRow: {
+    marginTop: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  headerTitleAccent: {
+    width: 3,
+    height: 16,
+    borderRadius: borderRadius.pill,
+    backgroundColor: '#FFE0BC',
+    shadowColor: '#FFE0BC',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.55,
+    shadowRadius: 4,
   },
   headerTitle: {
-    marginTop: spacing.xs,
-    color: colors.text,
-    fontSize: 20,
-    fontWeight: '700',
-    lineHeight: 27,
-  },
-  headerSubtitle: {
-    marginTop: 6,
-    color: colors.inkSoft,
-    lineHeight: 19,
+    flex: 1,
+    color: colors.white,
+    fontSize: 12,
+    fontWeight: '600',
+    lineHeight: 18,
+    letterSpacing: 0.2,
+    textShadowColor: 'rgba(18, 33, 37, 0.28)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   clearButton: {
     margin: 0,
+    width: 28,
+    height: 28,
+    alignSelf: 'flex-end',
     borderRadius: borderRadius.pill,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.5)',
-    backgroundColor: 'rgba(255, 255, 255, 0.6)',
+    borderColor: 'rgba(235, 247, 249, 0.18)',
+    backgroundColor: 'rgba(14, 38, 46, 0.18)',
   },
-  signalRow: {
+  statusStrip: {
+    marginBottom: spacing.sm,
+    minHeight: 42,
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     gap: spacing.sm,
-    marginTop: spacing.sm,
-  },
-  signalChip: {
-    backgroundColor: 'rgba(255, 255, 255, 0.6)',
-    borderColor: 'rgba(255, 255, 255, 0.8)',
+    paddingHorizontal: 13,
+    paddingVertical: 8,
+    borderRadius: borderRadius.md,
     borderWidth: 1,
   },
-  signalChipText: {
-    color: colors.primaryDark,
+  statusStripActive: {
+    backgroundColor: 'rgba(10, 31, 39, 0.3)',
+    borderColor: 'rgba(255, 219, 174, 0.24)',
+  },
+  statusStripFree: {
+    backgroundColor: 'rgba(10, 31, 39, 0.28)',
+    borderColor: 'rgba(214, 234, 237, 0.2)',
+  },
+  statusMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  statusSignalDot: {
+    width: 7,
+    height: 7,
+    borderRadius: borderRadius.pill,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.9,
+    shadowRadius: 6,
+  },
+  statusSignalDotActive: {
+    backgroundColor: '#FFD38B',
+    shadowColor: '#FFD38B',
+  },
+  statusSignalDotFree: {
+    backgroundColor: '#9EDCE4',
+    shadowColor: '#9EDCE4',
+  },
+  statusStripLabel: {
+    fontSize: 9,
+    lineHeight: 14,
+    fontWeight: '700',
+    letterSpacing: 0.45,
+  },
+  statusStripLabelActive: {
+    color: '#FFE7C7',
+  },
+  statusStripLabelFree: {
+    color: '#D9EEF0',
+  },
+  statusStripValue: {
     fontSize: 11,
-    fontWeight: '600',
+    lineHeight: 15,
+    fontWeight: '700',
+    textAlign: 'right',
+    flexShrink: 1,
+    letterSpacing: 0.3,
+  },
+  statusStripValueActive: {
+    color: '#FFF8E7',
+  },
+  statusStripValueFree: {
+    color: '#F6FCFD',
   },
   errorBar: {
     borderRadius: borderRadius.md,
@@ -412,7 +540,7 @@ const styles = StyleSheet.create({
   messageList: {
     paddingHorizontal: spacing.md,
     paddingTop: spacing.sm,
-    paddingBottom: spacing.md,
+    paddingBottom: spacing.xxxl * 4 + spacing.lg,
   },
   messageListEmpty: {
     flexGrow: 1,

@@ -51,8 +51,13 @@ function getFeedingModeLabel(value?: string | number | null): string {
   return '未设置'
 }
 
-function getChildAgeLabel(babyBirthday?: string | null): string {
-  if (!babyBirthday) return '未设置'
+function getChildAgeLabel(
+  babyBirthday?: string | null,
+  dueDate?: string | null,
+): string {
+  if (!babyBirthday) {
+    return dueDate ? '待出生' : '未设置'
+  }
 
   const birth = dayjs(babyBirthday)
   const now = dayjs()
@@ -97,7 +102,7 @@ export default function FamilyProfileScreen() {
     { label: '孩子昵称', value: user?.childNickname || '未设置' },
     { label: '预产期', value: formatDate(user?.dueDate) },
     { label: '宝宝生日', value: formatDate(user?.babyBirthday) },
-    { label: '当前年龄', value: getChildAgeLabel(user?.babyBirthday) },
+    { label: '当前年龄', value: getChildAgeLabel(user?.babyBirthday, user?.dueDate) },
     { label: '宝宝性别', value: user?.babyGender === 1 ? '男' : user?.babyGender === 2 ? '女' : '未知' },
     { label: '分娩方式', value: getChildBirthModeLabel(user?.childBirthMode) },
     { label: '喂养方式', value: getFeedingModeLabel(user?.feedingMode) },
@@ -110,9 +115,9 @@ export default function FamilyProfileScreen() {
 
   const dashboardCards = useMemo<ArchiveRow[]>(() => ([
     { label: '当前阶段', value: stage.lifecycleLabel },
-    { label: '宝宝年龄', value: getChildAgeLabel(user?.babyBirthday) },
+    { label: '宝宝年龄', value: getChildAgeLabel(user?.babyBirthday, user?.dueDate) },
     { label: '会员状态', value: memberStatusLabel },
-  ]), [memberStatusLabel, stage.lifecycleLabel, user?.babyBirthday])
+  ]), [memberStatusLabel, stage.lifecycleLabel, user?.babyBirthday, user?.dueDate])
 
   const timeline = useMemo<TimelineRow[]>(() => {
     const items: TimelineRow[] = []
@@ -262,7 +267,7 @@ export default function FamilyProfileScreen() {
             <Text style={styles.noticeText}>
               这页已经接入当前账户里的家庭档案字段，App 会结合预产期、宝宝生日和照护信息自动切换全生命周期阶段。后续如果要支持多孩、分角色协作和长期成长记录，再往真正的家庭档案系统继续扩展。
             </Text>
-            <Button mode="contained" buttonColor={colors.ink} onPress={() => navigation.navigate('Main', { screen: 'Profile' })} style={styles.noticeButton}>
+            <Button mode="contained" buttonColor={colors.ink} onPress={() => navigation.navigate('Main', { screen: 'Profile', params: { autoOpenEdit: true } })} style={styles.noticeButton}>
               返回我的页继续管理
             </Button>
           </StandardCard>

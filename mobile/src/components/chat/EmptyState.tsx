@@ -20,15 +20,17 @@ export default function EmptyState({
   return (
     <View style={styles.emptyState}>
       <LinearGradient
-        colors={['rgba(255,252,248,0.98)', 'rgba(246,232,221,0.94)']}
+        colors={['#24434F', '#3E6772', '#E8D6C8']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.heroCard}
       >
         <View style={styles.heroGlow} />
         <View style={styles.heroRing} />
+        <View style={styles.heroGrid} />
+        <View style={styles.heroBeam} />
         <View style={styles.heroRail} />
-        <Text style={styles.emptyEyebrow}>推荐问题</Text>
+        <Text style={styles.emptyEyebrow}>试试这些问题</Text>
         <Text style={styles.emptyTitle}>{title}</Text>
         <Text style={styles.emptySubtitle}>{subtitle}</Text>
       </LinearGradient>
@@ -41,14 +43,23 @@ export default function EmptyState({
             onPress={() => onQuickQuestion(question)}
           >
             <LinearGradient
-              colors={['rgba(255,249,243,0.98)', 'rgba(246,236,228,0.95)']}
+              colors={['rgba(248,252,253,0.96)', 'rgba(232,241,243,0.96)']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.quickCardGradient}
             >
-              <Text style={styles.quickIndex}>{String(index + 1).padStart(2, '0')}</Text>
+              <View style={styles.quickCardBeam} />
+              <View style={styles.quickCardTopRow}>
+                <View style={styles.quickIndexPill}>
+                  <Text style={styles.quickIndex}>{String(index + 1).padStart(2, '0')}</Text>
+                </View>
+                <Text style={styles.quickArrow}>↗</Text>
+              </View>
               <Text style={styles.quickQuestion}>{question}</Text>
-              <Text style={styles.quickHint}>点击即可提问</Text>
+              <View style={styles.quickHintRow}>
+                <View style={styles.quickHintLine} />
+                <Text style={styles.quickHint}>点击即可提问</Text>
+              </View>
             </LinearGradient>
           </Pressable>
         ))}
@@ -62,10 +73,10 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
   },
   heroCard: {
-    padding: spacing.md,
+    padding: spacing.md + 1,
     borderRadius: borderRadius.xl,
     borderWidth: 1,
-    borderColor: 'rgba(184,138,72,0.14)',
+    borderColor: 'rgba(220, 239, 243, 0.26)',
     shadowColor: colors.inkSoft,
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.06,
@@ -74,47 +85,68 @@ const styles = StyleSheet.create({
   },
   heroGlow: {
     position: 'absolute',
-    top: -24,
-    right: -18,
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: 'rgba(255,248,242,0.46)',
+    top: -36,
+    right: -20,
+    width: 144,
+    height: 144,
+    borderRadius: 72,
+    backgroundColor: 'rgba(255,255,255,0.12)',
   },
   heroRing: {
     position: 'absolute',
-    top: 18,
-    right: 20,
-    width: 82,
-    height: 82,
-    borderRadius: 41,
+    top: 16,
+    right: 18,
+    width: 96,
+    height: 96,
+    borderRadius: 48,
     borderWidth: 1,
-    borderColor: 'rgba(94,126,134,0.12)',
+    borderColor: 'rgba(223, 244, 248, 0.2)',
+  },
+  heroGrid: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    borderWidth: 1,
+    borderColor: 'rgba(232, 246, 248, 0.12)',
+    opacity: 0.42,
+  },
+  heroBeam: {
+    position: 'absolute',
+    left: -24,
+    top: 56,
+    width: 174,
+    height: 64,
+    borderRadius: borderRadius.pill,
+    backgroundColor: 'rgba(255, 216, 183, 0.16)',
+    transform: [{ rotate: '-10deg' }],
   },
   heroRail: {
-    width: 62,
-    height: 4,
+    width: 72,
+    height: 3,
     borderRadius: borderRadius.pill,
-    backgroundColor: 'rgba(197,108,71,0.3)',
+    backgroundColor: 'rgba(255, 230, 204, 0.54)',
     marginBottom: spacing.sm,
   },
   emptyEyebrow: {
-    color: colors.primaryDark,
-    fontSize: 11,
+    color: '#F2FBFC',
+    fontSize: 10,
     fontWeight: '700',
-    letterSpacing: 1.2,
+    letterSpacing: 1.4,
   },
   emptyTitle: {
     marginTop: spacing.xs,
-    fontSize: 22,
+    fontSize: 21,
     fontWeight: '700',
-    color: colors.text,
-    lineHeight: 30,
+    color: colors.white,
+    lineHeight: 28,
+    letterSpacing: 0.15,
   },
   emptySubtitle: {
     marginTop: spacing.sm,
-    color: colors.inkSoft,
-    lineHeight: 20,
+    color: 'rgba(246, 252, 253, 0.84)',
+    lineHeight: 19,
   },
   quickGrid: {
     marginTop: spacing.md,
@@ -126,33 +158,77 @@ const styles = StyleSheet.create({
     width: '48.5%',
   },
   quickCardGradient: {
-    minHeight: 146,
-    padding: spacing.md,
+    minHeight: 138,
+    padding: spacing.md - 1,
     borderRadius: borderRadius.lg,
-    borderColor: 'rgba(184,138,72,0.14)',
+    borderColor: 'rgba(170, 203, 210, 0.22)',
     borderWidth: 1,
     shadowColor: colors.inkSoft,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.05,
     shadowRadius: 16,
+    overflow: 'hidden',
+  },
+  quickCardBeam: {
+    position: 'absolute',
+    top: -18,
+    right: -12,
+    width: 92,
+    height: 92,
+    borderRadius: 46,
+    backgroundColor: 'rgba(221, 239, 243, 0.42)',
+  },
+  quickCardTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  quickIndexPill: {
+    minWidth: 34,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: borderRadius.pill,
+    backgroundColor: 'rgba(255,255,255,0.56)',
+    borderWidth: 1,
+    borderColor: 'rgba(210, 230, 235, 0.7)',
   },
   quickIndex: {
-    color: colors.textLight,
-    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    fontSize: 11,
     fontWeight: '700',
-    letterSpacing: 0.8,
+    letterSpacing: 0.9,
+    textAlign: 'center',
+  },
+  quickArrow: {
+    color: colors.techDark,
+    fontSize: 14,
+    fontWeight: '700',
+    opacity: 0.42,
   },
   quickQuestion: {
     marginTop: spacing.sm,
-    color: colors.primaryDark,
+    color: colors.techDark,
     fontWeight: '700',
-    lineHeight: 22,
+    lineHeight: 21,
+    minHeight: 64,
+  },
+  quickHintRow: {
+    marginTop: 'auto',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingTop: spacing.sm,
+  },
+  quickHintLine: {
+    width: 16,
+    height: 2,
+    borderRadius: borderRadius.pill,
+    backgroundColor: 'rgba(197,108,71,0.3)',
   },
   quickHint: {
-    marginTop: 'auto',
-    paddingTop: spacing.md,
-    color: colors.techDark,
-    fontSize: fontSize.sm,
+    color: colors.primaryDark,
+    fontSize: 10,
     fontWeight: '600',
+    letterSpacing: 0.15,
   },
 })

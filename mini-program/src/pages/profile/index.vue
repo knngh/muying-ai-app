@@ -164,6 +164,7 @@ import { authApi } from '@/api/modules'
 import dayjs from 'dayjs'
 import { calculateDueDateFromPregnancyWeek, calculatePregnancyWeekFromDueDate, clearLocalSession } from '@/utils'
 
+const PROFILE_AUTO_OPEN_EDIT_KEY = 'profileAutoOpenEdit'
 const appStore = useAppStore()
 const chatStore = useChatStore()
 
@@ -220,7 +221,7 @@ const editForm = reactive<{
 const weekOptions = Array.from({ length: 40 }, (_, i) => `第 ${i + 1} 周`)
 
 const currentPregnancyWeekText = computed(() => {
-  if (!user.value?.dueDate || normalizePregnancyStatus(user.value.pregnancyStatus) !== 2) return '未设置'
+  if (!user.value?.dueDate) return '未设置'
   const currentWeek = calculatePregnancyWeekFromDueDate(user.value.dueDate)
   return currentWeek ? `第 ${currentWeek} 周` : '未设置'
 })
@@ -242,16 +243,20 @@ const maskPhone = (phone?: string) => {
   return phone
 }
 
-const shouldPreservePostpartumStatus = computed(() => (
-  normalizePregnancyStatus(user.value?.pregnancyStatus) === 3 || !!user.value?.babyBirthday
-))
-
 const goLogin = () => {
   uni.navigateTo({ url: '/pages/login/index' })
 }
 
 const closeEditModal = () => {
   showEditModal.value = false
+}
+
+const consumeAutoOpenEditFlag = () => {
+  const shouldAutoOpen = uni.getStorageSync(PROFILE_AUTO_OPEN_EDIT_KEY)
+  if (!shouldAutoOpen || !user.value) return
+
+  uni.removeStorageSync(PROFILE_AUTO_OPEN_EDIT_KEY)
+  openEditModal()
 }
 
 const openEditModal = () => {
@@ -288,6 +293,7 @@ const submitEdit = async () => {
       email?: string
       pregnancyStatus?: number
       dueDate?: string
+      babyBirthday?: null
     } = {}
 
     if (editForm.nickname.trim()) data.nickname = editForm.nickname.trim()
@@ -312,7 +318,8 @@ const submitEdit = async () => {
 
     if (editForm.dueDate) {
       data.dueDate = editForm.dueDate
-      data.pregnancyStatus = shouldPreservePostpartumStatus.value ? 3 : 2
+      data.babyBirthday = null
+      data.pregnancyStatus = 2
     }
 
     const updatedUser = await authApi.updateProfile(data)
@@ -358,10 +365,13 @@ async function syncProfileSession() {
 
 onMounted(async () => {
   await syncProfileSession()
+  consumeAutoOpenEditFlag()
 })
 
 onShow(() => {
-  void syncProfileSession()
+  void syncProfileSession().then(() => {
+    consumeAutoOpenEditFlag()
+  })
 })
 </script>
 

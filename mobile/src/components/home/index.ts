@@ -1,6 +1,7 @@
 export { default as HeroCard } from './HeroCard'
 export { default as QuickActions, type FeatureEntry } from './QuickActions'
 export { default as InfoGrid } from './InfoGrid'
+export { default as StageCircleCard } from './StageCircleCard'
 export { default as WeeklyReportPreview } from './WeeklyReportPreview'
 export { default as ArticleList } from './ArticleList'
 export { default as UpcomingEvents } from './UpcomingEvents'

@@ -67,6 +67,10 @@ function normalizeDate(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
+export function startOfDay(date: Date): Date {
+  return normalizeDate(date);
+}
+
 export function normalizePregnancyStatus(value: unknown): number | undefined {
   const numericValue = normalizeNumber(value);
   if (numericValue !== undefined && numericValue >= 0 && numericValue <= 3) {
@@ -78,6 +82,33 @@ export function normalizePregnancyStatus(value: unknown): number | undefined {
   }
 
   return undefined;
+}
+
+export type LifecycleStage = 'preparing' | 'pregnant' | 'postpartum';
+
+export function resolveLifecycleStage(
+  pregnancyStatus?: unknown,
+  dueDate?: Date | null,
+  babyBirthday?: Date | null,
+): LifecycleStage {
+  if (dueDate) {
+    return 'pregnant';
+  }
+
+  if (babyBirthday) {
+    return 'postpartum';
+  }
+
+  const normalizedStatus = normalizePregnancyStatus(pregnancyStatus);
+  if (normalizedStatus === 2) {
+    return 'pregnant';
+  }
+
+  if (normalizedStatus === 3) {
+    return 'postpartum';
+  }
+
+  return 'preparing';
 }
 
 export function normalizeGender(value: unknown): number | undefined {
@@ -142,4 +173,17 @@ export function calculateDueDateFromPregnancyWeek(value: unknown, baseDate = new
   const today = normalizeDate(baseDate);
   const dueDate = new Date(today.getTime() + (FULL_TERM_WEEKS - week) * 7 * DAY_IN_MS);
   return normalizeDate(dueDate);
+}
+
+export function calculatePregnancyWeekFromDueDate(dueDate: Date, baseDate = new Date()): number | undefined {
+  const due = startOfDay(dueDate);
+  const today = startOfDay(baseDate);
+  const diffDays = Math.round((due.getTime() - today.getTime()) / DAY_IN_MS);
+  const week = FULL_TERM_WEEKS - Math.floor(diffDays / 7);
+
+  if (week < 1 || week > 42) {
+    return undefined;
+  }
+
+  return week;
 }

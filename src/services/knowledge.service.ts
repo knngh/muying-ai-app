@@ -1,11 +1,34 @@
 // 知识库服务 - 从 JSON 文件读取问答数据并提供轻量检索能力
 import fs from 'fs';
 import path from 'path';
+import { callTaskModelDetailed } from './ai-gateway.service';
+import { getEmbedding, searchKnowledge as searchVectorKnowledge } from './vector.service';
+import { getAuthoritySourceConfig, inferAuthorityLocaleDefaults, type AuthoritySourceConfig } from '../config/authority-sources';
+import { buildAuthorityDisplayTags } from '../utils/authority-metadata';
+import { shouldFilterAuthoritySourceUrl } from '../utils/authority-source-url';
+import { inferAuthorityStages } from '../utils/authority-stage';
+import { detectAudience, detectTopic, sanitizeAuthorityTitle } from './authority-adapters/base.adapter';
+import {
+  dedupeSearchQueries,
+  expandSearchTerms,
+  isLikelyChineseQuery,
+  normalizeSearchText,
+  parseSearchRewriteOutput,
+} from '../utils/search-query-expansion';
 
 const AUTHORITY_CACHE_PATHS = [
   '/tmp/authority-knowledge-cache.json',
   path.join(process.cwd(), 'data', 'authority-knowledge-cache.json'),
   path.join(__dirname, '../../data', 'authority-knowledge-cache.json'),
+];
+
+const KNOWLEDGE_BASE_PATHS = [
+  '/tmp/expanded-qa-data-5000.enriched.json',
+  path.join(process.cwd(), 'data', 'expanded-qa-data-5000.enriched.json'),
+  path.join(__dirname, '../../data', 'expanded-qa-data-5000.enriched.json'),
+  '/tmp/expanded-qa-data-5000.json',
+  path.join(process.cwd(), 'data', 'expanded-qa-data-5000.json'),
+  path.join(__dirname, '../../data', 'expanded-qa-data-5000.json'),
 ];
 
 export interface QAPair {
@@ -40,10 +63,21 @@ export interface QAPair {
   risk_level_default?: KnowledgeRiskLevel;
   region?: string;
   metadata?: Record<string, unknown>;
+  references?: AuthorityReference[];
   original_id: string;
 }
 
 export type KnowledgeRiskLevel = 'green' | 'yellow' | 'red';
+
+export interface AuthorityReference {
+  title?: string;
+  url?: string;
+  org?: string;
+  sourceOrg?: string;
+  sourceClass?: 'official' | 'medical_platform' | 'dataset' | 'unknown';
+  authoritative?: boolean;
+  excerpt?: string;
+}
 
 export interface SourceReference {
   title: string;
@@ -74,6 +108,7 @@ const AUTHORITATIVE_SOURCE_PATTERNS = [
   /aap/i,
   /acog/i,
   /mayo/i,
+  /msd/i,
   /nih/i,
   /nhs/i,
   /fda/i,
@@ -357,6 +392,71 @@ let qaData: QAPair[] = [];
 let authorityQaData: QAPair[] = [];
 let allQaData: QAPair[] = [];
 let isLoaded = false;
+const SEARCH_REWRITE_ENABLED = process.env.AI_SEARCH_REWRITE !== 'false';
+const SEARCH_REWRITE_CACHE_TTL_MS = Math.max(60_000, Number(process.env.AI_SEARCH_REWRITE_CACHE_TTL_MS || 30 * 60 * 1000));
+const VECTOR_AUTHORITY_RETRIEVAL_ENABLED = process.env.AI_VECTOR_RETRIEVAL !== 'false';
+const searchRewriteCache = new Map<string, { value: string[]; expiresAt: number }>();
+
+function buildAuthorityFallbackSourceConfig(qa: QAPair): AuthoritySourceConfig {
+  const sourceOrg = qa.source_org || qa.source || '权威机构';
+  const localeDefaults = inferAuthorityLocaleDefaults(qa.source_id, qa.region);
+  return {
+    id: qa.source_id || sourceOrg,
+    org: sourceOrg,
+    baseUrl: qa.source_url || qa.url || '',
+    allowedDomains: [],
+    discoveryType: 'index_page',
+    entryUrls: [],
+    region: (qa.region as AuthoritySourceConfig['region']) || 'GLOBAL',
+    language: localeDefaults.sourceLanguage,
+    locale: localeDefaults.sourceLocale,
+    audience: [qa.audience || '母婴家庭'],
+    topics: [qa.topic || qa.category || 'general'],
+    enabled: true,
+    fetchIntervalMinutes: 360,
+    maxPagesPerRun: 1,
+    parserId: qa.source_id || sourceOrg,
+  };
+}
+
+export function normalizeAuthorityKnowledgeRecord(qa: QAPair): QAPair {
+  const cleanedTitle = sanitizeAuthorityTitle(qa.question || '');
+  const sourceConfig = getAuthoritySourceConfig(qa.source_id || '') || buildAuthorityFallbackSourceConfig(qa);
+  const inferredAudience = detectAudience({
+    sourceUrl: qa.source_url || qa.url,
+    title: cleanedTitle || qa.question,
+    summary: typeof qa.metadata?.summary === 'string' ? qa.metadata.summary : undefined,
+    contentText: qa.answer,
+  }, sourceConfig);
+  const inferredTopic = detectTopic({
+    sourceUrl: qa.source_url || qa.url,
+    title: cleanedTitle || qa.question,
+    summary: typeof qa.metadata?.summary === 'string' ? qa.metadata.summary : undefined,
+    contentText: qa.answer,
+  }, sourceConfig);
+  const inferredStages = inferAuthorityStages({
+    title: cleanedTitle || qa.question,
+    summary: typeof qa.metadata?.summary === 'string' ? qa.metadata.summary : undefined,
+    contentText: qa.answer,
+    audience: inferredAudience,
+    topic: inferredTopic,
+  });
+
+  return {
+    ...qa,
+    question: cleanedTitle || qa.question,
+    category: inferredTopic || qa.category,
+    audience: inferredAudience,
+    topic: inferredTopic || qa.topic,
+    target_stage: inferredStages.length > 0 ? inferredStages : (qa.target_stage || []),
+    tags: buildAuthorityDisplayTags({
+      topic: inferredTopic || qa.topic,
+      audience: inferredAudience,
+      tags: qa.tags,
+      sourceOrg: qa.source_org || qa.source,
+    }),
+  };
+}
 
 interface QuerySignals {
   preferredCategories: Set<string>;
@@ -374,11 +474,7 @@ function sanitizeQuery(query: string): string {
 }
 
 function normalizeText(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+  return normalizeSearchText(text);
 }
 
 function getChineseSegments(text: string): string[] {
@@ -402,7 +498,8 @@ function extractSearchTerms(query: string): string[] {
     .filter(word => word.length >= 2 && !STOP_TERMS.has(word));
 
   const chineseSegments = getChineseSegments(sanitizeQuery(query));
-  const merged = new Set<string>([normalized, ...latinWords, ...chineseSegments]);
+  const expandedTerms = expandSearchTerms(query);
+  const merged = new Set<string>([normalized, ...latinWords, ...chineseSegments, ...expandedTerms]);
   return Array.from(merged)
     .filter(term => term.length >= 2 && !STOP_TERMS.has(term) && !GENERIC_SEGMENTS.has(term))
     .slice(0, 24);
@@ -484,6 +581,188 @@ function mergeSearchResults(
 
 function clampScore(score: number): number {
   return Math.max(0, Math.min(1, Number(score.toFixed(3))));
+}
+
+function hasAvailableSearchRewriteProvider(): boolean {
+  return Boolean(
+    process.env.AI_MINIMAX_KEY
+    || process.env.AI_GATEWAY_KEY
+    || process.env.AI_GENERAL_KEY
+    || process.env.SILICONFLOW_API_KEY
+    || process.env.AI_KIMI_KEY
+    || process.env.AI_GLM_KEY
+  );
+}
+
+function hasAvailableVectorRetrieval(): boolean {
+  return VECTOR_AUTHORITY_RETRIEVAL_ENABLED && Boolean(
+    process.env.EMBEDDING_API_KEY
+    || process.env.OPENAI_API_KEY
+    || process.env.AI_GATEWAY_KEY
+    || process.env.AI_GENERAL_KEY
+    || process.env.AI_MEDICAL_PRIMARY_KEY
+  );
+}
+
+function findAuthorityMatch(question: string, source: string): QAPair | undefined {
+  const normalizedQuestion = normalizeText(question);
+  const normalizedSource = normalizeText(source);
+  const exactMatch = authorityQaData.find((item) => (
+    normalizeText(item.question) === normalizedQuestion
+    && normalizeText(item.source_org || item.source || '') === normalizedSource
+  ));
+
+  if (exactMatch) {
+    return exactMatch;
+  }
+
+  return authorityQaData.find((item) => normalizeText(item.question) === normalizedQuestion);
+}
+
+function toSyntheticAuthorityQa(result: {
+  id: string;
+  question: string;
+  answer: string;
+  category: string;
+  source: string;
+}): QAPair {
+  const now = new Date().toISOString();
+  return {
+    id: result.id,
+    content_type: 'authority',
+    question: result.question,
+    answer: result.answer,
+    category: result.category || 'authority',
+    tags: [],
+    target_stage: [],
+    difficulty: 'authoritative',
+    read_time: 5,
+    author: {
+      name: result.source || 'Authority',
+      title: '权威资料',
+    },
+    is_verified: true,
+    status: 'published',
+    view_count: 0,
+    like_count: 0,
+    created_at: now,
+    updated_at: now,
+    published_at: now,
+    source: result.source || 'Authority',
+    source_org: result.source || 'Authority',
+    source_class: 'official',
+    original_id: result.id,
+  };
+}
+
+function toVectorSupplementResult(
+  result: {
+    id: string;
+    question: string;
+    answer: string;
+    category: string;
+    source: string;
+  },
+  rank: number,
+): KnowledgeSearchResult | null {
+  if (!result.id.startsWith('authority-')) {
+    return null;
+  }
+
+  const matched = findAuthorityMatch(result.question, result.source);
+  const score = Math.max(18, 56 - (rank * 4));
+  const qa = matched || toSyntheticAuthorityQa(result);
+
+  return {
+    ...qa,
+    score,
+    sourceReference: buildSourceReference(qa, score),
+  };
+}
+
+async function searchAuthorityVectorSupplements(queries: string[], limit: number): Promise<KnowledgeSearchResult[]> {
+  if (!hasAvailableVectorRetrieval()) {
+    return [];
+  }
+
+  const merged = new Map<string, KnowledgeSearchResult>();
+  const uniqueQueries = dedupeSearchQueries('', queries).slice(0, 4);
+
+  for (const query of uniqueQueries) {
+    try {
+      const embedding = await getEmbedding(query);
+      const docs = await searchVectorKnowledge(embedding, Math.max(limit * 3, 6));
+
+      docs.forEach((doc, index) => {
+        const candidate = toVectorSupplementResult(doc, index);
+        if (!candidate || merged.has(candidate.id)) {
+          return;
+        }
+        merged.set(candidate.id, candidate);
+      });
+    } catch (error) {
+      console.warn('[Knowledge] Vector supplement fallback:', error);
+      return Array.from(merged.values()).slice(0, limit);
+    }
+  }
+
+  return Array.from(merged.values()).slice(0, Math.max(limit * 2, 6));
+}
+
+export async function rewriteSearchQueries(question: string): Promise<string[]> {
+  const normalized = normalizeText(sanitizeQuery(question));
+  if (!SEARCH_REWRITE_ENABLED || !normalized || !isLikelyChineseQuery(question) || !hasAvailableSearchRewriteProvider()) {
+    return [];
+  }
+
+  const cacheKey = normalized;
+  const cached = searchRewriteCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.value;
+  }
+
+  try {
+    const result = await callTaskModelDetailed('minimax_render', [
+      {
+        role: 'system',
+        content: [
+          '你是母婴权威知识检索改写助手。',
+          '任务是把中文母婴问题改写成更适合检索英文权威资料的短查询。',
+          '保留原始意图，不要扩展不存在的症状，不要回答问题。',
+          '优先输出 2 到 4 条英文检索短语，面向医学健康搜索。',
+          '输出必须是 JSON 字符串数组，不要输出任何额外说明。',
+        ].join('\n'),
+      },
+      {
+        role: 'user',
+        content: [
+          `原问题：${question}`,
+          '请输出英文检索短语数组，例如：["fever in infants", "baby high fever", "child fever care"]',
+        ].join('\n'),
+      },
+    ], {
+      temperature: 0.1,
+      maxTokens: 200,
+    });
+
+    const rewritten = dedupeSearchQueries('', parseSearchRewriteOutput(result.answer))
+      .filter((item) => /[a-z]{3}/i.test(item))
+      .slice(0, 4);
+
+    searchRewriteCache.set(cacheKey, {
+      value: rewritten,
+      expiresAt: Date.now() + SEARCH_REWRITE_CACHE_TTL_MS,
+    });
+
+    return rewritten;
+  } catch (error) {
+    console.warn('[Knowledge] Search rewrite fallback:', error);
+    searchRewriteCache.set(cacheKey, {
+      value: [],
+      expiresAt: Date.now() + 60_000,
+    });
+    return [];
+  }
 }
 
 function hasVaccineIntent(query: string): boolean {
@@ -741,16 +1020,49 @@ function inferRiskLevelDefault(qa: QAPair): KnowledgeRiskLevel {
   return 'green';
 }
 
+function isAuthorityReference(reference?: AuthorityReference | null): boolean {
+  if (!reference) {
+    return false;
+  }
+
+  if (reference.authoritative === true || reference.sourceClass === 'official') {
+    return true;
+  }
+
+  const sourceText = `${reference.org || ''} ${reference.sourceOrg || ''} ${reference.title || ''} ${reference.url || ''}`;
+  return AUTHORITATIVE_SOURCE_PATTERNS.some((pattern) => pattern.test(sourceText))
+    || /who\.int|cdc\.gov|healthychildren\.org|acog\.org|mayoclinic\.org|msdmanuals\.cn|nhs\.uk|nih\.gov|fda\.gov|nhc\.gov\.cn|chinacdc\.cn|ndcpa\.gov\.cn|gov\.cn/i.test(sourceText);
+}
+
+function getPrimaryAuthorityReference(qa: QAPair): AuthorityReference | undefined {
+  if (!Array.isArray(qa.references) || qa.references.length === 0) {
+    return undefined;
+  }
+
+  return qa.references.find((reference) => isAuthorityReference(reference)) || qa.references[0];
+}
+
+function hasAuthorityEvidence(qa: QAPair): boolean {
+  return isAuthoritativeSource(qa) || isAuthorityReference(getPrimaryAuthorityReference(qa));
+}
+
 function buildSourceMetadata(qa: QAPair) {
+  const authorityReference = getPrimaryAuthorityReference(qa);
   const sourceText = `${qa.source_id || ''} ${qa.source_org || ''} ${qa.source || ''} ${qa.source_url || ''} ${qa.url || ''}`;
-  const authoritative = isAuthoritativeSource(qa);
+  const authoritative = hasAuthorityEvidence(qa);
   const metadataSourceClass = typeof qa.metadata?.sourceClass === 'string'
     ? qa.metadata.sourceClass
     : undefined;
+  const referenceSourceClass = authorityReference?.sourceClass;
+  const resolvedReferenceSourceClass: SourceReference['sourceClass'] | undefined =
+    referenceSourceClass === 'official' || referenceSourceClass === 'medical_platform' || referenceSourceClass === 'dataset' || referenceSourceClass === 'unknown'
+      ? referenceSourceClass
+      : (isAuthorityReference(authorityReference) ? 'official' : undefined);
   const sourceClass: SourceReference['sourceClass'] = authoritative
     ? 'official'
     : (
-      qa.source_class
+      resolvedReferenceSourceClass
+      || qa.source_class
       || (metadataSourceClass === 'official' || metadataSourceClass === 'medical_platform' || metadataSourceClass === 'dataset' || metadataSourceClass === 'unknown'
         ? metadataSourceClass
         : undefined)
@@ -761,7 +1073,7 @@ function buildSourceMetadata(qa: QAPair) {
     : (sourceClass === 'medical_platform' ? 'editorial' : ((qa.source || '').includes('数据集') ? 'dataset' : 'unknown'));
 
   return {
-    sourceOrg: qa.source_org || qa.source || '知识库',
+    sourceOrg: authorityReference?.sourceOrg || authorityReference?.org || qa.source_org || qa.source || '知识库',
     updatedAt: qa.updated_at || qa.published_at || qa.created_at,
     audience: qa.audience || CATEGORY_AUDIENCE_MAP[qa.category] || '母婴家庭',
     topic: qa.topic || CATEGORY_TOPIC_MAP[qa.category] || qa.category,
@@ -770,7 +1082,7 @@ function buildSourceMetadata(qa: QAPair) {
     sourceType,
     sourceClass,
     authoritative,
-    url: qa.source_url || qa.url,
+    url: authorityReference?.url || qa.source_url || qa.url,
   } as const;
 }
 
@@ -778,7 +1090,7 @@ function buildSourceReference(qa: QAPair, score: number, signals?: QuerySignals)
   const metadata = buildSourceMetadata(qa);
   return {
     title: buildSourceTitle(qa, signals),
-    source: qa.source || '知识库',
+    source: metadata.sourceOrg || qa.source || '知识库',
     relevance: clampScore(score / 100),
     url: metadata.url,
     excerpt: qa.answer.replace(/\s+/g, ' ').slice(0, 120),
@@ -816,7 +1128,7 @@ function reorderFocusedResults(
   }
 
   if (!focus) {
-    return results.slice(0, limit);
+    return selectAuthorityPreferredResults(results, limit);
   }
 
   const vaccineIntent = hasVaccineIntent(query);
@@ -849,7 +1161,7 @@ function reorderFocusedResults(
   });
 
   if (focused.length === 0) {
-    return results.slice(0, limit);
+    return [];
   }
 
   const preferredFocused = focused.filter((result) => (
@@ -864,7 +1176,7 @@ function reorderFocusedResults(
   ));
 
   if (promotableFocused.length === 0) {
-    return results.slice(0, limit);
+    return selectAuthorityPreferredResults(results, limit);
   }
 
   const merged = new Map<string, KnowledgeSearchResult>();
@@ -874,7 +1186,20 @@ function reorderFocusedResults(
     }
   }
 
-  return Array.from(merged.values()).slice(0, limit);
+  return selectAuthorityPreferredResults(Array.from(merged.values()), limit);
+}
+
+function selectAuthorityPreferredResults(
+  results: KnowledgeSearchResult[],
+  limit: number,
+): KnowledgeSearchResult[] {
+  const authoritative = results.filter((result) => result.sourceReference.authoritative);
+  if (authoritative.length >= limit) {
+    return authoritative.slice(0, limit);
+  }
+
+  const fallback = results.filter((result) => !result.sourceReference.authoritative);
+  return authoritative.concat(fallback).slice(0, limit);
 }
 
 function calculateScore(
@@ -963,6 +1288,12 @@ function calculateScore(
 
   if (qa.source_org && isAuthoritativeSource(qa)) {
     score += 18;
+  }
+
+  if (hasAuthorityEvidence(qa)) {
+    score += 16;
+  } else {
+    score -= 18;
   }
 
   if ((qa.tags || []).length > 0) {
@@ -1209,14 +1540,8 @@ function buildFollowUpQuestions(question: string, results: KnowledgeSearchResult
 // 加载知识库数据
 export function loadKnowledgeBase(): void {
   try {
-    const possiblePaths = [
-      '/tmp/expanded-qa-data-5000.json',
-      path.join(process.cwd(), 'data', 'expanded-qa-data-5000.json'),
-      path.join(__dirname, '../../data', 'expanded-qa-data-5000.json'),
-    ];
-
     let dataPath = '';
-    for (const candidate of possiblePaths) {
+    for (const candidate of KNOWLEDGE_BASE_PATHS) {
       if (fs.existsSync(candidate)) {
         dataPath = candidate;
         break;
@@ -1249,7 +1574,9 @@ export function loadKnowledgeBase(): void {
 
     if (authorityPath) {
       const rawAuthority = fs.readFileSync(authorityPath, 'utf-8');
-      authorityQaData = JSON.parse(rawAuthority) as QAPair[];
+      authorityQaData = (JSON.parse(rawAuthority) as QAPair[])
+        .filter((item) => !shouldFilterAuthoritySourceUrl(item))
+        .map((item) => normalizeAuthorityKnowledgeRecord(item));
       console.log(`🏛️ 权威知识快照加载成功: ${authorityQaData.length} 条数据 (路径: ${authorityPath})`);
     } else {
       authorityQaData = [];
@@ -1266,6 +1593,17 @@ function ensureKnowledgeLoaded(): void {
   if (!isLoaded) {
     loadKnowledgeBase();
   }
+}
+
+function getSearchableKnowledgePool(): QAPair[] {
+  const published = allQaData.filter((qa) => qa.status === 'published');
+  const authoritative = published.filter((qa) => hasAuthorityEvidence(qa));
+
+  if (authoritative.length > 0) {
+    return authoritative;
+  }
+
+  return published;
 }
 
 // 搜索知识库
@@ -1287,8 +1625,7 @@ export function searchQA(
   const terms = extractSearchTerms(query);
   const signals = collectQuerySignals(query);
 
-  const scoredResults = allQaData
-    .filter(qa => qa.status === 'published')
+  const scoredResults = getSearchableKnowledgePool()
     .filter(qa => !options.category || qa.category === options.category)
     .map((qa) => {
       const score = calculateScore(qa, query, normalizedQuery, terms, signals);
@@ -1354,12 +1691,65 @@ export function buildKnowledgePack(
       limit
     )
     : results;
+  const authorityPreferredResults = selectAuthorityPreferredResults(finalResults, limit);
 
   return {
-    context: formatContextBlock(finalResults),
-    sources: finalResults.map(item => item.sourceReference),
-    followUpQuestions: buildFollowUpQuestions(question, finalResults),
-    results: finalResults,
+    context: formatContextBlock(authorityPreferredResults),
+    sources: authorityPreferredResults.map(item => item.sourceReference),
+    followUpQuestions: buildFollowUpQuestions(question, authorityPreferredResults),
+    results: authorityPreferredResults,
+  };
+}
+
+export async function buildKnowledgePackWithRewrite(
+  question: string,
+  options: {
+    category?: string;
+    limit?: number;
+  } = {}
+): Promise<{
+  context: string;
+  sources: SourceReference[];
+  followUpQuestions: string[];
+  results: KnowledgeSearchResult[];
+}> {
+  const basePack = buildKnowledgePack(question, options);
+  const rewrittenQueries = await rewriteSearchQueries(question);
+  const limit = options.limit || 3;
+  const vectorSupplements = await searchAuthorityVectorSupplements(
+    dedupeSearchQueries(question, rewrittenQueries),
+    limit,
+  );
+
+  let mergedResults = vectorSupplements.length > 0
+    ? mergeSearchResults(basePack.results, vectorSupplements, Math.max(limit * 2, 6))
+    : basePack.results;
+
+  for (const rewrittenQuery of rewrittenQueries) {
+    const rewrittenPack = buildKnowledgePack(rewrittenQuery, options);
+    mergedResults = mergeSearchResults(mergedResults, rewrittenPack.results, Math.max(limit * 2, 6));
+  }
+
+  const signals = collectQuerySignals(question);
+  const finalResults = reorderFocusedResults(
+    mergedResults
+      .sort((left, right) => {
+        if (right.score !== left.score) {
+          return right.score - left.score;
+        }
+        return right.view_count - left.view_count;
+      }),
+    signals,
+    question,
+    limit,
+  );
+  const authorityPreferredResults = selectAuthorityPreferredResults(finalResults, limit);
+
+  return {
+    context: formatContextBlock(authorityPreferredResults),
+    sources: authorityPreferredResults.map((item) => item.sourceReference),
+    followUpQuestions: buildFollowUpQuestions(question, authorityPreferredResults),
+    results: authorityPreferredResults,
   };
 }
 

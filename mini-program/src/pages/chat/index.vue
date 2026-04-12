@@ -288,6 +288,7 @@ import { onHide, onShow } from '@dcloudio/uni-app'
 import { useChatStore } from '@/stores/chat'
 import { getDisclaimer, type AIMessage, type SourceReference } from '@/api/ai'
 import mpHtml from 'mp-html/dist/uni-app/components/mp-html/mp-html.vue'
+import { features } from '@/config/features'
 import { getAuthorityRegionLabel, getAuthorityRegionTag, isChineseAuthoritySource } from '@/utils/authority-source'
 
 const quickQuestions = [
@@ -341,6 +342,13 @@ const MEDICAL_PLATFORM_NAMES = [
   '春雨医生',
 ]
 
+function redirectWhenAssistantDisabled() {
+  uni.showToast({ title: '问题助手正在调整中', icon: 'none' })
+  setTimeout(() => {
+    uni.switchTab({ url: '/pages/home/index' })
+  }, 600)
+}
+
 function syncScrollAnchor() {
   nextTick(() => {
     scrollAnchor.value = 'chat-bottom'
@@ -349,6 +357,11 @@ function syncScrollAnchor() {
 }
 
 async function handleSend() {
+  if (!features.aiQaAssistant) {
+    redirectWhenAssistantDisabled()
+    return
+  }
+
   const content = inputValue.value.trim()
   if (!content || loading.value) {
     return
@@ -370,6 +383,11 @@ function handleStop() {
 }
 
 async function handleResume() {
+  if (!features.aiQaAssistant) {
+    redirectWhenAssistantDisabled()
+    return
+  }
+
   await chatStore.resumeLastAnswer()
   syncScrollAnchor()
 }
@@ -639,6 +657,11 @@ function handleOpenSource(source: SourceReference) {
 }
 
 onShow(() => {
+  if (!features.aiQaAssistant) {
+    redirectWhenAssistantDisabled()
+    return
+  }
+
   const token = uni.getStorageSync('token')
   if (!token) {
     uni.showToast({ title: '请先登录后使用问题助手', icon: 'none' })

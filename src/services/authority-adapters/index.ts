@@ -8,6 +8,8 @@ import { chunyuAdapter } from './chunyu.adapter';
 import { cnHealthAdapter } from './cn-health.adapter';
 import { dxyAdapter } from './dxy.adapter';
 import { familydoctorAdapter } from './familydoctor.adapter';
+import { mayoAdapter } from './mayo.adapter';
+import { msdManualsAdapter } from './msd-manuals.adapter';
 import { nhsAdapter } from './nhs.adapter';
 import { whoAdapter } from './who.adapter';
 import { youlaiAdapter } from './youlai.adapter';
@@ -18,6 +20,8 @@ const adapters: AuthorityDocumentAdapter[] = [
   aapAdapter,
   acogAdapter,
   nhsAdapter,
+  mayoAdapter,
+  msdManualsAdapter,
   cnHealthAdapter,
   dxyAdapter,
   chunyuAdapter,

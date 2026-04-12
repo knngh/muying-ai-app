@@ -1,9 +1,9 @@
-import React from 'react'
-import { ScrollView, StyleSheet, View } from 'react-native'
+import React, { useEffect } from 'react'
+import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native'
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons'
 import LinearGradient from 'react-native-linear-gradient'
 import { Button, Snackbar, Text } from 'react-native-paper'
-import { useNavigation } from '@react-navigation/native'
+import { useNavigation, useRoute } from '@react-navigation/native'
 import { ScreenContainer, ContentSection } from '../components/layout'
 import {
   ProfileHeader,
@@ -19,6 +19,7 @@ import { colors, fontSize, spacing, borderRadius } from '../theme'
 
 export default function ProfileScreen() {
   const navigation = useNavigation<any>()
+  const route = useRoute<any>()
   const {
     user,
     initialLoading,
@@ -61,6 +62,50 @@ export default function ProfileScreen() {
     handleLogout,
   } = useProfileData()
 
+  const quickActions = [
+    {
+      title: '今日签到',
+      subtitle: '去日历完成今天安排',
+      icon: 'calendar-check-outline',
+      accent: colors.techDark,
+      shell: 'rgba(220,236,238,0.92)',
+      onPress: () => navigation.navigate('Calendar'),
+    },
+    {
+      title: '编辑资料',
+      subtitle: '统一调整阶段和关键日期',
+      icon: 'account-edit-outline',
+      accent: colors.primaryDark,
+      shell: 'rgba(248,227,214,0.92)',
+      onPress: openEditModal,
+    },
+    {
+      title: '孕期档案',
+      subtitle: '查看孕周、节点和本周记录',
+      icon: 'file-document-outline',
+      accent: colors.techDark,
+      shell: 'rgba(230,242,245,0.9)',
+      onPress: () => navigation.navigate('PregnancyProfile'),
+    },
+    {
+      title: status === 'active' ? '管理会员' : '会员权益',
+      subtitle: status === 'active' ? '查看周报与权益状态' : '开通后解锁增强能力',
+      icon: 'crown-outline',
+      accent: colors.ink,
+      shell: 'rgba(255,249,243,0.92)',
+      onPress: () => navigation.navigate('Membership'),
+    },
+  ]
+
+  useEffect(() => {
+    if (!route.params?.autoOpenEdit) {
+      return
+    }
+
+    openEditModal()
+    navigation.setParams({ autoOpenEdit: false })
+  }, [navigation, openEditModal, route.params?.autoOpenEdit])
+
   if (initialLoading) {
     return (
       <ScreenContainer>
@@ -83,7 +128,7 @@ export default function ProfileScreen() {
           />
         </ContentSection>
 
-        <ContentSection>
+        <ContentSection style={styles.tightSection}>
           <StatsRow
             usageLabel={usageLabel}
             checkInStreak={checkInStreak}
@@ -91,43 +136,92 @@ export default function ProfileScreen() {
           />
         </ContentSection>
 
-        <ContentSection>
+        <ContentSection style={styles.tightSection}>
+          <LinearGradient
+            colors={['rgba(220,236,238,0.92)', 'rgba(235,245,247,0.94)', 'rgba(250,252,253,0.98)']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.stageFocusCard}
+          >
+            <View style={styles.stageFocusGlow} />
+            <View style={styles.stageFocusHeader}>
+              <View style={styles.stageFocusIconShell}>
+                <MaterialCommunityIcons name="radar" size={18} color={colors.techDark} />
+              </View>
+              <View style={styles.stageFocusTextWrap}>
+                <Text style={styles.stageFocusEyebrow}>当前阶段重点</Text>
+                <Text style={styles.stageFocusTitle}>{stage.focusTitle}</Text>
+              </View>
+            </View>
+            <Text style={styles.stageFocusText}>{stage.reminder}</Text>
+            <TouchableOpacity
+              style={styles.stageFocusAction}
+              activeOpacity={0.88}
+              onPress={() => navigation.navigate('Calendar')}
+            >
+              <Text style={styles.stageFocusActionText}>去日历安排本周重点</Text>
+              <MaterialCommunityIcons name="chevron-right" size={18} color={colors.techDark} />
+            </TouchableOpacity>
+          </LinearGradient>
+        </ContentSection>
+
+        <ContentSection style={styles.tightSection}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>账户资料</Text>
+            <Text style={styles.sectionMeta}>关键信息一页查看</Text>
           </View>
           <AccountInfo rows={accountRows} onPress={openEditModal} />
         </ContentSection>
 
-        <ContentSection>
-          <View style={styles.familyEntryCard}>
-            <LinearGradient
-              colors={['rgba(248,227,214,0.96)', 'rgba(241,209,191,0.92)', 'rgba(250,244,238,0.98)']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.familyEntryGradient}
-            >
-              <View style={styles.familyEntryGlow} />
-              <View style={styles.familyEntryRing} />
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>家庭档案</Text>
-                <Text style={styles.sectionMeta}>全生命周期视图</Text>
-              </View>
-              <Text style={styles.familyEntryText}>
-                把照护者、孩子信息、发育关注点和生命周期时间轴整理成一页持续更新的家庭主档案。
-              </Text>
-              <Button
-                mode="contained"
-                buttonColor={colors.ink}
-                style={styles.familyEntryButton}
-                onPress={() => navigation.navigate('FamilyProfile')}
+        <ContentSection style={styles.tightSection}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>档案入口</Text>
+            <Text style={styles.sectionMeta}>详情单独展开</Text>
+          </View>
+          <View style={styles.archiveGrid}>
+            <TouchableOpacity style={styles.archiveEntryCard} activeOpacity={0.9} onPress={() => navigation.navigate('PregnancyProfile')}>
+              <LinearGradient
+                colors={['rgba(220,236,238,0.92)', 'rgba(203,225,229,0.92)', 'rgba(247,250,252,0.98)']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.archiveEntryGradient}
               >
-                查看家庭档案
-              </Button>
-            </LinearGradient>
+                <View style={styles.archiveEntryGlow} />
+                <Text style={styles.archiveEntryEyebrow}>孕期专用</Text>
+                <Text style={styles.archiveEntryTitle}>孕期档案</Text>
+                <Text style={styles.archiveEntryText} numberOfLines={3}>
+                  当前孕周、关键节点和本周记录集中查看。
+                </Text>
+                <View style={styles.archiveEntryFooter}>
+                  <Text style={styles.archiveEntryAction}>查看档案</Text>
+                  <MaterialCommunityIcons name="chevron-right" size={18} color={colors.techDark} />
+                </View>
+              </LinearGradient>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.archiveEntryCard} activeOpacity={0.9} onPress={() => navigation.navigate('FamilyProfile')}>
+              <LinearGradient
+                colors={['rgba(248,227,214,0.96)', 'rgba(241,209,191,0.92)', 'rgba(250,244,238,0.98)']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.archiveEntryGradient}
+              >
+                <View style={styles.archiveEntryGlow} />
+                <Text style={styles.archiveEntryEyebrow}>长期视图</Text>
+                <Text style={styles.archiveEntryTitle}>家庭档案</Text>
+                <Text style={styles.archiveEntryText} numberOfLines={3}>
+                  生命周期时间轴、家庭信息和关注点汇总。
+                </Text>
+                <View style={styles.archiveEntryFooter}>
+                  <Text style={[styles.archiveEntryAction, styles.archiveEntryActionInk]}>查看档案</Text>
+                  <MaterialCommunityIcons name="chevron-right" size={18} color={colors.ink} />
+                </View>
+              </LinearGradient>
+            </TouchableOpacity>
           </View>
         </ContentSection>
 
-        <ContentSection>
+        <ContentSection style={styles.tightSection}>
           <WeeklyReportList
             reports={weeklyReports}
             status={status}
@@ -137,35 +231,38 @@ export default function ProfileScreen() {
           />
         </ContentSection>
 
-        <ContentSection>
+        <ContentSection style={styles.tightSection}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>陪伴能力</Text>
-            <Text style={styles.sectionMeta}>当前阶段可联动使用</Text>
+            <Text style={styles.sectionTitle}>快捷管理</Text>
+            <Text style={styles.sectionMeta}>常用功能</Text>
           </View>
-          <View style={styles.benefitWrap}>
-            {[
-              { icon: 'robot-outline', title: '问题助手', subtitle: '围绕阶段连续追问' },
-              { icon: 'file-chart-outline', title: '周度报告', subtitle: '阶段建议持续更新' },
-              { icon: 'account-group-outline', title: '阶段圈子', subtitle: '围绕生命周期交流' },
-              { icon: 'export-variant', title: '成长档案', subtitle: '家庭摘要可长期回看' },
-            ].map((item) => (
-              <View key={item.title} style={styles.benefitTile}>
-                <View style={styles.benefitTileWash} />
-                <View style={styles.benefitIconShell}>
-                  <MaterialCommunityIcons name={item.icon} size={18} color={colors.techDark} />
+          <View style={styles.quickActionGrid}>
+            {quickActions.map((item) => (
+              <TouchableOpacity
+                key={item.title}
+                style={styles.quickActionCard}
+                onPress={item.onPress}
+                activeOpacity={0.88}
+              >
+                <View style={[styles.quickActionIconShell, { backgroundColor: item.shell }]}>
+                  <MaterialCommunityIcons name={item.icon} size={18} color={item.accent} />
                 </View>
-                <Text style={styles.benefitTitle}>{item.title}</Text>
-                <Text style={styles.benefitSubtitle}>{item.subtitle}</Text>
-              </View>
+                <Text style={styles.quickActionTitle}>{item.title}</Text>
+                <Text style={styles.quickActionSubtitle}>{item.subtitle}</Text>
+                <View style={styles.quickActionFooter}>
+                  <Text style={styles.quickActionCta}>去查看</Text>
+                  <MaterialCommunityIcons name="chevron-right" size={18} color={colors.primaryDark} />
+                </View>
+              </TouchableOpacity>
             ))}
           </View>
         </ContentSection>
 
-        <ContentSection>
+        <ContentSection style={styles.tightSection}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>成长档案</Text>
             <Text style={styles.sectionMeta}>
-              {status === 'active' ? '会员增强能力' : '预览版'}
+              {status === 'active' ? '会员增强能力' : '基础版'}
             </Text>
           </View>
           <GrowthArchiveCard
@@ -174,7 +271,7 @@ export default function ProfileScreen() {
           />
         </ContentSection>
 
-        <ContentSection>
+        <ContentSection style={styles.tightSection}>
           <Button
             mode="outlined"
             icon="logout"
@@ -228,12 +325,79 @@ export default function ProfileScreen() {
 
 const styles = StyleSheet.create({
   content: {
-    paddingBottom: spacing.xl,
+    paddingBottom: spacing.xxxl * 3 + spacing.sm,
   },
   headerSection: {
-    marginTop: spacing.xl,
+    marginTop: spacing.sm,
     alignItems: 'center',
-    marginBottom: spacing.lg,
+    marginBottom: spacing.sm,
+  },
+  tightSection: {
+    marginBottom: spacing.sm,
+  },
+  stageFocusCard: {
+    borderRadius: borderRadius.xl,
+    padding: spacing.sm + 4,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(94,126,134,0.12)',
+  },
+  stageFocusGlow: {
+    position: 'absolute',
+    top: -18,
+    right: -12,
+    width: 92,
+    height: 92,
+    borderRadius: 46,
+    backgroundColor: 'rgba(255,255,255,0.36)',
+  },
+  stageFocusHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.xs + 2,
+  },
+  stageFocusIconShell: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(94,126,134,0.14)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stageFocusTextWrap: {
+    flex: 1,
+  },
+  stageFocusEyebrow: {
+    color: colors.techDark,
+    fontSize: fontSize.xs,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+  },
+  stageFocusTitle: {
+    color: colors.inkDeep,
+    fontSize: fontSize.md,
+    fontWeight: '700',
+    marginTop: 1,
+  },
+  stageFocusText: {
+    color: colors.inkSoft,
+    fontSize: fontSize.sm,
+    lineHeight: 18,
+  },
+  stageFocusAction: {
+    marginTop: spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: spacing.xs + 2,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(94,126,134,0.1)',
+  },
+  stageFocusActionText: {
+    color: colors.techDark,
+    fontSize: fontSize.sm,
+    fontWeight: '700',
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -250,92 +414,115 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: fontSize.sm,
   },
-  benefitWrap: {
+  quickActionGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.sm,
-    marginTop: spacing.xs,
+    marginTop: 2,
   },
-  benefitTile: {
+  quickActionCard: {
     width: '48%',
     borderRadius: borderRadius.lg,
-    padding: spacing.md,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs + 3,
     backgroundColor: 'rgba(255, 249, 244, 0.88)',
     borderWidth: 1,
     borderColor: 'rgba(94, 126, 134, 0.12)',
-    minHeight: 116,
-    overflow: 'hidden',
+    minHeight: 98,
   },
-  benefitTileWash: {
-    position: 'absolute',
-    top: -14,
-    right: -8,
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    backgroundColor: 'rgba(220,236,238,0.16)',
-  },
-  benefitIconShell: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: 'rgba(94, 126, 134, 0.1)',
+  quickActionIconShell: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: spacing.sm,
+    marginBottom: spacing.xs,
   },
-  benefitTitle: {
+  quickActionTitle: {
     color: colors.inkDeep,
-    fontSize: fontSize.md,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  benefitSubtitle: {
-    color: colors.textSecondary,
     fontSize: fontSize.sm,
-    lineHeight: 18,
+    fontWeight: '700',
+    marginBottom: 1,
   },
-  familyEntryCard: {
+  quickActionSubtitle: {
+    color: colors.textSecondary,
+    fontSize: fontSize.xs,
+    lineHeight: 15,
+  },
+  quickActionFooter: {
+    marginTop: 'auto',
+    paddingTop: spacing.xs + 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  quickActionCta: {
+    color: colors.primaryDark,
+    fontSize: fontSize.sm,
+    fontWeight: '700',
+  },
+  archiveGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  archiveEntryCard: {
+    width: '48%',
     overflow: 'hidden',
-    borderRadius: borderRadius.xl,
+    borderRadius: borderRadius.lg,
     borderWidth: 1,
     borderColor: 'rgba(185,104,66,0.14)',
   },
-  familyEntryGradient: {
-    padding: spacing.md,
+  archiveEntryGradient: {
+    minHeight: 134,
+    padding: spacing.sm,
     overflow: 'hidden',
   },
-  familyEntryGlow: {
+  archiveEntryGlow: {
     position: 'absolute',
-    top: -26,
-    right: -18,
-    width: 150,
-    height: 150,
-    borderRadius: 75,
+    top: -22,
+    right: -14,
+    width: 110,
+    height: 110,
+    borderRadius: 55,
     backgroundColor: 'rgba(255,248,242,0.44)',
   },
-  familyEntryRing: {
-    position: 'absolute',
-    top: 20,
-    right: 24,
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    borderWidth: 1,
-    borderColor: 'rgba(94,126,134,0.12)',
+  archiveEntryEyebrow: {
+    color: colors.primaryDark,
+    fontSize: fontSize.xs,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    marginBottom: spacing.xs,
   },
-  familyEntryText: {
+  archiveEntryTitle: {
+    color: colors.inkDeep,
+    fontSize: fontSize.md,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  archiveEntryText: {
     color: colors.inkSoft,
-    lineHeight: 21,
-    maxWidth: '82%',
+    fontSize: fontSize.xs,
+    lineHeight: 16,
+    maxWidth: '92%',
   },
-  familyEntryButton: {
-    marginTop: spacing.md,
-    alignSelf: 'flex-start',
-    borderRadius: borderRadius.pill,
+  archiveEntryFooter: {
+    marginTop: 'auto',
+    paddingTop: spacing.xs + 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  archiveEntryAction: {
+    color: colors.techDark,
+    fontSize: fontSize.sm,
+    fontWeight: '700',
+  },
+  archiveEntryActionInk: {
+    color: colors.ink,
   },
   logoutButton: {
-    marginTop: spacing.md,
+    marginTop: spacing.sm,
     borderColor: colors.red,
   },
 })

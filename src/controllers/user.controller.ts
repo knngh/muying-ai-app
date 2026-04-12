@@ -1,6 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import prisma from '../config/database';
 import { successResponse, paginatedResponse, AppError, ErrorCodes } from '../middlewares/error.middleware';
+import { calculatePregnancyWeekFromDueDate, normalizePregnancyStatus } from '../utils/pregnancy';
+import { buildPregnancyProfile } from '../utils/pregnancy-profile';
 
 /**
  * 获取用户收藏列表
@@ -246,6 +248,78 @@ export const getUserStats = async (req: Request, res: Response, next: NextFuncti
       readCount,
       likeCount
     }));
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * 获取孕期档案聚合数据
+ */
+export const getPregnancyProfile = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.userId;
+
+    const user = await prisma.user.findUnique({
+      where: { id: BigInt(userId!) },
+      select: {
+        pregnancyStatus: true,
+        dueDate: true,
+        babyBirthday: true,
+      },
+    });
+
+    if (!user) {
+      throw new AppError('用户不存在', ErrorCodes.USER_NOT_FOUND, 404);
+    }
+
+    const currentWeek = user.dueDate
+      ? calculatePregnancyWeekFromDueDate(user.dueDate)
+      : undefined;
+
+    let completedTodoCount = 0;
+    let customTodoCount = 0;
+    let weeklyDiaryDate: Date | null = null;
+    let weeklyDiaryContent: string | null = null;
+
+    if (user.dueDate && currentWeek) {
+      const [todoProgressCount, customTodosCount, diary] = await Promise.all([
+        prisma.userPregnancyTodoProgress.count({
+          where: {
+            userId: BigInt(userId!),
+            week: currentWeek,
+          },
+        }),
+        prisma.userPregnancyCustomTodo.count({
+          where: {
+            userId: BigInt(userId!),
+            week: currentWeek,
+          },
+        }),
+        prisma.userPregnancyDiary.findUnique({
+          where: {
+            userId_week: {
+              userId: BigInt(userId!),
+              week: currentWeek,
+            },
+          },
+        }),
+      ]);
+
+      completedTodoCount = todoProgressCount;
+      customTodoCount = customTodosCount;
+      weeklyDiaryDate = diary?.updatedAt ?? null;
+      weeklyDiaryContent = diary?.content ?? null;
+    }
+
+    const profile = buildPregnancyProfile(user, {
+      completedTodoCount,
+      customTodoCount,
+      weeklyDiaryDate,
+      weeklyDiaryContent,
+    });
+
+    res.json(successResponse(profile));
   } catch (error) {
     next(error);
   }

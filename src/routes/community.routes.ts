@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import {
+  getCurrentCircle,
   getPosts,
   getPostById,
   createPost,
@@ -17,12 +18,15 @@ import {
 } from '../controllers/community.controller';
 import { authMiddleware, optionalAuthMiddleware } from '../middlewares/auth.middleware';
 import { adminMiddleware } from '../middlewares/admin.middleware';
+import { featureGate, subscriptionContextMiddleware } from '../middlewares/subscription.middleware';
 import { queryRateLimiter, writeRateLimiter } from '../middlewares/rateLimiter.middleware';
 import { validate } from '../middlewares/validate.middleware';
 import { getPostsQuery, createPostBody, createCommentBody, updatePostBody, createReportBody, getReportsQuery, handleReportBody, postIdParam, commentIdParam, reportIdParam, postCommentsParam, commentRepliesParam } from '../schemas/community.schema';
 import { paginationQuery } from '../schemas/common.schema';
 
 const router = Router();
+
+router.get('/stage-circle/current', authMiddleware, subscriptionContextMiddleware, featureGate('stage_circle'), queryRateLimiter, getCurrentCircle);
 
 // 帖子列表（公开，可选认证）
 router.get('/posts', optionalAuthMiddleware, queryRateLimiter, validate({ query: getPostsQuery }), getPosts);

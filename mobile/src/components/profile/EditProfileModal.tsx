@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native'
 import { Button, Modal, Portal, Text, TextInput } from 'react-native-paper'
 import DateTimePicker from '@react-native-community/datetimepicker'
@@ -68,6 +68,26 @@ export default function EditProfileModal({
 }: EditProfileModalProps) {
   const [showDueDatePicker, setShowDueDatePicker] = useState(false)
   const [showBabyBirthdayPicker, setShowBabyBirthdayPicker] = useState(false)
+  const isPregnancyStage = pregnancyStatus === '孕期中'
+  const isParentingStage = pregnancyStatus === '育儿中'
+
+  useEffect(() => {
+    if (visible) {
+      return
+    }
+
+    setShowDueDatePicker(false)
+    setShowBabyBirthdayPicker(false)
+  }, [visible])
+
+  useEffect(() => {
+    if (!isPregnancyStage && showDueDatePicker) {
+      setShowDueDatePicker(false)
+    }
+    if (!isParentingStage && showBabyBirthdayPicker) {
+      setShowBabyBirthdayPicker(false)
+    }
+  }, [isParentingStage, isPregnancyStage, showBabyBirthdayPicker, showDueDatePicker])
 
   const parseDateOrNow = (dateStr: string) => {
     const parsed = dayjs(dateStr)
@@ -107,16 +127,7 @@ export default function EditProfileModal({
             activeOutlineColor={colors.primary}
           />
 
-          <TextInput
-            label="孩子昵称"
-            value={childNickname}
-            onChangeText={onChangeChildNickname}
-            mode="outlined"
-            style={styles.input}
-            activeOutlineColor={colors.primary}
-          />
-
-          <Text style={styles.fieldLabel}>家庭状态</Text>
+          <Text style={styles.fieldLabel}>当前阶段</Text>
           <View style={styles.optionRow}>
             {PREGNANCY_STATUSES.map((statusLabel) => (
               <TouchableOpacity
@@ -139,80 +150,35 @@ export default function EditProfileModal({
             ))}
           </View>
 
-          <Text style={styles.fieldLabel}>预产期</Text>
-          <Text style={styles.fieldHint}>选择孕期中时会使用预产期自动判断孕早、中、晚期。</Text>
-          <TouchableOpacity
-            style={styles.dateButton}
-            onPress={() => setShowDueDatePicker(true)}
-          >
-            <Text style={dueDate ? styles.dateText : styles.datePlaceholder}>
-              {dueDate || '点击选择预产期'}
-            </Text>
-          </TouchableOpacity>
-          {showDueDatePicker && (
-            <View>
-              <DateTimePicker
-                value={parseDateOrNow(dueDate)}
-                mode="date"
-                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                onChange={handleDueDateChange}
-              />
-              {Platform.OS === 'ios' && (
-                <Button mode="text" onPress={() => setShowDueDatePicker(false)}>
-                  确定
-                </Button>
-              )}
-            </View>
-          )}
-
-          <Text style={styles.fieldLabel}>宝宝生日</Text>
-          <Text style={styles.fieldHint}>选择育儿中后，App 会根据宝宝生日自动切换到新生儿、0-6月、1-3岁和 3 岁以上阶段。</Text>
-          <TouchableOpacity
-            style={styles.dateButton}
-            onPress={() => setShowBabyBirthdayPicker(true)}
-          >
-            <Text style={babyBirthday ? styles.dateText : styles.datePlaceholder}>
-              {babyBirthday || '点击选择宝宝生日'}
-            </Text>
-          </TouchableOpacity>
-          {showBabyBirthdayPicker && (
-            <View>
-              <DateTimePicker
-                value={parseDateOrNow(babyBirthday)}
-                mode="date"
-                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                onChange={handleBabyBirthdayChange}
-              />
-              {Platform.OS === 'ios' && (
-                <Button mode="text" onPress={() => setShowBabyBirthdayPicker(false)}>
-                  确定
-                </Button>
-              )}
-            </View>
-          )}
-
-          <Text style={styles.fieldLabel}>宝宝性别</Text>
-          <View style={styles.optionRow}>
-            {GENDER_OPTIONS.map((gender) => (
+          {isPregnancyStage ? (
+            <>
+              <Text style={styles.fieldLabel}>预产期</Text>
+              <Text style={styles.fieldHint}>选择孕期中时会使用预产期自动判断孕早、中、晚期。</Text>
               <TouchableOpacity
-                key={gender}
-                onPress={() => onChangeBabyGender(gender)}
-                style={[
-                  styles.optionButton,
-                  babyGender === gender && styles.optionButtonSelected,
-                ]}
+                style={styles.dateButton}
+                onPress={() => setShowDueDatePicker(true)}
               >
-                <Text
-                  style={[
-                    styles.optionText,
-                    babyGender === gender && styles.optionTextSelected,
-                  ]}
-                >
-                  {gender}
+                <Text style={dueDate ? styles.dateText : styles.datePlaceholder}>
+                  {dueDate || '点击选择预产期'}
                 </Text>
               </TouchableOpacity>
-            ))}
-          </View>
+              {showDueDatePicker && (
+                <View>
+                  <DateTimePicker
+                    value={parseDateOrNow(dueDate)}
+                    mode="date"
+                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                    onChange={handleDueDateChange}
+                  />
+                  {Platform.OS === 'ios' && (
+                    <Button mode="text" onPress={() => setShowDueDatePicker(false)}>
+                      确定
+                    </Button>
+                  )}
+                </View>
+              )}
+            </>
+          ) : null}
 
           <Text style={styles.fieldLabel}>照护者角色</Text>
           <View style={styles.optionRow}>
@@ -237,63 +203,125 @@ export default function EditProfileModal({
             ))}
           </View>
 
-          <Text style={styles.fieldLabel}>分娩方式</Text>
-          <View style={styles.optionRow}>
-            {CHILDBIRTH_MODE_OPTIONS.map((mode) => (
+          {isParentingStage ? (
+            <>
+              <TextInput
+                label="孩子昵称"
+                value={childNickname}
+                onChangeText={onChangeChildNickname}
+                mode="outlined"
+                style={styles.input}
+                activeOutlineColor={colors.primary}
+              />
+
+              <Text style={styles.fieldLabel}>宝宝生日</Text>
+              <Text style={styles.fieldHint}>选择育儿中后，App 会根据宝宝生日自动切换到新生儿、0-6月、1-3岁和 3 岁以上阶段。</Text>
               <TouchableOpacity
-                key={mode}
-                onPress={() => onChangeChildBirthMode(mode)}
-                style={[
-                  styles.optionButton,
-                  childBirthMode === mode && styles.optionButtonSelected,
-                ]}
+                style={styles.dateButton}
+                onPress={() => setShowBabyBirthdayPicker(true)}
               >
-                <Text
-                  style={[
-                    styles.optionText,
-                    childBirthMode === mode && styles.optionTextSelected,
-                  ]}
-                >
-                  {mode}
+                <Text style={babyBirthday ? styles.dateText : styles.datePlaceholder}>
+                  {babyBirthday || '点击选择宝宝生日'}
                 </Text>
               </TouchableOpacity>
-            ))}
-          </View>
+              {showBabyBirthdayPicker && (
+                <View>
+                  <DateTimePicker
+                    value={parseDateOrNow(babyBirthday)}
+                    mode="date"
+                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                    onChange={handleBabyBirthdayChange}
+                  />
+                  {Platform.OS === 'ios' && (
+                    <Button mode="text" onPress={() => setShowBabyBirthdayPicker(false)}>
+                      确定
+                    </Button>
+                  )}
+                </View>
+              )}
 
-          <Text style={styles.fieldLabel}>喂养方式</Text>
-          <View style={styles.optionRow}>
-            {FEEDING_MODE_OPTIONS.map((mode) => (
-              <TouchableOpacity
-                key={mode}
-                onPress={() => onChangeFeedingMode(mode)}
-                style={[
-                  styles.optionButton,
-                  feedingMode === mode && styles.optionButtonSelected,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.optionText,
-                    feedingMode === mode && styles.optionTextSelected,
-                  ]}
-                >
-                  {mode}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+              <Text style={styles.fieldLabel}>宝宝性别</Text>
+              <View style={styles.optionRow}>
+                {GENDER_OPTIONS.map((gender) => (
+                  <TouchableOpacity
+                    key={gender}
+                    onPress={() => onChangeBabyGender(gender)}
+                    style={[
+                      styles.optionButton,
+                      babyGender === gender && styles.optionButtonSelected,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.optionText,
+                        babyGender === gender && styles.optionTextSelected,
+                      ]}
+                    >
+                      {gender}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
 
-          <TextInput
-            label="发育关注点"
-            value={developmentConcerns}
-            onChangeText={onChangeDevelopmentConcerns}
-            mode="outlined"
-            multiline
-            numberOfLines={3}
-            style={styles.input}
-            activeOutlineColor={colors.primary}
-            placeholder="例如：夜醒、语言发展、挑食、如厕训练"
-          />
+              <Text style={styles.fieldLabel}>分娩方式</Text>
+              <View style={styles.optionRow}>
+                {CHILDBIRTH_MODE_OPTIONS.map((mode) => (
+                  <TouchableOpacity
+                    key={mode}
+                    onPress={() => onChangeChildBirthMode(mode)}
+                    style={[
+                      styles.optionButton,
+                      childBirthMode === mode && styles.optionButtonSelected,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.optionText,
+                        childBirthMode === mode && styles.optionTextSelected,
+                      ]}
+                    >
+                      {mode}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={styles.fieldLabel}>喂养方式</Text>
+              <View style={styles.optionRow}>
+                {FEEDING_MODE_OPTIONS.map((mode) => (
+                  <TouchableOpacity
+                    key={mode}
+                    onPress={() => onChangeFeedingMode(mode)}
+                    style={[
+                      styles.optionButton,
+                      feedingMode === mode && styles.optionButtonSelected,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.optionText,
+                        feedingMode === mode && styles.optionTextSelected,
+                      ]}
+                    >
+                      {mode}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <TextInput
+                label="发育关注点"
+                value={developmentConcerns}
+                onChangeText={onChangeDevelopmentConcerns}
+                mode="outlined"
+                multiline
+                numberOfLines={3}
+                style={styles.input}
+                activeOutlineColor={colors.primary}
+                placeholder="例如：夜醒、语言发展、挑食、如厕训练"
+              />
+            </>
+          ) : null}
 
           <TextInput
             label="家庭备注"
@@ -326,17 +354,17 @@ const styles = StyleSheet.create({
     margin: spacing.md,
     maxHeight: '84%',
     borderRadius: borderRadius.xl,
-    padding: spacing.lg,
+    padding: spacing.md,
     backgroundColor: colors.white,
   },
   modalTitle: {
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
     fontSize: fontSize.xl,
     fontWeight: 'bold',
     color: colors.text,
   },
   input: {
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
     backgroundColor: colors.white,
   },
   fieldLabel: {
@@ -351,7 +379,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   optionRow: {
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.sm,
@@ -377,12 +405,12 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
   },
   dateButton: {
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
     borderRadius: borderRadius.sm,
     borderWidth: 1,
     borderColor: colors.border,
     paddingHorizontal: spacing.md,
-    paddingVertical: 14,
+    paddingVertical: 12,
     backgroundColor: colors.white,
   },
   dateText: {

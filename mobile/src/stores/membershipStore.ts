@@ -46,7 +46,7 @@ const fallbackPlans: MembershipPlan[] = [
     durationDays: 30,
     monthlyPriceLabel: '¥19.9 / 月',
     description: '适合先体验问题助手不限次和生命周期周报。',
-    features: ['ai_unlimited', 'continuous_chat', 'weekly_report', 'stage_circle'],
+    features: ['ai_unlimited', 'continuous_chat', 'weekly_report'],
   },
   {
     id: 'quarterly',
@@ -58,7 +58,7 @@ const fallbackPlans: MembershipPlan[] = [
     monthlyPriceLabel: '折合 ¥16.6 / 月',
     badge: '省 17%',
     description: '适合跨阶段连续使用，把成长节奏和周报持续沉淀。',
-    features: ['ai_unlimited', 'continuous_chat', 'weekly_report', 'stage_circle', 'growth_export'],
+    features: ['ai_unlimited', 'continuous_chat', 'weekly_report', 'growth_export'],
   },
   {
     id: 'yearly',
@@ -70,7 +70,7 @@ const fallbackPlans: MembershipPlan[] = [
     monthlyPriceLabel: '折合 ¥12.3 / 月',
     badge: '最划算',
     description: '覆盖备孕、孕期、育儿与更长期的完整周期。',
-    features: ['ai_unlimited', 'continuous_chat', 'weekly_report', 'growth_export', 'stage_circle', 'ad_free'],
+    features: ['ai_unlimited', 'continuous_chat', 'weekly_report', 'growth_export', 'ad_free'],
   },
 ]
 

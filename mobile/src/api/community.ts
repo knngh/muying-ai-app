@@ -1,5 +1,5 @@
 import api from './index'
-import type { CommunityPost, CommunityComment, PaginatedResponse } from '../../../shared/types'
+import type { CommunityPost, CommunityComment, PaginatedResponse, StageCircleSnapshot } from '../../../shared/types'
 
 export type { CommunityPost, CommunityComment }
 
@@ -45,4 +45,6 @@ export const communityApi = {
     }),
 
   deleteComment: (id: number) => api.delete(`/community/comments/${id}`),
+
+  getCurrentStageCircle: () => api.get<StageCircleSnapshot>('/community/stage-circle/current'),
 }

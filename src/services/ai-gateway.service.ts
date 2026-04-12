@@ -1,41 +1,60 @@
 // AI Gateway 服务 - 支持混合路由、多模型对接和流式响应
 
-const LEGACY_GATEWAY_URL = process.env.AI_GATEWAY_URL || 'http://localhost:8080/v1';
-const LEGACY_GATEWAY_KEY = process.env.AI_GATEWAY_KEY || '';
+const OPENROUTER_BASE_URL = process.env.AI_OPENROUTER_URL || process.env.OPENROUTER_API_URL || 'https://api.minimaxi.com/v1';
+const OPENROUTER_KEY = process.env.AI_OPENROUTER_KEY || process.env.OPENROUTER_API_KEY || process.env.AI_GATEWAY_KEY || '';
+const OPENROUTER_MODEL = process.env.AI_OPENROUTER_MODEL || 'MiniMax-M2.7';
+const OPENROUTER_PROVIDER = process.env.AI_OPENROUTER_PROVIDER || 'minimax';
+const OPENROUTER_SITE_URL = process.env.AI_OPENROUTER_SITE_URL || '';
+const OPENROUTER_APP_NAME = process.env.AI_OPENROUTER_APP_NAME || '';
+const AI_PROVIDER_TIMEOUT_MS = Math.max(
+  5000,
+  Number.parseInt(process.env.AI_PROVIDER_TIMEOUT_MS || '25000', 10) || 25000,
+);
+const LEGACY_GATEWAY_URL = process.env.AI_GATEWAY_URL || OPENROUTER_BASE_URL;
+const LEGACY_GATEWAY_KEY = process.env.AI_GATEWAY_KEY || OPENROUTER_KEY;
 const AI_ROUTING_ENABLED = process.env.AI_ROUTING_ENABLED === 'true';
-const AI_GENERAL_URL = process.env.AI_GENERAL_URL || process.env.SILICONFLOW_API_URL || 'https://api.siliconflow.cn/v1/chat/completions';
-const AI_GENERAL_KEY = process.env.AI_GENERAL_KEY || process.env.SILICONFLOW_API_KEY || '';
-const AI_GENERAL_MODEL = process.env.AI_GENERAL_MODEL || 'deepseek-ai/DeepSeek-V3';
-const AI_GENERAL_PROVIDER = process.env.AI_GENERAL_PROVIDER || 'siliconflow';
-const AI_KIMI_URL = process.env.AI_KIMI_URL || LEGACY_GATEWAY_URL;
-const AI_KIMI_KEY = process.env.AI_KIMI_KEY || LEGACY_GATEWAY_KEY;
-const AI_KIMI_MODEL = process.env.AI_KIMI_MODEL || 'kimi-k2.5';
-const AI_KIMI_PROVIDER = process.env.AI_KIMI_PROVIDER || 'kimi';
-const AI_MINIMAX_URL = process.env.AI_MINIMAX_URL || LEGACY_GATEWAY_URL;
-const AI_MINIMAX_KEY = process.env.AI_MINIMAX_KEY || LEGACY_GATEWAY_KEY;
-const AI_MINIMAX_MODEL = process.env.AI_MINIMAX_MODEL || 'minimax-2.5';
-const AI_MINIMAX_PROVIDER = process.env.AI_MINIMAX_PROVIDER || 'minimax';
-const AI_GLM_URL = process.env.AI_GLM_URL || LEGACY_GATEWAY_URL;
-const AI_GLM_KEY = process.env.AI_GLM_KEY || LEGACY_GATEWAY_KEY;
-const AI_GLM_MODEL = process.env.AI_GLM_MODEL || 'glm-5';
-const AI_GLM_PROVIDER = process.env.AI_GLM_PROVIDER || 'glm';
-const AI_MEDICAL_PRIMARY_URL = process.env.AI_MEDICAL_PRIMARY_URL || LEGACY_GATEWAY_URL;
-const AI_MEDICAL_PRIMARY_KEY = process.env.AI_MEDICAL_PRIMARY_KEY || LEGACY_GATEWAY_KEY;
-const AI_MEDICAL_PRIMARY_MODEL = process.env.AI_MEDICAL_PRIMARY_MODEL || (process.env.AI_DEFAULT_MODEL || 'baichuan-m3');
-const AI_MEDICAL_PRIMARY_PROVIDER = process.env.AI_MEDICAL_PRIMARY_PROVIDER || '';
+const AI_GENERAL_URL = process.env.AI_GENERAL_URL || OPENROUTER_BASE_URL;
+const AI_GENERAL_KEY = process.env.AI_GENERAL_KEY || OPENROUTER_KEY;
+const AI_GENERAL_MODEL = process.env.AI_GENERAL_MODEL || OPENROUTER_MODEL;
+const AI_GENERAL_PROVIDER = process.env.AI_GENERAL_PROVIDER || OPENROUTER_PROVIDER;
+const AI_KIMI_URL = process.env.AI_KIMI_URL || OPENROUTER_BASE_URL;
+const AI_KIMI_KEY = process.env.AI_KIMI_KEY || OPENROUTER_KEY;
+const AI_KIMI_MODEL = process.env.AI_KIMI_MODEL || OPENROUTER_MODEL;
+const AI_KIMI_PROVIDER = process.env.AI_KIMI_PROVIDER || OPENROUTER_PROVIDER;
+const AI_MINIMAX_URL = process.env.AI_MINIMAX_URL || OPENROUTER_BASE_URL;
+const AI_MINIMAX_KEY = process.env.AI_MINIMAX_KEY || OPENROUTER_KEY;
+const AI_MINIMAX_MODEL = process.env.AI_MINIMAX_MODEL || OPENROUTER_MODEL;
+const AI_MINIMAX_PROVIDER = process.env.AI_MINIMAX_PROVIDER || OPENROUTER_PROVIDER;
+const AI_GLM_URL = process.env.AI_GLM_URL || OPENROUTER_BASE_URL;
+const AI_GLM_KEY = process.env.AI_GLM_KEY || OPENROUTER_KEY;
+const AI_GLM_MODEL = process.env.AI_GLM_MODEL || OPENROUTER_MODEL;
+const AI_GLM_PROVIDER = process.env.AI_GLM_PROVIDER || OPENROUTER_PROVIDER;
+const AI_MEDICAL_PRIMARY_URL = process.env.AI_MEDICAL_PRIMARY_URL || OPENROUTER_BASE_URL;
+const AI_MEDICAL_PRIMARY_KEY = process.env.AI_MEDICAL_PRIMARY_KEY || OPENROUTER_KEY;
+const AI_MEDICAL_PRIMARY_MODEL = process.env.AI_MEDICAL_PRIMARY_MODEL || process.env.AI_DEFAULT_MODEL || OPENROUTER_MODEL;
+const AI_MEDICAL_PRIMARY_PROVIDER = process.env.AI_MEDICAL_PRIMARY_PROVIDER || OPENROUTER_PROVIDER;
 const AI_MEDICAL_SECONDARY_URL = process.env.AI_MEDICAL_SECONDARY_URL || '';
 const AI_MEDICAL_SECONDARY_KEY = process.env.AI_MEDICAL_SECONDARY_KEY || '';
 const AI_MEDICAL_SECONDARY_MODEL = process.env.AI_MEDICAL_SECONDARY_MODEL || '';
 const AI_MEDICAL_SECONDARY_PROVIDER = process.env.AI_MEDICAL_SECONDARY_PROVIDER || '';
 
 const MODEL_ALIASES: Record<string, string> = {
-  'Baichuan-M3': 'baichuan-m3',
-  'kimi2.5': 'kimi-k2.5',
-  'kimi-2.5': 'kimi-k2.5',
-  'glm5': 'glm-5',
-  'glm-5-flash': 'glm-5',
-  'minimax2.5': 'minimax-2.5',
-  'minmax2.5': 'minimax-2.5',
+  'Baichuan-M3': OPENROUTER_MODEL,
+  'baichuan-m3': OPENROUTER_MODEL,
+  'deepseek-ai/DeepSeek-V3': OPENROUTER_MODEL,
+  'deepseek-chat': OPENROUTER_MODEL,
+  'kimi2.5': OPENROUTER_MODEL,
+  'kimi-2.5': OPENROUTER_MODEL,
+  'kimi-k2.5': OPENROUTER_MODEL,
+  'glm5': OPENROUTER_MODEL,
+  'glm-5': OPENROUTER_MODEL,
+  'glm-5-flash': OPENROUTER_MODEL,
+  'minimax2.5': OPENROUTER_MODEL,
+  'minmax2.5': OPENROUTER_MODEL,
+  'minimax-2.5': OPENROUTER_MODEL,
+  'minimax-m1': OPENROUTER_MODEL,
+  'MiniMax-M2.7': OPENROUTER_MODEL,
+  'minimax-m2.7': OPENROUTER_MODEL,
 };
 
 interface SupportedModel {
@@ -113,71 +132,16 @@ export interface AITaskModelBinding {
 
 // 支持的模型列表
 export const SUPPORTED_MODELS: Record<string, SupportedModel> = {
-  'kimi-k2.5': {
-    id: 'kimi-k2.5',
-    name: 'Kimi K2.5',
-    provider: 'dashscope',
-    maxTokens: 16384,
-  },
-  'glm-4': {
-    id: 'glm-4',
-    name: 'GLM-4',
-    provider: 'zhipu',
-    maxTokens: 4096,
-  },
-  'glm-4-flash': {
-    id: 'glm-4-flash',
-    name: 'GLM-4-Flash',
-    provider: 'zhipu',
-    maxTokens: 4096,
-  },
-  'glm-5': {
-    id: 'glm-5',
-    name: 'GLM-5',
-    provider: 'zhipu',
-    maxTokens: 8192,
-  },
-  'gemini-pro': {
-    id: 'gemini-pro',
-    name: 'Gemini Pro',
-    provider: 'google',
-    maxTokens: 8192,
-  },
-  'gpt-4o-mini': {
-    id: 'gpt-4o-mini',
-    name: 'GPT-4o Mini',
-    provider: 'openai',
-    maxTokens: 4096,
-  },
-  'deepseek-chat': {
-    id: 'deepseek-chat',
-    name: 'DeepSeek Chat',
-    provider: 'deepseek',
-    maxTokens: 4096,
-  },
-  'minimax-m1': {
-    id: 'minimax-m1',
-    name: 'MiniMax M1',
-    provider: 'minimax',
-    maxTokens: 8192,
-  },
-  'minimax-2.5': {
-    id: 'minimax-2.5',
-    name: 'MiniMax 2.5',
-    provider: 'minimax',
-    maxTokens: 8192,
-  },
-  'baichuan-m3': {
-    id: 'baichuan-m3',
-    apiModel: 'Baichuan-M3',
-    name: 'Baichuan M3',
-    provider: 'baichuan',
+  [OPENROUTER_MODEL]: {
+    id: OPENROUTER_MODEL,
+    name: OPENROUTER_MODEL,
+    provider: OPENROUTER_PROVIDER,
     maxTokens: 8192,
   },
 };
 
 // 默认模型
-const DEFAULT_MODEL = process.env.AI_DEFAULT_MODEL || 'glm-5';
+const DEFAULT_MODEL = process.env.AI_DEFAULT_MODEL || OPENROUTER_MODEL;
 
 // 母婴健康系统提示词
 const MATERNAL_HEALTH_SYSTEM_PROMPT = `你是一位专业的母婴健康顾问，拥有丰富的妇产科和儿科知识。
@@ -254,6 +218,12 @@ function getUniqueSupportedModels(): SupportedModel[] {
 
 function inferProviderName(url: string, model: string, fallback: string): string {
   const text = `${url} ${model}`.toLowerCase();
+  if (text.includes('minimax') || text.includes('minimaxi')) {
+    return 'minimax';
+  }
+  if (text.includes('openrouter')) {
+    return 'openrouter';
+  }
   if (text.includes('baichuan')) {
     return 'baichuan';
   }
@@ -317,8 +287,8 @@ function buildGeneralProvider(): GatewayProvider | null {
   }
 
   return buildProvider(
-    'general-deepseek',
-    'general-deepseek',
+    'general-primary',
+    'general-primary',
     'general',
     AI_GENERAL_URL,
     AI_GENERAL_KEY,
@@ -510,6 +480,15 @@ function buildGatewayHeaders(provider: GatewayProvider, stream = false): Record<
     headers.Authorization = `Bearer ${provider.key}`;
   }
 
+  if (provider.provider === 'openrouter' || provider.url.includes('openrouter.ai')) {
+    if (OPENROUTER_SITE_URL) {
+      headers['HTTP-Referer'] = OPENROUTER_SITE_URL;
+    }
+    if (OPENROUTER_APP_NAME) {
+      headers['X-Title'] = OPENROUTER_APP_NAME;
+    }
+  }
+
   return headers;
 }
 
@@ -549,11 +528,20 @@ async function requestProvider(
     stream: options.stream ?? false,
   };
 
-  return fetch(provider.url, {
-    method: 'POST',
-    headers: buildGatewayHeaders(provider, options.stream),
-    body: JSON.stringify(request),
-  });
+  try {
+    return await fetch(provider.url, {
+      method: 'POST',
+      headers: buildGatewayHeaders(provider, options.stream),
+      body: JSON.stringify(request),
+      signal: AbortSignal.timeout(AI_PROVIDER_TIMEOUT_MS),
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === 'TimeoutError') {
+      throw new Error(`AI Gateway timeout after ${AI_PROVIDER_TIMEOUT_MS}ms`);
+    }
+
+    throw error;
+  }
 }
 
 async function callProvider(

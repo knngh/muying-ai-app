@@ -15,6 +15,7 @@ interface ChatState {
   error: string | null
   streamingContent: string
   initialize: () => Promise<void>
+  startFreshSession: () => void
   sendMessage: (content: string) => Promise<void>
   resetState: () => void
   clearMessages: () => void
@@ -47,43 +48,27 @@ export const useChatStore = create<ChatState>((set, get) => ({
       return
     }
 
-    set({ loadingHistory: true, error: null })
+    set({
+      messages: [],
+      conversationId: null,
+      initialized: true,
+      loadingHistory: false,
+      error: null,
+      streamingContent: '',
+    })
+  },
 
-    try {
-      const conversations = await aiApi.getConversations()
-      const latest = conversations[0]
-
-      if (latest?.id) {
-        const session = await aiApi.getHistory(latest.id)
-        set({
-          messages: session.messages,
-          conversationId: session.id,
-          initialized: true,
-          loadingHistory: false,
-        })
-        return
-      }
-
-      set({ initialized: true, loadingHistory: false })
-    } catch (error: unknown) {
-      const err = error as { message?: string; status?: number }
-      const isMissingHistory = err.status === 404 || (err.message || '').includes('资源不存在')
-      if (isMissingHistory) {
-        set({
-          messages: [],
-          conversationId: null,
-          initialized: true,
-          loadingHistory: false,
-          error: null,
-        })
-        return
-      }
-      set({
-        initialized: true,
-        loadingHistory: false,
-        error: err.message || '加载历史对话失败',
-      })
-    }
+  startFreshSession: () => {
+    wsManager.disconnect()
+    set({
+      messages: [],
+      conversationId: null,
+      loading: false,
+      loadingHistory: false,
+      initialized: true,
+      error: null,
+      streamingContent: '',
+    })
   },
 
   sendMessage: async (content: string) => {
@@ -225,6 +210,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   clearMessages: () => {
-    set({ messages: [], conversationId: null, error: null, streamingContent: '', initialized: false })
+    wsManager.disconnect()
+    set({
+      messages: [],
+      conversationId: null,
+      loading: false,
+      loadingHistory: false,
+      initialized: true,
+      error: null,
+      streamingContent: '',
+    })
   },
 }))

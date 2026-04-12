@@ -55,3 +55,32 @@ export interface CommunityReportPayload {
   reason: 'spam' | 'abuse' | 'misinformation' | 'privacy' | 'illegal' | 'other'
   description?: string
 }
+
+export interface StageCircleMemberPreview {
+  id: string
+  nickname: string
+  avatar: string | null
+  currentWeek: number
+  weekLabel: string
+  role: 'host' | 'member'
+  isCurrentUser: boolean
+}
+
+export interface StageCircleSnapshot {
+  circleKey: string
+  title: string
+  subtitle: string
+  stageLabel: string
+  currentWeek: number
+  weekRange: {
+    start: number
+    end: number
+  }
+  targetMembers: number
+  matchedMembers: number
+  isReady: boolean
+  hostUserId: string
+  discussionPrompts: string[]
+  rules: string[]
+  members: StageCircleMemberPreview[]
+}

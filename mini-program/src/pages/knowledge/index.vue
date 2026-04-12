@@ -66,7 +66,7 @@
       >
         <view class="article-header">
           <view class="badge-row">
-            <text class="source-badge">{{ article.sourceOrg || article.source || '权威来源' }}</text>
+            <text class="source-badge">{{ formatSourceLabel(article.sourceOrg || article.source || '权威来源') }}</text>
             <text :class="['tier-badge', `tier-badge--${getAuthorityRegionTag(article)}`]">{{ getAuthorityRegionLabel(article) }}</text>
             <text v-if="article.topic" class="topic-badge">{{ article.topic }}</text>
           </view>
@@ -100,7 +100,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { onShow } from '@dcloudio/uni-app'
+import { onShareAppMessage, onShareTimeline, onShow } from '@dcloudio/uni-app'
 import { useKnowledgeStore } from '@/stores/knowledge'
 import { getAuthorityRegionLabel, getAuthorityRegionTag } from '@/utils/authority-source'
 
@@ -120,6 +120,8 @@ const sourceOptions = [
   { label: 'AAP', value: 'aap' },
   { label: 'ACOG', value: 'acog' },
   { label: 'NHS', value: 'nhs' },
+  { label: 'Mayo Clinic', value: 'mayo' },
+  { label: 'MSD', value: 'msd' },
 ]
 
 const stageOptions = [
@@ -191,6 +193,44 @@ function formatDate(dateStr?: string): string {
   const d = String(date.getDate()).padStart(2, '0')
   return `${y}-${m}-${d}`
 }
+
+function formatSourceLabel(label?: string): string {
+  const value = (label || '').trim()
+  if (!value) return '权威来源'
+
+  const lower = value.toLowerCase()
+  if (/american academy of pediatrics|healthychildren\.org|\baap\b/.test(lower)) return 'AAP'
+  if (/mayo clinic|mayoclinic\.org/.test(lower)) return 'Mayo Clinic'
+  if (/msd manuals?|msdmanuals\.cn|merck manual/.test(lower)) return 'MSD Manuals'
+  if (/national health service|\bnhs\b|nhs\.uk/.test(lower)) return 'NHS'
+  if (/world health organization|\bwho\b|who\.int/.test(lower)) return 'WHO'
+  if (/centers? for disease control|\bcdc\b|cdc\.gov/.test(lower)) return 'CDC'
+  if (/american college of obstetricians and gynecologists|\bacog\b|acog\.org/.test(lower)) return 'ACOG'
+  return value
+}
+
+function buildSharePayload() {
+  const keyword = searchText.value.trim()
+  const title = keyword
+    ? `贝护妈妈权威知识库：${keyword}`
+    : '贝护妈妈权威知识库：孕产与婴幼儿权威资料'
+
+  return {
+    title,
+    path: '/pages/knowledge/index',
+    query: keyword ? `keyword=${encodeURIComponent(keyword)}` : '',
+  }
+}
+
+onShareAppMessage(() => buildSharePayload())
+
+onShareTimeline(() => {
+  const payload = buildSharePayload()
+  return {
+    title: payload.title,
+    query: payload.query,
+  }
+})
 </script>
 
 <style scoped>
@@ -363,6 +403,14 @@ function formatDate(dateStr?: string): string {
 }
 
 .source-badge {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  white-space: normal;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+  border-radius: 20rpx;
   background: rgba(31, 143, 116, 0.12);
   color: #18755f;
 }

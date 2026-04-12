@@ -88,8 +88,8 @@ export interface User {
   gender?: number | string
   birthday?: string
   pregnancyStatus?: number | string
-  dueDate?: string
-  babyBirthday?: string
+  dueDate?: string | null
+  babyBirthday?: string | null
   babyGender?: number | string
   caregiverRole?: number | string
   childNickname?: string
@@ -121,6 +121,47 @@ export interface PregnancyCustomTodo {
   content: string
   createdAt?: string
   updatedAt?: string
+}
+
+export interface PregnancyProfilePhase {
+  label: string
+  title: string
+  subtitle: string
+  focusTitle: string
+  focusText: string
+}
+
+export interface PregnancyProfileSnapshot {
+  completedTodoCount: number
+  customTodoCount: number
+  hasWeeklyDiary: boolean
+  weeklyDiaryDate?: string | null
+  weeklyDiaryPreview?: string | null
+}
+
+export interface PregnancyProfileMilestone {
+  title: string
+  startWeek: number
+  endWeek: number
+  anchorWeek: number
+  description: string
+  status: 'done' | 'active' | 'upcoming'
+  statusText: string
+  windowText: string
+  anchorDateText: string
+}
+
+export interface PregnancyProfile {
+  isPregnancyReady: boolean
+  currentWeek: number | null
+  dueDate: string | null
+  daysUntilDue: number | null
+  progressPercent: number
+  heroTags: string[]
+  phase: PregnancyProfilePhase
+  snapshot: PregnancyProfileSnapshot
+  milestones: PregnancyProfileMilestone[]
+  nextMilestoneText: string
 }
 
 export interface PaginationMeta {

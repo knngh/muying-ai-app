@@ -97,10 +97,10 @@ const styles = StyleSheet.create({
   heroGlow: {
     position: 'absolute',
     right: -40,
-    top: -20,
-    width: 180,
-    height: 180,
-    borderRadius: 90,
+    top: -26,
+    width: 168,
+    height: 168,
+    borderRadius: 84,
     backgroundColor: 'rgba(255, 248, 240, 0.38)',
   },
   heroRing: {
@@ -114,16 +114,16 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(159, 78, 46, 0.1)',
   },
   heroContent: {
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.md,
+    paddingTop: spacing.md + 2,
+    paddingBottom: spacing.sm + 2,
   },
   heroTitleWrap: {
-    gap: spacing.xs,
+    gap: 3,
   },
   statusChip: {
     alignSelf: 'flex-start',
     backgroundColor: 'rgba(255, 253, 249, 0.92)',
-    marginBottom: spacing.xs,
+    marginBottom: 2,
     borderRadius: borderRadius.pill,
   },
   statusChipText: {
@@ -136,17 +136,17 @@ const styles = StyleSheet.create({
     fontSize: fontSize.xs,
     fontWeight: '700',
     letterSpacing: 0.8,
-    marginBottom: 2,
+    marginBottom: 0,
   },
   heroTitle: {
     color: colors.ink,
-    fontSize: 28,
+    fontSize: 25,
     fontWeight: '700',
   },
   heroSubtitle: {
     color: colors.inkSoft,
-    fontSize: fontSize.md,
-    lineHeight: 20,
+    fontSize: 13,
+    lineHeight: 18,
     maxWidth: '78%',
   },
   heroActionBtn: {
@@ -160,17 +160,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: spacing.lg,
-    paddingTop: spacing.md,
+    marginTop: spacing.md + 2,
+    paddingTop: spacing.sm + 2,
     paddingHorizontal: spacing.sm,
-    paddingBottom: spacing.xs,
+    paddingBottom: 6,
     borderRadius: borderRadius.lg,
     backgroundColor: 'rgba(255, 253, 249, 0.68)',
     borderWidth: 1,
     borderColor: 'rgba(159, 78, 46, 0.08)',
   },
   heroActionBar: {
-    marginTop: spacing.md,
+    marginTop: spacing.sm + 2,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -179,8 +179,8 @@ const styles = StyleSheet.create({
   heroActionHint: {
     flex: 1,
     color: colors.textSecondary,
-    fontSize: fontSize.sm,
-    lineHeight: 19,
+    fontSize: 11,
+    lineHeight: 17,
   },
   heroStat: {
     alignItems: 'center',
@@ -188,17 +188,17 @@ const styles = StyleSheet.create({
   },
   heroStatLabel: {
     color: colors.textSecondary,
-    fontSize: fontSize.xs,
-    marginTop: 4,
+    fontSize: 10,
+    marginTop: 3,
   },
   heroStatValue: {
     color: colors.ink,
-    fontSize: fontSize.lg,
+    fontSize: 15,
     fontWeight: '700',
   },
   heroStatDivider: {
     width: 1,
-    height: 28,
+    height: 24,
     backgroundColor: colors.divider,
   },
 })

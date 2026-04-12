@@ -1,0 +1,2492 @@
+{
+  "generatedAt": "2026-04-12T09:25:41.836Z",
+  "inputFile": "/Users/zhugehao/muying-ai-app-main-latest/data/expanded-qa-data-5000.json",
+  "total": 5000,
+  "authorityCovered": 0,
+  "missingAuthorityCoverage": 5000,
+  "coverageRate": 0,
+  "missingByCategory": [
+    {
+      "category": "pregnancy-early",
+      "count": 1477
+    },
+    {
+      "category": "common-symptoms",
+      "count": 927
+    },
+    {
+      "category": "parenting-0-1",
+      "count": 893
+    },
+    {
+      "category": "vaccine-reaction",
+      "count": 370
+    },
+    {
+      "category": "common-disease",
+      "count": 187
+    },
+    {
+      "category": "parenting-1-3",
+      "count": 178
+    },
+    {
+      "category": "pregnancy-mid",
+      "count": 173
+    },
+    {
+      "category": "nutrition-baby",
+      "count": 157
+    },
+    {
+      "category": "pregnancy-birth",
+      "count": 137
+    },
+    {
+      "category": "pregnancy-prep",
+      "count": 102
+    },
+    {
+      "category": "common-development",
+      "count": 95
+    },
+    {
+      "category": "parenting-newborn",
+      "count": 92
+    },
+    {
+      "category": "parenting-3-6",
+      "count": 58
+    },
+    {
+      "category": "pregnancy-late",
+      "count": 49
+    },
+    {
+      "category": "common-safety",
+      "count": 41
+    },
+    {
+      "category": "vaccine-second",
+      "count": 18
+    },
+    {
+      "category": "vaccine-schedule",
+      "count": 16
+    },
+    {
+      "category": "nutrition-child",
+      "count": 16
+    },
+    {
+      "category": "vaccine-first",
+      "count": 11
+    },
+    {
+      "category": "nutrition-pregnancy",
+      "count": 3
+    }
+  ],
+  "remediationQueue": [
+    {
+      "id": "qa-20260316-0001",
+      "category": "pregnancy-early",
+      "question": "肚子大硬，感觉有点胀气，有点便秘怀孕2月做了清宫，现在肚子很大，很硬，像怀孕4个多月的，怀孕2个月中都是躺在床上的，胖了10斤，以前也胖过但肚子上的肉很松的",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0002",
+      "category": "common-symptoms",
+      "question": "我是个孕妇感冒了，那个医生建议我打针，可我打针了还是没有好，对孩子有害吗？:",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0003",
+      "category": "parenting-newborn",
+      "question": "问题描述:新生儿脑内出血缺痒天问题描述:我小孩才出生几天做ct发现脑内出血缺痒现在药物与高压痒配合治疔。不知要多久才会治俞。也不知道会不会有后遗症之内的发生出血量不是很多。其它还算正常。能喝60毫升。是超过预产期20天才平产的。谢谢你。",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0004",
+      "category": "pregnancy-early",
+      "question": "怀孕6周左右出血流产是什么原因？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0005",
+      "category": "common-symptoms",
+      "question": "孕妇吃感冒药怀孕3个月之间是否可以吃感冒药",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0006",
+      "category": "pregnancy-prep",
+      "question": "肛门有肿物突出，并有血怀孕三个半月，怀孕前有痔疮但不严重，怀孕后发现痔疮严重了，疼痛难忍，改怎么治疗",
+      "suggestedSourceIds": [
+        "nhc-rkjt",
+        "govcn-muying",
+        "govcn-jiedu-muying",
+        "who",
+        "cdc"
+      ]
+    },
+    {
+      "id": "qa-20260316-0007",
+      "category": "pregnancy-early",
+      "question": "我是在去年怀孕的时候得的痔疮到生产完之后痔疮也没觉得太严重现在基本上就是便秘的时候排便时有些疼痛怎么样来缓解痔疮的疼痛呢？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0008",
+      "category": "common-development",
+      "question": "怀孕六个月，胎儿心脏发育异常，医生说胎盘太低，？怀孕六个月，胎儿心脏发育异常，医生说胎盘太低，做引产容易大出血，想问一下，有什么办法吗。",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0009",
+      "category": "pregnancy-early",
+      "question": "我怀孕18周，17周时做的彩超一切正常，但最近右上腹疼（肚脐眼右上方），时疼时不疼，站起来能缓解疼痛，请问是什么原因？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0010",
+      "category": "vaccine-reaction",
+      "question": "孕妇40多天，感冒发烧怎么办如何治疗啊",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0011",
+      "category": "pregnancy-early",
+      "question": "肚子大硬，感觉有点胀气，有点便秘怀孕2月做了清宫，现在肚子很大，很硬，像怀孕4个多月的，怀孕2个月中都是躺在床上的，胖了10斤，以前也胖过但肚子上的肉很松的",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0012",
+      "category": "pregnancy-early",
+      "question": "骨头汤补钙吗？我怀孕五个月了，上次去医院检查的时候医生说我现在得补钙了，就给我开了钙片，但我发现我一吃钙片就便秘，想喝牛奶，但我又特别反感那个味道，我妈说经常喝点骨头汤能补钙，是真的么。请问经常喝骨头汤能补钙吗，每天喝多少比较合适呢？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0013",
+      "category": "common-symptoms",
+      "question": "我怀孕感冒了，但是到了孕检日期，我去检查抽血会对结果有影响吗。",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0014",
+      "category": "common-symptoms",
+      "question": "怀孕期，钙片可以和感冒药一起吃吗我怀孕了，但又感冒，腿也抽筋，我可以把感冒药和钙片一起吃吗",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-0015",
+      "category": "pregnancy-early",
+      "question": "每次排卵期出血，会影响怀孕吗？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0016",
+      "category": "pregnancy-early",
+      "question": "怀孕五个月有点出血怎么回事？我怀孕快五个月了，前几天小便后就会滴几滴带血的尿液出来，后来好了，今天又开始了我的肚子不痛就是小腹有点酸的感觉，然后我今天就是小便的时候觉得阴道有些涨请问这是怎么回事？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0017",
+      "category": "pregnancy-early",
+      "question": "想知道是不是宫外怀孕没腹痛，阴道没出血，可能是宫外怀孕吗",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0018",
+      "category": "common-symptoms",
+      "question": "鼻塞，呼吸困难引起咳嗽。每晚都这样怀孕之前犯有鼻窦炎。板兰根，双黄口服液怀孕二个多月的我能喝吗？有什么办法解决鼻塞问题",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0019",
+      "category": "pregnancy-early",
+      "question": "肚子大硬，感觉有点胀气，有点便秘怀孕2月做了清宫，现在肚子很大，很硬，像怀孕4个多月的，怀孕2个月中都是躺在床上的，胖了10斤，以前也胖过但肚子上的肉很松的",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0020",
+      "category": "pregnancy-early",
+      "question": "上个月十四号来的大姨妈，这个月十五号早上跟男朋友爱爱发现下面出血了，但是到了中午又发现没来大姨妈，今天都十七号了还没来，可能是怀孕吗？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0021",
+      "category": "parenting-1-3",
+      "question": "内痔疮脱肛怎么办？请问一下，我的是外痔还是内痔？请告知，谢谢。我的症状就是大便过后就会有一大坨东西在肛门外。而且很痛，也会出血，真的是好痛苦，走路都不能走，我现在怀孕有五个月了，又不能乱用药，像我这种情况应该怎么办？请你们帮帮我。谢谢了。",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0022",
+      "category": "pregnancy-early",
+      "question": "子宫内膜异位结节粘连于大肠怀孕了可以要吗？大便时疼痛厉害，同床时太深也有疼痛感。当时检查时医生说是子宫内膜异位结节。现在发现怀孕了，能要吗？检查过，说是让吃红金消结胶囊和痛经丸，但还没吃，发现怀孕了。确定一下孩子能要吗？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0023",
+      "category": "pregnancy-early",
+      "question": "肚子大硬，感觉有点胀气，有点便秘怀孕2月做了清宫，现在肚子很大，很硬，像怀孕4个多月的，怀孕2个月中都是躺在床上的，胖了10斤，以前也胖过但肚子上的肉很松的",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0024",
+      "category": "common-symptoms",
+      "question": "我是10号来月经没来，检查了是怀孕了，可是在7号的是候感冒了，吃了一颗阿莫西林和一包抗病毒冲剂，只吃了一次，这样小孩能要吗:",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0025",
+      "category": "common-symptoms",
+      "question": "怀孕八个月了现在感冒又咳嗽吃什么药",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0026",
+      "category": "common-development",
+      "question": "怀孕九周今天有点出血是什么问题孕囊形态不规整，胚芽小先兆流产？胎儿发育迟缓？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0027",
+      "category": "pregnancy-early",
+      "question": "肚子大硬，感觉有点胀气，有点便秘怀孕2月做了清宫，现在肚子很大，很硬，像怀孕4个多月的，怀孕2个月中都是躺在床上的，胖了10斤，以前也胖过但肚子上的肉很松的",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0028",
+      "category": "common-symptoms",
+      "question": "全部症状：我爱人已经怀孕14周了，因为一次小孩压到肚子，造成出血，到医院检查后，医生诊断胎儿挺好，开了一些安胎药（黄体酮胶丸、固肾安胎丸还有一些药丸），服用两天了，第一天出血不多，第二天出血量很多，请问是否对胎儿有影响，是否服药照成的。谢谢。发病时间及原因：治疗情况",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0029",
+      "category": "common-symptoms",
+      "question": "怀孕不到一个月怀孕不到一个月不知道吃了很多感冒药和一些调理月经的化瘀血的药杏儿香风片问对胎儿有影响吗？能要嘛",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0030",
+      "category": "common-symptoms",
+      "question": "是宫内还是宫外怀孕？？？？？这个月的月经已经推迟了半个多月了，以前月经比较正常。而且还有呕吐，恶心的症状。脸色苍白，精神不好，不过今天感觉腹部很痛，而且还有血流出来。而且感觉腹部胀胀的。最近感觉腹部剧烈疼痛，不知道是宫内孕还是宫外孕呢？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0031",
+      "category": "pregnancy-early",
+      "question": "肚子大硬，感觉有点胀气，有点便秘怀孕2月做了清宫，现在肚子很大，很硬，像怀孕4个多月的，怀孕2个月中都是躺在床上的，胖了10斤，以前也胖过但肚子上的肉很松的",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0032",
+      "category": "vaccine-reaction",
+      "question": "准备怀孕感冒了可以吃药挂水吗？挂了多久可以怀孕啊？上次听医生说吃了药半年不可以怀孕。现在准备怀孕，所以感冒了一直不敢去看。但一直发烧。",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0033",
+      "category": "pregnancy-early",
+      "question": "肚子大硬，感觉有点胀气，有点便秘怀孕2月做了清宫，现在肚子很大，很硬，像怀孕4个多月的，怀孕2个月中都是躺在床上的，胖了10斤，以前也胖过但肚子上的肉很松的",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0034",
+      "category": "common-symptoms",
+      "question": "我的宫胫糜烂有点严重，医生开了四盒金鸡凝胶，因为以前也用过类似的药感觉还不错，好了之后怀孕当时不知道怀孕感冒还吃药了，所以就做人流了，我想问，现在治疗好后可以要宝宝吗？现在月经准时排卵也正常吗？谢谢",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0035",
+      "category": "parenting-1-3",
+      "question": "走路时下腹部疼痛我现在怀孕八个月了，走路时腹部以下疼痛，坐下站起来比较费劲，是怎么回事？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0036",
+      "category": "common-symptoms",
+      "question": "2月13号月经走的。现在发现怀孕了。3月7号吃了感冒药，打了两瓶点滴。感冒药上注明了孕妇慎用。请问会造成什么样的影响？小孩能要吗？我两年前打掉过小孩，如果现在这个也不要，会不会对身体造成影响，会不会导致不孕等情况？，，希望你能给我一些建议。",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0037",
+      "category": "pregnancy-early",
+      "question": "肚子大硬，感觉有点胀气，有点便秘怀孕2月做了清宫，现在肚子很大，很硬，像怀孕4个多月的，怀孕2个月中都是躺在床上的，胖了10斤，以前也胖过但肚子上的肉很松的",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0038",
+      "category": "pregnancy-early",
+      "question": "孕妇便秘怎么办吃什么痔疮要怎么治孕妇5天没有解手了。怎么办吃什么好XX",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0039",
+      "category": "common-symptoms",
+      "question": "三十九州加四天宫缩时伴有疼痛",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0040",
+      "category": "pregnancy-early",
+      "question": "我到底怀孕没？？流产？还是大姨妈来了？和老公同房是十七号过后就吃避孕药了二十三号用试纸并没有怀孕大姨妈还没来今天下边出血了这两天睡觉我都趴那个睡是大姨妈来了？还是流产了？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0041",
+      "category": "common-symptoms",
+      "question": "希望一切都好起来我在9号与他发生关系，平常是18号来月经的，可今天已经24号了还没来，今早我用试纸检查显示为阴性，会不会怀孕呢？我最近不舒服一直在吃感冒药，还有自己心里也害怕，每晚都做噩梦",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0042",
+      "category": "pregnancy-early",
+      "question": "怀孕初期，但有内痔，肛门会脱落，这两天肛门有出血了，我应该怎么办呢？可以吃药吗？能吃什么药呢？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0043",
+      "category": "pregnancy-early",
+      "question": "肚子大硬，感觉有点胀气，有点便秘怀孕2月做了清宫，现在肚子很大，很硬，像怀孕4个多月的，怀孕2个月中都是躺在床上的，胖了10斤，以前也胖过但肚子上的肉很松的",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0044",
+      "category": "common-symptoms",
+      "question": "我怀孕八个许多零两天了，双胞胎，感冒咳嗽，鼻子有一个不通，鼻子两边冲了水泡。我摸了红霉素软膏，还是有水泡，感觉有点痒",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0045",
+      "category": "parenting-1-3",
+      "question": "颈部肿痛或痛性结节，压痛明显，吞咽，说话或转动颈部时可加重疼痛，FT3，FT4正常，浅表检查有结节，是亚急性甲状腺炎吗？做彩超，有结节，女、42岁怎么用药治疗？可以走一走吗？",
+      "suggestedSourceIds": [
+        "nhc-rkjt",
+        "govcn-muying",
+        "govcn-jiedu-muying",
+        "who",
+        "cdc"
+      ]
+    },
+    {
+      "id": "qa-20260316-0046",
+      "category": "pregnancy-early",
+      "question": "怀孕四个多月，大便时肛门疼伴有出血，这是痔疮么？怎么办？会影响宝宝吗",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0047",
+      "category": "pregnancy-early",
+      "question": "怀孕女人痔疮出血对宝宝有影响吗？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0048",
+      "category": "common-symptoms",
+      "question": "慢性胃炎饭后右上腹胀疼便秘不排气钡餐检查胃黏膜增粗迂曲是胃炎。现在饭后右上腹马上感觉有鼓气顶着疼跟打鼓一样便秘也不放屁。做过彩超肝胆正常，不知为何会右腹部胀疼呢？肚子跟石头一样不消化怎样才能排气呢？气出不来好难受啊。",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0049",
+      "category": "pregnancy-early",
+      "question": "怀孕流产还是月经不调姨妈一个月没来，本来怀疑怀孕，可昨天有少量出血，今天血量增多，来事前段时间有喝过酒也同过房，胃口也一直不好，不知道是不是正常的来月经，还是有其他可能……请医生帮忙判断看看",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0050",
+      "category": "parenting-0-1",
+      "question": "全部症状：我现在怀孕7个半月，腹部疼痛，走路的时候也痛，睡觉的时候翻身也痛。发病时间及原因：夜晚突然间的发痛治疗情况：这种情况向问下，是不是预兆要早产？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0051",
+      "category": "pregnancy-early",
+      "question": "孕33周检查出边缘性前置胎盘现在未出过血，应怎样预防早产。出血，睡觉应采取什么睡姿会不影响孩子。",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0052",
+      "category": "pregnancy-early",
+      "question": "孕酮值低容易流产吗我之前怀孕差不多一个月，后来节假日去玩了一天，确实挺累，第二天就大出血流产了。进行了HCG的测试和孕酮值检测分别是35。4和2。26我想知道是因为我本身孕酮低容易流产还是因为这次太过劳累流产？？？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0053",
+      "category": "pregnancy-early",
+      "question": "肚子大硬，感觉有点胀气，有点便秘怀孕2月做了清宫，现在肚子很大，很硬，像怀孕4个多月的，怀孕2个月中都是躺在床上的，胖了10斤，以前也胖过但肚子上的肉很松的",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0054",
+      "category": "vaccine-reaction",
+      "question": "怀孕快5个月了，感冒咳嗽、发烧，能吃什么药",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0055",
+      "category": "parenting-newborn",
+      "question": "胰腺癌晚期三天前反复发热出现黄疸眼底小便皮肤轻微黄色做过胆汁引流支架术后一直服用中药效果很好三天前反复发热出现黄疸做彩超未见肿瘤扩散不疼痛饮食正常请问可以做胆汁体外引流吗（",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0056",
+      "category": "common-disease",
+      "question": "我上月20日来例假，但这个月24号还没来？我上月20日来例假，但这个月24号还没来，20号之前这段时间有尿路感染在吃金钱草冲剂及消炎药，之后又痔疮出血，塞药，不知道会不会延迟来月经，是否会怀孕。",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0057",
+      "category": "pregnancy-early",
+      "question": "我大概2年前扎过麻疹疫苗，我打算明年怀孕，想扎风疹疫苗，可是医院只有麻腮风混合的疫苗，我可以扎吗",
+      "suggestedSourceIds": [
+        "nhc-rkjt",
+        "govcn-muying",
+        "govcn-jiedu-muying",
+        "who",
+        "cdc"
+      ]
+    },
+    {
+      "id": "qa-20260316-0058",
+      "category": "pregnancy-early",
+      "question": "子宫内膜移位结节，粘连于大肠，怀孕了可以要吗？大便时疼痛。子宫内膜移位结节，粘连于大肠，大便时疼痛。怀孕了可以要吗？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0059",
+      "category": "common-symptoms",
+      "question": "全部症状：我是处女我男友只是碰到我下面没有出血应该不会怀孕吧，可是我月经这个月迟迟不来我好担心会不会有事，是不是我心里太紧张造成不来了，急需答案谢谢发病时间及原因：治疗情况",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0060",
+      "category": "common-symptoms",
+      "question": "怀孕七个办月感冒头疼可以吃什么药吗",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0061",
+      "category": "pregnancy-early",
+      "question": "怀孕五个月，一直患有痔疮，13年10月做了枯痔手术，可现在大便时候都会出血，今天出得特别多……好担心。该怎么办呢？用点什么药好？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0062",
+      "category": "pregnancy-early",
+      "question": "肚子大硬，感觉有点胀气，有点便秘怀孕2月做了清宫，现在肚子很大，很硬，像怀孕4个多月的，怀孕2个月中都是躺在床上的，胖了10斤，以前也胖过但肚子上的肉很松的",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0063",
+      "category": "pregnancy-early",
+      "question": "怀孕初期后背左下方和小腹两侧偶尔疼痛怎么回事需要去医院治疗吗",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0064",
+      "category": "pregnancy-early",
+      "question": "肚子大硬，感觉有点胀气，有点便秘怀孕2月做了清宫，现在肚子很大，很硬，像怀孕4个多月的，怀孕2个月中都是躺在床上的，胖了10斤，以前也胖过但肚子上的肉很松的",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0065",
+      "category": "pregnancy-early",
+      "question": "肚子大硬，感觉有点胀气，有点便秘怀孕2月做了清宫，现在肚子很大，很硬，像怀孕4个多月的，怀孕2个月中都是躺在床上的，胖了10斤，以前也胖过但肚子上的肉很松的",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0066",
+      "category": "pregnancy-early",
+      "question": "怀孕5月半，有内热严重便秘怎么办？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0067",
+      "category": "nutrition-baby",
+      "question": "医生我又一亲戚，在怀孕7个多月的时候检查出血压高，后住院治疗，孩子11月中旬出生，属早产，目前大人血压高（今天是高压130，低压104），这个要怎么办，如果大人服用了降压药，小孩可以吃母乳吗，会不会对孩子有影响，如果大人一直血压降不下来怎么办，谢谢。，",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0068",
+      "category": "pregnancy-early",
+      "question": "再怀孕一个月打上出血热育苗可以要孩子吗",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0069",
+      "category": "pregnancy-mid",
+      "question": "怀孕八个月了，宝宝胎动次数减少，前几天感？怀孕八个月了，宝宝胎动次数减少，前几天感冒来，有关系吗。",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0070",
+      "category": "pregnancy-early",
+      "question": "我是十二月初来的月经、具体时间忘了、十二月二十号有同过一次房、没有避孕、但当时我有蹲在厕所洗了的、然后二十八号我有买验孕棒测、没有怀孕、一月三号月经来、但出血量很大、而且血色很黑、还有很多黑色黏液物、之前月经从来没有出现这种情况、我这个是不是流产了感谢医生为我快速解答――该如何治疗和预防",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0071",
+      "category": "pregnancy-early",
+      "question": "怀孕32周，检查出血尿，该注意些什么？要怎么办？b超了肾和膀胱都是好的，我自己身体也没哪不舒服的。",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0072",
+      "category": "common-symptoms",
+      "question": "孕妇感冒了会影响小宝宝的健康吗？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0073",
+      "category": "common-symptoms",
+      "question": "怀孕吃感冒药会流产吗？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0074",
+      "category": "pregnancy-early",
+      "question": "女性怀孕期间肛门疼痛，便血，肛门处长有痘痘",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0075",
+      "category": "common-symptoms",
+      "question": "药物流产过后14天还在出血。但是出血量很少了。前几天出去骑单车过后发现出了很多血。现在17天了。还在出血。这是由于运动产生的么？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-0076",
+      "category": "pregnancy-early",
+      "question": "肚子大硬，感觉有点胀气，有点便秘怀孕2月做了清宫，现在肚子很大，很硬，像怀孕4个多月的，怀孕2个月中都是躺在床上的，胖了10斤，以前也胖过但肚子上的肉很松的",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0077",
+      "category": "common-symptoms",
+      "question": "可以吃药打针吗？刚刚怀孕一个月就感冒了头特别痛，请问可以吃药打针吗？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0078",
+      "category": "pregnancy-prep",
+      "question": "怀孕前感冒了吃了感冒药对宝宝有影响吗？",
+      "suggestedSourceIds": [
+        "nhc-rkjt",
+        "govcn-muying",
+        "govcn-jiedu-muying",
+        "who",
+        "cdc"
+      ]
+    },
+    {
+      "id": "qa-20260316-0079",
+      "category": "parenting-0-1",
+      "question": "怀孕时期阴道疼痛医生我现在怀孕8个月了，感觉阴道里有种撕裂的疼，翻身时会比较疼，这是怎么回事？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0080",
+      "category": "common-symptoms",
+      "question": "上次去b超未见明显胎芽及胎心搏动，今天出血了去检查有胎芽胎心搏动，说是先兆流产能保住吗？还说是原始胎心是什么意思，着急",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0081",
+      "category": "pregnancy-early",
+      "question": "怀孕早期发烧会不会影响胎儿智力我怀孕65天，支气管炎引起发热第一天输了青霉素，第二天输了双黄连，会不会影响胎儿智力",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0082",
+      "category": "common-symptoms",
+      "question": "我老公感冒期间我怀孕的，对宝宝有影响吗，吃的小孩的退烧药，输液是消炎的和泻火的还带点退烧的看看对宝宝有没有影响",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0083",
+      "category": "pregnancy-early",
+      "question": "六月二号来的大姨妈，10号做的爱，12号吃了避孕药，18号撤退性出血，7月20号来了两天大姨妈，怎么回事，会不会怀孕。",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0084",
+      "category": "common-symptoms",
+      "question": "我打算要小孩，可1月4到1月10吃药了，1月11日月经来了，月经结束后隔了一个礼拜又吃了些感冒药，请问我什么时候准备怀孕比较合适",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0085",
+      "category": "pregnancy-early",
+      "question": "怀孕后出血表示流产吗？但是肚子还没变小怎么回事？是不是孩子还好？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0086",
+      "category": "pregnancy-early",
+      "question": "肚子大硬，感觉有点胀气，有点便秘怀孕2月做了清宫，现在肚子很大，很硬，像怀孕4个多月的，怀孕2个月中都是躺在床上的，胖了10斤，以前也胖过但肚子上的肉很松的",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0087",
+      "category": "pregnancy-mid",
+      "question": "怀孕四个月了，腹部突然鼓起一块，还硬硬的，也没有疼痛的感觉，用手摸了几下又下去了，这到底是宫缩还是胎动啊？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0088",
+      "category": "pregnancy-prep",
+      "question": "怀孕前期打针吃药我现在怀孕了，我最后一吃月经是6月4日，我在6月15。16日感冒咳嗽打了两天吊瓶，大概在18，19号还吃了感冒药，现在才知道怀孕了，不知道孩子能不能要。",
+      "suggestedSourceIds": [
+        "nhc-rkjt",
+        "govcn-muying",
+        "govcn-jiedu-muying",
+        "who",
+        "cdc"
+      ]
+    },
+    {
+      "id": "qa-20260316-0089",
+      "category": "vaccine-reaction",
+      "question": "男性发烧打针期间有性生活怀孕对胎儿有什么影响",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0090",
+      "category": "pregnancy-mid",
+      "question": "37岁怀孕快5个月，晚上睡觉腰部、臀部、大腿疼痛，胎动比白天频繁，大人睡眠不好，请问是何原因？3个月的时候检查一切正常此症状是否正常，该注意些啥子",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0091",
+      "category": "common-symptoms",
+      "question": "怀孕43天，前几天便秘，上周有过一次腹泻，后来就又有点便秘。今天拉肚子一次，看了医生说肠胃不好，开了点益生菌，说这个孕妇可以服用并且有好处的对吗？这个说是只能自费不能医保卡的。另外说，不能吃寒凉的水果，请问杨桃可以吃吗？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0092",
+      "category": "common-symptoms",
+      "question": "血检hcg是308。57是怀孕吗我还有出血症状子宫里外没孩子尿检是弱阳性是流产了吗",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0093",
+      "category": "pregnancy-birth",
+      "question": "做完人流出血10天了，正常吗？我因为意外怀孕，所以最近去做了人工流产手术，可是到今天已经10天了，我的下身还在流血，可是我听我朋友说，做了人流之后只流几天有的甚至就是不流血的啊，请问我这到底是怎么回事。请问流产后流血10天正常吗？",
+      "suggestedSourceIds": [
+        "acog",
+        "nhc-fys",
+        "who",
+        "cdc",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-0094",
+      "category": "common-symptoms",
+      "question": "我怀孕十三周了这几天感冒了怎么办？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0095",
+      "category": "pregnancy-early",
+      "question": "最近大腿膝盖偏上部位出现一小块块的淤青，一摁还有些疼痛，大腿后侧还有一片片的血丝，不知道是不是怀孕的时候长胖给撑开的，留下的痕迹，有时候大腿还一小会发麻，请问是怎么回事啊高医生，最近我的膝盖偏上部有一小块块的淤青，两边都有，旁边还有血丝，偶尔腿会发麻一小会儿，请问怎么回事啊",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0096",
+      "category": "pregnancy-early",
+      "question": "这会有影响么，这会怀孕吗我8月3日来的月经，8月9完的，8月11同房，12日早上吃的一片避孕药，晚上又同房事后在吃了一片，而且11号，12号同房都没有射进去，而且吃了避孕药没有撤退性出血，会怀孕吗？会对9月月经有影响吗？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0097",
+      "category": "common-symptoms",
+      "question": "当月准备怀孕但感冒了并发热",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0098",
+      "category": "pregnancy-early",
+      "question": "怀孕二个月，昨天做了B超，见胎心，医生说去建卡就好了，回来的路上子宫剧烈收缩，有出血，鲜红色的，无腹痛，今天又无预兆的出血，请问这是怎么了？怀孕一个多月的时候出现褐色血，去医院医生做了B超并做了保胎处理。孩子会没有了吗？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0099",
+      "category": "pregnancy-early",
+      "question": "怀孕见红想保胎怀孕55天见红，吃了黄体酮六天没有好转，今天出血又比平时多，b超出来有孕囊回音无胎心胎芽，还能保胎吗",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0100",
+      "category": "pregnancy-early",
+      "question": "肚子大硬，感觉有点胀气，有点便秘怀孕2月做了清宫，现在肚子很大，很硬，像怀孕4个多月的，怀孕2个月中都是躺在床上的，胖了10斤，以前也胖过但肚子上的肉很松的",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0101",
+      "category": "common-symptoms",
+      "question": "肚疼腹泻后缓解那你说应该也没事儿吧，我感觉自己特别自卑年纪不大就得了这么不好治得病，找了好多医生看，有的说是过敏性结肠炎，中医说什么脾虚肾阳，一直不敢做肠镜。你说我需要做肠镜检查吗？还有就是喝很多西药也不管用，你建议继续吃吗",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0102",
+      "category": "common-symptoms",
+      "question": "媳妇对药物过敏，喝个感冒药都会抽搐，可不可以喝毓婷避孕？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0103",
+      "category": "common-symptoms",
+      "question": "小孩反复高烧咳嗽怎么办？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0104",
+      "category": "vaccine-reaction",
+      "question": "我感冒发烧，头疼，全身无力，脚也疼，拉的屎是漓土颜色，是清的。还咳嗽，有点喘气，左侧出气还好一点",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0105",
+      "category": "parenting-1-3",
+      "question": "孩子12岁啦，感冒之后就不会走路啦，经过检查说是游离肉碱低，请问吃什么药",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0106",
+      "category": "vaccine-reaction",
+      "question": "咳嗽全身发烫是发烧的症状吗",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0107",
+      "category": "parenting-0-1",
+      "question": "小孩出生后要进行乙肝疫苗接种",
+      "suggestedSourceIds": [
+        "nhc-rkjt",
+        "govcn-muying",
+        "govcn-jiedu-muying",
+        "who",
+        "cdc"
+      ]
+    },
+    {
+      "id": "qa-20260316-0108",
+      "category": "vaccine-reaction",
+      "question": "请问宝宝15号发烧感冒我已经喂药到19号，都好了，今晚又发烧怎么办？？还有点咳嗽",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0109",
+      "category": "parenting-0-1",
+      "question": "4周孩子肠炎，高烧，应吃什么药？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-0110",
+      "category": "common-symptoms",
+      "question": "内痔引起的便秘和排便困难还有量小怎么治疗怎么办怎么治疗",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0111",
+      "category": "common-symptoms",
+      "question": "宝宝腹泻屁眼红了很疼可以抹红霉素吗",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-0112",
+      "category": "nutrition-baby",
+      "question": "胃涨反酸，伴有嗳气，反反复复，有两个月了，一吃生冷，东西容易拉肚子，一吃辛辣，容易便秘，看过医生说是浅表性胃炎，平时作息不定，日夜颠倒，要怎么调养？吃什么药较好？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-0113",
+      "category": "common-symptoms",
+      "question": "全部症状：小孩一岁半，感冒咳嗽有痰，偶尔咳嗽后呕吐，呕吐物不多，输液抗生素，抗病毒的五天，现在呕吐反而更利害了，还腹泻，是怎么回事发病时间及原因：十天左右治疗情况",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0114",
+      "category": "common-symptoms",
+      "question": "两年前有过直肠息肉，现在又便血，症状相同？我的问题是:两年前做过一次直肠息肉手术（肛肠镜做的摘除一个息肉），现在又有先前的症状了，大便尾部带鲜血少量，我想问是不是又有直肠息肉了，上一次医生说是良性的息肉。我大便不规律，肚子很容易腹泻。是不是直肠癌啊？我很害怕。",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-0115",
+      "category": "vaccine-reaction",
+      "question": "全部症状：发烧，腹部有点疼痛，全身无力酸痛，看医生了后还是发烧，2。15号之前没有腹泻，2。16号早上现在开始腹泻了发病时间及原因：2。15下午五点，可能是什么菌感染，暂时还不确定治疗情况：医生说是急性肠胃炎，医生开了头孢克洛分散片9片、酚咖片3片，清开灵口服液一盒。打了一袋生理盐水和消炎的",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0116",
+      "category": "common-disease",
+      "question": "想要小孩，要停药多久才可以，之前吃过制阴囊湿疹的药，像地他雷定片，氟康挫…………",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0117",
+      "category": "vaccine-reaction",
+      "question": "肋膜炎是一种什么病，有点发烧的症状",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0118",
+      "category": "common-symptoms",
+      "question": "吹风扇引起的感冒咳嗽十几天了，干咳，无痰，吃了多种药，无效",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0119",
+      "category": "common-symptoms",
+      "question": "患者信息：男60岁北京海淀区肾肿瘤切除每天打针感冒了可以吃药吗肾肿瘤切除每天打针感冒了可以吃药吗曾经治疗情况及是否有过敏、遗传病史：没有",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0120",
+      "category": "common-symptoms",
+      "question": "孩子低体温全身没力气犯困医生，我儿子前几天感冒了，去诊所打了三天小针，昨天开始到今天，孩子表现全身没力气，还犯困，今天下午五点还呕吐了两次，我们就赶紧去医院了，医生说是体温低了，有可能是打那小针打的，现在孩子睡着了，但是他有时候偶尔张开嘴呼吸，这是正常的吗",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0121",
+      "category": "common-symptoms",
+      "question": "肛裂、多发性肛乳头瘤、混合痔怎样治疗？肛裂会引起痔疮吗上火时大便刺痛、出血，平时感觉大便不净。睡眠、饮食等均正常6年（不上火时均正常，无其他疼痛及影响）",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0122",
+      "category": "common-symptoms",
+      "question": "口臭，便秘，拉肚子，怎么医",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-0123",
+      "category": "parenting-1-3",
+      "question": "腰椎间盘突出一年前检查腰椎间盘突出，左脚麻，疼，一直贴膏药，吃英太青，症状不很疼了，5天前抬重物腰疼痛加剧，按摩后更疼，现在躺起不疼，走路左脚从腰到小腿疼，无法正常走路，拍CT是3/4P嘭出，4/5轻度突出，触及硬膜囊，累及椎间孔，5/1轻度突出，请问怎样治疗，谢谢",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0124",
+      "category": "common-symptoms",
+      "question": "这样的症状应该不是禽流感吧感冒两天了流鼻涕体温37度4不咳嗽有时候头有点晕",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0125",
+      "category": "vaccine-reaction",
+      "question": "我的孩子20了可老感冒发烧还有时咳嗽吃药打针叫她不要再感冒发烧身体好起来",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0126",
+      "category": "common-symptoms",
+      "question": "经常打嗝，放屁，还有便秘，怎么办？便秘怎么解决呢？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-0127",
+      "category": "parenting-0-1",
+      "question": "宝宝前段时间因为便秘会拉血，去看医生、后来开了通便的药，吃了后变拉稀、大便还是会带血，看医生，做完B超、医生说只是肛裂。其他都没问题，可是今天又拉血。大便隔天才拉。而且很大陀。一拉完她就跟没事的人一样。就是拉大便时候一直哭闹。",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-0128",
+      "category": "common-symptoms",
+      "question": "小孩体质差感冒吃什么药最好小孩感冒连续咳嗽有痰打针吃药不见好",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0129",
+      "category": "nutrition-baby",
+      "question": "每晚10点到11点睡觉早上有时候三点醒有时候四点醒醒了也困但是闭眼睛也没睡着上学校下午困的时候趴桌子上很困却还是没睡着都能听见班级里的声音不知道到底该怎么办最近吃的归脾丸睡眠也并没有很好我该怎么办真好想好好睡一觉",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0130",
+      "category": "parenting-0-1",
+      "question": "孩子四岁半，今早突然高烧（384），并且说肚子疼，咽东西嗓子疼。然后带去看医生，医生说是疱疹性扁桃体炎，但只给拿了些药，说吃这个就行。今晚上又量体温是391，家里有塞屁眼的降温药，就给他用了。现在睡着了。请问还需要怎么办？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0131",
+      "category": "common-symptoms",
+      "question": "手足发麻抽筋，头晕，浑身无力，最容易感冒",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-0132",
+      "category": "common-symptoms",
+      "question": "便秘应该怎么样治疗呢？便秘真的很烦，有屎都拉不来的，一蹲就是一个钟的，这可怎么办？如何医治？那个新一代大肠水疗法说是胃思宝的呢，怎么样呢？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-0133",
+      "category": "parenting-0-1",
+      "question": "哺乳期乳房涨奶疼痛，乳头也疼啊。晚上的时候乳房有点涨，不怎么疼，孩子吃完就睡了，可是到下半夜都把我疼醒了，孩子吃奶时乳头也。乳房一按就疼，请问这是怎么回事？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-0134",
+      "category": "common-symptoms",
+      "question": "一岁的宝宝最近呕吐腹泻，拉的便便跟水一样，到医院打吊瓶已经四天啦，还没有好转，有什么办法吗",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0135",
+      "category": "common-symptoms",
+      "question": "我妈七十岁，顽固性便秘多年，糖尿病十年了，最近想换打胰岛素，住院几天后，便秘犯了，也做了肠镜，没啥问题，很焦虑，去兰州看了心理卫生科，也买了药，通便的很多药不起作用，请问专家咋办，谢谢",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-0136",
+      "category": "vaccine-second",
+      "question": "宝宝注射了流感疫苗后咳嗽可以吃药吗",
+      "suggestedSourceIds": [
+        "nhc-rkjt",
+        "govcn-muying",
+        "govcn-jiedu-muying",
+        "who",
+        "cdc"
+      ]
+    },
+    {
+      "id": "qa-20260316-0137",
+      "category": "common-symptoms",
+      "question": "这几天感冒，痰里有血丝，请问肺炎吗",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-0138",
+      "category": "parenting-0-1",
+      "question": "4周孩子肠炎，高烧，应吃什么药？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-0139",
+      "category": "common-symptoms",
+      "question": "感冒咳嗽吐痰太阳穴涨疼鼻塞感冒咳嗽吐痰发病两天",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0140",
+      "category": "common-disease",
+      "question": "有痔疮很久了，每天便后或蹲下，痔疮都会突出，要手帮助才能回去，早晚肛门外很痒，曾经看过医生，说是内外痔，还有湿疹。怎么治疗才能好啊？吃什么药？用什么药膏？:",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0141",
+      "category": "common-symptoms",
+      "question": "H7N9与普通感冒有什么区别？4月10日鼻塞流鼻涕流泪打喷嚏感觉两脚无力，4月11日鼻塞流鼻涕流泪加重也有打喷嚏还感觉浑身不舒服有点轻微发热，请问这是H7N9么？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-0142",
+      "category": "parenting-3-6",
+      "question": "我家小孩子最近总是呼吸困难，诶次都是大口呼吸气，去医院检查了说是患有支气管哮喘，医生建议及时的配合治疗和注意饮食习惯。",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0143",
+      "category": "common-symptoms",
+      "question": "经常腹胀，腹鸣，有时候腹痛腹泻，尤其晚上和右腹症状严重，胃镜刚做浅表性胃炎，肠镜一年多前做过直肠炎，中西医都吃过药以及调节肠功能的药，但症状时好时坏，想请教专家如何治疗？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0144",
+      "category": "vaccine-reaction",
+      "question": "扁桃体发炎引起的发烧和感冒发烧有哪些不同嗓子疼，鼻子不通，全身酸疼无力，38度",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0145",
+      "category": "common-symptoms",
+      "question": "自从我前几天感冒之后就胸闷气短是什么情况而且四肢酸痛无力",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-0146",
+      "category": "vaccine-reaction",
+      "question": "小孩这两天拉肚子大便带点血水前几天孩子就反复发烧咳嗽。最后就拉肚子，大便很稀带点淡血水水。一次就拉一点点，他要大便就喊肚子疼。是不是肠炎有炎症。",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0147",
+      "category": "common-disease",
+      "question": "个月宝宝血常规嗜酸性粒细胞指标超高强医生不让吃胡萝卜和桔子是会导致过敏吗血常规嗜酸性粒细胞超高胡萝卜桔子海鲜都不能吃吗？目前下巴上有些红色疹子不确定是不是湿疹",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0148",
+      "category": "pregnancy-birth",
+      "question": "生完孩子不到两个月便同房了，出血了该怎么办？我剖腹产不到两个月便和老公同房了，引起下体出血",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0149",
+      "category": "common-symptoms",
+      "question": "感冒打针一个多月了屁股一直疼怎么回事，而且打针的液体有满满一针管，平常都是半针管该怎么办，会不会有严重的后果",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-0150",
+      "category": "common-disease",
+      "question": "长期睡眠不足会导致心血管疾病吗？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0151",
+      "category": "common-symptoms",
+      "question": "感冒，腹泻？我前几天感冒了，还有点咳嗽，这几天感觉基本好了，也没人接有咳嗽，但是却转移到拉肚子上了，一天大概拉个两三次，拉的时候还会不停地放屁，拉的便便也很稀，有点点像水，好像消化不良了。请问我这种情况该怎么办啊？要怎么治疗才好呢？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0152",
+      "category": "vaccine-reaction",
+      "question": "有甲亢，吃药一个月出现发烧，肌肉疼痛。已经住院观察了一天，还要继续住院观察吗",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0153",
+      "category": "common-symptoms",
+      "question": "容易出汗，出汗时全身冰凉，出汗时怕冷，感到冷了就恶心和呕吐，还容易感冒，咳嗽。痰多",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0154",
+      "category": "common-symptoms",
+      "question": "全部症状：内热外寒\"气短乏力\"易感冒。爱发脾气。怕冷，阳痿早泄，痰多，皮肤发紫发病时间及原因：5年啦治疗情况：无",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-0155",
+      "category": "common-symptoms",
+      "question": "感冒到呕吐不打针吃药好吗",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0156",
+      "category": "pregnancy-prep",
+      "question": "学校说要体检老师说抽血的前一天不要吃药说会影响检测结果的准确性，况且我现在感冒了抽血的前两天吃感冒学校说要体检老师说抽血的前一天不要吃药说会影响检测结果的准确性，况且我现在感冒了抽血的前两天吃感冒药，前一天不吃这样可以吗？",
+      "suggestedSourceIds": [
+        "nhc-rkjt",
+        "govcn-muying",
+        "govcn-jiedu-muying",
+        "who",
+        "cdc"
+      ]
+    },
+    {
+      "id": "qa-20260316-0157",
+      "category": "common-symptoms",
+      "question": "本人体质虚弱，贫血，易感冒。感冒治好后，出现头晕乏力厌食大热天也感觉不到热。厌食导致更加乏力。望名医指明良方，万分感激。",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0158",
+      "category": "vaccine-reaction",
+      "question": "小孩4岁了发烧隔一天就复发全身发烫嘴唇黑红口干",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0159",
+      "category": "vaccine-reaction",
+      "question": "四肢乏力，头昏脑胀，发烧",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0160",
+      "category": "common-symptoms",
+      "question": "晚上睡眠不好，多梦，很会掉头发",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0161",
+      "category": "nutrition-baby",
+      "question": "宝宝发烧咳嗽眼睛里有眼屎宝宝有九个月了这两天发烧咳嗽睡觉眼睛里有绿眼屎，宝宝吃的是母乳",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0162",
+      "category": "common-symptoms",
+      "question": "胃痛胃胀，账气腹痛。胃镜检查浅表性胃炎。十二指肠炎。有时腹泻做过胃镜检查有什么药可以根治或缓解",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0163",
+      "category": "vaccine-reaction",
+      "question": "全部症状：晨起36。5，上午37。1-37。3发病时间及原因：一个月前感冒发烧打点滴之后就一直低烧直到现在治疗情况：在医院查了血清透视血沉胸部CT都正常",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0164",
+      "category": "common-symptoms",
+      "question": "拉稀咳嗽嗓子疼痛。宝宝十个半月了，拉稀怎么办？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0165",
+      "category": "parenting-1-3",
+      "question": "脚面和脚底筋疼痛，坐下后再站起来痛的不能走路，这几天开始，左侧腰部酸痛，臀部一下感觉无力，晚上小便增多，:",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-0166",
+      "category": "common-symptoms",
+      "question": "本人体质虚弱，贫血，易感冒。感冒治好后，出现头晕乏力厌食大热天也感觉不到热。厌食导致更加乏力。望名医指明良方，万分感激。",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0167",
+      "category": "common-symptoms",
+      "question": "是不是艾滋病感冒大概两周，咳嗽，流鼻涕，今天已输液第八天，还是鼻塞，还有点头疼，会不会是艾滋病",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0168",
+      "category": "parenting-1-3",
+      "question": "我生宝宝已2个来月，会阴撕裂的伤口未感染，未红肿，表面看上去恢复得不错。但走路和抬腿或双腿张开较大辐度时感觉疼痛。伸手去按反而感觉不到疼痛。42天的时候到医院复查时，医生说再观察看看。现在都2个多月了，痛感还在。请问是什么原因。是不是里面缝线的地方没长好，还是长什么东西了？",
+      "suggestedSourceIds": [
+        "acog",
+        "nhc-fys",
+        "who",
+        "cdc",
+        "aap"
+      ]
+    },
+    {
+      "id": "qa-20260316-0169",
+      "category": "vaccine-schedule",
+      "question": "打了麻腮疫苗和风疹疫苗后还要打麻腮风疫苗？打了麻腮疫苗和风疹疫苗后还要打麻腮风疫苗和麻风疫苗吗。",
+      "suggestedSourceIds": [
+        "nhc-rkjt",
+        "govcn-muying",
+        "govcn-jiedu-muying",
+        "who",
+        "cdc"
+      ]
+    },
+    {
+      "id": "qa-20260316-0170",
+      "category": "parenting-1-3",
+      "question": "半年前做CT检查出有腰椎间盘突出及骨质增生，没进行治疗，只是敷过中草药及吃中成药，现在走路大腿及脚好累，右脚隐隐疼痛如何是好？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0171",
+      "category": "common-symptoms",
+      "question": "全部症状：前几天得了口疮，第二天嗓子有点疼，然后就开始低烧，没劲，头沉，一连四五天还是不见好发病时间及原因：周二有点反应，一直到周日还是那样估计是体内上火治疗情况：一直在服用感冒累的药感康配合头孢氨苄",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-0172",
+      "category": "common-symptoms",
+      "question": "患上哮喘怎么治疗呢？平时就是喘息、呼吸困难、胸闷或咳嗽，接触冷空气、物理或化学性刺激更重",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0173",
+      "category": "common-symptoms",
+      "question": "最近胃痛，恶心，想吐，还有后背酸疼，有些腹泻但并不严重一天也就2到3次。疼了一天后胃不那么痛了，但是一咳簌胃就有点痛。",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0174",
+      "category": "common-symptoms",
+      "question": "20岁患有痔疮大便出血是什么原因？便秘出血怎么办开始是便秘，后来就大便出血，三天才解一次大便。今天上厕所大便出血，而且很痛。没有去过医院检查，不知道有没有内痔，外痔倒是有。请问这种情况严重么。",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0175",
+      "category": "pregnancy-birth",
+      "question": "产后抑郁症怎么办？我老婆生完孩子睡眠就是日夜颠倒，最近经常心烦，一点小事就斤斤计较，找我吵架。还骂婆婆。怀疑是不是有产后抑郁症。",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0176",
+      "category": "common-symptoms",
+      "question": "我父亲抽烟都抽了快三十多年了，现在基本上每天都两包烟，半年之前父亲就总咳嗽，越来越严重，今天竟然咳嗽出血来了，去医院检查是肺癌。",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0177",
+      "category": "parenting-1-3",
+      "question": "右腿关节疼痛，走路都困难，坐下休息一会，往起站，疼痛厉害。:",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-0178",
+      "category": "common-symptoms",
+      "question": "我这个月来例假腹泻呕吐，是不是和气虚血虚有关，气虚血虚一般由什么引起的，在平时生活里应该怎么吃什么调理",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0179",
+      "category": "parenting-0-1",
+      "question": "4周孩子肠炎，高烧，应吃什么药？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-0180",
+      "category": "parenting-0-1",
+      "question": "断奶时的乳腺炎？乳腺炎症、乳房疼痛为什么、乳房肿块专科乳腺炎的早期症状有哪些？，健康咨询描述：乳腺炎的早期症状有哪些？贵阳哪家妇科医院比较好？不好意思去医院看不知道食疗有什么好的方法？推荐一下谢谢",
+      "suggestedSourceIds": [
+        "acog",
+        "nhc-fys",
+        "who",
+        "cdc",
+        "aap"
+      ]
+    },
+    {
+      "id": "qa-20260316-0181",
+      "category": "common-symptoms",
+      "question": "感冒咳血饮食该注意什么",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-0182",
+      "category": "common-symptoms",
+      "question": "不知道是不是最近吃的东西都有点杂所以肚子总是不舒服这几天还开始出现腹泻和便秘了可是这两者都是交替进行的一天一个样真的是折腾得要命吃了药也没有效果为什么会出现腹泻便秘交替进行的情况？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-0183",
+      "category": "common-symptoms",
+      "question": "本人体质虚弱，贫血，易感冒。感冒治好后，出现头晕乏力厌食大热天也感觉不到热。厌食导致更加乏力。望名医指明良方，万分感激。",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0184",
+      "category": "common-disease",
+      "question": "丝袜手淫阴茎没睡好医生这两周，第一周我用干的丝袜套住阴茎手淫两次。第二周我用干的丝袜套住阴茎手淫两次，湿的丝袜套住阴茎手淫一次。丝袜是用肥皂洗过的，不知道阴茎会不会霉菌感染或者感染别的什么疾病。因为丝袜的套住，精液射出的时候五次都被丝袜堵住了，最近还睡眠不足。请问医生我该怎么办，我好担心",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0185",
+      "category": "common-symptoms",
+      "question": "医生，我上火，口干口苦口气重。便秘，难受死了，买了口炎清颗粒口炎清颗粒用开水冲还是温水冲？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-0186",
+      "category": "vaccine-reaction",
+      "question": "鼻塞，发烧，扁桃体发炎，头昏头痛，呕吐",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0187",
+      "category": "common-symptoms",
+      "question": "感冒，头疼，全身无力，今天才开始的，，东西也不想吃",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-0188",
+      "category": "common-symptoms",
+      "question": "腹泻呕吐高烧二日前开始出现腹泻呕吐高烧现象去医院给予门诊治疗静脉点滴菌必治VCb6利巴韦林生理盐水和葡萄糖5%各500毫升至今没有缓解。化验便脓球+3回家后服用安瑞克妈咪爱贴丁桂儿脐贴1贴症状至今没有缓解怎么办（",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0189",
+      "category": "common-symptoms",
+      "question": "耳鸣头疼感冒引起的吗？吃什么药",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-0190",
+      "category": "common-symptoms",
+      "question": "感冒咳血饮食该注意什么",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-0191",
+      "category": "common-symptoms",
+      "question": "儿童便秘怎么办快速治疗",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-0192",
+      "category": "common-symptoms",
+      "question": "全部症状：头顶两侧太阳穴疼晚上睡觉头感觉冰凉疼痛睡不好觉严重时候耳鸣发病时间及原因：发病十多年了原因我也搞不清楚好像就一次感冒后就开始头疼治疗情况：中西药吃了很多针灸水针都治疗过只是能缓解一段时间过后还会再犯不能根治",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-0193",
+      "category": "nutrition-baby",
+      "question": "宝宝腹泻，已经七八天了宝宝四个月大。最近腹泻。便便颜色为黄色，每次便便的量不多，但次数多一天拉个十回左右。最后几泡便便是泡沫了。母乳喂养，发现拉肚子就给吃了妈咪爱和思密达。宝宝精神状态和吃奶都还算正常。肚子偶尔有咕噜咕噜的声音，肚皮是凉凉的。",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0194",
+      "category": "parenting-1-3",
+      "question": "腰痛像针扎的样？近期突然出现腰痛症状，具体情况就是，腰几乎不能动，一弯腰就疼的跟针扎一样，连走路偶尔都有针扎感，而且也不能长时间站立，会感觉阵阵腰酸，晚上睡觉只能选择平躺，侧卧碰到了也会有疼痛感。一弯腰腰部就会有扎针一样的痛感是什么疾病吗",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0195",
+      "category": "common-symptoms",
+      "question": "宝宝可以喝梨水吗？她上为有痰，感冒了",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-0196",
+      "category": "common-symptoms",
+      "question": "请问龙牡壮骨真的可以预防感冒吗？有什么副作用吗。",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-0197",
+      "category": "vaccine-reaction",
+      "question": "全部症状：咽痛。咳嗽。发烧发病时间及原因：感冒后扁桃体就发炎治疗情况：打针吃药",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-0198",
+      "category": "parenting-0-1",
+      "question": "宝宝上午九点打的麻疹风疹联合减毒活疫苗，现在脸上出现了一些很小的红点点好象还有点痒",
+      "suggestedSourceIds": [
+        "nhc-rkjt",
+        "govcn-muying",
+        "govcn-jiedu-muying",
+        "who",
+        "cdc"
+      ]
+    },
+    {
+      "id": "qa-20260316-0199",
+      "category": "common-symptoms",
+      "question": "便秘大便拉血无痛感大便拉血，便中带血便后也带血呈鲜红色而且是血液。感觉像是拉血一样。",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-0200",
+      "category": "common-symptoms",
+      "question": "神精抑郁症引起免疫力低下怕风怕冷，经常感冒发痧，引起胸闷气短心梗心肺易感染痰多，怕吃冷饮食，支气管炎，尿频尿黄、脑供血不足。检查心脏早搏综合上述情况请问吃什么药品",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    }
+  ]
+}

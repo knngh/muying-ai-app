@@ -29,6 +29,8 @@ const featureLabelMap = {
   ad_free: '界面更清爽',
 } satisfies Record<MembershipPlan['features'][number], string>
 
+const hiddenFeatures = new Set<MembershipPlan['features'][number]>(['stage_circle'])
+
 export default function MembershipScreen() {
   const navigation = useNavigation<any>()
   const user = useAppStore((state) => state.user)
@@ -83,7 +85,7 @@ export default function MembershipScreen() {
               </Chip>
               <Text style={styles.heroTitle}>把 {stage.lifecycleLabel} 的记录、问答和周报串成一条连续时间线</Text>
               <Text style={styles.heroSubtitle}>
-                这里不是单次问答升级，而是把问题助手、成长日历、阶段周报和长期档案放进同一套陪伴流程。
+                这里不是单次问答升级，而是把问题助手、成长日历、阶段周报和成长档案放进同一套陪伴流程。
               </Text>
             </View>
 
@@ -159,7 +161,7 @@ export default function MembershipScreen() {
                   </View>
 
                   <View style={styles.planFeatureWrap}>
-                    {plan.features.slice(0, 4).map((feature) => (
+                    {plan.features.filter((feature) => !hiddenFeatures.has(feature)).slice(0, 4).map((feature) => (
                       <Chip
                         key={`${plan.code}-${feature}`}
                         compact

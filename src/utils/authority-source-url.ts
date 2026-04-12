@@ -105,6 +105,16 @@ function isNhsSource(record: AuthoritySourceUrlRecord, url: string): boolean {
   return /\bnhs\b|nhs\.uk/.test(sourceText);
 }
 
+function isMayoSource(record: AuthoritySourceUrlRecord, url: string): boolean {
+  const sourceText = `${record.source_id || ''} ${record.source_org || ''} ${record.source || ''} ${url}`.toLowerCase();
+  return /mayo-clinic-zh|\bmayo\b|mayoclinic\.org/.test(sourceText);
+}
+
+function isMsdSource(record: AuthoritySourceUrlRecord, url: string): boolean {
+  const sourceText = `${record.source_id || ''} ${record.source_org || ''} ${record.source || ''} ${url}`.toLowerCase();
+  return /msd-manuals-cn|\bmsd\b|msdmanuals\.cn/.test(sourceText);
+}
+
 export function shouldFilterAuthoritySourceUrl(record: AuthoritySourceUrlRecord): boolean {
   const url = getAuthoritySourceUrl(record);
   const title = getAuthoritySourceTitle(record);
@@ -112,7 +122,11 @@ export function shouldFilterAuthoritySourceUrl(record: AuthoritySourceUrlRecord)
     return false;
   }
 
-  if (/(^|[\s|:])site index(?:[\s|:]|$)|\ba-z index\b|\btopics a-z\b|\ball topics\b/i.test(title)) {
+  if (/(^|[\s|:])site index(?:[\s|:]|$)|(^|[\s|:])índice del sitio(?:[\s|:]|$)|\ba-z index\b|\btopics a-z\b|\ball topics\b/i.test(title)) {
+    return true;
+  }
+
+  if (/^(child development|breastfeeding|pregnancy|contraception)\s*\|\s*cdc$/i.test(title)) {
     return true;
   }
 
@@ -216,6 +230,21 @@ export function shouldFilterAuthoritySourceUrl(record: AuthoritySourceUrlRecord)
       '/medicines',
       '/vaccinations',
       '/start-for-life',
+    ]);
+  }
+
+  if (isMayoSource(record, url)) {
+    return matchesExactLandingPath(url, [
+      '/',
+      '/zh-hans',
+      '/zh-hans/about-mayo-clinic',
+    ]);
+  }
+
+  if (isMsdSource(record, url)) {
+    return matchesExactLandingPath(url, [
+      '/',
+      '/home',
     ]);
   }
 

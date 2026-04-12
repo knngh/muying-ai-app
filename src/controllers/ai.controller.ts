@@ -4,14 +4,12 @@ import { successResponse, AppError, ErrorCodes } from '../middlewares/error.midd
 import {
   isEmergencyQuestion,
   getEmergencyResponse,
-  multiTurnChatDetailed,
-  streamMultiTurnChat,
   getAvailableModels,
   getDefaultModel,
   getTaskModelBindings,
   healthCheck,
 } from '../services/ai-gateway.service';
-import { buildKnowledgePack, searchQA, getKnowledgeStats } from '../services/knowledge.service';
+import { searchQA, getKnowledgeStats } from '../services/knowledge.service';
 import { buildUserProfileContext } from '../services/ai-user-context.service';
 import {
   saveConversationExchange,
@@ -23,71 +21,13 @@ import {
 import { type AIDomainDecision } from '../services/ai-domain.service';
 import { chunkTrustedAnswer, generateTrustedAIResponse } from '../services/trusted-ai.service';
 import {
-  normalizeContext,
-  buildMergedContext,
   shouldUseProfileHints,
-  buildAnswerPolicy,
-  resolveKnowledge,
   isResumeContinuationContext,
 } from '../services/ai-context.service';
 import { logger, genRequestId } from '../utils/logger';
 
-const AI_DISCLAIMER = '温馨提示：这份答复用于帮助您先做初步了解，不能替代医生面诊；如果症状明显、持续加重，或您仍然不放心，请及时就医。';
 const EMERGENCY_DISCLAIMER = '🚨 重要提示：如遇紧急情况，请立即就医！';
-const DEGRADED_DISCLAIMER = '温馨提示：当前问答服务暂时不可用，以下内容由知识库整理，供您先参考；若身体不适明显，请及时就医。';
 const DEFAULT_MODEL_ID = getDefaultModel();
-
-function buildGatewayFallbackAnswer(
-  question: string,
-  knowledgePack: Awaited<ReturnType<typeof resolveKnowledge>>['knowledgePack']
-): string {
-  if (knowledgePack.results.length === 0) {
-    return [
-    '当前问答服务暂时不可用，我先给你一个稳妥建议：',
-      '1. 先观察症状变化，避免自行用药或处理。',
-      '2. 可以补充孕周、宝宝月龄、持续时间、体温或检查结果，我会继续按知识库帮你检索。',
-      '3. 如果出现高热、持续出血、呼吸困难、精神状态明显变差等情况，请尽快线下就医。',
-      `问题回顾：${question}`,
-    ].join('\n');
-  }
-
-  const sections = knowledgePack.results.slice(0, 2).map((item, index) => {
-    return [
-      `${index + 1}. ${item.question}`,
-      item.answer,
-    ].join('\n');
-  });
-
-  return [
-    '当前问答服务暂时不可用，我先根据知识库给你整理可参考内容：',
-    ...sections,
-    '如果你愿意，可以继续补充更具体的症状、孕周或宝宝月龄，我会继续按知识库帮你细化。',
-  ].join('\n\n');
-}
-
-function estimateConfidence(score?: number): number {
-  if (!score || score <= 0) {
-    return 0.35;
-  }
-
-  return Math.max(0.35, Math.min(0.96, Number((score / 100).toFixed(2))));
-}
-
-function buildPromptContext(
-  question: string,
-  userContext: unknown,
-  profilePrompt?: string,
-  knowledgeContext?: string
-): string {
-  const allowProfileHints = shouldUseProfileHints(question, userContext);
-
-  return buildMergedContext(
-    buildAnswerPolicy(question, userContext),
-    allowProfileHints ? profilePrompt : undefined,
-    normalizeContext(userContext),
-    knowledgeContext,
-  );
-}
 
 async function persistDomainDecisionExchange(
   userId: string | undefined,
@@ -341,17 +281,23 @@ export const chat = async (req: Request, res: Response, next: NextFunction) => {
       content: message.content,
     }));
 
-    if (!isResumeContinuation) {
-      const trustedResult = await generateTrustedAIResponse({
-        question: lastMessage.content,
-        context,
-        userId,
-        model,
-        history: formattedMessages,
-      });
+    const trustedResult = await generateTrustedAIResponse({
+      question: lastMessage.content,
+      context,
+      userId,
+      model,
+      history: formattedMessages,
+    });
 
-      const persistedConversationId = userId && lastMessage.role === 'user'
-        ? await saveConversationExchange({
+    const persistedConversationId = userId && lastMessage.role === 'user'
+      ? isResumeContinuation
+        ? await appendConversationAssistantAnswer({
+          userId,
+          conversationId,
+          assistantAnswer: trustedResult.answer,
+          sources: trustedResult.sources,
+        })
+        : await saveConversationExchange({
           userId,
           conversationId,
           userQuestion: lastMessage.content,
@@ -359,81 +305,9 @@ export const chat = async (req: Request, res: Response, next: NextFunction) => {
           isEmergency: trustedResult.isEmergency,
           sources: trustedResult.sources,
         })
-        : conversationId;
-
-      return res.json(successResponse(buildTrustedResponsePayload(trustedResult, model, persistedConversationId)));
-    }
-
-    const profileContext = await buildUserProfileContext(userId);
-    const allowProfileHints = lastMessage.role === 'user'
-      ? shouldUseProfileHints(lastMessage.content, context)
-      : false;
-    const retrievalQuery = lastMessage.role === 'user'
-      ? allowProfileHints
-      ? [lastMessage.content, ...profileContext.retrievalHints].filter(Boolean).join(' ')
-      : lastMessage.content
-      : lastMessage.content;
-    const knowledgePack = lastMessage.role === 'user'
-      ? buildKnowledgePack(retrievalQuery, { limit: 3 })
-      : { context: '', sources: [], followUpQuestions: [], results: [] };
-
-    const finalContext = buildPromptContext(lastMessage.content, context, profileContext.prompt, knowledgePack.context);
-    let answer: string;
-    let degraded = false;
-    let routeInfo: { provider: string; model: string; route: string } | undefined;
-
-    try {
-      const result = await multiTurnChatDetailed(formattedMessages, {
-        model,
-        context: finalContext,
-      });
-      answer = result.answer;
-      routeInfo = result.route;
-    } catch (chatError) {
-      logger.error('ai.chat.gateway_error', {
-        component: 'ai.controller',
-        event: 'chat.gateway_error',
-        userId,
-        err: chatError,
-      });
-      answer = buildGatewayFallbackAnswer(lastMessage.content, knowledgePack);
-      degraded = true;
-    }
-
-    const persistedConversationId = userId && lastMessage.role === 'user'
-      ? isResumeContinuation
-        ? await appendConversationAssistantAnswer({
-          userId,
-          conversationId,
-          assistantAnswer: answer,
-          sources: knowledgePack.sources,
-        })
-        : await saveConversationExchange({
-          userId,
-          conversationId,
-          userQuestion: lastMessage.content,
-          assistantAnswer: answer,
-          sources: knowledgePack.sources,
-        })
       : conversationId;
 
-    res.json(successResponse({
-      message: {
-        role: 'assistant',
-        content: answer,
-        timestamp: new Date().toISOString(),
-      },
-      isEmergency: false,
-      sources: knowledgePack.sources,
-      confidence: estimateConfidence(knowledgePack.results[0]?.score),
-      followUpQuestions: knowledgePack.followUpQuestions,
-      disclaimer: degraded ? DEGRADED_DISCLAIMER : AI_DISCLAIMER,
-      degraded,
-      model: routeInfo?.model || model || DEFAULT_MODEL_ID,
-      provider: routeInfo?.provider,
-      route: routeInfo?.route,
-      conversationId: persistedConversationId,
-    }));
+    return res.json(successResponse(buildTrustedResponsePayload(trustedResult, model, persistedConversationId)));
   } catch (error) {
     next(error);
   }
@@ -456,17 +330,23 @@ export const chatStream = async (req: Request, res: Response, next: NextFunction
       content: message.content,
     }));
 
-    if (!isResumeContinuation) {
-      const trustedResult = await generateTrustedAIResponse({
-        question: lastMessage.content,
-        context,
-        userId,
-        model,
-        history: formattedMessages,
-      });
+    const trustedResult = await generateTrustedAIResponse({
+      question: lastMessage.content,
+      context,
+      userId,
+      model,
+      history: formattedMessages,
+    });
 
-      const persistedConversationId = userId && lastMessage.role === 'user'
-        ? await saveConversationExchange({
+    const persistedConversationId = userId && lastMessage.role === 'user'
+      ? isResumeContinuation
+        ? await appendConversationAssistantAnswer({
+          userId,
+          conversationId,
+          assistantAnswer: trustedResult.answer,
+          sources: trustedResult.sources,
+        })
+        : await saveConversationExchange({
           userId,
           conversationId,
           userQuestion: lastMessage.content,
@@ -474,99 +354,9 @@ export const chatStream = async (req: Request, res: Response, next: NextFunction
           isEmergency: trustedResult.isEmergency,
           sources: trustedResult.sources,
         })
-        : conversationId;
+      : conversationId;
 
-      return streamTrustedResult(res, trustedResult, model, persistedConversationId);
-    }
-
-    setSseHeaders(res);
-
-    const profileContext = await buildUserProfileContext(userId);
-    const allowProfileHints = lastMessage.role === 'user'
-      ? shouldUseProfileHints(lastMessage.content, context)
-      : false;
-    const retrievalQuery = lastMessage.role === 'user'
-      ? allowProfileHints
-      ? [lastMessage.content, ...profileContext.retrievalHints].filter(Boolean).join(' ')
-      : lastMessage.content
-      : lastMessage.content;
-    const knowledgePack = lastMessage.role === 'user'
-      ? buildKnowledgePack(retrievalQuery, { limit: 3 })
-      : { context: '', sources: [], followUpQuestions: [], results: [] };
-
-    const finalContext = buildPromptContext(lastMessage.content, context, profileContext.prompt, knowledgePack.context);
-    let resolvedRoute: { provider: string; model: string; route: string } | undefined;
-
-    try {
-      let answer = '';
-      for await (const chunk of streamMultiTurnChat(formattedMessages, {
-        model,
-        context: finalContext,
-        onRouteResolved: (route) => {
-          resolvedRoute = route;
-        },
-      })) {
-        answer += chunk;
-        res.write(`data: ${JSON.stringify({ content: chunk })}\n\n`);
-      }
-
-      const persistedConversationId = userId && lastMessage.role === 'user'
-        ? isResumeContinuation
-          ? await appendConversationAssistantAnswer({
-            userId,
-            conversationId,
-            assistantAnswer: answer,
-            sources: knowledgePack.sources,
-          })
-          : await saveConversationExchange({
-            userId,
-            conversationId,
-            userQuestion: lastMessage.content,
-            assistantAnswer: answer,
-            sources: knowledgePack.sources,
-          })
-        : conversationId;
-
-      res.write(`data: ${JSON.stringify({
-        done: true,
-        sources: knowledgePack.sources,
-        followUpQuestions: knowledgePack.followUpQuestions,
-        disclaimer: AI_DISCLAIMER,
-        model: resolvedRoute?.model || model || DEFAULT_MODEL_ID,
-        provider: resolvedRoute?.provider,
-        route: resolvedRoute?.route,
-        conversationId: persistedConversationId,
-      })}\n\n`);
-      res.end();
-    } catch (streamError) {
-      logger.error('ai.chat_stream.gateway_error', {
-        component: 'ai.controller',
-        event: 'chat_stream.gateway_error',
-        userId,
-        err: streamError,
-      });
-      const fallbackAnswer = buildGatewayFallbackAnswer(lastMessage.content, knowledgePack);
-      const persistedConversationId = userId && lastMessage.role === 'user'
-        ? await saveConversationExchange({
-          userId,
-          conversationId,
-          userQuestion: lastMessage.content,
-          assistantAnswer: fallbackAnswer,
-          sources: knowledgePack.sources,
-        })
-        : conversationId;
-
-      res.write(`data: ${JSON.stringify({ content: fallbackAnswer })}\n\n`);
-      res.write(`data: ${JSON.stringify({
-        done: true,
-        degraded: true,
-        sources: knowledgePack.sources,
-        followUpQuestions: knowledgePack.followUpQuestions,
-        disclaimer: DEGRADED_DISCLAIMER,
-        conversationId: persistedConversationId,
-      })}\n\n`);
-      res.end();
-    }
+    return streamTrustedResult(res, trustedResult, model, persistedConversationId);
   } catch (error) {
     next(error);
   }

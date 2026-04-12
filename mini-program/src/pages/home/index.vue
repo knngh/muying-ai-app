@@ -3,7 +3,7 @@
     <view class="welcome-header">
       <view class="greeting">
         <text class="title">你好，准妈妈</text>
-        <text class="subtitle">本期先上线权威知识库和问题助手，社区交流暂时下线。</text>
+        <text class="subtitle">本期先上线孕育时间轴、权威知识库和孕期档案，持续补充更适合审核上线的实用功能。</text>
       </view>
       <image class="header-decoration" src="/static/header-decoration.png" mode="aspectFit" />
     </view>
@@ -57,26 +57,26 @@
       </view>
 
       <view
-        class="feature-card ai-card"
+        class="feature-card archive-card"
         hover-class="feature-card--hover"
         hover-start-time="20"
         hover-stay-time="80"
-        @tap="handleAITap"
+        @tap="navigateTo('/pages/pregnancy-profile/index')"
       >
         <view class="card-content">
           <view class="card-info">
             <view class="title-row">
-              <text class="card-title">问题助手</text>
-              <view class="badge-beta">Beta</view>
+              <text class="card-title">孕期档案</text>
+              <view class="badge-primary">新模块</view>
             </view>
-            <text class="card-desc">基于权威来源与风险规则，先帮你整理可参考信息和下一步关注点。</text>
+            <text class="card-desc">集中查看当前孕周、关键产检节点和本周记录，替代零散查找。</text>
             <view class="card-btn">
-              <text class="btn-text">整理问题</text>
+              <text class="btn-text">查看档案</text>
               <text class="btn-icon">→</text>
             </view>
           </view>
           <view class="card-illustration">
-            <text class="emoji-large">🤖</text>
+            <text class="emoji-large">🗂️</text>
           </view>
         </view>
       </view>
@@ -85,10 +85,11 @@
 </template>
 
 <script setup lang="ts">
+import { onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app'
+
 const TAB_PAGES = new Set([
   '/pages/home/index',
   '/pages/knowledge/index',
-  '/pages/chat/index',
   '/pages/profile/index',
 ])
 
@@ -114,10 +115,20 @@ const navigateTo = (url: string) => {
   }
 }
 
-const handleAITap = () => {
-  if (!checkLogin()) return
-  uni.switchTab({ url: '/pages/chat/index' })
+function buildSharePayload() {
+  return {
+    title: '贝护妈妈：孕育时间轴、权威知识库和孕期档案',
+    path: '/pages/home/index',
+    query: '',
+  }
 }
+
+onShareAppMessage(() => buildSharePayload())
+
+onShareTimeline(() => ({
+  title: '贝护妈妈：孕育时间轴、权威知识库和孕期档案',
+  query: '',
+}))
 </script>
 
 <style scoped>
@@ -186,8 +197,8 @@ const handleAITap = () => {
   background: linear-gradient(135deg, #1f8f74 0%, #157a63 100%);
 }
 
-.ai-card {
-  background: linear-gradient(135deg, #5a80ff 0%, #476af0 100%);
+.archive-card {
+  background: linear-gradient(135deg, #356c98 0%, #24557d 100%);
 }
 
 .calendar-card {
@@ -228,8 +239,7 @@ const handleAITap = () => {
   color: rgba(255, 255, 255, 0.88);
 }
 
-.badge-primary,
-.badge-beta {
+.badge-primary {
   padding: 4rpx 14rpx;
   border-radius: 999rpx;
   font-size: 20rpx;
@@ -239,11 +249,6 @@ const handleAITap = () => {
 .badge-primary {
   background: rgba(255, 255, 255, 0.18);
   color: #fff7cf;
-}
-
-.badge-beta {
-  background: rgba(255, 255, 255, 0.2);
-  color: #fff;
 }
 
 .card-btn {

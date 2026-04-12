@@ -45,7 +45,7 @@ export default function InfoGrid({ focusTitle, reminder, todayTip }: InfoGridPro
 
 const styles = StyleSheet.create({
   infoGrid: {
-    gap: spacing.md,
+    gap: spacing.sm + 2,
   },
   infoCard: {
     backgroundColor: colors.surfaceRaised,
@@ -55,18 +55,18 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 244, 232, 0.96)',
   },
   infoContent: {
-    gap: spacing.xs,
+    gap: 3,
   },
   infoHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
-    marginBottom: spacing.xs,
+    gap: spacing.xs + 2,
+    marginBottom: 2,
   },
   infoIconShell: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     backgroundColor: 'rgba(185,104,66,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -76,20 +76,20 @@ const styles = StyleSheet.create({
   },
   infoEyebrow: {
     color: colors.inkSoft,
-    fontSize: fontSize.xs,
+    fontSize: 10,
     fontWeight: '700',
-    letterSpacing: 0.8,
+    letterSpacing: 0.7,
   },
   infoLabel: {
     color: colors.inkSoft,
-    fontSize: fontSize.xs,
+    fontSize: 10,
     fontWeight: '700',
-    letterSpacing: 0.8,
+    letterSpacing: 0.7,
   },
   infoTitle: {
-    fontSize: fontSize.md,
+    fontSize: 13,
     fontWeight: '700',
     color: colors.text,
-    lineHeight: 22,
+    lineHeight: 19,
   },
 })

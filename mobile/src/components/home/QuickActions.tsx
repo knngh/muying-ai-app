@@ -8,7 +8,7 @@ export interface FeatureEntry {
   title: string
   subtitle: string
   icon: string
-  route: 'Chat' | 'Knowledge' | 'Calendar' | 'Membership' | 'WeeklyReport'
+  route: 'Chat' | 'Knowledge' | 'Calendar' | 'Membership' | 'WeeklyReport' | 'PregnancyProfile'
   type: 'tab' | 'stack'
 }
 
@@ -32,7 +32,7 @@ export default function QuickActions({ entries, onPress }: QuickActionsProps) {
             <View style={styles.quickActionDot} />
           </View>
           <View style={styles.quickActionIconBg}>
-            <MaterialCommunityIcons name={entry.icon} size={24} color={colors.primary} />
+            <MaterialCommunityIcons name={entry.icon} size={20} color={colors.primary} />
           </View>
           <Text style={styles.quickActionText}>{entry.title}</Text>
           <Text style={styles.quickActionSubtitle}>{entry.subtitle}</Text>
@@ -50,10 +50,10 @@ const styles = StyleSheet.create({
   },
   quickActionItem: {
     alignItems: 'flex-start',
-    gap: spacing.sm,
+    gap: spacing.xs + 2,
     width: '48%',
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 4,
+    paddingHorizontal: spacing.sm + 4,
     borderRadius: borderRadius.lg,
     backgroundColor: 'rgba(255, 249, 243, 0.92)',
     borderWidth: 1,
@@ -62,7 +62,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.08,
     shadowRadius: 18,
-    minHeight: 132,
+    minHeight: 118,
   },
   quickActionTopRow: {
     width: '100%',
@@ -72,20 +72,20 @@ const styles = StyleSheet.create({
   },
   quickActionIndex: {
     color: colors.textLight,
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '700',
-    letterSpacing: 1,
+    letterSpacing: 0.9,
   },
   quickActionDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
     backgroundColor: 'rgba(94,126,134,0.24)',
   },
   quickActionIconBg: {
-    width: 52,
-    height: 52,
-    borderRadius: 18,
+    width: 44,
+    height: 44,
+    borderRadius: 15,
     backgroundColor: 'rgba(248, 230, 213, 0.86)',
     justifyContent: 'center',
     alignItems: 'center',
@@ -93,13 +93,13 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(197,108,71,0.1)',
   },
   quickActionText: {
-    fontSize: fontSize.md,
+    fontSize: 13,
     color: colors.inkDeep,
     fontWeight: '700',
   },
   quickActionSubtitle: {
-    fontSize: fontSize.xs,
+    fontSize: 10,
     color: colors.textSecondary,
-    lineHeight: 18,
+    lineHeight: 15,
   },
 })

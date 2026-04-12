@@ -34,48 +34,54 @@ export default function ProfileHeader({
       <View style={styles.techRing} />
       <View style={styles.statusStrip}>
         <View style={styles.statusDot} />
-        <Text style={styles.statusText}>家庭档案主控台</Text>
+        <Text style={styles.statusText}>家庭档案</Text>
         <Chip compact style={styles.statusChip} textStyle={styles.statusChipText}>
           {statusLabel}
         </Chip>
       </View>
-      <View style={styles.headerCentered}>
+      <View style={styles.profileRow}>
         <View style={styles.avatarShell}>
-          <Avatar.Icon size={82} icon="account" style={styles.avatar} />
+          <Avatar.Icon size={62} icon="account" style={styles.avatar} />
         </View>
-        <Text style={styles.headerEyebrow}>家庭主档案</Text>
-        <Text style={styles.headerNickname}>{nickname}</Text>
-        <Text style={styles.headerSubtitle}>
-          围绕 {stageTitle} 持续管理资料、提醒、周报与成长记录。
-        </Text>
-        <View style={styles.headerTags}>
-          <Chip style={styles.headerChip} textStyle={styles.headerChipText}>
-            {stageTitle}
-          </Chip>
-          <Chip style={styles.headerChip} textStyle={styles.headerChipText}>
-            {memberLabel}
-          </Chip>
+        <View style={styles.headerTextWrap}>
+          <Text style={styles.headerEyebrow}>家庭主档案</Text>
+          <Text style={styles.headerNickname} numberOfLines={1}>{nickname}</Text>
+          <Text style={styles.headerSubtitle} numberOfLines={2}>
+            围绕 {stageTitle} 管理资料、提醒、周报与成长记录。
+          </Text>
+          <View style={styles.headerTags}>
+            <Chip compact style={styles.headerChip} textStyle={styles.headerChipText}>
+              {stageTitle}
+            </Chip>
+            <Chip compact style={styles.headerChip} textStyle={styles.headerChipText}>
+              {memberLabel}
+            </Chip>
+          </View>
         </View>
-        <View style={styles.heroActions}>
-          <Button
-            mode="contained"
-            buttonColor={colors.ink}
-            textColor={colors.white}
-            onPress={onManageMembership}
-            style={styles.primaryButton}
-          >
-            {status === 'active' ? '管理会员' : '立即升级'}
-          </Button>
-          <Button
-            mode="contained-tonal"
-            buttonColor="rgba(255, 253, 249, 0.84)"
-            textColor={colors.ink}
-            onPress={onEditProfile}
-            style={styles.secondaryButton}
-          >
-            编辑资料
-          </Button>
-        </View>
+      </View>
+      <View style={styles.heroActions}>
+        <Button
+          compact
+          mode="contained"
+          buttonColor={colors.ink}
+          textColor={colors.white}
+          onPress={onManageMembership}
+          style={styles.primaryButton}
+          contentStyle={styles.buttonContent}
+        >
+          {status === 'active' ? '管理会员' : '立即升级'}
+        </Button>
+        <Button
+          compact
+          mode="contained-tonal"
+          buttonColor="rgba(255, 253, 249, 0.84)"
+          textColor={colors.ink}
+          onPress={onEditProfile}
+          style={styles.secondaryButton}
+          contentStyle={styles.buttonContent}
+        >
+          编辑资料
+        </Button>
       </View>
     </LinearGradient>
   )
@@ -84,8 +90,8 @@ export default function ProfileHeader({
 const styles = StyleSheet.create({
   headerCard: {
     width: '100%',
-    paddingVertical: spacing.xl,
-    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
     borderRadius: borderRadius.xl,
     borderWidth: 1,
     borderColor: 'rgba(185, 104, 66, 0.18)',
@@ -94,7 +100,7 @@ const styles = StyleSheet.create({
   statusStrip: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: spacing.lg,
+    marginBottom: spacing.sm,
     gap: spacing.sm,
   },
   statusDot: {
@@ -120,49 +126,50 @@ const styles = StyleSheet.create({
     fontSize: fontSize.xs,
     fontWeight: '700',
   },
-  headerCentered: {
+  profileRow: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: spacing.sm,
   },
   avatarShell: {
-    width: 98,
-    height: 98,
-    borderRadius: 49,
+    width: 68,
+    height: 68,
+    borderRadius: 34,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(255,253,249,0.7)',
     borderWidth: 1,
     borderColor: 'rgba(94, 126, 134, 0.12)',
-    marginBottom: spacing.md,
   },
   avatar: {
     backgroundColor: 'rgba(255, 253, 249, 0.96)',
+  },
+  headerTextWrap: {
+    flex: 1,
   },
   headerEyebrow: {
     fontSize: fontSize.xs,
     fontWeight: '700',
     color: colors.primaryDark,
     letterSpacing: 1.2,
-    marginBottom: spacing.xs,
+    marginBottom: 2,
   },
   headerNickname: {
-    fontSize: 30,
+    fontSize: 22,
     fontWeight: 'bold',
     color: colors.text,
-    marginBottom: spacing.sm,
+    marginBottom: 2,
   },
   headerSubtitle: {
     color: colors.inkSoft,
-    fontSize: fontSize.md,
-    lineHeight: 22,
-    textAlign: 'center',
-    maxWidth: 280,
-    marginBottom: spacing.md,
+    fontSize: fontSize.sm,
+    lineHeight: 18,
+    marginBottom: spacing.sm,
   },
   headerTags: {
     flexDirection: 'row',
-    gap: spacing.sm,
+    gap: spacing.xs,
     flexWrap: 'wrap',
-    justifyContent: 'center',
   },
   headerChip: {
     backgroundColor: 'rgba(255, 253, 249, 0.82)',
@@ -171,14 +178,17 @@ const styles = StyleSheet.create({
   },
   headerChipText: {
     color: colors.primaryDark,
-    fontSize: fontSize.sm,
+    fontSize: fontSize.xs,
     fontWeight: '600',
   },
   heroActions: {
-    marginTop: spacing.lg,
+    marginTop: spacing.sm,
     flexDirection: 'row',
-    gap: spacing.md,
+    gap: spacing.sm,
     width: '100%',
+  },
+  buttonContent: {
+    minHeight: 38,
   },
   primaryButton: {
     borderRadius: borderRadius.pill,

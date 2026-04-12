@@ -251,7 +251,7 @@
 
 <script setup lang="ts">
 import { ref, computed, nextTick } from 'vue'
-import { onShow } from '@dcloudio/uni-app'
+import { onShareAppMessage, onShareTimeline, onShow } from '@dcloudio/uni-app'
 import mockDataArray from './mockData.json'
 import { useAppStore } from '@/stores/app'
 import { calendarApi, type PregnancyTodoProgress, type PregnancyDiary, type PregnancyCustomTodo } from '@/api/modules'
@@ -686,6 +686,24 @@ onShow(() => {
   void syncSelectedWeekFromSession()
   loginUserId.value = resolveLoginUserId()
   void Promise.all([syncTodoContext(), syncDiaryContext(), syncCustomTodoContext()])
+})
+
+function buildSharePayload() {
+  return {
+    title: `贝护妈妈孕育时间轴：第 ${currentSelectedWeek.value} 周重点与记录`,
+    path: '/pages/calendar/index',
+    query: '',
+  }
+}
+
+onShareAppMessage(() => buildSharePayload())
+
+onShareTimeline(() => {
+  const payload = buildSharePayload()
+  return {
+    title: payload.title,
+    query: payload.query,
+  }
 })
 </script>
 

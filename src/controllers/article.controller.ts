@@ -15,6 +15,8 @@ import {
 } from '../utils/authority-metadata';
 import { inferAuthorityStages } from '../utils/authority-stage';
 import { shouldFilterAuthoritySourceUrl } from '../utils/authority-source-url';
+import { matchesExpandedSearch } from '../utils/search-query-expansion';
+import { rewriteSearchQueries } from '../services/knowledge.service';
 
 interface AuthorityCacheRecord {
   id: string;
@@ -154,6 +156,40 @@ function loadAuthorityCacheRecords(): AuthorityCacheRecord[] {
   const records = Array.isArray(parsed) ? parsed as AuthorityCacheRecord[] : [];
   authorityCacheMemo = { path: cachePath, mtimeMs: stat.mtimeMs, records };
   return records;
+}
+
+function resolveWritableAuthorityCachePath(): string {
+  const existingPath = AUTHORITY_CACHE_PATHS.find((candidate) => fs.existsSync(candidate));
+  return existingPath || AUTHORITY_CACHE_PATHS[0];
+}
+
+function saveAuthorityCacheRecords(records: AuthorityCacheRecord[]): void {
+  const cachePath = resolveWritableAuthorityCachePath();
+  fs.mkdirSync(path.dirname(cachePath), { recursive: true });
+  fs.writeFileSync(cachePath, JSON.stringify(records, null, 2), 'utf-8');
+  const stat = fs.statSync(cachePath);
+  authorityCacheMemo = { path: cachePath, mtimeMs: stat.mtimeMs, records };
+}
+
+function incrementAuthorityViewCountBySlug(slug: string): number | null {
+  const records = loadAuthorityCacheRecords();
+  if (records.length === 0) {
+    return null;
+  }
+
+  const recordIndex = records.findIndex((item, index) => buildAuthoritySlug(item, index) === slug);
+  if (recordIndex < 0) {
+    return null;
+  }
+
+  const currentValue = Number(records[recordIndex]?.view_count || 0);
+  const nextValue = Number.isFinite(currentValue) ? currentValue + 1 : 1;
+  records[recordIndex] = {
+    ...records[recordIndex],
+    view_count: nextValue,
+  };
+  saveAuthorityCacheRecords(records);
+  return nextValue;
 }
 
 function loadAuthorityTranslationCache(): Record<string, AuthorityTranslationCacheRecord> {
@@ -658,7 +694,14 @@ function getAuthorityArticleSourcePriority(article: ReturnType<typeof mapAuthori
   return article.sourceLanguage === 'zh' || article.sourceLocale === 'zh-CN' ? 0 : 1;
 }
 
-function filterAuthorityArticles(
+function toAuthorityArticleListItem(article: ReturnType<typeof mapAuthorityRecordToArticle>) {
+  return {
+    ...article,
+    content: '',
+  };
+}
+
+async function filterAuthorityArticles(
   articles: Array<ReturnType<typeof mapAuthorityRecordToArticle>>,
   filters: {
     category?: unknown;
@@ -671,6 +714,10 @@ function filterAuthorityArticles(
 ) {
   const keyword = typeof filters.keyword === 'string' ? filters.keyword.trim().toLowerCase() : '';
   const source = typeof filters.source === 'string' ? filters.source.trim().toLowerCase() : '';
+  const translationCache = keyword ? loadAuthorityTranslationCache() : null;
+  const searchQueries = keyword
+    ? Array.from(new Set([keyword, ...(await rewriteSearchQueries(keyword))].map((item) => item.trim()).filter(Boolean)))
+    : [];
 
   return articles.filter((article) => {
     const articleStages = Array.isArray(article.targetStages) && article.targetStages.length > 0
@@ -709,6 +756,7 @@ function filterAuthorityArticles(
       return true;
     }
 
+    const translated = translationCache?.[article.slug];
     const searchable = [
       article.title,
       article.summary,
@@ -716,9 +764,15 @@ function filterAuthorityArticles(
       article.sourceOrg,
       article.topic,
       article.audience,
+      article.stage,
+      ...(article.targetStages || []),
+      ...(article.tags || []).flatMap((tag) => [tag.name, tag.slug]),
+      translated?.translatedTitle,
+      translated?.translatedSummary,
+      translated?.translatedContent,
     ].join(' ').toLowerCase();
 
-    return searchable.includes(keyword);
+    return searchQueries.some((query) => matchesExpandedSearch(query, searchable));
   });
 }
 
@@ -747,7 +801,7 @@ export const getArticles = async (req: Request, res: Response, next: NextFunctio
       const currentPage = Number(page);
       const currentPageSize = Number(pageSize);
       const skip = (currentPage - 1) * currentPageSize;
-      const filtered = filterAuthorityArticles(await getAuthorityArticles(), {
+      const filtered = await filterAuthorityArticles(await getAuthorityArticles(), {
         category,
         tag,
         stage,
@@ -780,7 +834,7 @@ export const getArticles = async (req: Request, res: Response, next: NextFunctio
       });
 
       return res.json(paginatedResponse(
-        sorted.slice(skip, skip + currentPageSize),
+        sorted.slice(skip, skip + currentPageSize).map(toAuthorityArticleListItem),
         currentPage,
         currentPageSize,
         sorted.length,
@@ -918,7 +972,36 @@ export const getArticleBySlug = async (req: Request, res: Response, next: NextFu
       if (authorityRecord) {
         prewarmAuthorityTranslation(slug, authorityRecord);
       }
-      return res.json(successResponse(authorityArticle));
+      const viewCount = incrementAuthorityViewCountBySlug(slug) ?? authorityArticle.viewCount ?? 0;
+      let isLiked = false;
+      let likeCount = authorityArticle.likeCount || 0;
+
+      if (userId) {
+        const [like, totalLikes] = await Promise.all([
+          prisma.userLike.findFirst({
+            where: {
+              userId: BigInt(userId),
+              likeType: 'authority_article',
+              likeId: BigInt(authorityArticle.id),
+            }
+          }),
+          prisma.userLike.count({
+            where: {
+              likeType: 'authority_article',
+              likeId: BigInt(authorityArticle.id),
+            }
+          })
+        ]);
+        isLiked = !!like;
+        likeCount = totalLikes;
+      }
+
+      return res.json(successResponse({
+        ...authorityArticle,
+        viewCount,
+        isLiked,
+        likeCount,
+      }));
     }
 
     // 尝试从缓存获取文章详情
@@ -1089,7 +1172,7 @@ export const searchArticles = async (req: Request, res: Response, next: NextFunc
     }).catch(err => console.error('[Search] Failed to log search:', err));
 
     if (contentType === 'authority') {
-      const filtered = filterAuthorityArticles(await getAuthorityArticles(), {
+      const filtered = await filterAuthorityArticles(await getAuthorityArticles(), {
         keyword: q,
       });
       const paged = filtered.slice(skip, skip + currentPageSize);
@@ -1167,6 +1250,28 @@ export const likeArticle = async (req: Request, res: Response, next: NextFunctio
   try {
     const { id } = req.params;
     const userId = req.userId!;
+    const authorityArticle = (await getAuthorityArticles()).find((item) => String(item.id) === String(id));
+
+    if (authorityArticle) {
+      const existingLike = await prisma.userLike.findFirst({
+        where: { userId: BigInt(userId), likeType: 'authority_article', likeId: BigInt(id) }
+      });
+
+      if (existingLike) {
+        throw new AppError('已点赞', ErrorCodes.PARAM_ERROR, 400);
+      }
+
+      await prisma.userLike.create({
+        data: { userId: BigInt(userId), likeType: 'authority_article', likeId: BigInt(id) }
+      });
+
+      const likeCount = await prisma.userLike.count({
+        where: { likeType: 'authority_article', likeId: BigInt(id) }
+      });
+
+      res.json(successResponse({ liked: true, likeCount }, '点赞成功'));
+      return;
+    }
 
     // 检查是否已点赞
     const existingLike = await prisma.userLike.findFirst({
@@ -1178,7 +1283,7 @@ export const likeArticle = async (req: Request, res: Response, next: NextFunctio
     }
 
     // 创建点赞记录并更新计数
-    await Promise.all([
+    const [, updatedArticle] = await Promise.all([
       prisma.userLike.create({
         data: { userId: BigInt(userId), likeType: 'article', likeId: BigInt(id) }
       }),
@@ -1191,7 +1296,7 @@ export const likeArticle = async (req: Request, res: Response, next: NextFunctio
     // 清除热门文章缓存
     cache.delete(CacheKeys.ARTICLES_POPULAR);
 
-    res.json(successResponse({ liked: true }, '点赞成功'));
+    res.json(successResponse({ liked: true, likeCount: updatedArticle.likeCount }, '点赞成功'));
   } catch (error) {
     next(error);
   }
@@ -1204,6 +1309,25 @@ export const unlikeArticle = async (req: Request, res: Response, next: NextFunct
   try {
     const { id } = req.params;
     const userId = req.userId!;
+    const authorityArticle = (await getAuthorityArticles()).find((item) => String(item.id) === String(id));
+
+    if (authorityArticle) {
+      const like = await prisma.userLike.findFirst({
+        where: { userId: BigInt(userId), likeType: 'authority_article', likeId: BigInt(id) }
+      });
+
+      if (!like) {
+        throw new AppError('未点赞', ErrorCodes.PARAM_ERROR, 400);
+      }
+
+      await prisma.userLike.delete({ where: { id: like.id } });
+      const likeCount = await prisma.userLike.count({
+        where: { likeType: 'authority_article', likeId: BigInt(id) }
+      });
+
+      res.json(successResponse({ liked: false, likeCount }, '取消点赞成功'));
+      return;
+    }
 
     const like = await prisma.userLike.findFirst({
       where: { userId: BigInt(userId), likeType: 'article', likeId: BigInt(id) }
@@ -1213,7 +1337,7 @@ export const unlikeArticle = async (req: Request, res: Response, next: NextFunct
       throw new AppError('未点赞', ErrorCodes.PARAM_ERROR, 400);
     }
 
-    await Promise.all([
+    const [, updatedArticle] = await Promise.all([
       prisma.userLike.delete({ where: { id: like.id } }),
       prisma.article.update({
         where: { id: BigInt(id) },
@@ -1224,7 +1348,7 @@ export const unlikeArticle = async (req: Request, res: Response, next: NextFunct
     // 清除热门文章缓存
     cache.delete(CacheKeys.ARTICLES_POPULAR);
 
-    res.json(successResponse({ liked: false }, '取消点赞成功'));
+    res.json(successResponse({ liked: false, likeCount: updatedArticle.likeCount }, '取消点赞成功'));
   } catch (error) {
     next(error);
   }
@@ -1237,6 +1361,11 @@ export const favoriteArticle = async (req: Request, res: Response, next: NextFun
   try {
     const { id } = req.params;
     const userId = req.userId!;
+    const authorityArticle = (await getAuthorityArticles()).find((item) => String(item.id) === String(id));
+
+    if (authorityArticle) {
+      throw new AppError('权威文章暂不支持收藏，请先分享或打开原文回看', ErrorCodes.PARAM_ERROR, 400);
+    }
 
     // 检查是否已收藏
     const existingFavorite = await prisma.userFavorite.findFirst({
@@ -1248,7 +1377,7 @@ export const favoriteArticle = async (req: Request, res: Response, next: NextFun
     }
 
     // 创建收藏记录并更新计数
-    await Promise.all([
+    const [, updatedArticle] = await Promise.all([
       prisma.userFavorite.create({
         data: { userId: BigInt(userId), favType: 'article', favId: BigInt(id) }
       }),
@@ -1258,7 +1387,7 @@ export const favoriteArticle = async (req: Request, res: Response, next: NextFun
       })
     ]);
 
-    res.json(successResponse({ favorited: true }, '收藏成功'));
+    res.json(successResponse({ favorited: true, collectCount: updatedArticle.collectCount }, '收藏成功'));
   } catch (error) {
     next(error);
   }
@@ -1271,6 +1400,11 @@ export const unfavoriteArticle = async (req: Request, res: Response, next: NextF
   try {
     const { id } = req.params;
     const userId = req.userId!;
+    const authorityArticle = (await getAuthorityArticles()).find((item) => String(item.id) === String(id));
+
+    if (authorityArticle) {
+      throw new AppError('权威文章暂不支持收藏，请先分享或打开原文回看', ErrorCodes.PARAM_ERROR, 400);
+    }
 
     const favorite = await prisma.userFavorite.findFirst({
       where: { userId: BigInt(userId), favType: 'article', favId: BigInt(id) }
@@ -1280,7 +1414,7 @@ export const unfavoriteArticle = async (req: Request, res: Response, next: NextF
       throw new AppError('未收藏', ErrorCodes.PARAM_ERROR, 400);
     }
 
-    await Promise.all([
+    const [, updatedArticle] = await Promise.all([
       prisma.userFavorite.delete({ where: { id: favorite.id } }),
       prisma.article.update({
         where: { id: BigInt(id) },
@@ -1288,7 +1422,7 @@ export const unfavoriteArticle = async (req: Request, res: Response, next: NextF
       })
     ]);
 
-    res.json(successResponse({ favorited: false }, '取消收藏成功'));
+    res.json(successResponse({ favorited: false, collectCount: updatedArticle.collectCount }, '取消收藏成功'));
   } catch (error) {
     next(error);
   }

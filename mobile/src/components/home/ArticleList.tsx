@@ -15,6 +15,21 @@ interface ArticleListProps {
   onPress: (slug: string) => void
 }
 
+function normalizeSourceLabel(label?: string) {
+  const value = (label || '').trim()
+  if (!value) return '权威内容'
+
+  const lower = value.toLowerCase()
+  if (/american academy of pediatrics|healthychildren\.org|\baap\b/.test(lower)) return 'AAP'
+  if (/mayo clinic|mayoclinic\.org/.test(lower)) return 'Mayo Clinic'
+  if (/msd manuals?|msdmanuals\.cn|merck manual/.test(lower)) return 'MSD Manuals'
+  if (/national health service|\bnhs\b|nhs\.uk/.test(lower)) return 'NHS'
+  if (/world health organization|\bwho\b|who\.int/.test(lower)) return 'WHO'
+  if (/centers? for disease control|\bcdc\b|cdc\.gov/.test(lower)) return 'CDC'
+  if (/american college of obstetricians and gynecologists|\bacog\b|acog\.org/.test(lower)) return 'ACOG'
+  return value
+}
+
 function ArticleListInner({ articles, loading, readingTopic, onPress }: ArticleListProps) {
   const articleCount = articles.length
 
@@ -46,10 +61,10 @@ function ArticleListInner({ articles, loading, readingTopic, onPress }: ArticleL
           const tagColor = item.category
             ? categoryColors[item.category.name] || colors.primary
             : colors.primary
-          const sourceText = item.sourceOrg || item.source || item.author || '权威内容'
-          const metaText = item.publishedAt
-            ? `${sourceText} · ${new Date(item.publishedAt).toLocaleDateString('zh-CN')}`
-            : sourceText
+          const sourceText = normalizeSourceLabel(item.sourceOrg || item.source || item.author || '权威内容')
+          const dateText = item.publishedAt
+            ? new Date(item.publishedAt).toLocaleDateString('zh-CN')
+            : ''
 
           return (
             <StandardCard key={String(item.id)} onPress={() => onPress(item.slug)} style={styles.articleCard}>
@@ -91,9 +106,16 @@ function ArticleListInner({ articles, loading, readingTopic, onPress }: ArticleL
                 <View style={styles.footerRow}>
                   <View style={styles.metaBadge}>
                     <MaterialCommunityIcons name="shield-check-outline" size={14} color={colors.techDark} />
-                    <Text style={styles.metaText} numberOfLines={1}>
-                      {metaText}
-                    </Text>
+                    <View style={styles.metaCopy}>
+                      <Text style={styles.metaText} numberOfLines={3}>
+                        {sourceText}
+                      </Text>
+                      {dateText ? (
+                        <Text style={styles.metaDateText} numberOfLines={1}>
+                          {dateText}
+                        </Text>
+                      ) : null}
+                    </View>
                   </View>
                   <View style={styles.metaBadge}>
                     <MaterialCommunityIcons name="eye-outline" size={14} color={colors.primaryDark} />
@@ -127,27 +149,27 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: spacing.sm,
+    marginBottom: spacing.xs + 2,
   },
   sectionTitle: {
-    fontSize: fontSize.lg,
+    fontSize: 15,
     fontWeight: '700',
     color: colors.text,
   },
   sectionMeta: {
     color: colors.textSecondary,
-    fontSize: fontSize.sm,
+    fontSize: 11,
   },
   loadingWrap: {
-    gap: spacing.sm,
+    gap: spacing.xs + 2,
   },
   loadingCard: {
-    padding: spacing.md,
+    padding: spacing.sm + 4,
     borderRadius: borderRadius.lg,
     backgroundColor: 'rgba(255,249,243,0.72)',
     borderWidth: 1,
     borderColor: 'rgba(184,138,72,0.1)',
-    gap: spacing.sm,
+    gap: spacing.xs + 2,
   },
   loadingFooter: {
     flexDirection: 'row',
@@ -155,10 +177,10 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   articleCard: {
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm + 2,
   },
   articleShell: {
-    padding: spacing.md,
+    padding: spacing.sm + 4,
     borderRadius: borderRadius.lg,
     overflow: 'hidden',
   },
@@ -176,14 +198,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     gap: spacing.sm,
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm + 2,
   },
   articleTitle: {
-    fontSize: fontSize.md,
+    fontSize: 13,
     fontWeight: '700',
     color: colors.ink,
-    lineHeight: 23,
-    marginBottom: spacing.sm,
+    lineHeight: 20,
+    marginBottom: spacing.xs + 2,
   },
   articleChip: {
     backgroundColor: colors.primaryLight,
@@ -195,9 +217,9 @@ const styles = StyleSheet.create({
     color: colors.primaryDark,
   },
   articleSummary: {
-    fontSize: fontSize.sm,
+    fontSize: 11,
     color: colors.inkSoft,
-    lineHeight: 20,
+    lineHeight: 17,
   },
   readingCta: {
     flexDirection: 'row',
@@ -210,22 +232,29 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   footerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: spacing.sm,
-    marginTop: spacing.md,
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    gap: spacing.xs + 2,
+    marginTop: spacing.sm + 2,
   },
   metaBadge: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 6,
     flexShrink: 1,
+  },
+  metaCopy: {
+    flexShrink: 1,
+    gap: 2,
   },
   metaText: {
     flexShrink: 1,
     color: colors.textSecondary,
     fontSize: fontSize.xs,
+  },
+  metaDateText: {
+    color: colors.textLight,
+    fontSize: 10,
   },
   emptyCard: {
     padding: spacing.md,

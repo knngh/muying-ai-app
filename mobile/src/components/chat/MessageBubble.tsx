@@ -36,6 +36,7 @@ function MessageBubbleInner({ item, onCopied }: MessageBubbleProps) {
         onStartShouldSetResponder={() => true}
         onResponderRelease={() => {}}
       >
+        <View style={[styles.bubbleGlow, isUser ? styles.userBubbleGlow : styles.assistantBubbleGlow]} />
         {isUser ? (
           <Text
             style={[styles.messageText, styles.userText]}
@@ -107,26 +108,41 @@ const styles = StyleSheet.create({
     maxWidth: '84%',
     padding: spacing.md,
     borderRadius: borderRadius.xl,
+    overflow: 'hidden',
   },
   userBubble: {
-    backgroundColor: '#FFF2EA',
+    backgroundColor: '#FFF3EA',
     borderBottomRightRadius: borderRadius.md,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.6)',
+    borderColor: 'rgba(255, 233, 219, 0.94)',
     shadowColor: 'rgba(185, 104, 66, 0.12)',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 1,
     shadowRadius: 16,
   },
   assistantBubble: {
-    backgroundColor: '#F0F8FA',
+    backgroundColor: '#F2F9FB',
     borderBottomLeftRadius: borderRadius.md,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.6)',
+    borderColor: 'rgba(224, 239, 243, 0.92)',
     shadowColor: 'rgba(100, 130, 150, 0.1)',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 1,
     shadowRadius: 16,
+  },
+  bubbleGlow: {
+    position: 'absolute',
+    top: -22,
+    right: -12,
+    width: 92,
+    height: 92,
+    borderRadius: 46,
+  },
+  userBubbleGlow: {
+    backgroundColor: 'rgba(255, 255, 255, 0.36)',
+  },
+  assistantBubbleGlow: {
+    backgroundColor: 'rgba(223, 241, 245, 0.52)',
   },
   messageText: {
     lineHeight: 22,
@@ -146,7 +162,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: 4,
     borderRadius: borderRadius.pill,
-    backgroundColor: 'rgba(220,236,238,0.58)',
+    backgroundColor: 'rgba(213, 233, 238, 0.72)',
   },
   assistantBadgeText: {
     color: colors.techDark,

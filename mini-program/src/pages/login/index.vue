@@ -167,7 +167,7 @@ const demoAccounts = [
     label: '免费演示账号',
     username: 'demo_free_user',
     password: 'Test123456!',
-    description: '演示免费问答额度和升级前状态',
+    description: '演示基础功能和升级前状态',
   },
   {
     label: '会员演示账号',
@@ -203,8 +203,31 @@ const navigateHome = () => {
   }, 500)
 }
 
+const normalizePregnancyStatus = (value: unknown) => {
+  if (typeof value === 'number' && value >= 1 && value <= 3) return value
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim().toLowerCase()
+    if (!trimmed) return undefined
+    if (trimmed === 'preparing') return 1
+    if (trimmed === 'pregnant') return 2
+    if (trimmed === 'postpartum') return 3
+
+    const numericValue = Number.parseInt(trimmed, 10)
+    if (!Number.isNaN(numericValue) && numericValue >= 1 && numericValue <= 3) {
+      return numericValue
+    }
+  }
+
+  return undefined
+}
+
 const shouldSelectPregnancyWeek = (targetUser?: User | null) => {
   if (!targetUser) return true
+  const status = normalizePregnancyStatus(targetUser.pregnancyStatus)
+  if (status === 1 || status === 3 || targetUser.babyBirthday) {
+    return false
+  }
   return !targetUser.dueDate
 }
 
@@ -312,6 +335,7 @@ async function savePregnancyWeek() {
     const updatedUser = await authApi.updateProfile({
       pregnancyStatus: 2,
       dueDate: dayjs(dueDate).format('YYYY-MM-DD'),
+      babyBirthday: null,
     })
 
     appStore.setUser(updatedUser)

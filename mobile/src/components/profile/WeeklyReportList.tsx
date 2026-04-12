@@ -26,9 +26,20 @@ export default function WeeklyReportList({ reports, status, onViewMore }: Weekly
         </Text>
       </View>
 
-      <Button mode="text" textColor={colors.primaryDark} onPress={onViewMore}>
+      <Button compact mode="text" textColor={colors.primaryDark} onPress={onViewMore} contentStyle={styles.moreButtonContent}>
         {status === 'active' ? '查看全部周报' : '升级后查看完整历史'}
       </Button>
+
+      {reports.length === 0 ? (
+        <StandardCard style={styles.emptyCard}>
+          <Text style={styles.emptyTitle}>还没有生成周度报告</Text>
+          <Text style={styles.emptyText}>
+            {status === 'active'
+              ? '继续使用提醒、档案和阶段记录后，这里会逐步沉淀每周快照。'
+              : '开通后会根据你的阶段记录、提醒完成度和档案内容生成周度快照。'}
+          </Text>
+        </StandardCard>
+      ) : null}
 
       {reports.map((report: WeeklyReport) => (
         <StandardCard key={report.id} style={styles.reportCard}>
@@ -93,6 +104,25 @@ const styles = StyleSheet.create({
   reportCard: {
     backgroundColor: colors.surfaceRaised,
   },
+  moreButtonContent: {
+    minHeight: 32,
+  },
+  emptyCard: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    backgroundColor: colors.surfaceRaised,
+  },
+  emptyTitle: {
+    color: colors.inkDeep,
+    fontSize: fontSize.md,
+    fontWeight: '700',
+    marginBottom: spacing.xs,
+  },
+  emptyText: {
+    color: colors.textSecondary,
+    fontSize: fontSize.sm,
+    lineHeight: 20,
+  },
   reportTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -121,7 +151,7 @@ const styles = StyleSheet.create({
   },
   reportMeta: {
     marginTop: spacing.xs,
-    marginBottom: spacing.sm,
+    marginBottom: spacing.xs + 2,
     color: colors.textSecondary,
     fontSize: fontSize.sm,
   },
@@ -148,7 +178,7 @@ const styles = StyleSheet.create({
   reportItem: {
     flex: 1,
     color: colors.text,
-    lineHeight: 20,
-    fontSize: fontSize.md,
+    lineHeight: 18,
+    fontSize: fontSize.sm,
   },
 })

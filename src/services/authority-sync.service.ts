@@ -216,6 +216,16 @@ function isBlockedAuthorityUrl(url: string, source: AuthoritySourceConfig): bool
     return /\/english\/news\//.test(normalized);
   }
 
+  if (source.id === 'mayo-clinic-zh') {
+    return /\/(?:zh-hans\/)?about-mayo-clinic\//.test(normalized)
+      || /\/rochester-construction\//.test(normalized);
+  }
+
+  if (source.id === 'msd-manuals-cn') {
+    return /\/professional\//.test(normalized)
+      || /\/(?:audio|author|biodigital|figure|image|infographic|labtest|quiz|table|video)\//.test(normalized);
+  }
+
   if (source.id === 'dxy-maternal') {
     return /\/(login|register|search|diseases|hospitals|surgerys|vaccines|firstaids)(?:\/|$)/.test(normalized);
   }
@@ -270,6 +280,16 @@ function isAuthorityUrlMatched(url: string, source: AuthoritySourceConfig, ancho
   if (source.id === 'aap') {
     return /\/english\/(ages-stages|health-issues|healthy-living|safety-prevention|family-life)\//.test(normalized)
       && !/\/english\/pages\//.test(normalized);
+  }
+
+  if (source.id === 'mayo-clinic-zh') {
+    return /mayoclinic\.org\/zh-hans\//i.test(url)
+      && /(pregnan|prenatal|postpartum|birth|labor|delivery|newborn|infant|baby|child|children|breast|feeding|vaccine|immun|fertility|contracept|women)/.test(normalized);
+  }
+
+  if (source.id === 'msd-manuals-cn') {
+    return /msdmanuals\.cn\/home\//i.test(url)
+      && /(pregnan|prenatal|postpartum|birth|labor|delivery|newborn|infant|baby|child|children|breast|feeding|vaccine|immun|fertility|contracept|妇产|孕|婴|儿童|新生儿|母乳|喂养|疫苗)/u.test(normalized);
   }
 
   if (source.id === 'cdc') {
@@ -362,6 +382,10 @@ function isXmlSitemapUrl(url: string): boolean {
 function filterNestedSitemapCandidates(urls: string[], source: AuthoritySourceConfig): string[] {
   if (source.id === 'cdc') {
     return urls.filter((url) => /\/(pregnancy|breastfeeding|parents|child-development|vaccines-(children|pregnancy|for-children)|reproductivehealth|womens-health|contraception|growthcharts|ncbddd|act-early|early-care|protect-children|medicines?-and-pregnancy|opioid-use-during-pregnancy|pregnancy-hiv-std-tb-hepatitis|rsv|flu|measles|mumps|rubella|chickenpox|rotavirus|pinkbook|acip-recs)\//i.test(url));
+  }
+
+  if (source.id === 'msd-manuals-cn') {
+    return urls.filter((url) => /\/home-(?:generic-pages|topic)\.xml(?:\.gz)?$/i.test(url));
   }
 
   return urls;

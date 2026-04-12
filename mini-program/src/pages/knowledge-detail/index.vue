@@ -15,7 +15,7 @@
       <view class="article-header">
         <view class="badge-row">
           <text v-if="article.sourceOrg || article.source" class="badge badge-source">
-            {{ article.sourceOrg || article.source }}
+            {{ formatSourceLabel(article.sourceOrg || article.source) }}
           </text>
           <text class="badge" :class="`badge-tier--${authorityRegionTag}`">{{ authorityRegionLabel }}</text>
           <text v-if="article.topic" class="badge badge-topic">{{ article.topic }}</text>
@@ -188,6 +188,21 @@ function formatDate(dateStr?: string): string {
   const m = String(date.getMonth() + 1).padStart(2, '0')
   const d = String(date.getDate()).padStart(2, '0')
   return `${y}-${m}-${d}`
+}
+
+function formatSourceLabel(label?: string): string {
+  const value = (label || '').trim()
+  if (!value) return ''
+
+  const lower = value.toLowerCase()
+  if (/american academy of pediatrics|healthychildren\.org|\baap\b/.test(lower)) return 'AAP'
+  if (/mayo clinic|mayoclinic\.org/.test(lower)) return 'Mayo Clinic'
+  if (/msd manuals?|msdmanuals\.cn|merck manual/.test(lower)) return 'MSD Manuals'
+  if (/national health service|\bnhs\b|nhs\.uk/.test(lower)) return 'NHS'
+  if (/world health organization|\bwho\b|who\.int/.test(lower)) return 'WHO'
+  if (/centers? for disease control|\bcdc\b|cdc\.gov/.test(lower)) return 'CDC'
+  if (/american college of obstetricians and gynecologists|\bacog\b|acog\.org/.test(lower)) return 'ACOG'
+  return value
 }
 
 function retryLoad() {
@@ -547,6 +562,14 @@ onShareTimeline(() => {
 }
 
 .badge-source {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  white-space: normal;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+  border-radius: 20rpx;
   background: rgba(31, 143, 116, 0.12);
   color: #18755f;
 }

@@ -10,6 +10,7 @@ import {
   normalizeFeedingMode,
   normalizeGender,
   normalizePregnancyStatus,
+  resolveLifecycleStage,
 } from '../utils/pregnancy';
 import { env } from '../config/env';
 
@@ -258,6 +259,9 @@ export const refreshToken = async (req: Request, res: Response, next: NextFuncti
 export const updateProfile = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.userId;
+    const hasPregnancyStatus = Object.prototype.hasOwnProperty.call(req.body, 'pregnancyStatus');
+    const hasDueDate = Object.prototype.hasOwnProperty.call(req.body, 'dueDate');
+    const hasBabyBirthday = Object.prototype.hasOwnProperty.call(req.body, 'babyBirthday');
     const {
       nickname,
       phone,
@@ -286,6 +290,8 @@ export const updateProfile = async (req: Request, res: Response, next: NextFunct
     const normalizedFamilyNotes = typeof familyNotes === 'string' ? familyNotes.trim() : undefined;
     const phonePattern = /^1\d{10}$/;
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const parsedDueDate = dueDate ? new Date(dueDate) : null;
+    const parsedBabyBirthday = babyBirthday ? new Date(babyBirthday) : null;
 
     if (normalizedPhone && !phonePattern.test(normalizedPhone)) {
       throw new AppError('请输入11位手机号', ErrorCodes.PARAM_FORMAT_ERROR, 400);
@@ -293,6 +299,14 @@ export const updateProfile = async (req: Request, res: Response, next: NextFunct
 
     if (normalizedEmail && !emailPattern.test(normalizedEmail)) {
       throw new AppError('请输入正确的邮箱地址', ErrorCodes.PARAM_FORMAT_ERROR, 400);
+    }
+
+    if (hasDueDate && dueDate && Number.isNaN(parsedDueDate?.getTime())) {
+      throw new AppError('预产期格式错误', ErrorCodes.PARAM_FORMAT_ERROR, 400);
+    }
+
+    if (hasBabyBirthday && babyBirthday && Number.isNaN(parsedBabyBirthday?.getTime())) {
+      throw new AppError('宝宝生日格式错误', ErrorCodes.PARAM_FORMAT_ERROR, 400);
     }
 
     if (normalizedPhone) {
@@ -323,24 +337,52 @@ export const updateProfile = async (req: Request, res: Response, next: NextFunct
       }
     }
 
+    const lifecycleTouched = hasPregnancyStatus || hasDueDate || hasBabyBirthday;
+    const lifecycleStage = lifecycleTouched
+      ? resolveLifecycleStage(
+          normalizedPregnancyStatus,
+          hasDueDate ? parsedDueDate : undefined,
+          hasBabyBirthday ? parsedBabyBirthday : undefined,
+        )
+      : null;
+    const updateData: Record<string, unknown> = {
+      nickname,
+      phone: normalizedPhone,
+      email: normalizedEmail,
+      avatar,
+      pregnancyStatus: normalizedPregnancyStatus,
+      babyGender: normalizedBabyGender,
+      caregiverRole: normalizedCaregiverRole,
+      childNickname: normalizedChildNickname !== undefined ? (normalizedChildNickname || null) : undefined,
+      childBirthMode: normalizedChildBirthMode,
+      feedingMode: normalizedFeedingMode,
+      developmentConcerns: normalizedDevelopmentConcerns !== undefined ? (normalizedDevelopmentConcerns || null) : undefined,
+      familyNotes: normalizedFamilyNotes !== undefined ? (normalizedFamilyNotes || null) : undefined,
+    };
+
+    if (hasDueDate) {
+      updateData.dueDate = parsedDueDate;
+    }
+
+    if (hasBabyBirthday) {
+      updateData.babyBirthday = parsedBabyBirthday;
+    }
+
+    if (lifecycleStage === 'pregnant') {
+      updateData.pregnancyStatus = 2;
+      updateData.babyBirthday = null;
+    } else if (lifecycleStage === 'postpartum') {
+      updateData.pregnancyStatus = 3;
+      updateData.dueDate = null;
+    } else if (lifecycleStage === 'preparing' && lifecycleTouched && normalizedPregnancyStatus === 1) {
+      updateData.pregnancyStatus = 1;
+      updateData.dueDate = null;
+      updateData.babyBirthday = null;
+    }
+
     const user = await prisma.user.update({
       where: { id: BigInt(userId!) },
-      data: {
-        nickname,
-        phone: normalizedPhone,
-        email: normalizedEmail,
-        avatar,
-        pregnancyStatus: normalizedPregnancyStatus,
-        dueDate: dueDate ? new Date(dueDate) : undefined,
-        babyBirthday: babyBirthday ? new Date(babyBirthday) : undefined,
-        babyGender: normalizedBabyGender,
-        caregiverRole: normalizedCaregiverRole,
-        childNickname: normalizedChildNickname !== undefined ? (normalizedChildNickname || null) : undefined,
-        childBirthMode: normalizedChildBirthMode,
-        feedingMode: normalizedFeedingMode,
-        developmentConcerns: normalizedDevelopmentConcerns !== undefined ? (normalizedDevelopmentConcerns || null) : undefined,
-        familyNotes: normalizedFamilyNotes !== undefined ? (normalizedFamilyNotes || null) : undefined,
-      },
+      data: updateData,
       select: {
         id: true,
         username: true,

@@ -8,10 +8,12 @@ const STAGE_QUERY_MAP: Record<string, { apiStage?: string; fallbackKeyword?: str
   'first-trimester': { apiStage: 'first-trimester', fallbackKeyword: '孕早期 建档 早孕反应' },
   'second-trimester': { apiStage: 'second-trimester', fallbackKeyword: '孕中期 胎动 糖耐' },
   'third-trimester': { apiStage: 'third-trimester', fallbackKeyword: '孕晚期 待产 分娩征兆' },
+  postpartum: { apiStage: 'postpartum', fallbackKeyword: '产后恢复 恶露 伤口 复查 喂养' },
+  newborn: { apiStage: 'newborn', fallbackKeyword: '新生儿 黄疸 喂养 排便 脐带' },
   '0-6-months': { apiStage: '0-6-months', fallbackKeyword: '新生儿 喂养 夜醒 疫苗' },
   '6-12-months': { apiStage: '6-12-months', fallbackKeyword: '辅食 睡眠倒退 发育 疫苗' },
   '1-3-years': { apiStage: '1-3-years', fallbackKeyword: '语言发展 如厕 情绪 挑食' },
-  '3-years-plus': { fallbackKeyword: '儿童 语言 情绪行为 睡眠 习惯 入园' },
+  '3-years-plus': { apiStage: '3-years-plus', fallbackKeyword: '儿童 语言 情绪行为 睡眠 习惯 入园' },
 }
 const CHINESE_AUTHORITY_PATTERNS = [
   /中国政府网/u,
@@ -23,6 +25,7 @@ const CHINESE_AUTHORITY_PATTERNS = [
   /中国疾病预防控制中心/u,
   /chinacdc/i,
 ]
+const MOBILE_KNOWLEDGE_PAGE_SIZE = 6
 
 function getArticleTimestamp(article: Article): number {
   const value = article.publishedAt || article.createdAt
@@ -71,20 +74,82 @@ function sortKnowledgeArticles(list: Article[]): Article[] {
   })
 }
 
-function buildKnowledgeQuery(selectedStage: string | null, keyword: string) {
+function mergeKnowledgeArticles(existing: Article[], incoming: Article[]) {
+  const articleMap = new Map<string, Article>()
+
+  for (const article of [...existing, ...incoming]) {
+    articleMap.set(article.slug, article)
+  }
+
+  return sortKnowledgeArticles(Array.from(articleMap.values()))
+}
+
+function buildKnowledgeAttempts(selectedStage: string | null, keyword: string) {
   const stageConfig = selectedStage ? STAGE_QUERY_MAP[selectedStage] : undefined
   const normalizedKeyword = keyword.trim()
+  const attempts: Array<{ stage?: string; keyword?: string }> = []
 
   if (normalizedKeyword) {
-    return {
-      stage: stageConfig?.apiStage,
-      keyword: normalizedKeyword,
+    if (stageConfig?.apiStage) {
+      attempts.push({ stage: stageConfig.apiStage, keyword: normalizedKeyword })
+    }
+    attempts.push({ keyword: normalizedKeyword })
+  } else {
+    if (stageConfig?.apiStage) {
+      attempts.push({ stage: stageConfig.apiStage })
+    }
+    if (stageConfig?.fallbackKeyword) {
+      attempts.push({ keyword: stageConfig.fallbackKeyword })
+    }
+    attempts.push({})
+  }
+
+  const seen = new Set<string>()
+  return attempts.filter((attempt) => {
+    const key = `${attempt.stage || ''}::${attempt.keyword || ''}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+async function getKnowledgeArticlesWithFallback(params: {
+  page: number
+  pageSize: number
+  category?: string
+  tag?: string
+  selectedStage: string | null
+  keyword: string
+}) {
+  const attempts = buildKnowledgeAttempts(params.selectedStage, params.keyword)
+  let lastResponse: PaginatedResponse<Article> | null = null
+
+  for (const attempt of attempts) {
+    const response = await articleApi.getList({
+      page: params.page,
+      pageSize: params.pageSize,
+      contentType: KNOWLEDGE_CONTENT_TYPE,
+      category: params.category,
+      tag: params.tag,
+      stage: attempt.stage,
+      keyword: attempt.keyword,
+    }) as PaginatedResponse<Article>
+
+    lastResponse = response
+
+    if ((response.list || []).length > 0) {
+      return response
     }
   }
 
-  return {
-    stage: stageConfig?.apiStage,
-    keyword: stageConfig?.apiStage ? undefined : stageConfig?.fallbackKeyword,
+  return lastResponse || {
+    list: [],
+    pagination: {
+      total: 0,
+      page: params.page,
+      pageSize: params.pageSize,
+      totalPages: 0,
+    },
   }
 }
 
@@ -110,6 +175,7 @@ interface KnowledgeState {
   setTag: (slug: string | null) => void
   setStage: (stage: string | null) => void
   setKeyword: (keyword: string) => void
+  initializeFilters: (stage?: string | null) => void
   search: (keyword: string) => Promise<void>
   likeArticle: (id: number) => Promise<void>
   favoriteArticle: (id: number) => Promise<void>
@@ -123,7 +189,7 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
   currentArticle: null,
   total: 0,
   page: 1,
-  pageSize: 10,
+  pageSize: MOBILE_KNOWLEDGE_PAGE_SIZE,
   selectedCategory: null,
   selectedTag: null,
   selectedStage: null,
@@ -136,24 +202,28 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
     const page = params?.page || state.page
     set({ loading: true, error: null })
     try {
-      const query = buildKnowledgeQuery(state.selectedStage, state.keyword)
-      const response = await articleApi.getList({
-        page, pageSize: state.pageSize,
-        contentType: KNOWLEDGE_CONTENT_TYPE,
+      const response = await getKnowledgeArticlesWithFallback({
+        page,
+        pageSize: state.pageSize,
         category: state.selectedCategory || undefined,
         tag: state.selectedTag || undefined,
-        stage: query.stage,
-        keyword: query.keyword,
-      }) as PaginatedResponse<Article>
-      const nextArticles = params?.reset ? response.list : [...state.articles, ...response.list]
+        selectedStage: state.selectedStage,
+        keyword: state.keyword,
+      })
+      const nextArticles = params?.reset
+        ? sortKnowledgeArticles(response.list)
+        : mergeKnowledgeArticles(state.articles, response.list)
       set({
-        articles: sortKnowledgeArticles(nextArticles),
+        articles: nextArticles,
         total: response.pagination.total,
         page: response.pagination.page,
         loading: false,
       })
     } catch (error: unknown) {
       const err = error as { message?: string }
+      if (__DEV__) {
+        console.warn('[KnowledgeStore] fetchArticles failed', err.message || error)
+      }
       set({ error: err.message || '获取文章失败', loading: false })
     }
   },
@@ -190,35 +260,55 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
   setTag: (slug) => { set({ selectedTag: slug, page: 1 }); get().fetchArticles({ reset: true }) },
   setStage: (stage) => { set({ selectedStage: stage, page: 1 }); get().fetchArticles({ reset: true }) },
   setKeyword: (keyword) => set({ keyword }),
+  initializeFilters: (stage = null) => set({
+    articles: [],
+    page: 1,
+    selectedCategory: null,
+    selectedTag: null,
+    selectedStage: stage,
+    keyword: '',
+    error: null,
+  }),
 
   search: async (keyword) => {
     set({ keyword, page: 1, loading: true })
     try {
-      const query = buildKnowledgeQuery(get().selectedStage, keyword)
-      const response = await articleApi.getList({
+      const state = get()
+      const response = await getKnowledgeArticlesWithFallback({
         page: 1,
-        pageSize: get().pageSize,
-        contentType: KNOWLEDGE_CONTENT_TYPE,
-        keyword: query.keyword,
-        stage: query.stage,
-      }) as PaginatedResponse<Article>
+        pageSize: state.pageSize,
+        category: state.selectedCategory || undefined,
+        tag: state.selectedTag || undefined,
+        selectedStage: state.selectedStage,
+        keyword,
+      })
       set({ articles: sortKnowledgeArticles(response.list), total: response.pagination.total, loading: false })
     } catch (error: unknown) {
       const err = error as { message?: string }
+      if (__DEV__) {
+        console.warn('[KnowledgeStore] search failed', err.message || error)
+      }
       set({ error: err.message || '搜索失败', loading: false })
     }
   },
 
   likeArticle: async (id) => {
     try {
-      const result = await articleApi.like(id) as { liked: boolean }
+      const currentArticle = get().currentArticle?.id === id
+        ? get().currentArticle
+        : get().articles.find((item) => item.id === id)
+      const result = currentArticle?.isLiked
+        ? await articleApi.unlike(id) as { liked: boolean; likeCount?: number }
+        : await articleApi.like(id) as { liked: boolean; likeCount?: number }
       set((state) => ({
         articles: state.articles.map((a) => (
           a.id === id
             ? {
                 ...a,
                 isLiked: result.liked,
-                likeCount: result.liked ? a.likeCount + 1 : Math.max(a.likeCount - 1, 0),
+                likeCount: typeof result.likeCount === 'number'
+                  ? result.likeCount
+                  : (result.liked ? a.likeCount + 1 : Math.max(a.likeCount - 1, 0)),
               }
             : a
         )),
@@ -226,9 +316,11 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
           ? {
               ...state.currentArticle,
               isLiked: result.liked,
-              likeCount: result.liked
-                ? state.currentArticle.likeCount + 1
-                : Math.max(state.currentArticle.likeCount - 1, 0),
+              likeCount: typeof result.likeCount === 'number'
+                ? result.likeCount
+                : (result.liked
+                  ? state.currentArticle.likeCount + 1
+                  : Math.max(state.currentArticle.likeCount - 1, 0)),
             }
           : state.currentArticle,
       }))
@@ -237,14 +329,21 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
 
   favoriteArticle: async (id) => {
     try {
-      const result = await articleApi.favorite(id) as { favorited: boolean }
+      const currentArticle = get().currentArticle?.id === id
+        ? get().currentArticle
+        : get().articles.find((item) => item.id === id)
+      const result = currentArticle?.isFavorited
+        ? await articleApi.unfavorite(id) as { favorited: boolean; collectCount?: number }
+        : await articleApi.favorite(id) as { favorited: boolean; collectCount?: number }
       set((state) => ({
         articles: state.articles.map((a) => (
           a.id === id
             ? {
                 ...a,
                 isFavorited: result.favorited,
-                collectCount: result.favorited ? a.collectCount + 1 : Math.max(a.collectCount - 1, 0),
+                collectCount: typeof result.collectCount === 'number'
+                  ? result.collectCount
+                  : (result.favorited ? a.collectCount + 1 : Math.max(a.collectCount - 1, 0)),
               }
             : a
         )),
@@ -252,9 +351,11 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
           ? {
               ...state.currentArticle,
               isFavorited: result.favorited,
-              collectCount: result.favorited
-                ? state.currentArticle.collectCount + 1
-                : Math.max(state.currentArticle.collectCount - 1, 0),
+              collectCount: typeof result.collectCount === 'number'
+                ? result.collectCount
+                : (result.favorited
+                  ? state.currentArticle.collectCount + 1
+                  : Math.max(state.currentArticle.collectCount - 1, 0)),
             }
           : state.currentArticle,
       }))

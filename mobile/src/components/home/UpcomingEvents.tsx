@@ -49,15 +49,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: spacing.sm,
+    marginBottom: spacing.xs + 2,
   },
   sectionTitle: {
-    fontSize: fontSize.lg,
+    fontSize: 15,
     fontWeight: '700',
     color: colors.text,
   },
   upcomingCardContent: {
-    gap: spacing.xs,
+    gap: 3,
     overflow: 'hidden',
   },
   upcomingCard: {
@@ -66,11 +66,11 @@ const styles = StyleSheet.create({
   },
   upcomingWash: {
     position: 'absolute',
-    top: -12,
-    right: -8,
-    width: 68,
-    height: 68,
-    borderRadius: 34,
+    top: -14,
+    right: -10,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     backgroundColor: 'rgba(220,236,238,0.22)',
   },
   upcomingMeta: {
@@ -85,22 +85,22 @@ const styles = StyleSheet.create({
   },
   upcomingChipText: {
     color: colors.primaryDark,
-    fontSize: fontSize.xs,
+    fontSize: 10,
     fontWeight: '600',
   },
   upcomingDate: {
     color: colors.textSecondary,
-    fontSize: fontSize.xs,
+    fontSize: 10,
     letterSpacing: 0.4,
   },
   upcomingTitle: {
     color: colors.text,
-    fontSize: fontSize.md,
+    fontSize: 13,
     fontWeight: '600',
   },
   upcomingDesc: {
     color: colors.textSecondary,
-    fontSize: fontSize.sm,
-    lineHeight: 18,
+    fontSize: 11,
+    lineHeight: 16,
   },
 })

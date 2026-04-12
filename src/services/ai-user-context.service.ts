@@ -1,4 +1,5 @@
 import prisma from '../config/database';
+import { resolveLifecycleStage } from '../utils/pregnancy';
 
 export interface UserProfileContext {
   prompt?: string;
@@ -100,11 +101,12 @@ export async function buildUserProfileContext(userId?: string): Promise<UserProf
     lines.push(`- 用户昵称：${user.nickname}`);
   }
 
-  if (user.pregnancyStatus !== undefined) {
-    lines.push(`- 当前状态：${PREGNANCY_STATUS_LABELS[user.pregnancyStatus] || '未设置'}`);
-  }
+  const lifecycleStage = resolveLifecycleStage(user.pregnancyStatus, user.dueDate, user.babyBirthday);
+  const lifecycleStatus = lifecycleStage === 'pregnant' ? 2 : lifecycleStage === 'postpartum' ? 3 : 1;
 
-  if (user.pregnancyStatus === 2 && user.dueDate) {
+  lines.push(`- 当前状态：${PREGNANCY_STATUS_LABELS[lifecycleStatus] || '未设置'}`);
+
+  if (lifecycleStage === 'pregnant' && user.dueDate) {
     const week = calculatePregnancyWeekFromDueDate(user.dueDate);
     const stage = getPregnancyStageLabel(week);
 
@@ -119,7 +121,7 @@ export async function buildUserProfileContext(userId?: string): Promise<UserProf
     }
   }
 
-  if (user.pregnancyStatus === 3 && user.babyBirthday) {
+  if (lifecycleStage === 'postpartum' && user.babyBirthday) {
     const months = calculateBabyAgeMonths(user.babyBirthday);
     const stage = getBabyStageLabel(months);
 

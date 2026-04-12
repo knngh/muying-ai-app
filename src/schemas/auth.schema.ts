@@ -44,6 +44,8 @@ export const updateProfileBody = z.object({
   feedingMode: z.coerce.number().int().min(0).max(4).optional(),
   developmentConcerns: z.string().min(1).max(200).optional().nullable(),
   familyNotes: z.string().min(1).max(500).optional().nullable(),
+}).refine((data) => !(data.dueDate && data.babyBirthday), {
+  message: '预产期和宝宝生日不能同时设置',
 }).refine(data => Object.keys(data).length > 0, {
   message: '请提供至少一个需要更新的字段',
 });

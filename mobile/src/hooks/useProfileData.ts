@@ -45,10 +45,14 @@ const BABY_GENDER_TO_CODE: Record<string, number> = {
   未知: 0,
 }
 
-function getPregnancyStatusLabel(value?: string | number | null): string {
+function getPregnancyStatusLabel(
+  value?: string | number | null,
+  dueDate?: string | null,
+  babyBirthday?: string | null,
+): string {
+  if (dueDate || value === 2 || value === '2' || value === 'pregnant') return '孕期中'
+  if (babyBirthday || value === 3 || value === '3' || value === 'postpartum') return '育儿中'
   if (value === 1 || value === '1' || value === 'preparing') return '备孕中'
-  if (value === 2 || value === '2' || value === 'pregnant') return '孕期中'
-  if (value === 3 || value === '3' || value === 'postpartum') return '育儿中'
   return '未设置'
 }
 
@@ -151,27 +155,21 @@ export function useProfileData() {
       { label: '手机号', value: maskedPhone },
       { label: '邮箱', value: maskedEmail },
       { label: '当前阶段', value: stage.lifecycleLabel },
-      { label: '账户状态', value: getPregnancyStatusLabel(user?.pregnancyStatus) },
+      { label: '账户状态', value: getPregnancyStatusLabel(user?.pregnancyStatus, user?.dueDate, user?.babyBirthday) },
       {
-        label: '预产期',
-        value: user?.dueDate ? dayjs(user.dueDate).format('YYYY-MM-DD') : '未设置',
-      },
-      {
-        label: '宝宝生日',
-        value: user?.babyBirthday ? dayjs(user.babyBirthday).format('YYYY-MM-DD') : '未设置',
+        label: user?.dueDate ? '预产期' : (user?.babyBirthday ? '宝宝生日' : '关键日期'),
+        value: user?.dueDate
+          ? dayjs(user.dueDate).format('YYYY-MM-DD')
+          : (user?.babyBirthday ? dayjs(user.babyBirthday).format('YYYY-MM-DD') : '未设置'),
       },
       { label: '孩子昵称', value: user?.childNickname || '未设置' },
       { label: '照护者角色', value: getCaregiverRoleLabel(user?.caregiverRole) },
-      { label: '宝宝性别', value: getBabyGenderLabel(user?.babyGender) },
-      { label: '分娩方式', value: getChildBirthModeLabel(user?.childBirthMode) },
-      { label: '喂养方式', value: getFeedingModeLabel(user?.feedingMode) },
-      { label: '发育关注点', value: user?.developmentConcerns || '未设置' },
     ],
     [maskedEmail, maskedPhone, stage.lifecycleLabel, user],
   )
 
   const openEditModal = useCallback(() => {
-    const statusLabel = getPregnancyStatusLabel(user?.pregnancyStatus)
+    const statusLabel = getPregnancyStatusLabel(user?.pregnancyStatus, user?.dueDate, user?.babyBirthday)
     const genderLabel = getBabyGenderLabel(user?.babyGender)
     const caregiverRoleLabel = getCaregiverRoleLabel(user?.caregiverRole)
     const childBirthModeLabel = getChildBirthModeLabel(user?.childBirthMode)
@@ -192,6 +190,16 @@ export function useProfileData() {
 
   const handleSaveProfile = useCallback(async () => {
     try {
+      if (formPregnancyStatus === '孕期中' && !formDueDate.trim()) {
+        setSnackMessage('请先选择预产期')
+        return
+      }
+
+      if (formPregnancyStatus === '育儿中' && !formBabyBirthday.trim()) {
+        setSnackMessage('请先选择宝宝生日')
+        return
+      }
+
       const payload: {
         nickname?: string
         pregnancyStatus?: number

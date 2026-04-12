@@ -218,11 +218,14 @@ async function createConversation(
   title: string,
   summary?: string
 ): Promise<string> {
+  const now = new Date();
   await tx.$executeRawUnsafe(
-    'INSERT INTO ai_chat_conversations (user_id, title, summary) VALUES (?, ?, ?)',
+    'INSERT INTO ai_chat_conversations (user_id, title, summary, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
     userId,
     title,
-    summary || null
+    summary || null,
+    now,
+    now,
   );
 
   const rows = await tx.$queryRawUnsafe<Array<{ id: bigint }>>('SELECT LAST_INSERT_ID() AS id');

@@ -7,20 +7,12 @@ import { env } from '../config/env';
 import {
   isEmergencyQuestion,
   getEmergencyResponse,
-  streamMultiTurnChat,
 } from './ai-gateway.service';
-import { buildKnowledgePack, type SourceReference } from './knowledge.service';
-import { buildUserProfileContext } from './ai-user-context.service';
+import { type SourceReference } from './knowledge.service';
 import { appendConversationAssistantAnswer, saveConversationExchange } from './ai-session.service';
 import { consumeAiQuota } from './subscription.service';
 import { chunkTrustedAnswer, generateTrustedAIResponse } from './trusted-ai.service';
-import {
-  normalizeContext,
-  buildMergedContext,
-  shouldUseProfileHints,
-  buildAnswerPolicy,
-  isResumeContinuationContext,
-} from './ai-context.service';
+import { isResumeContinuationContext } from './ai-context.service';
 // WebSocket 消息协议类型（与 shared/types/ai.ts 保持一致）
 interface WsClientMessage {
   type: 'ask_stream' | 'chat_stream' | 'ping' | 'cancel'
@@ -88,17 +80,6 @@ function buildWsQuotaFingerprint(type: WsClientMessage['type'], payload: WsClien
     context: payload.context,
     model: payload.model,
   });
-}
-
-function buildPromptContext(question: string, context: unknown, profilePrompt?: string, knowledgeContext?: string): string {
-  const allowProfileHints = shouldUseProfileHints(question, context);
-
-  return buildMergedContext(
-    buildAnswerPolicy(question, context),
-    allowProfileHints ? profilePrompt : undefined,
-    normalizeContext(context),
-    knowledgeContext,
-  );
 }
 
 function isRequestCanceled(ws: AuthenticatedWebSocket, requestId: string): boolean {
@@ -361,23 +342,29 @@ async function handleChatStream(
     content: m.content,
   }));
 
-  if (!isResumeContinuation) {
-    try {
-      const result = await generateTrustedAIResponse({
-        question: lastMessage.content,
-        context,
-        userId: ws.userId,
-        model,
-        history: formattedMessages,
-      });
+  try {
+    const result = await generateTrustedAIResponse({
+      question: lastMessage.content,
+      context,
+      userId: ws.userId,
+      model,
+      history: formattedMessages,
+    });
 
-      if (isRequestCanceled(ws, requestId) || ws.readyState !== WebSocket.OPEN) {
-        clearRequestCancellation(ws, requestId);
-        return;
-      }
+    if (isRequestCanceled(ws, requestId) || ws.readyState !== WebSocket.OPEN) {
+      clearRequestCancellation(ws, requestId);
+      return;
+    }
 
-      const persistedConversationId = ws.userId && lastMessage.role === 'user' && result.answer.trim()
-        ? await saveConversationExchange({
+    const persistedConversationId = ws.userId && lastMessage.role === 'user' && result.answer.trim()
+      ? isResumeContinuation
+        ? await appendConversationAssistantAnswer({
+          userId: ws.userId,
+          conversationId,
+          assistantAnswer: result.answer,
+          sources: result.sources,
+        })
+        : await saveConversationExchange({
           userId: ws.userId,
           conversationId,
           userQuestion: lastMessage.content,
@@ -385,83 +372,9 @@ async function handleChatStream(
           isEmergency: result.isEmergency,
           sources: result.sources,
         })
-        : conversationId;
+      : conversationId;
 
-      sendTrustedResult(ws, requestId, result, persistedConversationId);
-    } catch (streamError: any) {
-      console.error(`[WebSocket] Stream error in chat_stream:`, streamError);
-      sendError(ws, requestId, streamError.message || '流式响应出错');
-    }
-    return;
-  }
-
-  const profileContext = await buildUserProfileContext(ws.userId);
-  const retrievalQuery = lastMessage.role === 'user'
-    ? shouldUseProfileHints(lastMessage.content, context)
-      ? [lastMessage.content, ...profileContext.retrievalHints].filter(Boolean).join(' ')
-      : lastMessage.content
-    : lastMessage.content;
-  const knowledgePack = lastMessage.role === 'user'
-    ? buildKnowledgePack(retrievalQuery, { limit: 3 })
-    : { context: '', sources: [], followUpQuestions: [], results: [] };
-  const finalContext = buildPromptContext(lastMessage.content, context, profileContext.prompt, knowledgePack.context);
-
-  // 流式输出
-  try {
-    let answer = '';
-    let resolvedRoute: { provider: string; model: string; route: string } | undefined;
-    for await (const chunk of streamMultiTurnChat(formattedMessages, {
-      model,
-      context: finalContext,
-      onRouteResolved: (route) => {
-        resolvedRoute = route
-      },
-    })) {
-      answer += chunk;
-      if (isRequestCanceled(ws, requestId)) break;
-      if (ws.readyState !== WebSocket.OPEN) break;
-      sendMessage(ws, {
-        type: 'chunk',
-        requestId,
-        data: { content: chunk },
-      });
-    }
-
-    const wasCanceled = isRequestCanceled(ws, requestId);
-    if (ws.readyState === WebSocket.OPEN) {
-      const persistedConversationId = ws.userId && lastMessage.role === 'user' && answer.trim()
-        ? isResumeContinuation
-          ? await appendConversationAssistantAnswer({
-            userId: ws.userId,
-            conversationId,
-            assistantAnswer: answer,
-            sources: knowledgePack.sources,
-          })
-          : await saveConversationExchange({
-            userId: ws.userId,
-            conversationId,
-            userQuestion: lastMessage.content,
-            assistantAnswer: answer,
-            sources: knowledgePack.sources,
-          })
-        : conversationId;
-
-      sendMessage(ws, {
-        type: 'done',
-        requestId,
-        data: {
-          sources: knowledgePack.sources,
-          disclaimer: '温馨提示：这份答复供您先参考，如症状持续、加重或您心里仍不踏实，请尽快咨询医生。',
-          conversationId: persistedConversationId,
-          model: resolvedRoute?.model || model,
-          provider: resolvedRoute?.provider,
-          route: resolvedRoute?.route,
-        },
-      });
-    }
-    if (wasCanceled) {
-      clearRequestCancellation(ws, requestId);
-    }
+    sendTrustedResult(ws, requestId, result, persistedConversationId);
   } catch (streamError: any) {
     console.error(`[WebSocket] Stream error in chat_stream:`, streamError);
     sendError(ws, requestId, streamError.message || '流式响应出错');

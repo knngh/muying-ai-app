@@ -22,14 +22,22 @@ export default function ChatInput({
 
   return (
     <View style={styles.inputWrap}>
-      {hint ? <Text style={styles.inputHint}>{hint}</Text> : null}
+      {hint ? (
+        <View style={styles.inputHintWrap}>
+          <View style={styles.inputHintDot} />
+          <Text style={styles.inputHint}>{hint}</Text>
+        </View>
+      ) : null}
 
       <View style={styles.dock}>
         <View style={styles.dockGlow} />
+        <View style={styles.dockGrid} />
+        <View style={styles.dockBeam} />
+        <View style={styles.dockBottomLine} />
         <View style={styles.dockHeader}>
           <View style={styles.dockLabelRow}>
             <View style={styles.dockMarker} />
-            <Text style={styles.dockEyebrow}>提问输入区</Text>
+            <Text style={styles.dockEyebrow}>开始提问</Text>
           </View>
           <Text style={styles.dockMeta}>建议一次只问一个具体问题</Text>
         </View>
@@ -43,8 +51,8 @@ export default function ChatInput({
             mode="outlined"
             style={styles.input}
             contentStyle={styles.inputContent}
-            outlineColor="rgba(184,138,72,0.14)"
-            activeOutlineColor={colors.primary}
+            outlineColor="rgba(164, 198, 205, 0.22)"
+            activeOutlineColor={colors.techDark}
             multiline
             maxLength={2000}
             returnKeyType="send"
@@ -72,18 +80,36 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
     backgroundColor: 'transparent',
   },
-  inputHint: {
+  inputHintWrap: {
     marginBottom: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    borderRadius: borderRadius.pill,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    backgroundColor: 'rgba(255, 249, 244, 0.76)',
+    borderWidth: 1,
+    borderColor: 'rgba(207, 223, 227, 0.3)',
+  },
+  inputHintDot: {
+    width: 5,
+    height: 5,
+    borderRadius: borderRadius.pill,
+    backgroundColor: 'rgba(94, 126, 134, 0.55)',
+  },
+  inputHint: {
     color: colors.inkSoft,
-    fontSize: 12,
-    lineHeight: 18,
+    fontSize: 10,
+    lineHeight: 15,
+    flex: 1,
   },
   dock: {
     padding: spacing.sm,
     borderRadius: borderRadius.xl,
-    backgroundColor: colors.surfaceGlass,
+    backgroundColor: 'rgba(255, 250, 246, 0.92)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.5)',
+    borderColor: 'rgba(182, 210, 216, 0.26)',
     shadowColor: colors.inkSoft,
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.08,
@@ -92,18 +118,46 @@ const styles = StyleSheet.create({
   },
   dockGlow: {
     position: 'absolute',
-    top: -18,
-    right: -8,
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    backgroundColor: 'rgba(220,236,238,0.36)',
+    top: -26,
+    right: -6,
+    width: 108,
+    height: 108,
+    borderRadius: 54,
+    backgroundColor: 'rgba(218,236,240,0.34)',
+  },
+  dockGrid: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    borderWidth: 1,
+    borderColor: 'rgba(229, 241, 244, 0.16)',
+    opacity: 0.56,
+  },
+  dockBeam: {
+    position: 'absolute',
+    left: -14,
+    top: 10,
+    width: 128,
+    height: 36,
+    borderRadius: borderRadius.pill,
+    backgroundColor: 'rgba(255, 223, 196, 0.18)',
+    transform: [{ rotate: '-6deg' }],
+  },
+  dockBottomLine: {
+    position: 'absolute',
+    left: 14,
+    right: 14,
+    bottom: 11,
+    height: 1,
+    backgroundColor: 'rgba(215, 229, 233, 0.4)',
   },
   dockHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: spacing.sm,
+    marginBottom: 9,
     paddingHorizontal: spacing.xs,
   },
   dockLabelRow: {
@@ -112,20 +166,20 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   dockMarker: {
-    width: 26,
-    height: 4,
+    width: 24,
+    height: 3,
     borderRadius: borderRadius.pill,
-    backgroundColor: 'rgba(185,104,66,0.32)',
+    backgroundColor: 'rgba(197,108,71,0.4)',
   },
   dockEyebrow: {
-    color: colors.primaryDark,
-    fontSize: 11,
+    color: colors.techDark,
+    fontSize: 10,
     fontWeight: '700',
-    letterSpacing: 1.1,
+    letterSpacing: 1.25,
   },
   dockMeta: {
-    color: colors.textLight,
-    fontSize: 11,
+    color: colors.textSecondary,
+    fontSize: 10,
   },
   inputRow: {
     flexDirection: 'row',
@@ -134,25 +188,31 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    backgroundColor: 'rgba(255, 252, 248, 0.98)',
+    backgroundColor: 'rgba(255, 253, 250, 0.96)',
     minHeight: 56,
+    borderRadius: 20,
   },
   inputContent: {
     paddingTop: spacing.sm,
     paddingBottom: spacing.sm,
+    paddingHorizontal: 4,
     color: colors.text,
   },
   sendButton: {
     margin: 0,
+    width: 42,
+    height: 42,
     borderRadius: borderRadius.pill,
-    backgroundColor: colors.copper,
-    shadowColor: colors.copper,
+    backgroundColor: colors.techDark,
+    borderWidth: 1,
+    borderColor: 'rgba(223, 244, 248, 0.34)',
+    shadowColor: colors.techDark,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
+    shadowOpacity: 0.22,
+    shadowRadius: 10,
   },
   sendButtonDisabled: {
-    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+    backgroundColor: 'rgba(221, 226, 228, 0.9)',
     shadowOpacity: 0,
   },
 })

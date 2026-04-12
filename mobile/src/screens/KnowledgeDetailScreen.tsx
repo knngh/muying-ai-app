@@ -68,15 +68,18 @@ export default function KnowledgeDetailScreen() {
   ), [article?.source, article?.sourceOrg, article?.sourceUrl])
   const displayTags = useMemo(() => getDisplayTags(article), [article])
   const displayTopic = useMemo(() => normalizeKnowledgeLabel(article?.topic), [article?.topic])
+  const displayedBodyContent = showingTranslation && translation?.translatedContent
+    ? translation.translatedContent
+    : article?.content || ''
+  const isBodyFallback = !stripHtmlTags(displayedBodyContent).replace(/\s+/g, '').trim()
   const displayedContentHtml = useMemo(() => {
-    const rawContent = showingTranslation && translation?.translatedContent
-      ? formatRichArticleContent(translation.translatedContent)
-      : formatRichArticleContent(article?.content || '')
+    const rawContent = isBodyFallback
+      ? formatRichArticleContent(
+          displayedSummary || '当前文章暂未同步完整正文，可先查看摘要，再打开机构原文继续阅读。',
+        )
+      : formatRichArticleContent(displayedBodyContent)
     return buildSafeArticleHtml(rawContent)
-  }, [article?.content, showingTranslation, translation?.translatedContent])
-  const translationNoticeText = translation?.translationNotice
-    || '以下内容由系统基于权威机构原文辅助翻译，仅用于阅读理解，不替代医疗建议。请以原始来源和线下医生意见为准。'
-
+  }, [displayedBodyContent, displayedSummary, isBodyFallback])
   useEffect(() => {
     if (!article || isLikelyChineseSource || translation || translating) return
 
@@ -107,9 +110,10 @@ export default function KnowledgeDetailScreen() {
   const handleShare = async () => {
     if (!article) return
     try {
+      const sourceLine = displayedSourceUrl ? `\n\n原文来源：${displayedSourceUrl}` : ''
       await Share.share({
         title: displayedTitle || article.title,
-        message: `${displayedTitle || article.title}\n\n${displayedSummary || ''}`,
+        message: `${displayedTitle || article.title}\n\n${displayedSummary || ''}${sourceLine}`,
       })
     } catch {
       // ignore
@@ -200,6 +204,9 @@ export default function KnowledgeDetailScreen() {
     )
   }
 
+  const isAuthorityArticle = article.contentType === 'authority'
+  const showCategoryChip = Boolean(article.category && !shouldHideAuthorityCategoryChip(article))
+  const supportsFavorite = !isAuthorityArticle
   const catColor = article.category
     ? categoryColors[article.category.name] || colors.primary
     : colors.primary
@@ -219,13 +226,33 @@ export default function KnowledgeDetailScreen() {
       : translation
         ? '已为你准备中文辅助阅读，可随时切换查看原文。'
         : '优先保留权威来源原文，并补充中文辅助阅读。'
-  const actionGuideText = article.isLiked && article.isFavorited
-    ? '已记录为重点内容，后续推荐与回看会优先保留这类主题。'
-    : article.isFavorited
-      ? '已加入收藏，之后可以在个人页和知识流里快速回看。'
-      : article.isLiked
-        ? '已记录你的偏好，后续会优先补充同类权威内容。'
-        : '喜欢可帮助内容推荐，收藏便于之后集中回看。'
+  const sourceUpdatedLabel = formatDisplayDate(article.sourceUpdatedAt || article.publishedAt)
+  const readingModeLabel = showingTranslation
+    ? '中文辅助版'
+    : isLikelyChineseSource
+      ? '中文原文'
+      : '原文模式'
+  const sourceStatusItems = [
+    { icon: 'book-open-page-variant-outline', text: readingModeLabel },
+    sourceUpdatedLabel
+      ? {
+          icon: 'clock-outline',
+          text: `源更新 ${sourceUpdatedLabel}`,
+        }
+      : null,
+    isBodyFallback ? { icon: 'text-box-outline', text: '摘要模式' } : null,
+  ].filter(Boolean) as Array<{ icon: string; text: string }>
+  const actionGuideText = isAuthorityArticle
+    ? (article.isLiked
+      ? '已记录你的权威内容偏好。当前支持点赞、分享与打开原文，收藏能力后续接入。'
+      : '权威文章当前支持点赞、分享与打开原文回看，收藏能力后续接入。')
+    : article.isLiked && article.isFavorited
+      ? '已记录为重点内容，后续推荐与回看会优先保留这类主题。'
+      : article.isFavorited
+        ? '已加入收藏，之后可以在个人页和知识流里快速回看。'
+        : article.isLiked
+          ? '已记录你的偏好，后续会优先补充同类权威内容。'
+          : '喜欢可帮助内容推荐，收藏便于之后集中回看。'
 
   return (
     <ScreenContainer style={styles.container}>
@@ -252,18 +279,23 @@ export default function KnowledgeDetailScreen() {
               <Text style={styles.heroAssist}>{heroAssistText}</Text>
             </View>
 
+            {article.sourceOrg || article.source ? (
+              <View style={styles.sourceBadgeRow}>
+                <View style={styles.sourceBadge}>
+                  <Text style={styles.sourceBadgeText}>
+                    {normalizeKnowledgeLabel(article.sourceOrg || article.source)}
+                  </Text>
+                </View>
+              </View>
+            ) : null}
+
             <View style={styles.badgeRow}>
-              {article.sourceOrg || article.source ? (
-                <Chip style={styles.sourceChip} textStyle={styles.sourceChipText} compact>
-                  {normalizeKnowledgeLabel(article.sourceOrg || article.source)}
-                </Chip>
-              ) : null}
               {displayTopic ? (
                 <Chip style={styles.topicChip} textStyle={styles.topicChipText} compact>
                   {displayTopic}
                 </Chip>
               ) : null}
-              {article.category ? (
+              {showCategoryChip && article.category ? (
                 <Chip
                   style={[styles.categoryChip, { backgroundColor: `${catColor}20` }]}
                   textStyle={{ fontSize: fontSize.xs, color: catColor, fontWeight: '700' }}
@@ -272,23 +304,18 @@ export default function KnowledgeDetailScreen() {
                   {article.category.name}
                 </Chip>
               ) : null}
+              {displayTags.map((tag) => (
+                <Chip
+                  key={tag.id}
+                  style={styles.tagChip}
+                  textStyle={styles.tagChipText}
+                  compact
+                  mode="outlined"
+                >
+                  {tag.displayName}
+                </Chip>
+              ))}
             </View>
-
-            {displayTags.length > 0 ? (
-              <View style={styles.tagsRow}>
-                {displayTags.map((tag) => (
-                  <Chip
-                    key={tag.id}
-                    style={styles.tagChip}
-                    textStyle={styles.tagChipText}
-                    compact
-                    mode="outlined"
-                  >
-                    {tag.displayName}
-                  </Chip>
-                ))}
-              </View>
-            ) : null}
 
             <View style={styles.metaGrid}>
               {articleFacts.map((item) => (
@@ -324,6 +351,46 @@ export default function KnowledgeDetailScreen() {
           </View>
         ) : null}
 
+        <View style={styles.quickActionRow}>
+          {displayedSourceUrl ? (
+            <Button
+              mode="contained-tonal"
+              icon="open-in-new"
+              onPress={() => void handleOpenSource()}
+              style={styles.quickActionButton}
+              contentStyle={styles.quickActionContent}
+              buttonColor="rgba(94,126,134,0.14)"
+              textColor={colors.techDark}
+            >
+              查看原文
+            </Button>
+          ) : null}
+          {!isLikelyChineseSource ? (
+            <Button
+              mode="contained-tonal"
+              icon={showingTranslation ? 'file-document-outline' : 'translate'}
+              loading={translating}
+              onPress={() => void handleToggleTranslation()}
+              style={styles.quickActionButton}
+              contentStyle={styles.quickActionContent}
+              buttonColor="rgba(184,138,72,0.16)"
+              textColor={colors.gold}
+            >
+              {showingTranslation ? '查看原文' : '切换中文'}
+            </Button>
+          ) : null}
+          <Button
+            mode="text"
+            icon="share-variant-outline"
+            onPress={() => void handleShare()}
+            style={styles.quickActionGhostButton}
+            contentStyle={styles.quickActionContent}
+            textColor={colors.primary}
+          >
+            分享
+          </Button>
+        </View>
+
         {displayedSourceUrl ? (
           <View style={styles.sourceBox}>
             <View style={styles.panelHeader}>
@@ -336,7 +403,17 @@ export default function KnowledgeDetailScreen() {
               </View>
             </View>
             <Text style={styles.sourceLabel}>原文链接</Text>
-            <Text style={styles.sourceUrl}>{displayedSourceUrl}</Text>
+            <Text style={styles.sourceUrl}>{toReadableUrl(displayedSourceUrl)}</Text>
+            {sourceStatusItems.length > 0 ? (
+              <View style={styles.sourceStatusRow}>
+                {sourceStatusItems.map((item) => (
+                  <View key={item.text} style={styles.sourceStatusPill}>
+                    <MaterialCommunityIcons name={item.icon} size={14} color={colors.techDark} />
+                    <Text style={styles.sourceStatusText}>{item.text}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
             <Button
               mode="outlined"
               onPress={() => void handleOpenSource()}
@@ -372,7 +449,7 @@ export default function KnowledgeDetailScreen() {
               </Button>
             </View>
             <Text style={styles.translationDesc}>
-              {showingTranslation ? translationNoticeText : '打开文章后会优先准备中文阅读版，生成一次后后续直接读取缓存。'}
+              {showingTranslation ? '中文辅助翻译仅用于帮助阅读理解，医疗判断请以机构原文和医生建议为准。' : '打开文章后会优先准备中文阅读版，生成一次后后续直接读取缓存。'}
             </Text>
           </View>
         ) : null}
@@ -397,8 +474,18 @@ export default function KnowledgeDetailScreen() {
             </Chip>
           </View>
           <Text style={styles.readingHint}>
-            建议先看摘要与来源，再进入正文细读；如有身体异常，请以线下医生建议为准。
+            {isBodyFallback
+              ? '当前条目暂无完整正文，已自动切换为摘要模式；需要细读时请直接打开机构原文。'
+              : '建议先看摘要与来源，再进入正文细读；如有身体异常，请以线下医生建议为准。'}
           </Text>
+          {isBodyFallback ? (
+            <View style={styles.fallbackBanner}>
+              <MaterialCommunityIcons name="information-outline" size={16} color={colors.primaryDark} />
+              <Text style={styles.fallbackBannerText}>
+                当前页面显示的是摘要模式内容，避免出现空白页。
+              </Text>
+            </View>
+          ) : null}
           <View style={styles.webviewFrame}>
             <WebView
               originWhitelist={['about:blank']}
@@ -419,9 +506,26 @@ export default function KnowledgeDetailScreen() {
                     );
                     window.ReactNativeWebView.postMessage(String(height));
                   }
+                  function bindImageListeners() {
+                    var images = document.images || [];
+                    for (var index = 0; index < images.length; index += 1) {
+                      images[index].addEventListener('load', sendHeight);
+                      images[index].addEventListener('error', sendHeight);
+                    }
+                  }
+                  var observer = new MutationObserver(sendHeight);
+                  observer.observe(document.body, {
+                    subtree: true,
+                    childList: true,
+                    attributes: true,
+                    characterData: true
+                  });
+                  bindImageListeners();
                   window.addEventListener('load', sendHeight);
+                  window.addEventListener('resize', sendHeight);
                   setTimeout(sendHeight, 100);
                   setTimeout(sendHeight, 400);
+                  setTimeout(sendHeight, 1200);
                   true;
                 })();
               `}
@@ -456,17 +560,30 @@ export default function KnowledgeDetailScreen() {
           >
             {article.isLiked ? '已点赞' : '点赞'} {article.likeCount || 0}
           </Button>
-          <Button
-            mode={article.isFavorited ? 'contained' : 'outlined'}
-            icon={article.isFavorited ? 'bookmark' : 'bookmark-outline'}
-            onPress={handleFavorite}
-            style={[styles.actionButton, article.isFavorited && styles.actionButtonFavorited]}
-            contentStyle={styles.actionButtonContent}
-            buttonColor={article.isFavorited ? colors.techDark : undefined}
-            textColor={article.isFavorited ? colors.white : colors.techDark}
-          >
-            {article.isFavorited ? '已收藏' : '收藏'} {article.collectCount || 0}
-          </Button>
+          {supportsFavorite ? (
+            <Button
+              mode={article.isFavorited ? 'contained' : 'outlined'}
+              icon={article.isFavorited ? 'bookmark' : 'bookmark-outline'}
+              onPress={handleFavorite}
+              style={[styles.actionButton, article.isFavorited && styles.actionButtonFavorited]}
+              contentStyle={styles.actionButtonContent}
+              buttonColor={article.isFavorited ? colors.techDark : undefined}
+              textColor={article.isFavorited ? colors.white : colors.techDark}
+            >
+              {article.isFavorited ? '已收藏' : '收藏'} {article.collectCount || 0}
+            </Button>
+          ) : (
+            <Button
+              mode="outlined"
+              icon="open-in-new"
+              onPress={() => void handleOpenSource()}
+              style={styles.actionButton}
+              contentStyle={styles.actionButtonContent}
+              textColor={colors.techDark}
+            >
+              原文
+            </Button>
+          )}
           <Button
             mode="outlined"
             icon="share-variant-outline"
@@ -555,19 +672,28 @@ const styles = StyleSheet.create({
     color: colors.inkSoft,
     lineHeight: 21,
   },
+  sourceBadgeRow: {
+    marginTop: spacing.md,
+  },
   badgeRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.xs,
-    marginTop: spacing.md,
+    marginTop: spacing.sm,
   },
-  sourceChip: {
+  sourceBadge: {
     backgroundColor: 'rgba(255, 253, 250, 0.92)',
+    borderRadius: 16,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    alignSelf: 'flex-start',
+    maxWidth: '100%',
   },
-  sourceChipText: {
+  sourceBadgeText: {
     color: colors.primaryDark,
     fontSize: fontSize.xs,
     fontWeight: '700',
+    lineHeight: 18,
   },
   topicChip: {
     backgroundColor: 'rgba(220, 236, 238, 0.78)',
@@ -584,12 +710,6 @@ const styles = StyleSheet.create({
     color: colors.green,
     fontSize: fontSize.xs,
     fontWeight: '700',
-  },
-  tagsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-    marginBottom: spacing.md,
   },
   tagChip: {
     backgroundColor: 'rgba(255, 250, 245, 0.9)',
@@ -643,6 +763,23 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.06,
     shadowRadius: 18,
+  },
+  quickActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  quickActionButton: {
+    borderRadius: 18,
+  },
+  quickActionGhostButton: {
+    borderRadius: 18,
+    marginLeft: 'auto',
+  },
+  quickActionContent: {
+    height: 40,
   },
   panelHeader: {
     flexDirection: 'row',
@@ -710,6 +847,26 @@ const styles = StyleSheet.create({
     color: colors.text,
     lineHeight: 20,
   },
+  sourceStatusRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+    marginTop: spacing.sm,
+  },
+  sourceStatusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: 'rgba(220,236,238,0.68)',
+  },
+  sourceStatusText: {
+    color: colors.techDark,
+    fontSize: fontSize.xs,
+    fontWeight: '600',
+  },
   sourceButton: {
     alignSelf: 'flex-start',
     marginTop: spacing.sm,
@@ -771,6 +928,23 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
     color: colors.textSecondary,
     lineHeight: 20,
+  },
+  fallbackBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+    borderRadius: 16,
+    backgroundColor: 'rgba(197,108,71,0.10)',
+  },
+  fallbackBannerText: {
+    flex: 1,
+    color: colors.primaryDark,
+    fontSize: fontSize.xs,
+    lineHeight: 18,
   },
   webviewFrame: {
     margin: spacing.md,
@@ -848,6 +1022,13 @@ function normalizeKnowledgeLabel(label?: string): string {
   if (!value) return ''
 
   const lower = value.toLowerCase()
+  if (/american academy of pediatrics|healthychildren\.org|\baap\b/.test(lower)) return 'AAP'
+  if (/mayo clinic|mayoclinic\.org/.test(lower)) return 'Mayo Clinic'
+  if (/msd manuals?|msdmanuals\.cn|merck manual/.test(lower)) return 'MSD Manuals'
+  if (/national health service|\bnhs\b|nhs\.uk/.test(lower)) return 'NHS'
+  if (/world health organization|\bwho\b|who\.int/.test(lower)) return 'WHO'
+  if (/centers? for disease control|\bcdc\b|cdc\.gov/.test(lower)) return 'CDC'
+  if (/american college of obstetricians and gynecologists|\bacog\b|acog\.org/.test(lower)) return 'ACOG'
   const mapped = {
     pregnancy: '孕期',
     policy: '指南/政策',
@@ -861,6 +1042,24 @@ function normalizeKnowledgeLabel(label?: string): string {
   }[lower]
 
   return mapped || value
+}
+
+function isSourceLikeKnowledgeTag(label: string) {
+  const normalized = normalizeKnowledgeLabel(label).toLowerCase()
+  if (!normalized) return false
+
+  return /^(aap|acog|cdc|who|nhs|mayo clinic|msd manuals)$/i.test(normalized)
+    || /healthychildren|mayoclinic|msdmanuals|who\.int|cdc\.gov|nhs\.uk|acog\.org/i.test(normalized)
+    || /american academy of pediatrics|american college of obstetricians and gynecologists|world health organization|national health service|centers? for disease control/i.test(normalized)
+}
+
+function shouldHideAuthorityCategoryChip(article: Article) {
+  if (!article.category) return false
+  if (article.category.slug === 'authority-source') return true
+
+  const categoryKey = normalizeKnowledgeLabel(article.category.name).toLowerCase()
+  const sourceKey = normalizeKnowledgeLabel(article.sourceOrg || article.source).toLowerCase()
+  return Boolean(categoryKey && sourceKey && categoryKey === sourceKey)
 }
 
 function getDisplayTags(article?: Article | null) {
@@ -879,6 +1078,7 @@ function getDisplayTags(article?: Article | null) {
       const key = tag.displayName.toLowerCase()
       if (!key) return false
       if (key === sourceKey || key === topicKey) return false
+      if (isSourceLikeKnowledgeTag(key)) return false
       if (seen.has(key)) return false
       seen.add(key)
       return true
@@ -1014,6 +1214,29 @@ function sanitizeAuthoritySourceUrl(url?: string, sourceText = ''): string {
   }
 
   return url
+}
+
+function formatDisplayDate(value?: string): string {
+  if (!value) {
+    return ''
+  }
+
+  const timestamp = Date.parse(value)
+  if (Number.isNaN(timestamp)) {
+    return ''
+  }
+
+  return new Date(timestamp).toLocaleDateString('zh-CN')
+}
+
+function toReadableUrl(url: string): string {
+  try {
+    const parsed = new URL(url)
+    const pathname = parsed.pathname === '/' ? '' : parsed.pathname.replace(/\/+$/g, '')
+    return `${parsed.hostname}${pathname}`.slice(0, 88)
+  } catch {
+    return url
+  }
 }
 
 function convertTextToRichHtml(text: string): string {

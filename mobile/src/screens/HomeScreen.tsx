@@ -28,7 +28,8 @@ type HomeNavProp = CompositeNavigationProp<
 const featureEntries: FeatureEntry[] = [
   { title: '知识库', subtitle: '权威内容与中文阅读', icon: 'book-open-page-variant-outline', route: 'Knowledge', type: 'tab' },
   { title: '问题助手', subtitle: '母婴常见问题参考', icon: 'message-question-outline', route: 'Chat', type: 'tab' },
-  { title: '成长日历', subtitle: '拖拽安排待办提醒', icon: 'calendar-check-outline', route: 'Calendar', type: 'stack' },
+  { title: '今日签到', subtitle: '进入成长日历完成今日安排', icon: 'calendar-check-outline', route: 'Calendar', type: 'stack' },
+  { title: '孕期档案', subtitle: '集中查看孕周与关键节点', icon: 'file-document-outline', route: 'PregnancyProfile', type: 'stack' },
   { title: '周度报告', subtitle: '每周阶段重点总结', icon: 'chart-box-outline', route: 'WeeklyReport', type: 'stack' },
 ]
 
@@ -52,6 +53,8 @@ export default function HomeScreen() {
     if (entry.type === 'stack') {
       if (entry.route === 'Calendar') {
         navigation.navigate('Calendar')
+      } else if (entry.route === 'PregnancyProfile') {
+        navigation.navigate('PregnancyProfile')
       } else if (entry.route === 'WeeklyReport') {
         navigation.navigate('WeeklyReport')
       } else {
@@ -91,11 +94,11 @@ export default function HomeScreen() {
           />
         </ContentSection>
 
-        <ContentSection>
+        <ContentSection style={styles.compactSection}>
           <QuickActions entries={featureEntries} onPress={handleFeaturePress} />
         </ContentSection>
 
-        <ContentSection>
+        <ContentSection style={styles.compactSection}>
           <InfoGrid
             focusTitle={stage.focusTitle}
             reminder={stage.reminder}
@@ -125,19 +128,19 @@ export default function HomeScreen() {
           />
         </ContentSection>
 
-        <ContentSection>
+        <ContentSection style={styles.compactSection}>
+          <UpcomingEvents
+            events={upcomingEvents}
+            onViewAll={() => navigation.navigate('Calendar')}
+          />
+        </ContentSection>
+
+        <ContentSection style={styles.compactSection}>
           <ArticleList
             articles={articles}
             loading={loadingArticles}
             readingTopic={stage.readingTopic}
             onPress={(slug) => navigation.navigate('KnowledgeDetail', { slug })}
-          />
-        </ContentSection>
-
-        <ContentSection>
-          <UpcomingEvents
-            events={upcomingEvents}
-            onViewAll={() => navigation.navigate('Calendar')}
           />
         </ContentSection>
 
@@ -152,10 +155,14 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   scrollContent: {
-    paddingBottom: spacing.xxl,
+    paddingBottom: spacing.xxxl * 3 + spacing.sm,
   },
   heroSection: {
-    paddingTop: spacing.md,
+    paddingTop: spacing.sm + 2,
+    marginBottom: spacing.md + 2,
+  },
+  compactSection: {
+    marginBottom: spacing.md + 2,
   },
   tagRow: {
     flexDirection: 'row',

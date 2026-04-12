@@ -74,9 +74,13 @@ type ChildAge = {
   days: number
 }
 
-function normalizePregnancyStatus(value?: string | number | null): StageKind {
-  if (value === 2 || value === '2' || value === 'pregnant') return 'pregnant'
-  if (value === 3 || value === '3' || value === 'postpartum') return 'postpartum'
+function normalizePregnancyStatus(
+  value?: string | number | null,
+  dueDate?: string | null,
+  babyBirthday?: string | null,
+): StageKind {
+  if (dueDate || value === 2 || value === '2' || value === 'pregnant') return 'pregnant'
+  if (babyBirthday || value === 3 || value === '3' || value === 'postpartum') return 'postpartum'
   return 'preparing'
 }
 
@@ -199,7 +203,7 @@ function createCalendarSuggestion(
 export function getStageSummary(user?: User | null): StageSummary {
   const pregnancy = calculatePregnancyProgress(user?.dueDate)
   const childAge = calculateChildAge(user?.babyBirthday)
-  const kind = normalizePregnancyStatus(user?.pregnancyStatus)
+  const kind = normalizePregnancyStatus(user?.pregnancyStatus, user?.dueDate, user?.babyBirthday)
 
   if (kind === 'pregnant' && pregnancy) {
     const lifecycleKey =
@@ -302,12 +306,13 @@ export function getStageSummary(user?: User | null): StageSummary {
         eventEmptyText: '先补喂养观察、黄疸复诊或产后复查提醒。',
         suggestionTitle: '母婴关键提醒',
         suggestionSubtitle: '把最容易漏掉的照护与复诊动作先固定下来。',
-        knowledgeStages: ['0-6-months'],
+        knowledgeStages: ['newborn', '0-6-months'],
         knowledgeKeywords: ['新生儿', '月子', '黄疸', '喂养'],
         statusTags: ['月子期', '新生儿照护', `宝宝 ${childAge.totalDays} 天`],
         calendarSuggestions: [
           createCalendarSuggestion('喂养与排便观察', '固定时间记录吃奶、排便和精神状态。', 'reminder', '建议未来 48 小时内开始', 0, 2),
           createCalendarSuggestion('黄疸或复诊提醒', '把出院后复查与异常观察放进日历。', 'checkup', '建议 1-5 天内安排', 1, 5),
+          createCalendarSuggestion('新生儿筛查结果回看', '把听力、足跟血或出院后待复核项目补进日历。', 'checkup', '建议 1-7 天内确认', 1, 7),
           createCalendarSuggestion('产后恢复观察', '恶露、伤口、情绪和睡眠要同步记录。', 'reminder', '建议 3 天内建立', 0, 3),
         ],
       })
@@ -331,12 +336,13 @@ export function getStageSummary(user?: User | null): StageSummary {
         eventEmptyText: '先补产后复查、喂养复盘或家人协作提醒。',
         suggestionTitle: '恢复建议',
         suggestionSubtitle: '把妈妈恢复和宝宝照护都放进同一套节奏里。',
-        knowledgeStages: ['0-6-months'],
+        knowledgeStages: ['postpartum', 'newborn', '0-6-months'],
         knowledgeKeywords: ['产后恢复', '喂养', '开奶', '夜醒'],
         statusTags: ['产后恢复', `宝宝 ${childAge.totalDays} 天`, '家庭节奏重建'],
         calendarSuggestions: [
           createCalendarSuggestion('产后复查安排', '提前锁定复诊、盆底或伤口相关检查。', 'checkup', '建议 3-14 天内安排', 3, 14),
           createCalendarSuggestion('喂养复盘提醒', '观察奶量、胀奶、堵奶和夜间节奏。', 'reminder', '建议未来 7 天内固定', 0, 7),
+          createCalendarSuggestion('42 天节点准备', '把妈妈复查、宝宝随访和问题清单提前整理。', 'checkup', '建议 7-21 天内排入', 7, 21),
           createCalendarSuggestion('情绪与睡眠观察', '把压力变化也纳入连续记录。', 'reminder', '建议 5 天内建立观察', 0, 5),
         ],
       })
@@ -441,19 +447,20 @@ export function getStageSummary(user?: User | null): StageSummary {
       aiTipPreview: '适合把行为、语言、睡眠和入园适应类问题集中整理。 ',
       aiTipFull: '今天适合围绕语言表达、情绪管理、作息边界、挑食和入园适应做一次重点咨询。',
       calendarTitle: '成长日历',
-      calendarSubtitle: '3 岁以上更适合把体检、疫苗、行为观察和家庭习惯养成放进长期时间线。',
-      eventHeadline: '近期家庭安排',
-      eventEmptyText: '先补年度体检、疫苗、语言观察或入园准备提醒。',
-      suggestionTitle: '长期陪伴建议',
-      suggestionSubtitle: '把年度检查、行为观察和家庭习惯养成放进连续记录。',
-      knowledgeStages: [],
-      knowledgeKeywords: ['儿童', '语言发展', '情绪行为', '睡眠习惯', '入园适应'],
-      statusTags: ['3 岁以上', '行为与语言发展', '长期家庭陪伴'],
-      calendarSuggestions: [
-        createCalendarSuggestion('年度体检安排', '把年度体检、牙齿或视力检查先排上。', 'checkup', '建议 15-45 天内安排', 15, 45),
-        createCalendarSuggestion('语言与社交观察', '记录表达、互动和情绪调节的变化。', 'reminder', '建议未来 21 天内开始', 0, 21),
-        createCalendarSuggestion('入园或作息准备', '把家庭规则、作息和环境适应做成节律。', 'reminder', '建议 7-21 天内排入', 7, 21),
-      ],
+        calendarSubtitle: '3 岁以上更适合把体检、疫苗、行为观察和家庭习惯养成放进长期时间线。',
+        eventHeadline: '近期家庭安排',
+        eventEmptyText: '先补年度体检、疫苗、语言观察或入园准备提醒。',
+        suggestionTitle: '长期陪伴建议',
+        suggestionSubtitle: '把年度检查、行为观察和家庭习惯养成放进连续记录。',
+        knowledgeStages: ['3-years-plus'],
+        knowledgeKeywords: ['儿童', '语言发展', '情绪行为', '睡眠习惯', '入园适应'],
+        statusTags: ['3 岁以上', '行为与语言发展', '长期家庭陪伴'],
+        calendarSuggestions: [
+          createCalendarSuggestion('年度体检安排', '把年度体检、牙齿或视力检查先排上。', 'checkup', '建议 15-45 天内安排', 15, 45),
+          createCalendarSuggestion('补种或疫苗核对', '把接种本补录、补种和入园查验安排清楚。', 'vaccine', '建议 15-45 天内安排', 15, 45),
+          createCalendarSuggestion('语言与社交观察', '记录表达、互动和情绪调节的变化。', 'reminder', '建议未来 21 天内开始', 0, 21),
+          createCalendarSuggestion('入园或作息准备', '把家庭规则、作息和环境适应做成节律。', 'reminder', '建议 7-21 天内排入', 7, 21),
+        ],
     })
   }
 
@@ -475,12 +482,13 @@ export function getStageSummary(user?: User | null): StageSummary {
       eventEmptyText: '先补一条复查或恢复提醒。',
       suggestionTitle: '恢复建议',
       suggestionSubtitle: '把最关键的恢复节点固定进日历。',
-      knowledgeStages: ['0-6-months'],
+      knowledgeStages: ['postpartum', 'newborn', '0-6-months'],
       knowledgeKeywords: ['产后恢复', '喂养'],
       statusTags: ['产后恢复', '等待补充宝宝生日'],
       calendarSuggestions: [
         createCalendarSuggestion('产后复查安排', '固定产后关键复查节点。', 'checkup', '建议 3-14 天内安排', 3, 14),
         createCalendarSuggestion('恢复观察提醒', '让伤口、恶露和睡眠都有连续记录。', 'reminder', '建议未来 7 天内建立', 0, 7),
+        createCalendarSuggestion('喂养与情绪复盘', '把奶量、堵奶风险和情绪变化纳入连续回看。', 'reminder', '建议未来 7-14 天内固定', 0, 14),
       ],
     })
   }

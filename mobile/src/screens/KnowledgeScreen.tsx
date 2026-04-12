@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useRef, useState } from 'react'
+import React, { useEffect, useCallback, useMemo, useRef, useState } from 'react'
 import {
   View,
   FlatList,
@@ -16,6 +16,7 @@ import {
   Button,
 } from 'react-native-paper'
 import LinearGradient from 'react-native-linear-gradient'
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons'
 import { useNavigation } from '@react-navigation/native'
 import type { StackNavigationProp } from '@react-navigation/stack'
 import type { RootStackParamList } from '../navigation/AppNavigator'
@@ -34,7 +35,9 @@ const stageOptions = [
   { label: '孕早期', value: 'first-trimester' },
   { label: '孕中期', value: 'second-trimester' },
   { label: '孕晚期', value: 'third-trimester' },
-  { label: '月子/0-6月', value: '0-6-months' },
+  { label: '产后恢复', value: 'postpartum' },
+  { label: '月子/新生儿', value: 'newborn' },
+  { label: '0-6月', value: '0-6-months' },
   { label: '6-12月', value: '6-12-months' },
   { label: '1-3岁', value: '1-3-years' },
   { label: '3岁+', value: '3-years-plus' },
@@ -45,8 +48,8 @@ const lifecycleStageMap: Record<LifecycleStageKey, string> = {
   pregnant_early: 'first-trimester',
   pregnant_mid: 'second-trimester',
   pregnant_late: 'third-trimester',
-  postpartum_newborn: '0-6-months',
-  postpartum_recovery: '0-6-months',
+  postpartum_newborn: 'newborn',
+  postpartum_recovery: 'postpartum',
   infant_0_6: '0-6-months',
   infant_6_12: '6-12-months',
   toddler_1_3: '1-3-years',
@@ -95,6 +98,13 @@ function normalizeKnowledgeLabel(label?: string) {
   if (!value) return ''
 
   const lower = value.toLowerCase()
+  if (/american academy of pediatrics|healthychildren\.org|\baap\b/.test(lower)) return 'AAP'
+  if (/mayo clinic|mayoclinic\.org/.test(lower)) return 'Mayo Clinic'
+  if (/msd manuals?|msdmanuals\.cn|merck manual/.test(lower)) return 'MSD Manuals'
+  if (/national health service|\bnhs\b|nhs\.uk/.test(lower)) return 'NHS'
+  if (/world health organization|\bwho\b|who\.int/.test(lower)) return 'WHO'
+  if (/centers? for disease control|\bcdc\b|cdc\.gov/.test(lower)) return 'CDC'
+  if (/american college of obstetricians and gynecologists|\bacog\b|acog\.org/.test(lower)) return 'ACOG'
   const mapped = {
     pregnancy: '孕期',
     policy: '指南/政策',
@@ -108,6 +118,24 @@ function normalizeKnowledgeLabel(label?: string) {
   }[lower]
 
   return mapped || value
+}
+
+function isSourceLikeKnowledgeTag(label: string) {
+  const normalized = normalizeKnowledgeLabel(label).toLowerCase()
+  if (!normalized) return false
+
+  return /^(aap|acog|cdc|who|nhs|mayo clinic|msd manuals)$/i.test(normalized)
+    || /healthychildren|mayoclinic|msdmanuals|who\.int|cdc\.gov|nhs\.uk|acog\.org/i.test(normalized)
+    || /american academy of pediatrics|american college of obstetricians and gynecologists|world health organization|national health service|centers? for disease control/i.test(normalized)
+}
+
+function shouldHideAuthorityCategoryChip(article: Article) {
+  if (!article.category) return false
+  if (article.category.slug === 'authority-source') return true
+
+  const categoryKey = normalizeKnowledgeLabel(article.category.name).toLowerCase()
+  const sourceKey = normalizeKnowledgeLabel(article.sourceOrg || article.source).toLowerCase()
+  return Boolean(categoryKey && sourceKey && categoryKey === sourceKey)
 }
 
 function getArticleDisplayTags(article: Article) {
@@ -124,16 +152,28 @@ function getArticleDisplayTags(article: Article) {
       const key = tag.displayName.toLowerCase()
       if (!key) return false
       if (key === sourceKey || key === topicKey) return false
+      if (isSourceLikeKnowledgeTag(key)) return false
       if (seen.has(key)) return false
       seen.add(key)
       return true
     })
 }
 
+function shouldAutoApplyStageFilter(stage: string | null) {
+  return Boolean(stage && stage !== 'preparation')
+}
+
 export default function KnowledgeScreen() {
   const navigation = useNavigation<KnowledgeNavProp>()
   const user = useAppStore((state) => state.user)
   const stageSummary = getStageSummary(user)
+  const isPreparationLifecycle = stageSummary.lifecycleKey === 'preparing'
+  const initializedLifecycleRef = useRef<string | null>(null)
+  const suggestedKeywords = useMemo(
+    () => (stageSummary.knowledgeKeywords || []).slice(0, 4),
+    [stageSummary.knowledgeKeywords],
+  )
+  const [stageDropdownOpen, setStageDropdownOpen] = useState(false)
   const translationInFlightRef = useRef<Set<string>>(new Set())
   const [translations, setTranslations] = useState<Record<string, AuthorityArticleTranslation>>({})
   const [translationFailed, setTranslationFailed] = useState<Record<string, boolean>>({})
@@ -149,6 +189,7 @@ export default function KnowledgeScreen() {
     selectedStage,
     keyword,
     loading,
+    error,
     fetchArticles,
     fetchCategories,
     fetchTags,
@@ -156,20 +197,32 @@ export default function KnowledgeScreen() {
     setTag,
     setStage,
     setKeyword,
+    initializeFilters,
     search,
     reset,
   } = useKnowledgeStore()
 
   useEffect(() => {
-    fetchCategories()
-    fetchTags()
-    const initialStage = lifecycleStageMap[stageSummary.lifecycleKey]
-    if (initialStage) {
-      setStage(initialStage)
+    void fetchCategories()
+    void fetchTags()
+  }, [fetchCategories, fetchTags])
+
+  useEffect(() => {
+    const initialStage = lifecycleStageMap[stageSummary.lifecycleKey] || null
+    if (initializedLifecycleRef.current === initialStage) {
       return
     }
-    fetchArticles({ reset: true })
-  }, [])
+
+    initializedLifecycleRef.current = initialStage
+    if (shouldAutoApplyStageFilter(initialStage)) {
+      initializeFilters(initialStage)
+      void fetchArticles({ reset: true })
+      return
+    }
+
+    initializeFilters(null)
+    void fetchArticles({ reset: true })
+  }, [fetchArticles, initializeFilters, stageSummary.lifecycleKey])
 
   useEffect(() => {
     const candidates = articles
@@ -210,6 +263,14 @@ export default function KnowledgeScreen() {
   const activeTagLabel = selectedTag
     ? tags.find((item) => item.slug === selectedTag)?.name || '已选标签'
     : ''
+  const hasNetworkError = Boolean(error && /network error|timeout|请求失败|连接/i.test(error))
+  const emptyTitle = hasNetworkError ? '知识库暂时连不上服务' : '当前筛选下还没有文章'
+  const emptyText = hasNetworkError
+    ? '当前更像是接口连接异常，不是内容为空。请先检查移动端 API 域名或网络连通性，再重新进入知识库。'
+    : '可以先放宽筛选范围，或直接去问题助手提问；新同步的权威内容也会继续补入这里。'
+  const errorBannerText = hasNetworkError
+    ? '移动端当前无法连接 API 服务。请优先检查 beihu.me 域名解析、网关配置，或当前网络是否可达。'
+    : error || ''
 
   const handleSearch = useCallback(() => {
     if (keyword.trim()) {
@@ -230,10 +291,16 @@ export default function KnowledgeScreen() {
     fetchArticles({ reset: true })
   }, [fetchArticles, reset])
 
+  const handleQuickKeyword = useCallback((value: string) => {
+    setKeyword(value)
+    void search(value)
+  }, [search, setKeyword])
+
   const renderArticleItem = ({ item }: { item: Article }) => {
     const catColor = item.category
       ? categoryColors[item.category.name] || colors.primary
       : colors.primary
+    const showCategoryChip = Boolean(item.category && !shouldHideAuthorityCategoryChip(item))
     const sourceSignal = resolveSourceSignal(item)
     const sourceLabel = formatArticleSource(item)
     const stageLabel = formatArticleStage(item.stage)
@@ -266,14 +333,19 @@ export default function KnowledgeScreen() {
           <Text style={styles.articleTitle} numberOfLines={2}>
             {displayedTitle}
           </Text>
-          <Text style={styles.articleSourceLine} numberOfLines={1}>
-            {sourceLabel} · {dateLabel}
-          </Text>
+          <View style={styles.articleSourceRow}>
+            <Text style={styles.articleSourceText} numberOfLines={3} ellipsizeMode="tail">
+              {sourceLabel}
+            </Text>
+            <Text style={styles.articleDateText} numberOfLines={1}>
+              {dateLabel}
+            </Text>
+          </View>
           <View style={styles.articleMeta}>
             <Chip compact style={styles.stageChip} textStyle={styles.stageChipText}>
               {stageLabel}
             </Chip>
-            {item.category && (
+            {showCategoryChip && item.category && (
               <Chip
                 style={[styles.categoryChip, { backgroundColor: catColor + '20' }]}
                 textStyle={{ fontSize: fontSize.xs, color: catColor }}
@@ -325,7 +397,7 @@ export default function KnowledgeScreen() {
       >
         <View style={styles.filterGlow} />
         <View style={styles.filterRing} />
-        <Text style={styles.filterPanelEyebrow}>筛选面板</Text>
+        <Text style={styles.filterPanelEyebrow}>筛选条件</Text>
         <Text style={styles.filterPanelTitle}>按阶段、分类和主题快速缩小范围</Text>
         <View style={styles.filterStatsRow}>
           <View style={styles.filterStatCard}>
@@ -341,34 +413,55 @@ export default function KnowledgeScreen() {
             <Text style={styles.filterStatValue}>{total || articles.length} 篇</Text>
           </View>
         </View>
-      </LinearGradient>
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.stageScroll}
-        contentContainerStyle={styles.stageScrollContent}
-      >
-        {stageOptions.map((option) => (
+        <View style={styles.stageDropdownSection}>
+          <Text style={styles.stageDropdownLabel}>阶段范围</Text>
           <TouchableOpacity
-            key={option.label}
-            style={[
-              styles.stageButton,
-              selectedStage === option.value && styles.stageButtonActive,
-            ]}
-            onPress={() => setStage(option.value)}
+            activeOpacity={0.88}
+            style={[styles.stageDropdownTrigger, stageDropdownOpen && styles.stageDropdownTriggerOpen]}
+            onPress={() => setStageDropdownOpen((prev) => !prev)}
           >
-            <Text
-              style={[
-                styles.stageButtonText,
-                selectedStage === option.value && styles.stageButtonTextActive,
-              ]}
-            >
-              {option.label}
-            </Text>
+            <View style={styles.stageDropdownCopy}>
+              <Text style={styles.stageDropdownValue}>{activeStageLabel}</Text>
+              <Text style={styles.stageDropdownHint}>{stageDropdownOpen ? '收起选项' : '点击切换阶段范围'}</Text>
+            </View>
+            <MaterialCommunityIcons
+              name={stageDropdownOpen ? 'chevron-up' : 'chevron-down'}
+              size={20}
+              color={colors.techDark}
+            />
           </TouchableOpacity>
-        ))}
-      </ScrollView>
+
+          {stageDropdownOpen ? (
+            <View style={styles.stageDropdownMenu}>
+              {stageOptions.map((option) => (
+                <TouchableOpacity
+                  key={option.label}
+                  style={[
+                    styles.stageButton,
+                    selectedStage === option.value && styles.stageButtonActive,
+                  ]}
+                  onPress={() => {
+                    setStage(option.value)
+                    setStageDropdownOpen(false)
+                  }}
+                  activeOpacity={0.88}
+                  hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+                >
+                  <Text
+                    style={[
+                      styles.stageButtonText,
+                      selectedStage === option.value && styles.stageButtonTextActive,
+                    ]}
+                  >
+                    {option.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          ) : null}
+        </View>
+      </LinearGradient>
 
       {/* Category Filter */}
       {categories.length > 0 && (
@@ -451,21 +544,51 @@ export default function KnowledgeScreen() {
       >
         <View style={styles.headerGlow} />
         <View style={styles.headerRing} />
-        <Text style={styles.headerEyebrow}>知识库导航</Text>
+        <Text style={styles.headerEyebrow}>知识库</Text>
         <Text style={styles.headerTitle}>按阶段找到更贴近当前周期的权威内容</Text>
         <Text style={styles.headerSubtitle}>
-          默认优先展示更贴近 {stageSummary.lifecycleLabel} 的内容，可继续按分类、标签与来源收窄。
+          {isPreparationLifecycle
+            ? '备孕期权威内容仍在持续补齐，当前默认先展示全站可用文章，并优先提供备孕相关检索建议。'
+            : `默认优先展示更贴近 ${stageSummary.lifecycleLabel} 的内容，可继续按分类、标签与来源收窄。`}
         </Text>
       </LinearGradient>
 
       <Searchbar
-        placeholder={`搜索${stageSummary.lifecycleLabel}相关内容`}
+        placeholder={isPreparationLifecycle ? '搜索备孕、孕期相关内容' : `搜索${stageSummary.lifecycleLabel}相关内容`}
         value={keyword}
         onChangeText={setKeyword}
         onSubmitEditing={handleSearch}
         style={styles.searchbar}
         inputStyle={styles.searchInput}
       />
+
+      {suggestedKeywords.length > 0 ? (
+        <View style={styles.suggestedSearchBar}>
+          <Text style={styles.suggestedSearchLabel}>推荐检索</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.suggestedSearchRow}>
+            {suggestedKeywords.map((item) => (
+              <Chip
+                key={item}
+                compact
+                style={styles.suggestedSearchChip}
+                textStyle={styles.suggestedSearchChipText}
+                onPress={() => handleQuickKeyword(item)}
+              >
+                {item}
+              </Chip>
+            ))}
+          </ScrollView>
+        </View>
+      ) : null}
+
+      {error ? (
+        <View style={styles.errorBanner}>
+          <Text style={styles.errorBannerTitle}>
+            {hasNetworkError ? '当前请求失败' : '当前加载失败'}
+          </Text>
+          <Text style={styles.errorBannerText}>{errorBannerText}</Text>
+        </View>
+      ) : null}
 
       {(selectedStage || selectedCategory || selectedTag || keyword.trim()) ? (
         <View style={styles.activeFilterBar}>
@@ -508,7 +631,7 @@ export default function KnowledgeScreen() {
       <FlatList
         data={articles}
         renderItem={renderArticleItem}
-        keyExtractor={(item) => String(item.id)}
+        keyExtractor={(item) => item.slug}
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={renderHeader}
         ListFooterComponent={renderFooter}
@@ -523,10 +646,23 @@ export default function KnowledgeScreen() {
                   style={styles.emptyIcon}
                 />
               </View>
-              <Text style={styles.emptyTitle}>当前筛选下还没有文章</Text>
-              <Text style={styles.emptyText}>
-                可以先放宽筛选范围，或直接去问题助手提问；新同步的权威内容也会继续补入这里。
-              </Text>
+              <Text style={styles.emptyTitle}>{emptyTitle}</Text>
+              <Text style={styles.emptyText}>{emptyText}</Text>
+              {suggestedKeywords.length > 0 ? (
+                <View style={styles.emptySuggestionWrap}>
+                  {suggestedKeywords.map((item) => (
+                    <Chip
+                      key={`empty-${item}`}
+                      compact
+                      style={styles.emptySuggestionChip}
+                      textStyle={styles.emptySuggestionChipText}
+                      onPress={() => handleQuickKeyword(item)}
+                    >
+                      搜索 {item}
+                    </Chip>
+                  ))}
+                </View>
+              ) : null}
               <View style={styles.emptyActionRow}>
                 <Button
                   mode="contained"
@@ -552,6 +688,8 @@ export default function KnowledgeScreen() {
         }
         onEndReached={handleLoadMore}
         onEndReachedThreshold={0.3}
+        onRefresh={() => fetchArticles({ reset: true })}
+        refreshing={loading && articles.length > 0}
       />
     </ScreenContainer>
   )
@@ -677,6 +815,49 @@ const styles = StyleSheet.create({
   searchInput: {
     fontSize: fontSize.md,
   },
+  suggestedSearchBar: {
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  suggestedSearchLabel: {
+    color: colors.textSecondary,
+    fontSize: fontSize.sm,
+    fontWeight: '700',
+    marginBottom: spacing.xs,
+  },
+  suggestedSearchRow: {
+    gap: spacing.sm,
+  },
+  suggestedSearchChip: {
+    backgroundColor: 'rgba(220,236,238,0.8)',
+    borderColor: 'rgba(94,126,134,0.14)',
+  },
+  suggestedSearchChipText: {
+    color: colors.techDark,
+    fontSize: fontSize.xs,
+    fontWeight: '700',
+  },
+  errorBanner: {
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.lg,
+    backgroundColor: 'rgba(226, 122, 89, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(226, 122, 89, 0.18)',
+  },
+  errorBannerTitle: {
+    color: colors.red,
+    fontSize: fontSize.sm,
+    fontWeight: '700',
+  },
+  errorBannerText: {
+    marginTop: spacing.xs / 2,
+    color: colors.textSecondary,
+    fontSize: fontSize.sm,
+    lineHeight: 20,
+  },
   activeFilterBar: {
     marginHorizontal: spacing.md,
     marginBottom: spacing.sm,
@@ -717,22 +898,63 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingHorizontal: spacing.md,
-    paddingBottom: 132,
+    paddingBottom: spacing.xxxl * 3 + spacing.lg,
   },
-  stageScroll: {
-    marginBottom: spacing.sm,
+  stageDropdownSection: {
+    marginTop: spacing.md,
   },
-  stageScrollContent: {
-    paddingVertical: spacing.xs,
+  stageDropdownLabel: {
+    color: colors.textSecondary,
+    fontSize: fontSize.sm,
+    fontWeight: '700',
+    marginBottom: spacing.xs,
+  },
+  stageDropdownTrigger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     gap: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.lg,
+    backgroundColor: 'rgba(255, 250, 245, 0.82)',
+    borderWidth: 1,
+    borderColor: 'rgba(184,138,72,0.12)',
+  },
+  stageDropdownTriggerOpen: {
+    borderColor: 'rgba(197,108,71,0.24)',
+    backgroundColor: 'rgba(246,225,212,0.72)',
+  },
+  stageDropdownCopy: {
+    flex: 1,
+  },
+  stageDropdownValue: {
+    color: colors.text,
+    fontSize: fontSize.md,
+    fontWeight: '700',
+  },
+  stageDropdownHint: {
+    marginTop: 2,
+    color: colors.textSecondary,
+    fontSize: fontSize.xs,
+  },
+  stageDropdownMenu: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+    marginBottom: spacing.sm,
   },
   stageButton: {
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    paddingVertical: 10,
     borderRadius: borderRadius.pill,
     backgroundColor: 'rgba(255, 249, 243, 0.94)',
     borderWidth: 1,
     borderColor: 'rgba(184,138,72,0.14)',
+    minHeight: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   stageButtonActive: {
     backgroundColor: colors.primaryLight,
@@ -828,10 +1050,19 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
     lineHeight: 24,
   },
-  articleSourceLine: {
+  articleSourceRow: {
+    gap: spacing.xs,
+    marginBottom: spacing.sm,
+  },
+  articleSourceText: {
+    flex: 1,
+    minWidth: 0,
     color: colors.textSecondary,
     fontSize: fontSize.sm,
-    marginBottom: spacing.sm,
+  },
+  articleDateText: {
+    color: colors.textLight,
+    fontSize: fontSize.xs,
   },
   articleMeta: {
     flexDirection: 'row',
@@ -935,6 +1166,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.sm,
     marginTop: spacing.md,
+  },
+  emptySuggestionWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    justifyContent: 'center',
+    marginTop: spacing.md,
+  },
+  emptySuggestionChip: {
+    backgroundColor: 'rgba(220,236,238,0.78)',
+    borderColor: 'rgba(94,126,134,0.14)',
+  },
+  emptySuggestionChipText: {
+    color: colors.techDark,
+    fontSize: fontSize.xs,
+    fontWeight: '700',
   },
   emptyPrimaryButton: {
     borderRadius: borderRadius.pill,
