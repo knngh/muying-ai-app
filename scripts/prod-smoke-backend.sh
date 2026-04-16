@@ -113,36 +113,36 @@ assert_standard_schedule() {
   printf '%s\n' "${post_response}" | jq -e '.httpStatus == 201 and .code == 0 and .data.plan.available == true and (.data.plan.items | length) > 0' >/dev/null
 }
 
-echo "[1/7] health"
+echo "[1/8] health"
 curl -fsS "${BASE_URL}/health" | jq '{status,database}'
 curl -fsS "${LEGACY_HEALTH_URL}" | jq '{status,database}'
 print_json_with_status "GET" "${LEGACY_API_BASE}/auth/check/username?username=legacy_route_probe" "" |
   jq '{httpStatus,code,message,available:.data.available}'
 
-echo "[2/7] free user"
+echo "[2/8] free user"
 FREE_TOKEN="$(login "${FREE_USERNAME}" "${FREE_PASSWORD}")"
 curl -fsS "${API_BASE}/subscription/status" -H "Authorization: Bearer ${FREE_TOKEN}" | jq '{status:.data.status,isVip:.data.isVip,aiLimit:.data.aiLimit,remainingToday:.data.remainingToday}'
 curl -fsS "${API_BASE}/quota/today" -H "Authorization: Bearer ${FREE_TOKEN}" | jq '{aiLimit:.data.aiLimit,remainingToday:.data.remainingToday,isUnlimited:.data.isUnlimited}'
 print_json_with_status "GET" "${API_BASE}/report/weekly/latest" "" -H "Authorization: Bearer ${FREE_TOKEN}" | jq '{httpStatus,code,message,data}'
 
-echo "[3/7] vip user"
+echo "[3/8] vip user"
 VIP_TOKEN="$(login "${VIP_USERNAME}" "${VIP_PASSWORD}")"
 curl -fsS "${API_BASE}/subscription/status" -H "Authorization: Bearer ${VIP_TOKEN}" | jq '{status:.data.status,plan:.data.currentPlanCode,aiLimit:.data.aiLimit,remainingToday:.data.remainingToday}'
 curl -fsS "${API_BASE}/quota/today" -H "Authorization: Bearer ${VIP_TOKEN}" | jq '{aiLimit:.data.aiLimit,remainingToday:.data.remainingToday,isUnlimited:.data.isUnlimited}'
 curl -fsS "${API_BASE}/report/weekly/latest" -H "Authorization: Bearer ${VIP_TOKEN}" | jq '{title:.data.title,stageLabel:.data.stageLabel,createdAt:.data.createdAt}'
 
-echo "[4/7] payment create-order"
+echo "[4/8] payment create-order"
 curl -fsS "${API_BASE}/payment/create-order" \
   -H 'Content-Type: application/json' \
   -H "Authorization: Bearer ${FREE_TOKEN}" \
   -d '{"planCode":"monthly","payChannel":"wechat"}' |
   jq '{code,message,data:{orderNo:.data.orderNo,status:.data.status,amount:.data.amount}}'
 
-echo "[5/7] community"
+echo "[5/8] community"
 curl -fsS "${API_BASE}/community/posts?page=1&pageSize=3&sort=latest" | jq '{count:(.data.list|length),items:(.data.list|map({id,title,author:.author.username,isVerifiedMember:.author.isVerifiedMember}))}'
 curl -fsS "${API_BASE}/community/posts/98/comments?page=1&pageSize=2" | jq '{items:(.data.list|map({id,author:.author.username,verified:.author.isVerifiedMember,replyVerified:(.replies|map(.author.isVerifiedMember))}))}'
 
-echo "[6/7] analytics"
+echo "[6/8] analytics"
 curl -fsS "${API_BASE}/analytics/events" \
   -H 'Content-Type: application/json' \
   -H "Authorization: Bearer ${VIP_TOKEN}" \

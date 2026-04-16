@@ -740,6 +740,15 @@ async function main() {
     },
   });
 
+  await prisma.calendarEvent.deleteMany({
+    where: {
+      userId: demoPostpartumUser.id,
+      reminderType: {
+        startsWith: 'std-',
+      },
+    },
+  });
+
   const today = dayjs().startOf('day').toDate();
   await prisma.aiWeeklyReport.deleteMany({
     where: { userId: demoFreeUser.id },
