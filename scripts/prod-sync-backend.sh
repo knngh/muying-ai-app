@@ -84,7 +84,12 @@ cleanup() {
 trap cleanup EXIT
 
 echo "[1/3] create archive: ${ARCHIVE_PATH}"
-tar -czf "${ARCHIVE_PATH}" -C "${REPO_ROOT}" "${SYNC_PATHS[@]}"
+COPYFILE_DISABLE=1 tar \
+  --exclude='.DS_Store' \
+  --exclude='._*' \
+  -czf "${ARCHIVE_PATH}" \
+  -C "${REPO_ROOT}" \
+  "${SYNC_PATHS[@]}"
 
 echo "[2/3] upload archive to ${SSH_USER}@${SSH_HOST}:${REMOTE_ARCHIVE}"
 run_scp "${ARCHIVE_PATH}" "${SSH_USER}@${SSH_HOST}:${REMOTE_ARCHIVE}"
@@ -93,7 +98,7 @@ echo "[3/3] extract archive into ${APP_DIR}"
 REMOTE_SCRIPT=$(cat <<EOF
 set -euo pipefail
 mkdir -p "${APP_DIR}" "${REMOTE_TMP_DIR}"
-tar -xzf "${REMOTE_ARCHIVE}" -C "${APP_DIR}"
+tar --no-same-owner --no-same-permissions -xzf "${REMOTE_ARCHIVE}" -C "${APP_DIR}"
 rm -f "${REMOTE_ARCHIVE}"
 cd "${APP_DIR}"
 pwd
