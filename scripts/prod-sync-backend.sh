@@ -47,7 +47,7 @@ if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
 fi
 
 run_ssh() {
-  local ssh_opts=(-p "${SSH_PORT}" -o StrictHostKeyChecking=no)
+  local ssh_opts=(-p "${SSH_PORT}" -o StrictHostKeyChecking=no -o BatchMode=yes)
   if [[ -n "${SSH_IDENTITY_FILE}" ]]; then
     ssh_opts+=(-i "${SSH_IDENTITY_FILE}")
   fi
@@ -59,7 +59,7 @@ run_ssh() {
 }
 
 run_scp() {
-  local scp_opts=(-P "${SSH_PORT}" -o StrictHostKeyChecking=no)
+  local scp_opts=(-P "${SSH_PORT}" -o StrictHostKeyChecking=no -o BatchMode=yes)
   if [[ -n "${SSH_IDENTITY_FILE}" ]]; then
     scp_opts+=(-i "${SSH_IDENTITY_FILE}")
   fi
