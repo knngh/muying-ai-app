@@ -5,10 +5,11 @@ import { MilvusClient } from '@zilliz/milvus2-sdk-node';
 import { shouldPublishAuthorityVectorDocument } from '../utils/authority-vector-filter';
 
 // Milvus 配置
-const MILVUS_ADDRESS = process.env.MILVUS_ADDRESS
+const RAW_MILVUS_ADDRESS = process.env.MILVUS_ADDRESS
   || process.env.ZILLIZ_PUBLIC_ENDPOINT
   || process.env.ZILLIZ_ENDPOINT
   || 'localhost:19530';
+const { address: MILVUS_ADDRESS, ssl: MILVUS_SSL } = normalizeMilvusConnection(RAW_MILVUS_ADDRESS);
 const MILVUS_TOKEN = process.env.MILVUS_TOKEN
   || process.env.ZILLIZ_TOKEN
   || process.env.ZILLIZ_API_KEY
@@ -64,6 +65,38 @@ function resolveDefaultCollectionName(model: string): string {
   }
 
   return 'muying_knowledge';
+}
+
+function normalizeMilvusConnection(rawAddress: string): { address: string; ssl: boolean } {
+  const trimmed = rawAddress.trim();
+  if (!trimmed) {
+    return { address: 'localhost:19530', ssl: false };
+  }
+
+  if (!/^[a-z]+:\/\//i.test(trimmed)) {
+    return { address: trimmed, ssl: false };
+  }
+
+  try {
+    const parsed = new URL(trimmed);
+    const ssl = parsed.protocol === 'https:';
+    const host = parsed.hostname;
+    const port = parsed.port || (ssl ? '443' : '80');
+
+    if (!host) {
+      return { address: trimmed, ssl };
+    }
+
+    return {
+      address: `${host}:${port}`,
+      ssl,
+    };
+  } catch {
+    return {
+      address: trimmed,
+      ssl: /^https:\/\//i.test(trimmed),
+    };
+  }
 }
 
 function truncateUtf8(input: string, maxBytes: number): string {
@@ -224,7 +257,7 @@ export async function getMilvusClient(): Promise<MilvusClient> {
     milvusClient = new MilvusClient({
       address: MILVUS_ADDRESS,
       token: MILVUS_TOKEN || undefined,
-      ssl: /^https:\/\//i.test(MILVUS_ADDRESS),
+      ssl: MILVUS_SSL,
       timeout: MILVUS_TIMEOUT_MS,
     });
     await milvusClient.connectPromise;
