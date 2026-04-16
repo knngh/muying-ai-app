@@ -38,13 +38,14 @@ EOF
 }
 
 run_ssh() {
-  local ssh_opts=(-p "${SSH_PORT}" -o StrictHostKeyChecking=no -o BatchMode=yes)
+  local ssh_opts=(-p "${SSH_PORT}" -o StrictHostKeyChecking=no)
   if [[ -n "${SSH_IDENTITY_FILE}" ]]; then
     ssh_opts+=(-i "${SSH_IDENTITY_FILE}")
   fi
   if [[ -n "${SSH_PASSWORD}" ]]; then
     sshpass -p "${SSH_PASSWORD}" ssh "${ssh_opts[@]}" "${SSH_USER}@${SSH_HOST}" "$@"
   else
+    ssh_opts+=(-o BatchMode=yes)
     ssh "${ssh_opts[@]}" "${SSH_USER}@${SSH_HOST}" "$@"
   fi
 }
@@ -112,6 +113,7 @@ REMOTE_COMMANDS=(
   "cp ${BACKUP_FILE@Q} ${TARGET_FILE@Q}"
   "ls -l ${BACKUP_FILE@Q} ${TARGET_FILE@Q}"
   "cd ${APP_DIR}"
+  "if [ -f .env ]; then set -a; source ./.env; set +a; fi"
 )
 
 if [[ "${WITH_BUILD}" == "true" ]]; then

@@ -32,13 +32,14 @@ if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
 fi
 
 run_ssh() {
-  local ssh_opts=(-p "${SSH_PORT}" -o StrictHostKeyChecking=no -o BatchMode=yes)
+  local ssh_opts=(-p "${SSH_PORT}" -o StrictHostKeyChecking=no)
   if [[ -n "${SSH_IDENTITY_FILE}" ]]; then
     ssh_opts+=(-i "${SSH_IDENTITY_FILE}")
   fi
   if [[ -n "${SSH_PASSWORD}" ]]; then
     sshpass -p "${SSH_PASSWORD}" ssh "${ssh_opts[@]}" "${SSH_USER}@${SSH_HOST}" "$@"
   else
+    ssh_opts+=(-o BatchMode=yes)
     ssh "${ssh_opts[@]}" "${SSH_USER}@${SSH_HOST}" "$@"
   fi
 }
