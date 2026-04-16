@@ -221,11 +221,20 @@ function isAuthorityRecordLowValue(record: Pick<AuthorityCacheRecord, 'question'
   const cleanedWithoutTitle = title
     ? cleanedAnswer.replace(title, '').trim()
     : cleanedAnswer;
+  const looksLikeAttachmentNotice = /附件[:：]|\.(?:zip|pdf|docx?|xlsx?)(?:\s|$)|海报\d+/iu.test(cleanedAnswer);
+  const sentenceCount = countMatches(cleanedWithoutTitle, /[。！？.!?]/g);
 
-  return answerChromeCount >= 6
+  return (
+    answerChromeCount >= 6
     && summaryChromeCount >= 3
     && cleanedWithoutTitle.length > 0
-    && cleanedWithoutTitle.length < 120;
+    && cleanedWithoutTitle.length < 120
+  ) || (
+    looksLikeAttachmentNotice
+    && sentenceCount === 0
+    && cleanedWithoutTitle.length > 0
+    && cleanedWithoutTitle.length < 180
+  );
 }
 
 function normalizeAuthorityDedupeKey(input: string): string {
