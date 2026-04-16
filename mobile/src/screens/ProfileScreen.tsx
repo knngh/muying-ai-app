@@ -17,9 +17,12 @@ import {
 import { useProfileData } from '../hooks/useProfileData'
 import { colors, fontSize, spacing, borderRadius } from '../theme'
 
+const TAB_SCROLL_BOTTOM_GAP = spacing.xxxl * 4 + spacing.lg
+
 export default function ProfileScreen() {
   const navigation = useNavigation<any>()
   const route = useRoute<any>()
+  const openCalendar = () => navigation.navigate('Main', { screen: 'CalendarTab' })
   const {
     user,
     initialLoading,
@@ -69,7 +72,7 @@ export default function ProfileScreen() {
       icon: 'calendar-check-outline',
       accent: colors.techDark,
       shell: 'rgba(220,236,238,0.92)',
-      onPress: () => navigation.navigate('Calendar'),
+      onPress: openCalendar,
     },
     {
       title: '编辑资料',
@@ -157,7 +160,7 @@ export default function ProfileScreen() {
             <TouchableOpacity
               style={styles.stageFocusAction}
               activeOpacity={0.88}
-              onPress={() => navigation.navigate('Calendar')}
+              onPress={openCalendar}
             >
               <Text style={styles.stageFocusActionText}>去日历安排本周重点</Text>
               <MaterialCommunityIcons name="chevron-right" size={18} color={colors.techDark} />
@@ -325,7 +328,7 @@ export default function ProfileScreen() {
 
 const styles = StyleSheet.create({
   content: {
-    paddingBottom: spacing.xxxl * 3 + spacing.sm,
+    paddingBottom: TAB_SCROLL_BOTTOM_GAP,
   },
   headerSection: {
     marginTop: spacing.sm,

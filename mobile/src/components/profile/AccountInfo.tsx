@@ -19,6 +19,8 @@ export default function AccountInfo({ rows, onPress }: AccountInfoProps) {
     if (label.includes('手机号')) return 'cellphone'
     if (label.includes('邮箱')) return 'email-outline'
     if (label.includes('当前阶段')) return 'timeline-text-outline'
+    if (label.includes('当前孕周')) return 'calendar-week'
+    if (label.includes('阶段状态')) return 'clock-outline'
     if (label.includes('预产期') || label.includes('生日')) return 'calendar-range'
     if (label.includes('孩子昵称')) return 'baby-face-outline'
     if (label.includes('照护者')) return 'account-heart-outline'

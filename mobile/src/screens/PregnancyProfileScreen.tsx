@@ -57,6 +57,7 @@ function normalizeProfilePayload(value: LoosePregnancyProfile | null | undefined
 
 export default function PregnancyProfileScreen() {
   const navigation = useNavigation<any>()
+  const openCalendar = () => navigation.navigate('Main', { screen: 'CalendarTab' })
   const [loading, setLoading] = useState(true)
   const [profile, setProfile] = useState<PregnancyProfile | null>(null)
   const [error, setError] = useState('')
@@ -280,7 +281,7 @@ export default function PregnancyProfileScreen() {
           )}
 
           <View style={styles.actionRow}>
-            <Button mode="contained" buttonColor={colors.ink} onPress={() => navigation.navigate('Calendar')} style={styles.actionButton}>
+            <Button mode="contained" buttonColor={colors.ink} onPress={openCalendar} style={styles.actionButton}>
               去写本周记录
             </Button>
             <Button mode="outlined" textColor={colors.techDark} onPress={() => navigation.navigate('Main', { screen: 'Profile', params: { autoOpenEdit: true } })} style={styles.actionButton}>

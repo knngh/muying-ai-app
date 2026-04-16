@@ -8,6 +8,7 @@ import { useAppStore } from '../stores/appStore'
 import { useChatStore } from '../stores/chatStore'
 import { useMembershipStore } from '../stores/membershipStore'
 import type { MembershipPlan } from '../stores/membershipStore'
+import { calculatePregnancyWeekFromDueDate } from '../utils'
 import { getStageSummary } from '../utils/stage'
 import { sessionStorage } from '../utils/storage'
 
@@ -149,23 +150,50 @@ export function useProfileData() {
     return `${name.slice(0, 2)}***@${domain}`
   }, [user?.email])
 
+  const currentPregnancyWeek = useMemo(() => {
+    if (!user?.dueDate) return null
+    return calculatePregnancyWeekFromDueDate(user.dueDate)
+  }, [user?.dueDate])
+
+  const daysUntilDue = useMemo(() => {
+    if (!user?.dueDate) return null
+    const diff = dayjs(user.dueDate).startOf('day').diff(dayjs().startOf('day'), 'day')
+    return Math.max(diff, 0)
+  }, [user?.dueDate])
+
   const accountRows = useMemo(
-    () => [
-      { label: '用户名', value: user?.username ?? '未设置' },
-      { label: '手机号', value: maskedPhone },
-      { label: '邮箱', value: maskedEmail },
-      { label: '当前阶段', value: stage.lifecycleLabel },
-      { label: '账户状态', value: getPregnancyStatusLabel(user?.pregnancyStatus, user?.dueDate, user?.babyBirthday) },
-      {
-        label: user?.dueDate ? '预产期' : (user?.babyBirthday ? '宝宝生日' : '关键日期'),
-        value: user?.dueDate
-          ? dayjs(user.dueDate).format('YYYY-MM-DD')
-          : (user?.babyBirthday ? dayjs(user.babyBirthday).format('YYYY-MM-DD') : '未设置'),
-      },
-      { label: '孩子昵称', value: user?.childNickname || '未设置' },
-      { label: '照护者角色', value: getCaregiverRoleLabel(user?.caregiverRole) },
-    ],
-    [maskedEmail, maskedPhone, stage.lifecycleLabel, user],
+    () => {
+      const rows = [
+        { label: '当前阶段', value: stage.lifecycleLabel },
+        {
+          label: '当前孕周',
+          value: currentPregnancyWeek ? `孕 ${currentPregnancyWeek} 周` : '未设置',
+        },
+        {
+          label: user?.dueDate ? '预产期' : (user?.babyBirthday ? '宝宝生日' : '关键日期'),
+          value: user?.dueDate
+            ? dayjs(user.dueDate).format('YYYY-MM-DD')
+            : (user?.babyBirthday ? dayjs(user.babyBirthday).format('YYYY-MM-DD') : '未设置'),
+        },
+        {
+          label: '阶段状态',
+          value: user?.dueDate && daysUntilDue !== null
+            ? `距预产期 ${daysUntilDue} 天`
+            : getPregnancyStatusLabel(user?.pregnancyStatus, user?.dueDate, user?.babyBirthday),
+        },
+        { label: '用户名', value: user?.username ?? '未设置' },
+        { label: '手机号', value: maskedPhone },
+        { label: '邮箱', value: maskedEmail },
+        { label: '照护者角色', value: getCaregiverRoleLabel(user?.caregiverRole) },
+      ]
+
+      if (user?.childNickname) {
+        rows.push({ label: '孩子昵称', value: user.childNickname })
+      }
+
+      return rows
+    },
+    [currentPregnancyWeek, daysUntilDue, maskedEmail, maskedPhone, stage.lifecycleLabel, user],
   )
 
   const openEditModal = useCallback(() => {

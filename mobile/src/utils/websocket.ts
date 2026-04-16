@@ -19,6 +19,8 @@ type WsServerMessage = {
     content?: string
     isEmergency?: boolean
     error?: string
+    code?: number | string
+    status?: number
     disclaimer?: string
     sources?: SourceReference[]
     conversationId?: string
