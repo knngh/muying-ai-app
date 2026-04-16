@@ -1,8 +1,9 @@
-import React, { useCallback } from 'react'
+import React, { useCallback, useMemo } from 'react'
 import { Alert, ScrollView, StyleSheet, View } from 'react-native'
 import { Button, Card, Chip, Divider, Text } from 'react-native-paper'
 import LinearGradient from 'react-native-linear-gradient'
-import { useFocusEffect, useNavigation } from '@react-navigation/native'
+import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native'
+import type { RouteProp } from '@react-navigation/native'
 import dayjs from 'dayjs'
 import { useMembershipStore } from '../stores/membershipStore'
 import { useAppStore } from '../stores/appStore'
@@ -11,6 +12,7 @@ import { trackAppEvent } from '../services/analytics'
 import { ScreenContainer } from '../components/layout'
 import { getStageSummary } from '../utils/stage'
 import { colors, fontSize, spacing, borderRadius } from '../theme'
+import type { RootStackParamList } from '../navigation/AppNavigator'
 
 const comparisonRows = [
   { label: '问题助手', free: '每天 3 次', member: '连续追问' },
@@ -31,14 +33,65 @@ const featureLabelMap = {
 
 const hiddenFeatures = new Set<MembershipPlan['features'][number]>(['stage_circle'])
 
+type MembershipContextCard = {
+  title: string
+  description: string
+  highlights: string[]
+  actionLabel: string
+  action: 'growth_archive' | 'weekly_report'
+}
+
 export default function MembershipScreen() {
   const navigation = useNavigation<any>()
+  const route = useRoute<RouteProp<RootStackParamList, 'Membership'>>()
   const user = useAppStore((state) => state.user)
   const { status, currentPlanCode, expireAt, aiUsedToday, plans, purchasePlan, ensureFreshQuota, loading } =
     useMembershipStore()
   const stage = getStageSummary(user)
+  const source = route.params?.source
+  const entryAction = route.params?.entryAction
+  const highlight = route.params?.highlight
 
   const activePlan = plans.find((item: MembershipPlan) => item.code === currentPlanCode)
+  const contextCard = useMemo<MembershipContextCard | null>(() => {
+    if (status === 'active') {
+      return null
+    }
+
+    if (source === 'growth_archive') {
+      return {
+        title: '别让成长档案停在预览版',
+        description: highlight || '你刚刚看到的档案、时间轴和导出摘要，只有和周报、连续问答打通后才会真正有复盘价值。',
+        highlights: ['完整档案摘要可导出', '阶段周报继续累计', '关键变化能留给家人共享'],
+        actionLabel: '先看档案预览',
+        action: 'growth_archive',
+      }
+    }
+
+    return {
+      title: '把这次打开延续成下一次还会回来',
+      description: highlight || '你是从首页任务链路里进来的，现在最该补的是让签到、周报、问答和档案形成连续反馈。',
+      highlights: ['连续追问不中断', '周报不再只看预览', '日历与档案能沉淀成时间线'],
+      actionLabel: '先看成长档案',
+      action: 'growth_archive',
+    }
+  }, [highlight, source, status])
+
+  const heroSubtitle = useMemo(() => {
+    if (status === 'active') {
+      return '这里不是单次问答升级，而是把问题助手、成长日历、阶段周报和成长档案放进同一套陪伴流程。'
+    }
+
+    if (source === 'growth_archive') {
+      return '你刚从成长档案预览进来，开通后才能把阶段时间轴、周报沉淀和导出摘要真正串起来。'
+    }
+
+    if (source === 'home_retention' || source === 'home_upgrade') {
+      return '你刚从首页任务链路进来，开通后签到、周报、问题助手和成长档案会形成连续反馈，而不是一次性使用。'
+    }
+
+    return '这里不是单次问答升级，而是把问题助手、成长日历、阶段周报和成长档案放进同一套陪伴流程。'
+  }, [source, status])
 
   useFocusEffect(
     useCallback(() => {
@@ -50,8 +103,21 @@ export default function MembershipScreen() {
           currentPlanCode,
           aiUsedToday,
           planCount: plans.length,
+          source,
+          entryAction,
         },
       })
+
+      if (contextCard) {
+        void trackAppEvent('app_membership_context_exposure', {
+          page: 'MembershipScreen',
+          properties: {
+            source,
+            action: contextCard.action,
+            highlightCount: contextCard.highlights.length,
+          },
+        })
+      }
     }, [aiUsedToday, currentPlanCode, ensureFreshQuota, plans.length, status]),
   )
 
@@ -63,6 +129,31 @@ export default function MembershipScreen() {
     } catch (_error) {
       Alert.alert('开通失败', '支付流程未完成，请稍后重试。')
     }
+  }
+
+  const handleContextAction = () => {
+    if (!contextCard) {
+      return
+    }
+
+    void trackAppEvent('app_membership_context_click', {
+      page: 'MembershipScreen',
+      properties: {
+        source,
+        action: contextCard.action,
+        highlight,
+      },
+    })
+
+    if (contextCard.action === 'weekly_report') {
+      navigation.navigate('WeeklyReport')
+      return
+    }
+
+    navigation.navigate('GrowthArchive', {
+      source: 'membership',
+      focus: source === 'growth_archive' ? 'export' : 'timeline',
+    })
   }
 
   return (
@@ -84,9 +175,7 @@ export default function MembershipScreen() {
                 {status === 'active' ? '已开通' : '当前可开通'}
               </Chip>
               <Text style={styles.heroTitle}>把 {stage.lifecycleLabel} 的记录、问答和周报串成一条连续时间线</Text>
-              <Text style={styles.heroSubtitle}>
-                这里不是单次问答升级，而是把问题助手、成长日历、阶段周报和成长档案放进同一套陪伴流程。
-              </Text>
+              <Text style={styles.heroSubtitle}>{heroSubtitle}</Text>
             </View>
 
             <View style={styles.heroStats}>
@@ -131,6 +220,36 @@ export default function MembershipScreen() {
           </Card.Content>
           </LinearGradient>
         </Card>
+
+        {contextCard ? (
+          <Card style={styles.contextCard}>
+            <Card.Content>
+              <Text style={styles.contextEyebrow}>当前断点</Text>
+              <Text style={styles.contextTitle}>{contextCard.title}</Text>
+              <Text style={styles.contextDescription}>{contextCard.description}</Text>
+              <View style={styles.contextChipRow}>
+                {contextCard.highlights.map((item) => (
+                  <Chip
+                    key={item}
+                    compact
+                    style={styles.contextChip}
+                    textStyle={styles.contextChipText}
+                  >
+                    {item}
+                  </Chip>
+                ))}
+              </View>
+              <Button
+                mode="contained-tonal"
+                onPress={handleContextAction}
+                style={styles.contextButton}
+                textColor={colors.ink}
+              >
+                {contextCard.actionLabel}
+              </Button>
+            </Card.Content>
+          </Card>
+        ) : null}
 
         <View style={styles.section}>
           <Text style={styles.sectionEyebrow}>方案选择</Text>
@@ -340,6 +459,50 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     alignSelf: 'flex-start',
     borderRadius: borderRadius.pill,
+  },
+  contextCard: {
+    marginTop: spacing.lg,
+    borderRadius: borderRadius.xl,
+    backgroundColor: colors.surfaceRaised,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  contextEyebrow: {
+    color: colors.primaryDark,
+    fontSize: fontSize.xs,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+  },
+  contextTitle: {
+    marginTop: spacing.xs,
+    color: colors.ink,
+    fontSize: fontSize.xl,
+    fontWeight: '700',
+  },
+  contextDescription: {
+    marginTop: spacing.xs,
+    color: colors.textSecondary,
+    lineHeight: 20,
+  },
+  contextChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+  },
+  contextChip: {
+    backgroundColor: colors.goldLight,
+  },
+  contextChipText: {
+    color: colors.gold,
+    fontSize: fontSize.xs,
+    fontWeight: '700',
+  },
+  contextButton: {
+    marginTop: spacing.md,
+    alignSelf: 'flex-start',
+    borderRadius: borderRadius.pill,
+    backgroundColor: 'rgba(248,227,214,0.92)',
   },
   section: {
     marginTop: spacing.lg,

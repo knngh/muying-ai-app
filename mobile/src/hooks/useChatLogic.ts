@@ -5,7 +5,18 @@ import { useMembershipStore } from '../stores/membershipStore'
 import type { MembershipPlan } from '../stores/membershipStore'
 
 export function useChatLogic() {
-  const { messages, loading, loadingHistory, streamingContent, error, initialize, sendMessage, clearMessages } = useChatStore()
+  const {
+    messages,
+    loading,
+    loadingHistory,
+    streamingContent,
+    error,
+    isQuotaExceeded,
+    initialize,
+    sendMessage,
+    startFreshSession,
+    clearMessages,
+  } = useChatStore()
   const {
     status,
     currentPlanCode,
@@ -31,11 +42,11 @@ export function useChatLogic() {
   )
 
   useEffect(() => {
-    if (error?.includes('额度已用完')) {
+    if (isQuotaExceeded) {
       setUpgradeVisible(true)
       ensureFreshQuota()
     }
-  }, [ensureFreshQuota, error])
+  }, [ensureFreshQuota, isQuotaExceeded])
 
   const activePlan = useMemo(
     () => plans.find((item: MembershipPlan) => item.code === currentPlanCode),
@@ -56,18 +67,20 @@ export function useChatLogic() {
   const handleSend = useCallback(
     (text: string) => {
       const trimmed = text.trim()
-      if (!trimmed || loading) return
-      if (!checkQuota()) return
+      if (!trimmed || loading) return false
+      if (!checkQuota()) return false
       sendMessage(trimmed)
+      return true
     },
     [checkQuota, loading, sendMessage],
   )
 
   const handleQuickQuestion = useCallback(
     (question: string) => {
-      if (loading) return
-      if (!checkQuota()) return
+      if (loading) return false
+      if (!checkQuota()) return false
       sendMessage(question)
+      return true
     },
     [checkQuota, loading, sendMessage],
   )
@@ -98,5 +111,6 @@ export function useChatLogic() {
     handleQuickQuestion,
     handleUpgrade,
     clearMessages,
+    startFreshSession,
   }
 }

@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { normalizeApiError } from '../api'
 import { v4 as uuidv4 } from '../utils'
 import type { AIMessage } from '../api/ai'
 import { aiApi, getEmergencyWarning } from '../api/ai'
@@ -13,12 +14,24 @@ interface ChatState {
   loadingHistory: boolean
   initialized: boolean
   error: string | null
+  errorCode: number | string | null
+  errorStatus: number | null
+  isQuotaExceeded: boolean
   streamingContent: string
   initialize: () => Promise<void>
   startFreshSession: () => void
   sendMessage: (content: string) => Promise<void>
   resetState: () => void
   clearMessages: () => void
+}
+
+function isQuotaExceededError(input: {
+  message?: string | null
+  code?: number | string | null
+  status?: number | null
+}) {
+  const numericCode = typeof input.code === 'string' ? Number(input.code) : input.code
+  return input.status === 429 || numericCode === 4003 || (input.message || '').includes('额度已用完')
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -28,6 +41,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
   loadingHistory: false,
   initialized: false,
   error: null,
+  errorCode: null,
+  errorStatus: null,
+  isQuotaExceeded: false,
   streamingContent: '',
 
   resetState: () => {
@@ -39,6 +55,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
       loadingHistory: false,
       initialized: false,
       error: null,
+      errorCode: null,
+      errorStatus: null,
+      isQuotaExceeded: false,
       streamingContent: '',
     })
   },
@@ -54,6 +73,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
       initialized: true,
       loadingHistory: false,
       error: null,
+      errorCode: null,
+      errorStatus: null,
+      isQuotaExceeded: false,
       streamingContent: '',
     })
   },
@@ -67,6 +89,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
       loadingHistory: false,
       initialized: true,
       error: null,
+      errorCode: null,
+      errorStatus: null,
+      isQuotaExceeded: false,
       streamingContent: '',
     })
   },
@@ -83,6 +108,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
       messages: [...state.messages, userMessage],
       loading: true,
       error: null,
+      errorCode: null,
+      errorStatus: null,
+      isQuotaExceeded: false,
     }))
 
     try {
@@ -124,6 +152,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
             conversationId: msg.data.conversationId || state.conversationId,
             streamingContent: '',
             loading: false,
+            error: null,
+            errorCode: null,
+            errorStatus: null,
+            isQuotaExceeded: false,
           }))
           void useMembershipStore.getState().ensureFreshQuota()
         } else if (msg.type === 'emergency') {
@@ -149,12 +181,28 @@ export const useChatStore = create<ChatState>((set, get) => ({
             conversationId: msg.data.conversationId || state.conversationId,
             streamingContent: '',
             loading: false,
+            error: null,
+            errorCode: null,
+            errorStatus: null,
+            isQuotaExceeded: false,
           }))
           void useMembershipStore.getState().ensureFreshQuota()
         } else if (msg.type === 'error') {
           wsResolved = true
-          set({ error: msg.data.error || '服务暂时不可用', loading: false })
-          if ((msg.data.error || '').includes('额度已用完')) {
+          const nextError = msg.data.error || '服务暂时不可用'
+          const quotaExceeded = isQuotaExceededError({
+            message: nextError,
+            code: msg.data.code,
+            status: msg.data.status,
+          })
+          set({
+            error: nextError,
+            errorCode: msg.data.code ?? null,
+            errorStatus: msg.data.status ?? null,
+            isQuotaExceeded: quotaExceeded,
+            loading: false,
+          })
+          if (quotaExceeded) {
             void useMembershipStore.getState().ensureFreshQuota()
           }
         }
@@ -192,20 +240,37 @@ export const useChatStore = create<ChatState>((set, get) => ({
               messages: [...state.messages, assistantMessage],
               conversationId: response.conversationId || state.conversationId,
               loading: false,
+              error: null,
+              errorCode: null,
+              errorStatus: null,
+              isQuotaExceeded: false,
             }))
             void useMembershipStore.getState().ensureFreshQuota()
           } catch (error: unknown) {
-            const err = error as { message?: string }
-            set({ error: err.message || '发送消息失败', loading: false })
-            if ((err.message || '').includes('额度已用完')) {
+            const err = normalizeApiError(error)
+            const quotaExceeded = isQuotaExceededError(err)
+            set({
+              error: err.message || '发送消息失败',
+              errorCode: err.code ?? null,
+              errorStatus: err.status ?? null,
+              isQuotaExceeded: quotaExceeded,
+              loading: false,
+            })
+            if (quotaExceeded) {
               void useMembershipStore.getState().ensureFreshQuota()
             }
           }
         }
       }, 5000)
     } catch (error: unknown) {
-      const err = error as { message?: string }
-      set({ error: err.message || '发送消息失败，请重试', loading: false })
+      const err = normalizeApiError(error)
+      set({
+        error: err.message || '发送消息失败，请重试',
+        errorCode: err.code ?? null,
+        errorStatus: err.status ?? null,
+        isQuotaExceeded: isQuotaExceededError(err),
+        loading: false,
+      })
     }
   },
 
@@ -218,6 +283,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
       loadingHistory: false,
       initialized: true,
       error: null,
+      errorCode: null,
+      errorStatus: null,
+      isQuotaExceeded: false,
       streamingContent: '',
     })
   },

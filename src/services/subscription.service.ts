@@ -46,6 +46,13 @@ export interface MembershipPlanDto {
   features: MembershipFeatureCode[];
 }
 
+interface RenewalReminder {
+  shouldRemind: boolean;
+  daysUntilExpiry: number;
+  message: string | null;
+  urgency: 'normal' | 'warning' | 'urgent';
+}
+
 export interface MembershipStatusDto {
   status: MembershipStatus;
   isVip: boolean;
@@ -57,6 +64,7 @@ export interface MembershipStatusDto {
   remainingToday: number;
   checkInStreak: number;
   weeklyCompletionRate: number;
+  renewalReminder: RenewalReminder | null;
 }
 
 export interface QuotaDto {
@@ -235,34 +243,46 @@ function getStageLabel(user: {
 
 async function computeUsageMetrics(userId: bigint) {
   const today = dayjs().startOf('day');
-  const startDate = today.subtract(13, 'day').toDate();
+  const startDate = today.subtract(29, 'day').toDate();
   const endDate = today.endOf('day').toDate();
 
-  const events = await prisma.calendarEvent.findMany({
-    where: {
-      userId,
-      deletedAt: null,
-      eventDate: {
-        gte: startDate,
-        lte: endDate,
+  const [events, checkins] = await Promise.all([
+    prisma.calendarEvent.findMany({
+      where: {
+        userId,
+        deletedAt: null,
+        eventDate: {
+          gte: startDate,
+          lte: endDate,
+        },
       },
-    },
-    select: {
-      eventDate: true,
-      status: true,
-    },
-  });
+      select: {
+        eventDate: true,
+        status: true,
+      },
+    }),
+    prisma.userCheckin.findMany({
+      where: {
+        userId,
+        checkinDate: {
+          gte: startDate,
+          lte: endDate,
+        },
+      },
+      select: {
+        checkinDate: true,
+      },
+    }),
+  ]);
 
-  const completedDateSet = new Set(
-    events
-      .filter((item) => item.status === 1)
-      .map((item) => dayjs(item.eventDate).format('YYYY-MM-DD')),
+  const checkedInDateSet = new Set(
+    checkins.map((item) => dayjs(item.checkinDate).format('YYYY-MM-DD')),
   );
 
   let checkInStreak = 0;
   for (let i = 0; i < 30; i += 1) {
     const date = today.subtract(i, 'day').format('YYYY-MM-DD');
-    if (!completedDateSet.has(date)) {
+    if (!checkedInDateSet.has(date)) {
       break;
     }
     checkInStreak += 1;
@@ -488,13 +508,38 @@ export async function consumeAiQuota(
     return result;
   }
 
-  const updated = await prisma.userDailyQuota.update({
+  // 原子条件更新：只有 aiUsed < aiLimit 时才 increment，防止并发超限
+  const affected = unlimited
+    ? await prisma.$executeRaw`
+        UPDATE user_daily_quotas
+        SET aiUsed = aiUsed + 1, updatedAt = NOW()
+        WHERE id = ${quota.id}
+      `
+    : await prisma.$executeRaw`
+        UPDATE user_daily_quotas
+        SET aiUsed = aiUsed + 1, updatedAt = NOW()
+        WHERE id = ${quota.id} AND aiUsed < aiLimit
+      `;
+
+  if (!unlimited && affected === 0) {
+    const result = {
+      allowed: false,
+      quota: {
+        date: dayjs(quota.quotaDate).format('YYYY-MM-DD'),
+        aiUsedToday: quota.aiLimit,
+        aiLimit: quota.aiLimit,
+        remainingToday: 0,
+        isUnlimited: false,
+      } satisfies QuotaDto,
+    };
+    if (dedupKey) {
+      cache.set(dedupKey, result, AI_QUOTA_DEDUP_TTL_MS);
+    }
+    return result;
+  }
+
+  const updated = await prisma.userDailyQuota.findUniqueOrThrow({
     where: { id: quota.id },
-    data: {
-      aiUsed: {
-        increment: 1,
-      },
-    },
   });
 
   const result = {
@@ -513,12 +558,57 @@ export async function consumeAiQuota(
   return result;
 }
 
+function computeRenewalReminder(
+  status: MembershipStatus,
+  expireAt: Date | null,
+): RenewalReminder | null {
+  if (status !== 'active' || !expireAt) {
+    return null;
+  }
+
+  const daysUntilExpiry = dayjs(expireAt).diff(dayjs(), 'day');
+
+  if (daysUntilExpiry > 7) {
+    return null;
+  }
+
+  if (daysUntilExpiry <= 1) {
+    return {
+      shouldRemind: true,
+      daysUntilExpiry,
+      message: '您的会员明天就要到期啦，续费可继续享受专属权益',
+      urgency: 'urgent',
+    };
+  }
+
+  if (daysUntilExpiry <= 3) {
+    return {
+      shouldRemind: true,
+      daysUntilExpiry,
+      message: `您的会员将在${daysUntilExpiry}天后到期，记得及时续费哦`,
+      urgency: 'warning',
+    };
+  }
+
+  return {
+    shouldRemind: true,
+    daysUntilExpiry,
+    message: `您的会员将在${daysUntilExpiry}天后到期`,
+    urgency: 'normal',
+  };
+}
+
 export async function getMembershipStatus(userId: string): Promise<MembershipStatusDto> {
   const [subscription, quota, metrics] = await Promise.all([
     getResolvedSubscriptionRecord(userId),
     getTodayQuota(userId),
     computeUsageMetrics(BigInt(userId)),
   ]);
+
+  const renewalReminder = computeRenewalReminder(
+    subscription.status,
+    subscription.subscription?.expireAt ?? null,
+  );
 
   return {
     status: subscription.status,
@@ -531,6 +621,7 @@ export async function getMembershipStatus(userId: string): Promise<MembershipSta
     remainingToday: quota.remainingToday,
     checkInStreak: metrics.checkInStreak,
     weeklyCompletionRate: metrics.weeklyCompletionRate,
+    renewalReminder,
   };
 }
 
@@ -648,6 +739,14 @@ async function activateSubscriptionForOrder(input: {
   }
 
   await prisma.$transaction(async (tx) => {
+    // 在事务内重新检查订单状态，防止并发回调重复激活
+    const lockedOrder = await tx.paymentOrder.findUniqueOrThrow({
+      where: { id: order.id },
+    });
+    if (lockedOrder.status === 'paid') {
+      return;
+    }
+
     const now = dayjs();
     const existing = await tx.subscription.findFirst({
       where: {

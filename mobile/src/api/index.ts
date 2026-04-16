@@ -4,6 +4,19 @@ import { sessionStorage } from '../utils/storage'
 
 const BASE_URL = config.apiBaseUrl
 
+export type ApiErrorType = 'business' | 'http' | 'network' | 'timeout' | 'unknown'
+
+export type ApiError = Error & {
+  status?: number
+  code?: number | string
+  data?: unknown
+  errorType?: ApiErrorType
+  isNetworkError?: boolean
+  isTimeoutError?: boolean
+  requestUrl?: string
+  method?: string
+}
+
 // 缓存 token 避免频繁异步读取
 let cachedToken: string | null = null
 
@@ -48,6 +61,69 @@ async function clearSessionAndReset() {
   navigationReset?.()
 }
 
+function buildApiError(message: string, extras: Partial<ApiError> = {}): ApiError {
+  const apiError = new Error(message) as ApiError
+  Object.assign(apiError, extras)
+  return apiError
+}
+
+export function normalizeApiError(error: unknown): ApiError {
+  if (error instanceof Error && ('errorType' in error || 'isNetworkError' in error || 'status' in error)) {
+    return error as ApiError
+  }
+
+  const maybeError = error as {
+    message?: string
+    code?: string
+    response?: {
+      status?: number
+      data?: {
+        code?: number | string
+        data?: unknown
+        message?: string
+      }
+      config?: {
+        url?: string
+        method?: string
+      }
+    }
+    config?: {
+      url?: string
+      method?: string
+    }
+  }
+
+  const requestUrl = maybeError.response?.config?.url || maybeError.config?.url
+  const method = maybeError.response?.config?.method || maybeError.config?.method
+  const status = maybeError.response?.status
+  const apiCode = maybeError.response?.data?.code
+  const responseMessage = maybeError.response?.data?.message
+  const rawMessage = responseMessage || maybeError.message || '请求失败'
+  const errorCode = maybeError.code
+  const isTimeoutError = errorCode === 'ECONNABORTED' || /timeout/i.test(rawMessage)
+  const isNetworkError = errorCode === 'ERR_NETWORK' || /network error|failed to connect|unable to resolve host/i.test(rawMessage)
+  const errorType: ApiErrorType = isTimeoutError
+    ? 'timeout'
+    : isNetworkError
+      ? 'network'
+      : status
+        ? 'http'
+        : apiCode !== undefined
+          ? 'business'
+          : 'unknown'
+
+  return buildApiError(rawMessage, {
+    status,
+    code: apiCode ?? errorCode,
+    data: maybeError.response?.data?.data,
+    errorType,
+    isNetworkError,
+    isTimeoutError,
+    requestUrl,
+    method,
+  })
+}
+
 // 请求拦截器
 api.interceptors.request.use((config) => {
   if (cachedToken) {
@@ -62,7 +138,13 @@ api.interceptors.response.use(
     const res = response.data
     if (res && typeof res === 'object' && 'code' in res) {
       if (res.code === 0) return res.data
-      return Promise.reject(new Error(res.message || '请求失败'))
+      return Promise.reject(buildApiError(res.message || '请求失败', {
+        code: res.code,
+        data: res.data,
+        errorType: 'business',
+        requestUrl: response.config?.url,
+        method: response.config?.method,
+      }))
     }
     return res
   },
@@ -113,15 +195,7 @@ api.interceptors.response.use(
       }
     }
 
-    const apiError = new Error(error.response?.data?.message || error.message || '请求失败') as Error & {
-      status?: number
-      code?: number
-      data?: unknown
-    }
-    apiError.status = error.response?.status
-    apiError.code = error.response?.data?.code
-    apiError.data = error.response?.data?.data
-    return Promise.reject(apiError)
+    return Promise.reject(normalizeApiError(error))
   },
 )
 

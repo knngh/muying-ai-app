@@ -1,7 +1,7 @@
 const mockSubscriptionFindFirst = jest.fn();
 const mockExecuteRaw = jest.fn();
 const mockQueryRaw = jest.fn();
-const mockUserDailyQuotaUpdate = jest.fn();
+const mockUserDailyQuotaFindUniqueOrThrow = jest.fn();
 const mockCacheGet = jest.fn();
 const mockCacheSet = jest.fn();
 const mockCacheDelete = jest.fn();
@@ -13,7 +13,7 @@ jest.mock('../src/config/database', () => ({
       findFirst: mockSubscriptionFindFirst,
     },
     userDailyQuota: {
-      update: mockUserDailyQuotaUpdate,
+      findUniqueOrThrow: mockUserDailyQuotaFindUniqueOrThrow,
     },
     $executeRaw: mockExecuteRaw,
     $queryRaw: mockQueryRaw,
@@ -35,13 +35,13 @@ describe('subscription.service 配额单元测试', () => {
     mockSubscriptionFindFirst.mockReset();
     mockExecuteRaw.mockReset();
     mockQueryRaw.mockReset();
-    mockUserDailyQuotaUpdate.mockReset();
+    mockUserDailyQuotaFindUniqueOrThrow.mockReset();
     mockCacheGet.mockReset();
     mockCacheSet.mockReset();
     mockCacheDelete.mockReset();
   });
 
-  it('免费用户额度已用尽时，不应再执行 update', async () => {
+  it('免费用户额度已用尽时，不应再执行扣减更新', async () => {
     mockCacheGet.mockReturnValue(null);
     mockSubscriptionFindFirst.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
     mockQueryRaw.mockResolvedValue([
@@ -65,7 +65,8 @@ describe('subscription.service 配额单元测试', () => {
         isUnlimited: false,
       },
     });
-    expect(mockUserDailyQuotaUpdate).not.toHaveBeenCalled();
+    expect(mockExecuteRaw).toHaveBeenCalledTimes(1);
+    expect(mockUserDailyQuotaFindUniqueOrThrow).not.toHaveBeenCalled();
   });
 
   it('免费用户有剩余额度时，应递增 aiUsed 并返回剩余次数', async () => {
@@ -80,7 +81,8 @@ describe('subscription.service 配额单元测试', () => {
         aiLimit: 3,
       },
     ]);
-    mockUserDailyQuotaUpdate.mockResolvedValue({
+    mockExecuteRaw.mockResolvedValue(1);
+    mockUserDailyQuotaFindUniqueOrThrow.mockResolvedValue({
       id: 2n,
       quotaDate: new Date('2026-04-06T00:00:00.000Z'),
       aiUsed: 2,
@@ -89,13 +91,9 @@ describe('subscription.service 配额单元测试', () => {
 
     const result = await consumeAiQuota('2');
 
-    expect(mockUserDailyQuotaUpdate).toHaveBeenCalledWith({
+    expect(mockExecuteRaw).toHaveBeenCalledTimes(2);
+    expect(mockUserDailyQuotaFindUniqueOrThrow).toHaveBeenCalledWith({
       where: { id: 2n },
-      data: {
-        aiUsed: {
-          increment: 1,
-        },
-      },
     });
     expect(result).toMatchObject({
       allowed: true,
@@ -137,7 +135,8 @@ describe('subscription.service 配额单元测试', () => {
         aiLimit: 9999,
       },
     ]);
-    mockUserDailyQuotaUpdate.mockResolvedValue({
+    mockExecuteRaw.mockResolvedValue(1);
+    mockUserDailyQuotaFindUniqueOrThrow.mockResolvedValue({
       id: 3n,
       quotaDate: new Date('2026-04-06T00:00:00.000Z'),
       aiUsed: 10,
@@ -188,7 +187,8 @@ describe('subscription.service 配额单元测试', () => {
         aiLimit: 3,
       },
     ]);
-    mockUserDailyQuotaUpdate.mockResolvedValue({
+    mockExecuteRaw.mockResolvedValue(1);
+    mockUserDailyQuotaFindUniqueOrThrow.mockResolvedValue({
       id: 4n,
       quotaDate: new Date('2026-04-06T00:00:00.000Z'),
       aiUsed: 2,
@@ -204,7 +204,8 @@ describe('subscription.service 配额单元测试', () => {
       fingerprint: '{"messages":["hello"]}',
     });
 
-    expect(mockUserDailyQuotaUpdate).toHaveBeenCalledTimes(1);
+    expect(mockExecuteRaw).toHaveBeenCalledTimes(2);
+    expect(mockUserDailyQuotaFindUniqueOrThrow).toHaveBeenCalledTimes(1);
     expect(second).toEqual(first);
   });
 });

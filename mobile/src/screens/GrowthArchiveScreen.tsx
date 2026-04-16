@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react'
+import React, { useCallback, useMemo } from 'react'
 import {
   Alert,
   ScrollView,
@@ -7,7 +7,8 @@ import {
   View,
 } from 'react-native'
 import { Button, Card, Chip, ProgressBar, Text } from 'react-native-paper'
-import { useNavigation } from '@react-navigation/native'
+import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native'
+import type { RouteProp } from '@react-navigation/native'
 import dayjs from 'dayjs'
 import LinearGradient from 'react-native-linear-gradient'
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons'
@@ -17,6 +18,7 @@ import { trackAppEvent } from '../services/analytics'
 import { ScreenContainer, StandardCard } from '../components/layout'
 import { borderRadius, colors, fontSize, spacing } from '../theme'
 import { getStageSummary, type LifecycleStageKey, type StageSummary } from '../utils/stage'
+import type { RootStackParamList } from '../navigation/AppNavigator'
 
 type ArchiveMetric = {
   label: string
@@ -42,6 +44,12 @@ type MilestoneCard = {
   title: string
   detail: string
   status: 'done' | 'focus' | 'next'
+}
+
+type ArchiveContextCard = {
+  title: string
+  description: string
+  highlights: string[]
 }
 
 function buildProgress(user: ReturnType<typeof useAppStore.getState>['user'], stage: StageSummary) {
@@ -183,6 +191,7 @@ function buildMilestones(stageKey: LifecycleStageKey, timelineCount: number): Mi
 
 export default function GrowthArchiveScreen() {
   const navigation = useNavigation<any>()
+  const route = useRoute<RouteProp<RootStackParamList, 'GrowthArchive'>>()
   const user = useAppStore(state => state.user)
   const {
     status,
@@ -193,9 +202,61 @@ export default function GrowthArchiveScreen() {
     weeklyReports,
   } = useMembershipStore()
   const stage = useMemo(() => getStageSummary(user), [user])
+  const source = route.params?.source
+  const focus = route.params?.focus
 
   const progress = useMemo(() => buildProgress(user, stage), [stage, user])
   const isVip = status === 'active'
+  const contextCard = useMemo<ArchiveContextCard | null>(() => {
+    if (isVip) {
+      return null
+    }
+
+    if (source === 'membership') {
+      return {
+        title: '你刚从陪伴方案页回来',
+        description: '现在看到的是成长档案预览版。真正有价值的是把周报、连续记录和导出摘要打通，而不只是零散看一眼。',
+        highlights: ['导出摘要可分享给家人', '周报与时间轴持续累计', '关键变化能做长期回看'],
+      }
+    }
+
+    return {
+      title: '先看到了档案，再决定要不要把它做完整',
+      description: '你是从首页的回访链路进入的。只要档案还停在预览，后面很多“为什么明天还要回来”都接不住。',
+      highlights: ['连续记录不会断在首页', '周报和档案会形成时间线', '问题助手内容能沉淀成复盘材料'],
+    }
+  }, [isVip, source])
+
+  const heroSubtitle = useMemo(() => {
+    if (isVip) {
+      return '这里会按当前阶段汇总进度、周报和执行节奏，长期陪伴不再只停在孕期。'
+    }
+
+    if (source === 'membership') {
+      return '你刚从陪伴方案页回来，这里展示的是档案预览。开通后，时间轴、周报沉淀和导出摘要会真正连起来。'
+    }
+
+    return '升级后可查看完整生命周期档案、连续记录摘要和可分享导出内容。'
+  }, [isVip, source])
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!contextCard) {
+        return undefined
+      }
+
+      void trackAppEvent('app_growth_archive_context_exposure', {
+        page: 'GrowthArchiveScreen',
+        properties: {
+          source,
+          focus,
+          highlightCount: contextCard.highlights.length,
+        },
+      })
+
+      return undefined
+    }, [contextCard, focus, source]),
+  )
 
   const metrics = useMemo<ArchiveMetric[]>(() => ([
     {
@@ -317,7 +378,11 @@ export default function GrowthArchiveScreen() {
 
   const handleShareArchive = async () => {
     if (!isVip) {
-      navigation.navigate('Membership')
+      navigation.navigate('Membership', {
+        source: 'growth_archive',
+        entryAction: 'growth_archive',
+        highlight: '成长档案摘要分享',
+      })
       return
     }
 
@@ -339,6 +404,27 @@ export default function GrowthArchiveScreen() {
     } catch (_error) {
       Alert.alert('提示', '分享失败，请稍后再试。')
     }
+  }
+
+  const handleContextUpgrade = () => {
+    if (!contextCard) {
+      return
+    }
+
+    void trackAppEvent('app_growth_archive_context_click', {
+      page: 'GrowthArchiveScreen',
+      properties: {
+        source,
+        focus,
+        highlightCount: contextCard.highlights.length,
+      },
+    })
+
+    navigation.navigate('Membership', {
+      source: 'growth_archive',
+      entryAction: 'growth_archive',
+      highlight: contextCard.title,
+    })
   }
 
   return (
@@ -364,11 +450,7 @@ export default function GrowthArchiveScreen() {
                 </Chip>
               </View>
               <Text style={styles.heroTitle}>把全生命周期变化沉淀成一份可回看的记录</Text>
-              <Text style={styles.heroSubtitle}>
-                {isVip
-                  ? '这里会按当前阶段汇总进度、周报和执行节奏，长期陪伴不再只停在孕期。'
-                  : '升级后可查看完整生命周期档案、连续记录摘要和可分享导出内容。'}
-              </Text>
+              <Text style={styles.heroSubtitle}>{heroSubtitle}</Text>
             </View>
 
             <View style={styles.heroSignalRow}>
@@ -409,6 +491,36 @@ export default function GrowthArchiveScreen() {
             </View>
           </LinearGradient>
         </StandardCard>
+
+        {contextCard ? (
+          <Card style={styles.contextCard}>
+            <Card.Content>
+              <Text style={styles.contextEyebrow}>当前缺口</Text>
+              <Text style={styles.contextTitle}>{contextCard.title}</Text>
+              <Text style={styles.contextDescription}>{contextCard.description}</Text>
+              <View style={styles.contextChipRow}>
+                {contextCard.highlights.map((item) => (
+                  <Chip
+                    key={item}
+                    compact
+                    style={styles.contextChip}
+                    textStyle={styles.contextChipText}
+                  >
+                    {item}
+                  </Chip>
+                ))}
+              </View>
+              <Button
+                mode="contained-tonal"
+                onPress={handleContextUpgrade}
+                style={styles.contextButton}
+                textColor={colors.ink}
+              >
+                去看陪伴方案
+              </Button>
+            </Card.Content>
+          </Card>
+        ) : null}
 
         <View style={styles.metricGrid}>
           {metrics.map((item) => (
@@ -755,6 +867,50 @@ const styles = StyleSheet.create({
   },
   heroActionButton: {
     borderRadius: borderRadius.pill,
+  },
+  contextCard: {
+    marginTop: spacing.lg,
+    borderRadius: borderRadius.xl,
+    backgroundColor: colors.surfaceRaised,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  contextEyebrow: {
+    color: colors.primaryDark,
+    fontSize: fontSize.xs,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+  },
+  contextTitle: {
+    marginTop: spacing.xs,
+    color: colors.ink,
+    fontSize: fontSize.xl,
+    fontWeight: '700',
+  },
+  contextDescription: {
+    marginTop: spacing.xs,
+    color: colors.textSecondary,
+    lineHeight: 20,
+  },
+  contextChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+  },
+  contextChip: {
+    backgroundColor: colors.goldLight,
+  },
+  contextChipText: {
+    color: colors.gold,
+    fontSize: fontSize.xs,
+    fontWeight: '700',
+  },
+  contextButton: {
+    marginTop: spacing.md,
+    alignSelf: 'flex-start',
+    borderRadius: borderRadius.pill,
+    backgroundColor: 'rgba(248,227,214,0.92)',
   },
   metricGrid: {
     marginTop: spacing.lg,

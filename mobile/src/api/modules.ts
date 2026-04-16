@@ -8,6 +8,24 @@ export type { Category, Tag, Article, CalendarEvent, User, PaginatedResponse }
 export type { PregnancyTodoProgress, PregnancyDiary, PregnancyCustomTodo, PregnancyProfile }
 export type { PaginationMeta } from '../../../shared/types'
 
+export interface CheckinStatus {
+  checkedInToday: boolean
+  currentStreak: number
+  totalPoints: number
+  monthlyCheckins: string[]
+  nextBonusAt: number | null
+  nextBonusPoints: number | null
+}
+
+export interface CheckinResult {
+  checkinDate: string
+  streakCount: number
+  pointsAwarded: number
+  totalPoints: number
+  nextBonusAt: number | null
+  nextBonusPoints: number | null
+}
+
 export interface AuthorityArticleTranslation {
   slug: string
   sourceUpdatedAt?: string
@@ -120,6 +138,11 @@ export const calendarApi = {
       newDate: data.newDate,
       newTime: data.newStartTime,
     }).then(normalizeCalendarEvent),
+}
+
+export const checkinApi = {
+  getStatus: () => api.get<CheckinStatus>('/checkin/status'),
+  checkin: () => api.post<CheckinResult>('/checkin'),
 }
 
 export const userApi = {

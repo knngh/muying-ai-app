@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Alert,
   Animated,
@@ -8,12 +8,14 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native'
-import { useFocusEffect } from '@react-navigation/native'
+import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native'
 import { Calendar, type DateData } from 'react-native-calendars'
 import dayjs from 'dayjs'
 import { Button, Card, Chip, Modal, Portal, Snackbar, Switch, Text, TextInput } from 'react-native-paper'
 import LinearGradient from 'react-native-linear-gradient'
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons'
+import { checkinApi } from '../api/modules'
+import type { CheckinStatus } from '../api/modules'
 import { useCalendarStore } from '../stores/calendarStore'
 import { useAppStore } from '../stores/appStore'
 import { useMembershipStore } from '../stores/membershipStore'
@@ -36,6 +38,7 @@ const EVENT_TYPES: EventType[] = ['checkup', 'vaccine', 'reminder', 'exercise', 
 const DEFAULT_EVENT_TIME = '08:00'
 const DEFAULT_REMINDER_MINUTES = 12 * 60
 const DEFAULT_REMINDER_LABEL = '默认提醒：前一晚 20:00'
+const TAB_SCROLL_BOTTOM_GAP = spacing.xxxl * 4 + spacing.lg
 
 function formatEventSchedule(event: CalendarEventView) {
   return `${dayjs(event.eventDate).format('M月D日')} ${event.startTime || DEFAULT_EVENT_TIME}`
@@ -215,52 +218,60 @@ function DraggableSuggestionCard({
     >
       <View style={styles.suggestionCard}>
         <View style={styles.suggestionCardBody}>
-          <View style={styles.suggestionEyebrowRow}>
-            <View style={styles.suggestionLead}>
-              <View style={styles.suggestionIconShell}>
-                <MaterialCommunityIcons
-                  name={EVENT_TYPE_CONFIG[suggestion.eventType].icon}
-                  size={16}
-                  color={colors.primaryDark}
-                />
+          <View style={styles.suggestionCardTopBlock}>
+            <View style={styles.suggestionEyebrowRow}>
+              <View style={styles.suggestionLead}>
+                <View style={styles.suggestionIconShell}>
+                  <MaterialCommunityIcons
+                    name={EVENT_TYPE_CONFIG[suggestion.eventType].icon}
+                    size={16}
+                    color={colors.primaryDark}
+                  />
+                </View>
+                <View style={styles.suggestionLeadText}>
+                  <Text style={styles.suggestionEyebrow}>建议时间窗</Text>
+                  <Text numberOfLines={1} style={styles.suggestionMiniLabel}>{suggestion.windowLabel}</Text>
+                </View>
               </View>
-              <View style={styles.suggestionLeadText}>
-                <Text style={styles.suggestionEyebrow}>建议时间窗</Text>
-                <Text numberOfLines={1} style={styles.suggestionMiniLabel}>{suggestion.windowLabel}</Text>
+              <View style={styles.dragHandle} {...panResponder.panHandlers}>
+                <View style={styles.dragHandleBar} />
+                <View style={styles.dragHandleBar} />
               </View>
             </View>
-            <View style={styles.dragHandle} {...panResponder.panHandlers}>
-              <View style={styles.dragHandleBar} />
-              <View style={styles.dragHandleBar} />
+
+            <View style={styles.suggestionCopyBlock}>
+              <Text numberOfLines={2} style={styles.suggestionTitle}>{suggestion.title}</Text>
+              <Text numberOfLines={2} style={styles.suggestionDescription}>{suggestion.description}</Text>
             </View>
           </View>
 
-          <Text numberOfLines={2} style={styles.suggestionTitle}>{suggestion.title}</Text>
-          <Text numberOfLines={2} style={styles.suggestionDescription}>{suggestion.description}</Text>
-
-          <View style={styles.suggestionChipRow}>
-            <Chip compact style={styles.windowChip} textStyle={styles.windowChipText}>
-              {suggestion.windowLabel}
-            </Chip>
-            <Chip compact style={styles.windowChip} textStyle={styles.windowChipText}>
-              {suggestion.reminderLabel}
-            </Chip>
+          <View style={styles.suggestionCardMiddleBlock}>
+            <View style={styles.suggestionChipRow}>
+              <Chip compact style={styles.windowChip} textStyle={styles.windowChipText}>
+                {suggestion.windowLabel}
+              </Chip>
+              <Chip compact style={styles.windowChip} textStyle={styles.windowChipText}>
+                {suggestion.reminderLabel}
+              </Chip>
+            </View>
           </View>
 
-          <View style={styles.suggestionInfoBar}>
-            <MaterialCommunityIcons name="calendar-range" size={15} color={colors.techDark} />
-            <Text numberOfLines={2} style={styles.suggestionRangeText}>
-              可拖入 {formatSuggestionRange(suggestion)} 任意日期
-            </Text>
-          </View>
+          <View style={styles.suggestionCardBottomBlock}>
+            <View style={styles.suggestionInfoBar}>
+              <MaterialCommunityIcons name="calendar-range" size={15} color={colors.techDark} />
+              <Text numberOfLines={2} style={styles.suggestionRangeText}>
+                可拖入 {formatSuggestionRange(suggestion)} 任意日期
+              </Text>
+            </View>
 
-          {!selectedDateAllowed ? (
-            <Text numberOfLines={2} style={styles.suggestionHint}>
-              将日历定位到 {focusDateLabel} 后，可直接点按加入。
-            </Text>
-          ) : (
-            <View style={styles.suggestionHintSpacer} />
-          )}
+            {!selectedDateAllowed ? (
+              <Text numberOfLines={2} style={styles.suggestionHint}>
+                将日历定位到 {focusDateLabel} 后，可直接点按加入。
+              </Text>
+            ) : (
+              <View style={styles.suggestionHintSpacer} />
+            )}
+          </View>
         </View>
 
         <TouchableOpacity
@@ -285,6 +296,8 @@ function DraggableSuggestionCard({
 }
 
 export default function CalendarScreen() {
+  const navigation = useNavigation<any>()
+  const route = useRoute<any>()
   const user = useAppStore((state) => state.user)
   const {
     events = [],
@@ -309,16 +322,27 @@ export default function CalendarScreen() {
   const [draggingSuggestion, setDraggingSuggestion] = useState<CalendarSuggestion | null>(null)
   const [hoveredDate, setHoveredDate] = useState<string | null>(null)
   const [snackMessage, setSnackMessage] = useState('')
+  const [checkinStatus, setCheckinStatus] = useState<CheckinStatus | null>(null)
   const dateCellNodesRef = useRef<Record<string, View | null>>({})
   const dateCellRectsRef = useRef<Record<string, Rect>>({})
   const todayString = dayjs().format('YYYY-MM-DD')
+
+  const loadCheckinStatus = useCallback(async () => {
+    try {
+      const nextStatus = await checkinApi.getStatus()
+      setCheckinStatus(nextStatus)
+    } catch (_error) {
+      setCheckinStatus(null)
+    }
+  }, [])
 
   useFocusEffect(
     useCallback(() => {
       const { start, end } = getCalendarFetchRange(currentMonth, todayString)
       fetchEvents(start, end)
       ensureFreshQuota()
-    }, [currentMonth, ensureFreshQuota, fetchEvents, todayString]),
+      void loadCheckinStatus()
+    }, [currentMonth, ensureFreshQuota, fetchEvents, loadCheckinStatus, todayString]),
   )
 
   const calendarEvents = events as unknown as CalendarEventView[]
@@ -355,7 +379,8 @@ export default function CalendarScreen() {
     () => todayEvents.filter((event) => !event.isCompleted),
     [todayEvents],
   )
-  const hasCheckedInToday = todayEvents.some((event) => event.isCompleted)
+  const resolvedCheckInStreak = checkinStatus?.currentStreak ?? checkInStreak
+  const hasCheckedInToday = checkinStatus?.checkedInToday ?? todayEvents.some((event) => event.isCompleted)
 
   const completedForSelectedDate = eventsForSelectedDate.filter((event) => event.isCompleted).length
   const pendingForSelectedDate = Math.max(eventsForSelectedDate.length - completedForSelectedDate, 0)
@@ -583,36 +608,35 @@ export default function CalendarScreen() {
         return
       }
 
+      const result = await checkinApi.checkin()
+      await Promise.all([
+        ensureFreshQuota(),
+        loadCheckinStatus(),
+      ])
+
       if (todayPendingEvents[0]) {
-        await completeEvent(todayPendingEvents[0].id)
-        await ensureFreshQuota()
-        setSnackMessage(`今日已签到，并完成“${todayPendingEvents[0].title}”`)
+        setSnackMessage(`今日已签到，已连续 ${result.streakCount} 天，获得 ${result.pointsAwarded} 积分。接下来可以继续处理“${todayPendingEvents[0].title}”。`)
         return
       }
 
-      const created = await createEvent({
-        title: '今日签到',
-        description: '没有现成安排时，可用这条记录保持连续打卡。',
-        eventDate: todayString,
-        eventType: 'reminder',
-        startTime: DEFAULT_EVENT_TIME,
-        reminderEnabled: false,
-        reminderMinutes: 0,
-        isCompleted: false,
-      })
+      setSnackMessage(`今日已签到，已连续 ${result.streakCount} 天，获得 ${result.pointsAwarded} 积分。`)
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('今日已签到')) {
+        await Promise.all([
+          ensureFreshQuota(),
+          loadCheckinStatus(),
+        ])
+        setSnackMessage('今天已经签到，继续完成其他安排也会计入周完成度')
+        return
+      }
 
-      await completeEvent(created.id)
-      await ensureFreshQuota()
-      setSnackMessage('今日已签到')
-    } catch (_error) {
-      setSnackMessage('签到失败，请稍后重试')
+      setSnackMessage(error instanceof Error ? error.message : '签到失败，请稍后重试')
     }
   }, [
-    completeEvent,
     currentMonth,
-    createEvent,
     ensureFreshQuota,
     hasCheckedInToday,
+    loadCheckinStatus,
     setCurrentMonth,
     todayPendingEvents,
     todayString,
@@ -627,6 +651,43 @@ export default function CalendarScreen() {
     setHoveredDate(null)
     setDraggingSuggestion(null)
   }, [currentMonth, setCurrentMonth])
+
+  useEffect(() => {
+    const params = route.params as {
+      prefillTitle?: string
+      prefillDescription?: string
+      prefillEventType?: EventType
+      targetDate?: string
+      source?: 'chat' | 'weekly_report'
+    } | undefined
+
+    if (!params?.prefillTitle && !params?.prefillDescription) {
+      return
+    }
+
+    const targetDate = params.targetDate || todayString
+    syncCalendarDate(targetDate)
+    setEditingEvent(null)
+    setFormTitle(params.prefillTitle || '')
+    setFormDescription(params.prefillDescription || '')
+    setFormType(params.prefillEventType || 'reminder')
+    setFormReminder(true)
+    setModalVisible(true)
+    setSnackMessage(
+      params.source === 'chat'
+        ? '已带入问题助手建议，可直接保存到日历'
+        : params.source === 'weekly_report'
+          ? '已带入周报重点，可直接保存到日历'
+          : '已生成新的安排草稿',
+    )
+    navigation.setParams({
+      prefillTitle: undefined,
+      prefillDescription: undefined,
+      prefillEventType: undefined,
+      targetDate: undefined,
+      source: undefined,
+    })
+  }, [navigation, route.params, syncCalendarDate, todayString])
 
   const onDayPress = useCallback((day: DateData) => {
     syncCalendarDate(day.dateString)
@@ -792,8 +853,8 @@ export default function CalendarScreen() {
               </View>
               <Text style={styles.checkInHintText}>
                 {hasCheckedInToday
-                  ? '今天已经有至少一项安排被标记为完成，连续打卡会自动累计。'
-                  : '完成今天任一安排就会记为签到；如果今天还没安排，可以直接点上方“今日签到”。'}
+                  ? '今天已有完成记录，连续打卡已自动累计。'
+                  : '完成今天任一安排即可签到；没安排时可直接点上方“今日签到”。'}
               </Text>
             </View>
           </LinearGradient>
@@ -821,11 +882,11 @@ export default function CalendarScreen() {
                 </View>
 
                 <Text numberOfLines={1} style={styles.statLabel}>{item.label}</Text>
-                <Text numberOfLines={1} style={styles.statValue}>{item.value}</Text>
+                <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.88} style={styles.statValue}>{item.value}</Text>
 
                 <View style={styles.statNoteRow}>
                   <View style={[styles.statNoteDot, { backgroundColor: item.accent }]} />
-                  <Text numberOfLines={2} style={styles.statNote}>{item.note}</Text>
+                  <Text numberOfLines={1} ellipsizeMode="tail" style={styles.statNote}>{item.note}</Text>
                 </View>
               </LinearGradient>
             </View>
@@ -1189,7 +1250,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: spacing.sm,
-    paddingBottom: spacing.xxxl * 3 + spacing.sm,
+    paddingBottom: TAB_SCROLL_BOTTOM_GAP,
   },
   heroCard: {
     backgroundColor: 'transparent',
@@ -1198,7 +1259,7 @@ const styles = StyleSheet.create({
   heroGradient: {
     borderRadius: borderRadius.xl,
     overflow: 'hidden',
-    padding: spacing.sm,
+    padding: spacing.xs + 2,
   },
   heroGlow: {
     position: 'absolute',
@@ -1226,8 +1287,8 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   heroActionColumn: {
-    width: 112,
-    gap: spacing.xs,
+    width: 120,
+    gap: 6,
   },
   heroTopText: {
     flex: 1,
@@ -1254,12 +1315,13 @@ const styles = StyleSheet.create({
   },
   heroActionButton: {
     borderRadius: borderRadius.pill,
+    minHeight: 0,
   },
   heroSignalPanel: {
-    marginTop: spacing.md,
+    marginTop: spacing.xs + 2,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.xs,
     paddingHorizontal: spacing.xs,
     borderRadius: borderRadius.lg,
     backgroundColor: 'rgba(255,253,249,0.72)',
@@ -1276,7 +1338,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   heroSignalLabel: {
-    marginTop: 4,
+    marginTop: 2,
     color: colors.textSecondary,
     fontSize: fontSize.xs,
   },
@@ -1286,9 +1348,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.divider,
   },
   checkInHintCard: {
-    marginTop: spacing.sm,
+    marginTop: spacing.xs + 2,
     paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
+    paddingVertical: 2,
     borderRadius: borderRadius.lg,
     backgroundColor: 'rgba(255,253,249,0.72)',
     borderWidth: 1,
@@ -1298,7 +1360,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
-    marginBottom: 2,
+    marginBottom: 1,
   },
   checkInHintTitle: {
     color: colors.inkDeep,
@@ -1308,7 +1370,7 @@ const styles = StyleSheet.create({
   checkInHintText: {
     color: colors.textSecondary,
     fontSize: fontSize.xs,
-    lineHeight: 16,
+    lineHeight: 15,
   },
   header: {
     flexDirection: 'row',
@@ -1323,11 +1385,12 @@ const styles = StyleSheet.create({
     fontSize: fontSize.xl,
     fontWeight: '700',
     color: colors.text,
+    lineHeight: 24,
   },
   headerSubtitle: {
-    marginTop: 4,
+    marginTop: 2,
     color: colors.inkSoft,
-    lineHeight: 18,
+    lineHeight: 17,
   },
   statsRow: {
     marginTop: spacing.md,
@@ -1347,9 +1410,9 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
   },
   statCardGradient: {
-    height: 132,
+    height: 118,
     paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.xs + 1,
     justifyContent: 'space-between',
     position: 'relative',
   },
@@ -1396,18 +1459,18 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     color: colors.textSecondary,
-    marginTop: spacing.sm,
-    marginBottom: 4,
+    marginTop: spacing.xs + 2,
+    marginBottom: 2,
     fontSize: fontSize.xs,
   },
   statValue: {
     fontSize: fontSize.lg,
     fontWeight: '700',
     color: colors.inkDeep,
-    lineHeight: 24,
+    lineHeight: 22,
   },
   statNoteRow: {
-    marginTop: spacing.xs,
+    marginTop: 6,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -1420,8 +1483,8 @@ const styles = StyleSheet.create({
   statNote: {
     flex: 1,
     color: colors.textSecondary,
-    fontSize: 11,
-    lineHeight: 15,
+    fontSize: 10,
+    lineHeight: 13,
   },
   stageCard: {
     marginTop: spacing.md,
@@ -1640,6 +1703,22 @@ const styles = StyleSheet.create({
   },
   suggestionCardBody: {
     flexGrow: 1,
+    justifyContent: 'space-between',
+  },
+  suggestionCardTopBlock: {
+    gap: spacing.xs,
+  },
+  suggestionCopyBlock: {
+    minHeight: 82,
+    justifyContent: 'space-between',
+  },
+  suggestionCardMiddleBlock: {
+    minHeight: 52,
+    justifyContent: 'center',
+  },
+  suggestionCardBottomBlock: {
+    minHeight: 66,
+    justifyContent: 'flex-end',
   },
   suggestionEyebrowRow: {
     flexDirection: 'row',
@@ -1695,13 +1774,11 @@ const styles = StyleSheet.create({
     minHeight: 40,
   },
   suggestionDescription: {
-    marginTop: 4,
     color: colors.textSecondary,
     lineHeight: 18,
     minHeight: 36,
   },
   suggestionChipRow: {
-    marginTop: spacing.sm,
     gap: spacing.xs,
   },
   windowChip: {
@@ -1720,19 +1797,18 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   suggestionInfoBar: {
-    marginTop: spacing.xs,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
   },
   suggestionHint: {
-    marginTop: spacing.xs,
+    marginTop: 6,
     color: colors.textSecondary,
     fontSize: fontSize.xs,
     lineHeight: 18,
   },
   suggestionHintSpacer: {
-    marginTop: spacing.xs,
+    marginTop: 6,
     minHeight: 36,
   },
   suggestionActionButton: {

@@ -35,9 +35,9 @@ export function calculatePregnancyWeekFromDueDate(dueDate: Date | string, baseDa
   if (Number.isNaN(due.getTime())) return null
 
   const today = normalizeDate(baseDate)
-  const remainingDays = Math.max(0, (due.getTime() - today.getTime()) / DAY_IN_MS)
-  const remainingWeeks = Math.ceil(remainingDays / 7)
-  const week = FULL_TERM_WEEKS - remainingWeeks
+  const remainingDays = Math.max(0, Math.round((due.getTime() - today.getTime()) / DAY_IN_MS))
+  const elapsedDays = Math.max(0, FULL_TERM_WEEKS * 7 - remainingDays)
+  const week = Math.floor(elapsedDays / 7) + 1
 
   if (week < 1) return 1
   if (week > FULL_TERM_WEEKS) return FULL_TERM_WEEKS

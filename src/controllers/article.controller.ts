@@ -8,12 +8,14 @@ import { cache, CacheKeys, CacheTTL } from '../services/cache.service';
 import { callTaskModelDetailed } from '../services/ai-gateway.service';
 import { detectAudience, detectTopic, sanitizeAuthorityTitle } from '../services/authority-adapters/base.adapter';
 import { textToRichParagraphHtml } from '../utils/article-format';
+import { awardBehaviorPoints } from '../services/checkin.service';
 import {
   buildAuthorityDisplayTags,
   normalizeAuthorityAudienceLabel,
   normalizeAuthorityTopicLabel,
 } from '../utils/authority-metadata';
 import { inferAuthorityStages } from '../utils/authority-stage';
+import { matchesAuthorityStageFilters } from '../utils/authority-stage-filter';
 import { shouldFilterAuthoritySourceUrl } from '../utils/authority-source-url';
 import { matchesExpandedSearch } from '../utils/search-query-expansion';
 import { rewriteSearchQueries } from '../services/knowledge.service';
@@ -136,6 +138,54 @@ function resolveAuthorityLocale(record: Pick<AuthorityCacheRecord, 'source_id' |
   };
 }
 
+function isAapCacheRecord(record: AuthorityCacheRecord): boolean {
+  const sourceText = `${record.source_id || ''} ${record.source || ''} ${record.source_org || ''} ${record.source_url || ''} ${record.url || ''}`.toLowerCase();
+  return /\baap\b|healthychildren\.org/.test(sourceText);
+}
+
+function normalizeAapCachedContent(content: string): string {
+  if (!content) {
+    return '';
+  }
+
+  let normalized = content.replace(/\s+/g, ' ').trim();
+  normalized = normalized.replace(/^-->\s*/, '');
+
+  const pageContentMatch = normalized.match(/\bPage Content\b\s*([\s\S]*?)(?:\bArticle Body\b|\bLast Updated\b|\bFollow Us\b|$)/i);
+  if (pageContentMatch?.[1]) {
+    normalized = pageContentMatch[1].trim();
+  }
+
+  normalized = normalized
+    .replace(/\b(?:Article Body|Last Updated|Follow Us)\b[\s\S]*$/i, '')
+    .trim();
+
+  return normalized;
+}
+
+function normalizeAuthorityCacheRecord(record: AuthorityCacheRecord): AuthorityCacheRecord {
+  const normalizedQuestion = sanitizeAuthorityTitle(record.question || '');
+  let normalizedAnswer = typeof record.answer === 'string' ? record.answer.trim() : '';
+  let normalizedSummary = typeof record.summary === 'string' ? record.summary.trim() : undefined;
+
+  if (isAapCacheRecord(record)) {
+    const cleanedAnswer = normalizeAapCachedContent(normalizedAnswer);
+    if (cleanedAnswer.length >= 150) {
+      normalizedAnswer = cleanedAnswer;
+    }
+
+    const cleanedSummary = normalizeAapCachedContent(normalizedSummary || '');
+    normalizedSummary = cleanedSummary || normalizedAnswer.slice(0, 300) || normalizedSummary;
+  }
+
+  return {
+    ...record,
+    question: normalizedQuestion || record.question,
+    answer: normalizedAnswer,
+    summary: normalizedSummary,
+  };
+}
+
 function resolveWritableTranslationCachePath(): string {
   return AUTHORITY_TRANSLATION_CACHE_PATHS[0];
 }
@@ -153,7 +203,9 @@ function loadAuthorityCacheRecords(): AuthorityCacheRecord[] {
 
   const raw = fs.readFileSync(cachePath, 'utf-8');
   const parsed = JSON.parse(raw);
-  const records = Array.isArray(parsed) ? parsed as AuthorityCacheRecord[] : [];
+  const records = Array.isArray(parsed)
+    ? (parsed as AuthorityCacheRecord[]).map(normalizeAuthorityCacheRecord)
+    : [];
   authorityCacheMemo = { path: cachePath, mtimeMs: stat.mtimeMs, records };
   return records;
 }
@@ -723,7 +775,7 @@ async function filterAuthorityArticles(
     const articleStages = Array.isArray(article.targetStages) && article.targetStages.length > 0
       ? article.targetStages
       : (article.stage ? [article.stage] : []);
-    if (typeof filters.stage === 'string' && filters.stage && !articleStages.includes(filters.stage)) {
+    if (!matchesAuthorityStageFilters(articleStages, filters.stage)) {
       return false;
     }
 
@@ -1038,6 +1090,11 @@ export const getArticleBySlug = async (req: Request, res: Response, next: NextFu
       where: { id: article.id },
       data: { viewCount: { increment: 1 } }
     }).catch(err => console.error('[Article] Failed to increment viewCount:', err));
+
+    // 行为积分：阅读奖励（fire-and-forget）
+    if (userId) {
+      awardBehaviorPoints(userId, 'read', article.id.toString()).catch(() => {});
+    }
 
     // 检查用户是否已点赞/收藏
     let isLiked = false;

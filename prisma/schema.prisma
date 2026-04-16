@@ -38,6 +38,9 @@ model User {
   developmentConcerns String? @db.VarChar(300)
   familyNotes     String?  @db.VarChar(500)
   
+  // 积分
+  totalPoints     Int      @default(0)
+
   // 账户状态
   status          Int      @default(1) // 0-禁用, 1-正常
   lastLoginAt     DateTime?
@@ -68,6 +71,8 @@ model User {
   dailyQuotas        UserDailyQuota[]
   weeklyReports      AiWeeklyReport[]
   analyticsEvents    AnalyticsEvent[]
+  checkins           UserCheckin[]
+  pointsLogs         UserPointsLog[]
 
   @@index([phone])
   @@index([email])
@@ -890,4 +895,41 @@ model AuthorityNormalizedDocument {
   @@index([updatedAt])
   @@index([topic, publishStatus])
   @@map("authority_normalized_documents")
+}
+
+// ============================================
+// 用户签到表
+// ============================================
+model UserCheckin {
+  id            BigInt   @id @default(autoincrement())
+  userId        BigInt
+  checkinDate   DateTime @db.Date
+  streakCount   Int      @default(1)
+  pointsAwarded Int      @default(0)
+  createdAt     DateTime @default(now())
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, checkinDate])
+  @@index([userId])
+  @@map("user_checkins")
+}
+
+// ============================================
+// 用户积分流水表
+// ============================================
+model UserPointsLog {
+  id          BigInt   @id @default(autoincrement())
+  userId      BigInt
+  points      Int
+  balance     Int
+  source      String   @db.VarChar(30)
+  sourceId    String?  @db.VarChar(64)
+  description String?  @db.VarChar(200)
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("user_points_log")
 }

@@ -31,22 +31,69 @@ import GrowthArchiveScreen from "../screens/GrowthArchiveScreen";
 import FamilyProfileScreen from "../screens/FamilyProfileScreen";
 import PregnancyProfileScreen from "../screens/PregnancyProfileScreen";
 
+export type AppEntryAction =
+  | "checkin"
+  | "weekly_report"
+  | "calendar"
+  | "chat"
+  | "membership"
+  | "growth_archive";
+
+export type MembershipEntrySource =
+  | "home_retention"
+  | "home_upgrade"
+  | "growth_archive"
+  | "weekly_report"
+  | "profile"
+  | "chat";
+
+export type GrowthArchiveEntrySource =
+  | "home_retention"
+  | "membership"
+  | "profile"
+  | "chat";
+
 export type RootStackParamList = {
   Login: undefined;
   Main: NavigatorScreenParams<TabParamList> | undefined;
   KnowledgeDetail: { slug: string };
   PostDetail: { id: number };
-  Calendar: undefined;
-  Membership: undefined;
+  Calendar:
+    | {
+        prefillTitle?: string;
+        prefillDescription?: string;
+        prefillEventType?: "checkup" | "vaccine" | "reminder" | "exercise" | "diet" | "other";
+        targetDate?: string;
+        source?: "chat" | "weekly_report";
+      }
+    | undefined;
+  Membership:
+    | {
+        source?: MembershipEntrySource;
+        entryAction?: AppEntryAction;
+        highlight?: string;
+      }
+    | undefined;
   WeeklyReport: undefined;
-  GrowthArchive: undefined;
+  GrowthArchive:
+    | {
+        source?: GrowthArchiveEntrySource;
+        focus?: "timeline" | "report" | "export";
+      }
+    | undefined;
   FamilyProfile: undefined;
   PregnancyProfile: undefined;
 };
 
 export type TabParamList = {
   Home: undefined;
-  Chat: undefined;
+  Chat:
+    | {
+        prefillQuestion?: string;
+        autoSend?: boolean;
+        source?: "weekly_report" | "home_suggested_question";
+      }
+    | undefined;
   Knowledge: undefined;
   CalendarTab: undefined;
   Profile: { autoOpenEdit?: boolean } | undefined;

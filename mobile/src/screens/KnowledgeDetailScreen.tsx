@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Alert,
   View,
@@ -16,7 +16,7 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 import { useRoute } from '@react-navigation/native'
 import type { RouteProp } from '@react-navigation/native'
 import type { RootStackParamList } from '../navigation/AppNavigator'
-import { articleApi, type Article, type AuthorityArticleTranslation } from '../api/modules'
+import { articleApi, userApi, type Article, type AuthorityArticleTranslation } from '../api/modules'
 import { ScreenContainer, StandardCard } from '../components/layout'
 import { useKnowledgeStore } from '../stores/knowledgeStore'
 import { colors, spacing, fontSize, categoryColors, borderRadius } from '../theme'
@@ -33,7 +33,9 @@ export default function KnowledgeDetailScreen() {
   const [translating, setTranslating] = useState(false)
   const [translationError, setTranslationError] = useState('')
   const [showingTranslation, setShowingTranslation] = useState(false)
-  const [webViewHeight, setWebViewHeight] = useState(300)
+  const [webViewHeight, setWebViewHeight] = useState(120)
+  const articleOpenedAtRef = useRef(Date.now())
+  const reportedReadKeyRef = useRef<string | null>(null)
 
   const {
     currentArticle: article,
@@ -49,8 +51,47 @@ export default function KnowledgeDetailScreen() {
     setTranslation(null)
     setTranslationError('')
     setShowingTranslation(false)
-    setWebViewHeight(300)
+    setWebViewHeight(120)
+    articleOpenedAtRef.current = Date.now()
+    reportedReadKeyRef.current = null
   }, [fetchArticleDetail, slug])
+
+  useEffect(() => {
+    if (!article?.id) return
+
+    const readKey = `${slug}:${article.id}`
+    const reportRead = async (progress: number) => {
+      if (reportedReadKeyRef.current === readKey) {
+        return
+      }
+
+      reportedReadKeyRef.current = readKey
+      try {
+        const durationSeconds = Math.max(
+          5,
+          Math.round((Date.now() - articleOpenedAtRef.current) / 1000),
+        )
+        await userApi.recordRead({
+          articleId: article.id,
+          duration: durationSeconds,
+          progress,
+        })
+      } catch {
+        reportedReadKeyRef.current = null
+      }
+    }
+
+    const timer = setTimeout(() => {
+      void reportRead(45)
+    }, 2500)
+
+    return () => {
+      clearTimeout(timer)
+      if (reportedReadKeyRef.current !== readKey) {
+        void reportRead(15)
+      }
+    }
+  }, [article?.id, slug])
 
   const sourceLanguageSample = useMemo(() => stripHtmlTags([
     article?.title || '',
@@ -60,8 +101,30 @@ export default function KnowledgeDetailScreen() {
   const isLikelyChineseSource = useMemo(() => (
     Boolean(translation?.isSourceChinese) || isMostlyChineseText(sourceLanguageSample)
   ), [sourceLanguageSample, translation?.isSourceChinese])
-  const displayedTitle = showingTranslation && translation?.translatedTitle ? translation.translatedTitle : article?.title || ''
-  const displayedSummary = showingTranslation && translation?.translatedSummary ? translation.translatedSummary : article?.summary || ''
+  const localizedFallbackTitle = useMemo(() => {
+    if (!article || isLikelyChineseSource || translation?.translatedTitle) {
+      return ''
+    }
+
+    return isGenericForeignTitle(article.title)
+      ? getLocalizedFallbackTitle(article)
+      : ''
+  }, [article, isLikelyChineseSource, translation?.translatedTitle])
+  const localizedFallbackSummary = useMemo(() => {
+    if (!article || isLikelyChineseSource || translation?.translatedSummary) {
+      return ''
+    }
+
+    return isMostlyChineseText(stripHtmlTags(article.summary || ''))
+      ? ''
+      : getLocalizedFallbackSummary(article)
+  }, [article, isLikelyChineseSource, translation?.translatedSummary])
+  const displayedTitle = showingTranslation && translation?.translatedTitle
+    ? translation.translatedTitle
+    : localizedFallbackTitle || article?.title || ''
+  const displayedSummary = showingTranslation && translation?.translatedSummary
+    ? translation.translatedSummary
+    : localizedFallbackSummary || article?.summary || ''
   const displayedSourceUrl = useMemo(() => sanitizeAuthoritySourceUrl(
     article?.sourceUrl,
     article?.sourceOrg || article?.source || '',
@@ -223,6 +286,8 @@ export default function KnowledgeDetailScreen() {
     ? '已切换到中文辅助阅读版，适合快速提炼权威要点。'
     : isLikelyChineseSource
       ? '已识别为中文原文，可直接阅读完整内容并回看来源。'
+      : localizedFallbackSummary
+        ? '翻译未就绪时会先展示中文导读，避免首屏直接出现外文阅读门槛。'
       : translation
         ? '已为你准备中文辅助阅读，可随时切换查看原文。'
         : '优先保留权威来源原文，并补充中文辅助阅读。'
@@ -376,7 +441,7 @@ export default function KnowledgeDetailScreen() {
               buttonColor="rgba(184,138,72,0.16)"
               textColor={colors.gold}
             >
-              {showingTranslation ? '查看原文' : '切换中文'}
+              {showingTranslation ? '查看原文' : translation ? '切换中文' : '生成中文'}
             </Button>
           ) : null}
           <Button
@@ -445,11 +510,11 @@ export default function KnowledgeDetailScreen() {
                 onPress={() => void handleToggleTranslation()}
                 textColor={colors.gold}
               >
-                {showingTranslation ? '查看原文' : '查看中文'}
+                {showingTranslation ? '查看原文' : translation ? '查看中文' : '生成中文'}
               </Button>
             </View>
             <Text style={styles.translationDesc}>
-              {showingTranslation ? '中文辅助翻译仅用于帮助阅读理解，医疗判断请以机构原文和医生建议为准。' : '打开文章后会优先准备中文阅读版，生成一次后后续直接读取缓存。'}
+              {showingTranslation ? '中文辅助翻译仅用于帮助阅读理解，医疗判断请以机构原文和医生建议为准。' : '进入详情后会优先准备中文阅读版；翻译未完成前，首屏会先给出中文导读，避免直接看到外文原文。'}
             </Text>
           </View>
         ) : null}
@@ -502,9 +567,14 @@ export default function KnowledgeDetailScreen() {
                   function sendHeight() {
                     var height = Math.max(
                       document.documentElement.scrollHeight || 0,
-                      document.body.scrollHeight || 0
+                      document.documentElement.offsetHeight || 0,
+                      document.body.scrollHeight || 0,
+                      document.body.offsetHeight || 0,
+                      document.body.getBoundingClientRect().height || 0,
+                      document.documentElement.getBoundingClientRect().height || 0,
+                      (document.body.lastElementChild && (document.body.lastElementChild.getBoundingClientRect().bottom + window.scrollY)) || 0
                     );
-                    window.ReactNativeWebView.postMessage(String(height));
+                    window.ReactNativeWebView.postMessage(String(Math.ceil(height)));
                   }
                   function bindImageListeners() {
                     var images = document.images || [];
@@ -533,7 +603,7 @@ export default function KnowledgeDetailScreen() {
               onMessage={(event) => {
                 const nextHeight = Number(event.nativeEvent.data)
                 if (!Number.isNaN(nextHeight) && nextHeight > 0) {
-                  setWebViewHeight(Math.max(nextHeight, 300))
+                  setWebViewHeight(Math.max(nextHeight + 2, 120))
                 }
               }}
             />
@@ -1017,6 +1087,25 @@ function stripHtmlTags(input: string): string {
   return input.replace(/<[^>]*>/g, ' ')
 }
 
+function formatArticleStage(stage?: string) {
+  if (!stage) return '全阶段'
+
+  const stageMap: Record<string, string> = {
+    preparation: '备孕期',
+    'first-trimester': '孕早期',
+    'second-trimester': '孕中期',
+    'third-trimester': '孕晚期',
+    newborn: '新生儿期',
+    postpartum: '产后恢复',
+    '0-6-months': '0-6个月',
+    '6-12-months': '6-12个月',
+    '1-3-years': '1-3岁',
+    '3-years-plus': '3岁以上',
+  }
+
+  return stageMap[stage] || stage
+}
+
 function normalizeKnowledgeLabel(label?: string): string {
   const value = (label || '').trim()
   if (!value) return ''
@@ -1083,6 +1172,37 @@ function getDisplayTags(article?: Article | null) {
       seen.add(key)
       return true
     })
+}
+
+function isGenericForeignTitle(title?: string) {
+  const value = (title || '').trim()
+  if (!value) return false
+  if (/[\u4e00-\u9fff]/u.test(value)) return false
+
+  const normalized = value.toLowerCase()
+  return normalized.length <= 24 && (
+    /^(resources?|resource center|article|overview|guide|guidelines|information|faq|factsheet)$/i.test(normalized)
+    || /^(recursos?|art[íi]culo|informaci[óo]n|gu[íi]a)$/i.test(normalized)
+  )
+}
+
+function getLocalizedFallbackTitle(article: Article) {
+  const topic = normalizeKnowledgeLabel(article.topic)
+  const category = article.category ? normalizeKnowledgeLabel(article.category.name) : ''
+  const stage = formatArticleStage(article.stage)
+  const primary = topic || category || (stage !== '全阶段' ? stage : '权威')
+  return `${primary}参考`
+}
+
+function getLocalizedFallbackSummary(article: Article) {
+  const source = normalizeKnowledgeLabel(article.sourceOrg || article.source) || '权威机构'
+  const stage = formatArticleStage(article.stage)
+  const topic = normalizeKnowledgeLabel(article.topic)
+  const audience = normalizeKnowledgeLabel(article.audience)
+  const category = article.category ? normalizeKnowledgeLabel(article.category.name) : ''
+  const focus = topic || audience || category || '当前阶段重点'
+  const stagePrefix = stage && stage !== '全阶段' ? `${stage}阶段` : '当前阶段'
+  return `${source}相关原文正在准备中文辅助阅读，这篇内容聚焦${stagePrefix}的${focus}，可先查看导读要点，再按需打开机构原文。`
 }
 
 function isMostlyChineseText(input: string): boolean {
@@ -1290,7 +1410,11 @@ function formatRichArticleContent(content: string): string {
   }
 
   if (/<[a-z][\s\S]*>/i.test(trimmed)) {
-    return addBlockSpacingToHtml(trimmed)
+    return addBlockSpacingToHtml(
+      trimmed
+        .replace(/<(?:nav|footer|header|aside)[\s\S]*?<\/(?:nav|footer|header|aside)>/gi, '')
+        .replace(/<(?:p|div|section|article)[^>]*>(?:\s|&nbsp;|&#160;|<br\s*\/?>)*<\/(?:p|div|section|article)>/gi, ''),
+    )
   }
 
   return convertTextToRichHtml(trimmed)

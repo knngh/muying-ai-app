@@ -29,6 +29,7 @@ import paymentRoutes from './routes/payment.routes';
 import quotaRoutes from './routes/quota.routes';
 import reportRoutes from './routes/report.routes';
 import analyticsRoutes from './routes/analytics.routes';
+import checkinRoutes from './routes/checkin.routes';
 
 // 中间件导入
 import { errorHandler, notFoundHandler } from './middlewares/error.middleware';
@@ -111,6 +112,7 @@ app.use(`${API_PREFIX}/payment`, paymentRoutes);
 app.use(`${API_PREFIX}/quota`, quotaRoutes);
 app.use(`${API_PREFIX}/report`, reportRoutes);
 app.use(`${API_PREFIX}/analytics`, analyticsRoutes);
+app.use(`${API_PREFIX}/checkin`, checkinRoutes);
 
 // ============================================
 // 错误处理

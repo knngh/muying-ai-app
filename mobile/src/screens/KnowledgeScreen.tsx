@@ -21,27 +21,17 @@ import { useNavigation } from '@react-navigation/native'
 import type { StackNavigationProp } from '@react-navigation/stack'
 import type { RootStackParamList } from '../navigation/AppNavigator'
 import { ScreenContainer } from '../components/layout'
+import type { ApiError } from '../api'
 import { useAppStore } from '../stores/appStore'
 import { useKnowledgeStore } from '../stores/knowledgeStore'
 import { getStageSummary, type LifecycleStageKey } from '../utils/stage'
+import { KNOWLEDGE_STAGE_OPTIONS } from '../utils/knowledgeStage'
 import { colors, spacing, fontSize, categoryColors, borderRadius } from '../theme'
 import { articleApi, type Article, type AuthorityArticleTranslation } from '../api/modules'
 
 type KnowledgeNavProp = StackNavigationProp<RootStackParamList>
 
-const stageOptions = [
-  { label: '全部阶段', value: null },
-  { label: '备孕期', value: 'preparation' },
-  { label: '孕早期', value: 'first-trimester' },
-  { label: '孕中期', value: 'second-trimester' },
-  { label: '孕晚期', value: 'third-trimester' },
-  { label: '产后恢复', value: 'postpartum' },
-  { label: '月子/新生儿', value: 'newborn' },
-  { label: '0-6月', value: '0-6-months' },
-  { label: '6-12月', value: '6-12-months' },
-  { label: '1-3岁', value: '1-3-years' },
-  { label: '3岁+', value: '3-years-plus' },
-]
+const stageOptions = KNOWLEDGE_STAGE_OPTIONS
 
 const lifecycleStageMap: Record<LifecycleStageKey, string> = {
   preparing: 'preparation',
@@ -163,6 +153,37 @@ function shouldAutoApplyStageFilter(stage: string | null) {
   return Boolean(stage && stage !== 'preparation')
 }
 
+function isGenericForeignTitle(title?: string) {
+  const value = (title || '').trim()
+  if (!value) return false
+  if (/[\u4e00-\u9fff]/u.test(value)) return false
+
+  const normalized = value.toLowerCase()
+  return normalized.length <= 24 && (
+    /^(resources?|resource center|article|overview|guide|guidelines|information|faq|factsheet)$/i.test(normalized)
+    || /^(recursos?|art[íi]culo|informaci[óo]n|gu[íi]a)$/i.test(normalized)
+  )
+}
+
+function getTranslatedHeadline(summary?: string) {
+  const value = (summary || '').trim()
+  if (!value) return ''
+
+  return value
+    .split(/[。！？.!?]/u)[0]
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 30)
+}
+
+function getLocalizedFallbackTitle(article: Article) {
+  const topic = normalizeKnowledgeLabel(article.topic)
+  const category = article.category ? normalizeKnowledgeLabel(article.category.name) : ''
+  const stage = formatArticleStage(article.stage)
+  const primary = topic || category || (stage !== '全阶段' ? stage : '权威')
+  return `${primary}参考`
+}
+
 export default function KnowledgeScreen() {
   const navigation = useNavigation<KnowledgeNavProp>()
   const user = useAppStore((state) => state.user)
@@ -190,6 +211,7 @@ export default function KnowledgeScreen() {
     keyword,
     loading,
     error,
+    errorDetail,
     fetchArticles,
     fetchCategories,
     fetchTags,
@@ -229,7 +251,7 @@ export default function KnowledgeScreen() {
       .filter((item) => !isChineseArticle(item))
       .filter((item) => !translations[item.slug] && !translationFailed[item.slug])
       .filter((item) => !translationInFlightRef.current.has(item.slug))
-      .slice(0, 3)
+      .slice(0, 6)
 
     if (candidates.length === 0) return
 
@@ -263,14 +285,18 @@ export default function KnowledgeScreen() {
   const activeTagLabel = selectedTag
     ? tags.find((item) => item.slug === selectedTag)?.name || '已选标签'
     : ''
-  const hasNetworkError = Boolean(error && /network error|timeout|请求失败|连接/i.test(error))
+  const resolvedErrorDetail = errorDetail as ApiError | null
+  const hasNetworkError = resolvedErrorDetail?.errorType === 'network' || resolvedErrorDetail?.errorType === 'timeout'
+  const hasHttpError = resolvedErrorDetail?.errorType === 'http'
   const emptyTitle = hasNetworkError ? '知识库暂时连不上服务' : '当前筛选下还没有文章'
   const emptyText = hasNetworkError
-    ? '当前更像是接口连接异常，不是内容为空。请先检查移动端 API 域名或网络连通性，再重新进入知识库。'
+    ? '当前设备到接口服务的连接异常或超时，不是内容为空。请优先检查当前网络、DNS、证书链路，再重新进入知识库。'
     : '可以先放宽筛选范围，或直接去问题助手提问；新同步的权威内容也会继续补入这里。'
   const errorBannerText = hasNetworkError
-    ? '移动端当前无法连接 API 服务。请优先检查 beihu.me 域名解析、网关配置，或当前网络是否可达。'
-    : error || ''
+    ? `当前设备访问 ${resolvedErrorDetail?.requestUrl || '/articles'} 失败。请优先检查 beihu.me 域名解析、移动网络连通性与 HTTPS 证书配置。`
+    : hasHttpError
+      ? `服务已响应，但返回了 ${resolvedErrorDetail?.status || '--'} 状态。${error || ''}`
+      : error || ''
 
   const handleSearch = useCallback(() => {
     if (keyword.trim()) {
@@ -307,7 +333,11 @@ export default function KnowledgeScreen() {
     const dateLabel = formatArticleDate(item)
     const previewTags = getArticleDisplayTags(item).slice(0, 2)
     const articleTranslation = translations[item.slug]
-    const displayedTitle = articleTranslation?.translatedTitle || item.title
+    const translatedHeadline = getTranslatedHeadline(articleTranslation?.translatedSummary)
+    const displayedTitle = articleTranslation?.translatedTitle
+      || (isGenericForeignTitle(item.title)
+        ? (translatedHeadline || getLocalizedFallbackTitle(item))
+        : item.title)
     const displayedSummary = articleTranslation?.translatedSummary || item.summary
 
     return (
@@ -333,13 +363,20 @@ export default function KnowledgeScreen() {
           <Text style={styles.articleTitle} numberOfLines={2}>
             {displayedTitle}
           </Text>
+          {articleTranslation && !isChineseArticle(item) ? (
+            <Text style={styles.articleAssistText} numberOfLines={1}>
+              已准备中文辅助阅读
+            </Text>
+          ) : null}
           <View style={styles.articleSourceRow}>
-            <Text style={styles.articleSourceText} numberOfLines={3} ellipsizeMode="tail">
+            <Text style={styles.articleSourceText} numberOfLines={1} ellipsizeMode="tail">
               {sourceLabel}
             </Text>
-            <Text style={styles.articleDateText} numberOfLines={1}>
-              {dateLabel}
-            </Text>
+            <View style={styles.articleDateBadge}>
+              <Text style={styles.articleDateText} numberOfLines={1}>
+                {dateLabel}
+              </Text>
+            </View>
           </View>
           <View style={styles.articleMeta}>
             <Chip compact style={styles.stageChip} textStyle={styles.stageChipText}>
@@ -1047,10 +1084,19 @@ const styles = StyleSheet.create({
     fontSize: fontSize.lg,
     fontWeight: '700',
     color: colors.text,
-    marginBottom: spacing.xs,
+    marginBottom: 4,
     lineHeight: 24,
   },
+  articleAssistText: {
+    color: colors.techDark,
+    fontSize: 11,
+    fontWeight: '600',
+    marginBottom: spacing.xs,
+  },
   articleSourceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     gap: spacing.xs,
     marginBottom: spacing.sm,
   },
@@ -1059,10 +1105,20 @@ const styles = StyleSheet.create({
     minWidth: 0,
     color: colors.textSecondary,
     fontSize: fontSize.sm,
+    marginRight: spacing.xs,
+  },
+  articleDateBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: borderRadius.pill,
+    backgroundColor: 'rgba(255, 249, 243, 0.94)',
+    borderWidth: 1,
+    borderColor: 'rgba(184,138,72,0.12)',
   },
   articleDateText: {
     color: colors.textLight,
-    fontSize: fontSize.xs,
+    fontSize: 11,
+    fontWeight: '600',
   },
   articleMeta: {
     flexDirection: 'row',

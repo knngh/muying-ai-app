@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react'
+import React, { useCallback, useEffect } from 'react'
 import { ScrollView, StyleSheet, View } from 'react-native'
 import { useFocusEffect, useNavigation } from '@react-navigation/native'
 import dayjs from 'dayjs'
@@ -11,7 +11,27 @@ import type { WeeklyReport } from '../stores/membershipStore'
 import { trackAppEvent } from '../services/analytics'
 import { ScreenContainer, StandardCard } from '../components/layout'
 import { getStageSummary } from '../utils/stage'
+import { markWeeklyReportSeen } from '../utils/weeklyReportRead'
 import { colors, fontSize, spacing, borderRadius } from '../theme'
+
+function buildWeeklyReportCalendarPrefill(report: WeeklyReport, highlight: string, index: number) {
+  const normalizedHighlight = highlight.replace(/\s+/g, ' ').trim()
+  const shortTitle = normalizedHighlight.length <= 18
+    ? normalizedHighlight
+    : `${report.stageLabel}重点 ${index + 1}`
+
+  return {
+    title: shortTitle,
+    description: `${report.title}\n${normalizedHighlight}`,
+    eventType: 'reminder' as const,
+    targetDate: dayjs().format('YYYY-MM-DD'),
+  }
+}
+
+function buildWeeklyReportQuestion(report: WeeklyReport, highlight: string) {
+  const normalizedHighlight = highlight.replace(/\s+/g, ' ').trim()
+  return `我在${report.stageLabel}的周报里看到这条提醒：“${normalizedHighlight}”。请结合当前阶段帮我详细解释这句话是什么意思，我应该重点观察什么、怎么安排接下来几天？`
+}
 
 export default function WeeklyReportScreen() {
   const navigation = useNavigation<any>()
@@ -36,6 +56,57 @@ export default function WeeklyReportScreen() {
   const latestReportDate = weeklyReports[0]?.createdAt
     ? dayjs(weeklyReports[0].createdAt).format('MM-DD')
     : '--'
+
+  useEffect(() => {
+    if (status !== 'active' || !weeklyReports[0]?.id) {
+      return
+    }
+
+    void markWeeklyReportSeen(weeklyReports[0].id)
+  }, [status, weeklyReports])
+
+  const handleAddToCalendar = useCallback((report: WeeklyReport, highlight: string, index: number) => {
+    const prefill = buildWeeklyReportCalendarPrefill(report, highlight, index)
+
+    void trackAppEvent('app_weekly_report_add_calendar_click', {
+      page: 'WeeklyReportScreen',
+      properties: {
+        status,
+        reportId: report.id,
+        highlightIndex: index + 1,
+      },
+    })
+
+    navigation.navigate('Calendar', {
+      prefillTitle: prefill.title,
+      prefillDescription: prefill.description,
+      prefillEventType: prefill.eventType,
+      targetDate: prefill.targetDate,
+      source: 'weekly_report',
+    })
+  }, [navigation, status])
+
+  const handleAskAi = useCallback((report: WeeklyReport, highlight: string, index: number) => {
+    const question = buildWeeklyReportQuestion(report, highlight)
+
+    void trackAppEvent('app_weekly_report_ask_ai_click', {
+      page: 'WeeklyReportScreen',
+      properties: {
+        status,
+        reportId: report.id,
+        highlightIndex: index + 1,
+      },
+    })
+
+    navigation.navigate('Main', {
+      screen: 'Chat',
+      params: {
+        prefillQuestion: question,
+        autoSend: true,
+        source: 'weekly_report',
+      },
+    })
+  }, [navigation, status])
 
   return (
     <ScreenContainer style={styles.container}>
@@ -129,10 +200,32 @@ export default function WeeklyReportScreen() {
 
               {visibleHighlights.map((item, index) => (
                 <View key={`${report.id}-${index + 1}`} style={styles.reportLine}>
-                  <View style={styles.reportLineIndex}>
-                    <Text style={styles.reportLineIndexText}>{index + 1}</Text>
+                  <View style={styles.reportLineMain}>
+                    <View style={styles.reportLineIndex}>
+                      <Text style={styles.reportLineIndexText}>{index + 1}</Text>
+                    </View>
+                    <Text style={styles.reportItem}>{item}</Text>
                   </View>
-                  <Text style={styles.reportItem}>{item}</Text>
+                  <View style={styles.reportLineActions}>
+                    <Button
+                      mode="outlined"
+                      compact
+                      onPress={() => handleAddToCalendar(report, item, index)}
+                      style={styles.reportLineAction}
+                      textColor={colors.techDark}
+                    >
+                      加入日历
+                    </Button>
+                    <Button
+                      mode="contained-tonal"
+                      compact
+                      onPress={() => handleAskAi(report, item, index)}
+                      style={[styles.reportLineAction, styles.reportLineActionFilled]}
+                      textColor={colors.ink}
+                    >
+                      问 AI
+                    </Button>
+                  </View>
                 </View>
               ))}
 
@@ -357,10 +450,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(184,138,72,0.12)',
   },
   reportLine: {
+    marginTop: spacing.md,
+    gap: spacing.sm,
+  },
+  reportLineMain: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: spacing.sm,
-    marginTop: spacing.md,
   },
   reportLineIndex: {
     width: 26,
@@ -380,6 +476,21 @@ const styles = StyleSheet.create({
     flex: 1,
     color: colors.text,
     lineHeight: 22,
+  },
+  reportLineAction: {
+    alignSelf: 'flex-start',
+    borderRadius: borderRadius.pill,
+    borderColor: 'rgba(94,126,134,0.2)',
+    backgroundColor: 'rgba(255, 251, 247, 0.92)',
+  },
+  reportLineActions: {
+    marginLeft: 34,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  reportLineActionFilled: {
+    backgroundColor: 'rgba(220,236,238,0.88)',
   },
   lockedLine: {
     marginTop: spacing.md,

@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import prisma from '../config/database';
 import { successResponse, AppError, ErrorCodes } from '../middlewares/error.middleware';
+import { awardBehaviorPoints } from '../services/checkin.service';
 
 const TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
@@ -67,17 +68,14 @@ const getWeekRange = (dateStr: string): { start: Date; end: Date } => {
   return { start, end };
 };
 
-// 辅助函数：格式化日期为 YYYY-MM-DD
+// 辅助函数：格式化日期为 YYYY-MM-DD（使用本地时间，与 getWeekRange 的 setHours 保持一致）
 const formatDate = (date: Date): string => {
-  return date.toISOString().split('T')[0];
-};
-
-const formatLocalDate = (date: Date): string => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 };
+
 
 const parseTodoWeek = (value: unknown): number => {
   const week = Number.parseInt(String(value ?? ''), 10);
@@ -381,7 +379,7 @@ export const getPregnancyDiaries = async (req: Request, res: Response, next: Nex
       list: diaries.map((item) => ({
         week: item.week,
         content: item.content,
-        date: formatLocalDate(item.updatedAt),
+        date: formatDate(item.updatedAt),
         createdAt: item.createdAt.toISOString(),
         updatedAt: item.updatedAt.toISOString()
       }))
@@ -418,7 +416,7 @@ export const savePregnancyDiary = async (req: Request, res: Response, next: Next
     res.json(successResponse({
       week: diary.week,
       content: diary.content,
-      date: formatLocalDate(diary.updatedAt),
+      date: formatDate(diary.updatedAt),
       createdAt: diary.createdAt.toISOString(),
       updatedAt: diary.updatedAt.toISOString()
     }, '保存成功'));
@@ -859,6 +857,9 @@ export const completeEvent = async (req: Request, res: Response, next: NextFunct
     });
 
     res.json(successResponse(serializeEvent(updatedEvent), '标记完成'));
+
+    // 行为积分：完成待办奖励（fire-and-forget）
+    awardBehaviorPoints(userId, 'todo', id).catch(() => {});
   } catch (error) {
     next(error);
   }

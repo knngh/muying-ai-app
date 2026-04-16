@@ -1,12 +1,26 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useFocusEffect } from '@react-navigation/native'
-import { articleApi, calendarApi } from '../api/modules'
-import type { Article, CalendarEvent, PaginatedResponse, PregnancyCustomTodo, PregnancyTodoProgress } from '../api/modules'
+import dayjs from 'dayjs'
+import { articleApi, calendarApi, checkinApi } from '../api/modules'
+import type {
+  Article,
+  CalendarEvent,
+  CheckinStatus,
+  PaginatedResponse,
+  PregnancyCustomTodo,
+  PregnancyTodoProgress,
+} from '../api/modules'
 import { useAppStore } from '../stores/appStore'
 import { useMembershipStore } from '../stores/membershipStore'
 import type { WeeklyReport } from '../stores/membershipStore'
 import { eventTypeLabels } from '../theme'
+import { getSuggestedQuestion } from '../utils/chatPrompts'
 import { getStageSummary } from '../utils/stage'
+import { getLastSeenWeeklyReportId } from '../utils/weeklyReportRead'
+import {
+  getKnowledgeStagePriorityMapFromStages,
+  getKnowledgeStageQueryFromStages,
+} from '../utils/knowledgeStage'
 import { calculatePregnancyWeekFromDueDate } from '../utils'
 import pregnancyWeekGuide from '../../../shared/data/pregnancy-week-guide.json'
 
@@ -19,6 +33,38 @@ type PregnancyWeekGuideItem = {
       desc: string
     }>
   }
+}
+
+type HomePrimaryTaskAction = 'checkin' | 'calendar' | 'weekly_report' | 'chat'
+
+type HomePrimaryTask = {
+  title: string
+  description: string
+  actionLabel: string
+  action: HomePrimaryTaskAction
+}
+
+const CHECKIN_BONUS_TIERS = [
+  { streak: 3, bonus: 5 },
+  { streak: 7, bonus: 10 },
+  { streak: 14, bonus: 15 },
+  { streak: 30, bonus: 25 },
+] as const
+
+function getNextCheckinBonus(streak: number) {
+  return CHECKIN_BONUS_TIERS.find((tier) => streak < tier.streak) ?? null
+}
+
+function getSourcePriority(article: Article): number {
+  if (article.sourceLanguage === 'zh' || article.sourceLocale === 'zh-CN') {
+    return 0
+  }
+
+  if (article.sourceLanguage?.startsWith('en') || article.sourceLocale?.startsWith('en')) {
+    return 1
+  }
+
+  return 2
 }
 
 export function useHomeData() {
@@ -36,12 +82,16 @@ export function useHomeData() {
 
   const [articles, setArticles] = useState<Article[]>([])
   const [upcomingEvents, setUpcomingEvents] = useState<CalendarEvent[]>([])
+  const [todayEvents, setTodayEvents] = useState<CalendarEvent[]>([])
   const [todoStats, setTodoStats] = useState<{ week: number | null; total: number; completed: number }>({
     week: null,
     total: 0,
     completed: 0,
   })
   const [loadingArticles, setLoadingArticles] = useState(false)
+  const [latestSeenWeeklyReportId, setLatestSeenWeeklyReportId] = useState<string | null>(null)
+  const [checkInSubmitting, setCheckInSubmitting] = useState(false)
+  const [checkinStatus, setCheckinStatus] = useState<CheckinStatus | null>(null)
 
   const stage = useMemo(() => getStageSummary(user), [user])
   const currentPregnancyWeek = useMemo(
@@ -57,17 +107,35 @@ export function useHomeData() {
     setLoadingArticles(true)
     try {
       let nextArticles: Article[] = []
+      const stageQuery = getKnowledgeStageQueryFromStages(stage.knowledgeStages)
+      const stagePriority = getKnowledgeStagePriorityMapFromStages(stage.knowledgeStages)
 
-      for (const stageKey of stage.knowledgeStages) {
+      const sortStageArticles = (list: Article[]) => [...list].sort((left, right) => {
+        const leftPriority = stagePriority.get(left.stage || '') ?? Number.MAX_SAFE_INTEGER
+        const rightPriority = stagePriority.get(right.stage || '') ?? Number.MAX_SAFE_INTEGER
+        if (leftPriority !== rightPriority) {
+          return leftPriority - rightPriority
+        }
+
+        const sourceDiff = getSourcePriority(left) - getSourcePriority(right)
+        if (sourceDiff !== 0) {
+          return sourceDiff
+        }
+
+        const leftTime = new Date(left.publishedAt || left.createdAt || 0).getTime() || 0
+        const rightTime = new Date(right.publishedAt || right.createdAt || 0).getTime() || 0
+        return rightTime - leftTime
+      })
+
+      if (stageQuery) {
         const response = (await articleApi.getList({
           pageSize: 4,
           contentType: 'authority',
           sort: 'latest',
-          stage: stageKey,
+          stage: stageQuery,
         })) as PaginatedResponse<Article>
         if ((response.list || []).length > 0) {
-          nextArticles = response.list || []
-          break
+          nextArticles = sortStageArticles(response.list || []).slice(0, 4)
         }
       }
 
@@ -108,6 +176,7 @@ export function useHomeData() {
       const startDate = new Date()
       const endDate = new Date()
       endDate.setDate(endDate.getDate() + 7)
+      const todayString = dayjs().format('YYYY-MM-DD')
 
       const [events, customTodos, progress] = await Promise.all([
         calendarApi.getEvents({
@@ -122,7 +191,13 @@ export function useHomeData() {
           : Promise.resolve([] as PregnancyTodoProgress[]),
       ])
 
-      setUpcomingEvents(events.slice(0, 3))
+      const sortedEvents = [...events].sort((left, right) => {
+        const leftTime = dayjs(`${left.eventDate} ${left.startTime || '23:59'}`).valueOf()
+        const rightTime = dayjs(`${right.eventDate} ${right.startTime || '23:59'}`).valueOf()
+        return leftTime - rightTime
+      })
+      setUpcomingEvents(sortedEvents.slice(0, 3))
+      setTodayEvents(sortedEvents.filter((event) => event.eventDate === todayString))
       const defaultTodoKeys = (currentWeekGuide?.content?.todo || []).map((_, index) => `todo-${index}`)
       const customTodoKeys = customTodos.map((item) => `custom-${item.id}`)
       const validTodoKeys = new Set([...defaultTodoKeys, ...customTodoKeys])
@@ -135,23 +210,51 @@ export function useHomeData() {
       })
     } catch (_error) {
       setUpcomingEvents([])
+      setTodayEvents([])
       setTodoStats({ week: currentPregnancyWeek, total: 0, completed: 0 })
     }
   }, [currentPregnancyWeek, currentWeekGuide, stage.kind])
 
+  const loadWeeklyReportReadState = useCallback(async () => {
+    const latestId = await getLastSeenWeeklyReportId()
+    setLatestSeenWeeklyReportId(latestId)
+  }, [])
+
+  const loadCheckinStatus = useCallback(async () => {
+    try {
+      const nextStatus = await checkinApi.getStatus()
+      setCheckinStatus(nextStatus)
+    } catch (_error) {
+      setCheckinStatus(null)
+    }
+  }, [])
+
   useEffect(() => {
     void loadArticles()
     void loadHomeCalendar()
-  }, [loadArticles, loadHomeCalendar])
+    void loadWeeklyReportReadState()
+    void loadCheckinStatus()
+  }, [loadArticles, loadHomeCalendar, loadWeeklyReportReadState, loadCheckinStatus])
 
   useFocusEffect(
     useCallback(() => {
       ensureFreshQuota()
       void loadHomeCalendar()
-    }, [ensureFreshQuota, loadHomeCalendar]),
+      void loadWeeklyReportReadState()
+      void loadCheckinStatus()
+    }, [ensureFreshQuota, loadHomeCalendar, loadWeeklyReportReadState, loadCheckinStatus]),
   )
 
   const remainingAiText = status === 'active' ? '无限次' : `${Math.max(aiLimit - aiUsedToday, 0)} 次`
+  const resolvedCheckInStreak = checkinStatus?.currentStreak ?? checkInStreak
+  const hasCheckedInToday = checkinStatus?.checkedInToday ?? todayEvents.some((event) => event.isCompleted)
+  const pendingTodayEvent = todayEvents.find((event) => !event.isCompleted)
+  const nextCheckInBonus = checkinStatus?.nextBonusAt && checkinStatus?.nextBonusPoints
+    ? {
+        streak: checkinStatus.nextBonusAt,
+        bonus: checkinStatus.nextBonusPoints,
+      }
+    : getNextCheckinBonus(resolvedCheckInStreak)
 
   const weeklyReport = (weeklyReports[0] || {
     id: 'fallback',
@@ -160,6 +263,97 @@ export function useHomeData() {
     createdAt: new Date().toISOString(),
     highlights: ['会员可查看完整的阶段重点与建议。'],
   }) as WeeklyReport
+  const hasUnreadWeeklyReport = status === 'active'
+    && weeklyReport.id !== 'preview-weekly-report'
+    && weeklyReport.id !== 'fallback'
+    && weeklyReport.id !== latestSeenWeeklyReportId
+
+  const primaryTask = useMemo<HomePrimaryTask>(() => {
+    if (!hasCheckedInToday) {
+      return {
+        title: '先完成今天签到',
+        description: pendingTodayEvent
+          ? `把“${pendingTodayEvent.title}”完成掉，连续打卡会自动累计。`
+          : '今天还没有完成记录，现在补一条最容易保持连续节奏。',
+        actionLabel: '立即签到',
+        action: 'checkin',
+      }
+    }
+
+    if (hasUnreadWeeklyReport) {
+      return {
+        title: '本周新周报已生成',
+        description: '先看本周重点提醒，再决定日历和问题助手要补哪一块。',
+        actionLabel: '查看周报',
+        action: 'weekly_report',
+      }
+    }
+
+    if (todoStats.total > 0 && todoStats.completed < todoStats.total) {
+      return {
+        title: '补齐本周阶段待办',
+        description: `当前已完成 ${todoStats.completed}/${todoStats.total}，继续补一项更容易把周报做完整。`,
+        actionLabel: '去日历安排',
+        action: 'calendar',
+      }
+    }
+
+    if (upcomingEvents[0]) {
+      return {
+        title: '确认接下来的安排',
+        description: `${eventTypeLabels[upcomingEvents[0].eventType] || '提醒'} · ${upcomingEvents[0].title}`,
+        actionLabel: '查看日历',
+        action: 'calendar',
+      }
+    }
+
+    return {
+      title: '补一个本周关键问题',
+      description: '把你现在最关心的一件事问清楚，后续周报和档案会更有价值。',
+      actionLabel: '去问 AI',
+      action: 'chat',
+    }
+  }, [hasCheckedInToday, hasUnreadWeeklyReport, pendingTodayEvent, todoStats.completed, todoStats.total, upcomingEvents])
+  const suggestedQuestion = useMemo(() => getSuggestedQuestion(stage.lifecycleKey), [stage.lifecycleKey])
+
+  const handleQuickCheckIn = useCallback(async () => {
+    if (checkInSubmitting) {
+      return '正在处理中，请稍候'
+    }
+
+    setCheckInSubmitting(true)
+
+    try {
+      if (hasCheckedInToday) {
+        return '今天已经签到，继续完成其他安排也会计入周完成度'
+      }
+
+      const result = await checkinApi.checkin()
+      await Promise.all([
+        ensureFreshQuota(),
+        loadHomeCalendar(),
+        loadCheckinStatus(),
+      ])
+
+      if (pendingTodayEvent) {
+        return `今日已签到，已连续 ${result.streakCount} 天，获得 ${result.pointsAwarded} 积分。接下来可以继续处理“${pendingTodayEvent.title}”。`
+      }
+
+      return `今日已签到，已连续 ${result.streakCount} 天，获得 ${result.pointsAwarded} 积分。`
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('今日已签到')) {
+        await Promise.all([
+          ensureFreshQuota(),
+          loadHomeCalendar(),
+          loadCheckinStatus(),
+        ])
+        return '今天已经签到，继续完成其他安排也会计入周完成度'
+      }
+      return error instanceof Error ? error.message : '签到失败，请稍后重试'
+    } finally {
+      setCheckInSubmitting(false)
+    }
+  }, [checkInSubmitting, ensureFreshQuota, hasCheckedInToday, loadCheckinStatus, loadHomeCalendar, pendingTodayEvent])
 
   const statusTags = [
     ...stage.statusTags,
@@ -177,11 +371,19 @@ export function useHomeData() {
     initialLoading,
     articles,
     upcomingEvents,
+    todoStats,
     loadingArticles,
     remainingAiText,
-    checkInStreak,
+    checkInStreak: resolvedCheckInStreak,
     weeklyCompletionRate,
     weeklyReport,
     statusTags,
+    hasCheckedInToday,
+    nextCheckInBonus,
+    primaryTask,
+    suggestedQuestion,
+    hasUnreadWeeklyReport,
+    handleQuickCheckIn,
+    checkInSubmitting,
   }
 }

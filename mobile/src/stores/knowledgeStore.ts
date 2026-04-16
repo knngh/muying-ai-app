@@ -1,20 +1,14 @@
 import { create } from 'zustand'
+import type { ApiError } from '../api'
 import { articleApi, categoryApi, tagApi } from '../api/modules'
 import type { Article, Category, Tag, PaginatedResponse } from '../api/modules'
+import {
+  getKnowledgeFallbackKeyword,
+  getKnowledgeStagePriorityMap,
+  getKnowledgeStageQuery,
+} from '../utils/knowledgeStage'
 
 const KNOWLEDGE_CONTENT_TYPE = 'authority'
-const STAGE_QUERY_MAP: Record<string, { apiStage?: string; fallbackKeyword?: string }> = {
-  preparation: { apiStage: 'preparation', fallbackKeyword: '备孕 叶酸 孕前检查' },
-  'first-trimester': { apiStage: 'first-trimester', fallbackKeyword: '孕早期 建档 早孕反应' },
-  'second-trimester': { apiStage: 'second-trimester', fallbackKeyword: '孕中期 胎动 糖耐' },
-  'third-trimester': { apiStage: 'third-trimester', fallbackKeyword: '孕晚期 待产 分娩征兆' },
-  postpartum: { apiStage: 'postpartum', fallbackKeyword: '产后恢复 恶露 伤口 复查 喂养' },
-  newborn: { apiStage: 'newborn', fallbackKeyword: '新生儿 黄疸 喂养 排便 脐带' },
-  '0-6-months': { apiStage: '0-6-months', fallbackKeyword: '新生儿 喂养 夜醒 疫苗' },
-  '6-12-months': { apiStage: '6-12-months', fallbackKeyword: '辅食 睡眠倒退 发育 疫苗' },
-  '1-3-years': { apiStage: '1-3-years', fallbackKeyword: '语言发展 如厕 情绪 挑食' },
-  '3-years-plus': { apiStage: '3-years-plus', fallbackKeyword: '儿童 语言 情绪行为 睡眠 习惯 入园' },
-}
 const CHINESE_AUTHORITY_PATTERNS = [
   /中国政府网/u,
   /中国政府网政策解读/u,
@@ -48,6 +42,10 @@ function getSourcePriority(article: Article): number {
     return 0
   }
 
+  if (article.sourceLanguage?.startsWith('en') || article.sourceLocale?.startsWith('en')) {
+    return 1
+  }
+
   const sourceText = [
     article.sourceOrg || '',
     article.source || '',
@@ -55,11 +53,23 @@ function getSourcePriority(article: Article): number {
     article.region || '',
   ].join(' ')
 
-  return CHINESE_AUTHORITY_PATTERNS.some((pattern) => pattern.test(sourceText)) ? 0 : 1
+  if (CHINESE_AUTHORITY_PATTERNS.some((pattern) => pattern.test(sourceText))) {
+    return 0
+  }
+
+  return 2
 }
 
-function sortKnowledgeArticles(list: Article[]): Article[] {
+function sortKnowledgeArticles(list: Article[], selectedStage: string | null = null): Article[] {
+  const stagePriority = getKnowledgeStagePriorityMap(selectedStage)
+
   return [...list].sort((left, right) => {
+    const leftPriority = stagePriority.get(left.stage || '') ?? Number.MAX_SAFE_INTEGER
+    const rightPriority = stagePriority.get(right.stage || '') ?? Number.MAX_SAFE_INTEGER
+    if (leftPriority !== rightPriority) {
+      return leftPriority - rightPriority
+    }
+
     const dateBucketDiff = getArticleDateBucket(right).localeCompare(getArticleDateBucket(left))
     if (dateBucketDiff !== 0) {
       return dateBucketDiff
@@ -74,32 +84,36 @@ function sortKnowledgeArticles(list: Article[]): Article[] {
   })
 }
 
-function mergeKnowledgeArticles(existing: Article[], incoming: Article[]) {
+function mergeKnowledgeArticles(existing: Article[], incoming: Article[], selectedStage: string | null = null) {
   const articleMap = new Map<string, Article>()
 
   for (const article of [...existing, ...incoming]) {
     articleMap.set(article.slug, article)
   }
 
-  return sortKnowledgeArticles(Array.from(articleMap.values()))
+  return sortKnowledgeArticles(Array.from(articleMap.values()), selectedStage)
 }
 
 function buildKnowledgeAttempts(selectedStage: string | null, keyword: string) {
-  const stageConfig = selectedStage ? STAGE_QUERY_MAP[selectedStage] : undefined
+  const stageQuery = getKnowledgeStageQuery(selectedStage)
+  const fallbackKeyword = getKnowledgeFallbackKeyword(selectedStage)
   const normalizedKeyword = keyword.trim()
   const attempts: Array<{ stage?: string; keyword?: string }> = []
 
   if (normalizedKeyword) {
-    if (stageConfig?.apiStage) {
-      attempts.push({ stage: stageConfig.apiStage, keyword: normalizedKeyword })
+    if (stageQuery) {
+      attempts.push({ stage: stageQuery, keyword: normalizedKeyword })
     }
     attempts.push({ keyword: normalizedKeyword })
   } else {
-    if (stageConfig?.apiStage) {
-      attempts.push({ stage: stageConfig.apiStage })
+    if (stageQuery) {
+      attempts.push({ stage: stageQuery })
     }
-    if (stageConfig?.fallbackKeyword) {
-      attempts.push({ keyword: stageConfig.fallbackKeyword })
+    if (stageQuery && fallbackKeyword) {
+      attempts.push({ stage: stageQuery, keyword: fallbackKeyword })
+    }
+    if (fallbackKeyword) {
+      attempts.push({ keyword: fallbackKeyword })
     }
     attempts.push({})
   }
@@ -167,6 +181,7 @@ interface KnowledgeState {
   keyword: string
   loading: boolean
   error: string | null
+  errorDetail: ApiError | null
   fetchArticles: (params?: { page?: number; reset?: boolean }) => Promise<void>
   fetchCategories: () => Promise<void>
   fetchTags: () => Promise<void>
@@ -196,11 +211,12 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
   keyword: '',
   loading: false,
   error: null,
+  errorDetail: null,
 
   fetchArticles: async (params) => {
     const state = get()
     const page = params?.page || state.page
-    set({ loading: true, error: null })
+    set({ loading: true, error: null, errorDetail: null })
     try {
       const response = await getKnowledgeArticlesWithFallback({
         page,
@@ -211,20 +227,22 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
         keyword: state.keyword,
       })
       const nextArticles = params?.reset
-        ? sortKnowledgeArticles(response.list)
-        : mergeKnowledgeArticles(state.articles, response.list)
+        ? sortKnowledgeArticles(response.list, state.selectedStage)
+        : mergeKnowledgeArticles(state.articles, response.list, state.selectedStage)
       set({
         articles: nextArticles,
         total: response.pagination.total,
         page: response.pagination.page,
         loading: false,
+        error: null,
+        errorDetail: null,
       })
     } catch (error: unknown) {
-      const err = error as { message?: string }
+      const err = error as ApiError
       if (__DEV__) {
         console.warn('[KnowledgeStore] fetchArticles failed', err.message || error)
       }
-      set({ error: err.message || '获取文章失败', loading: false })
+      set({ error: err.message || '获取文章失败', errorDetail: err, loading: false })
     }
   },
 
@@ -247,12 +265,17 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
   },
 
   fetchArticleDetail: async (slug) => {
-    set({ loading: true, error: null })
+    set({ loading: true, error: null, errorDetail: null })
     try {
-      set({ currentArticle: await articleApi.getBySlug(slug) as Article, loading: false })
+      set({
+        currentArticle: await articleApi.getBySlug(slug) as Article,
+        loading: false,
+        error: null,
+        errorDetail: null,
+      })
     } catch (error: unknown) {
-      const err = error as { message?: string }
-      set({ error: err.message || '获取文章详情失败', loading: false })
+      const err = error as ApiError
+      set({ error: err.message || '获取文章详情失败', errorDetail: err, loading: false })
     }
   },
 
@@ -268,10 +291,11 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
     selectedStage: stage,
     keyword: '',
     error: null,
+    errorDetail: null,
   }),
 
   search: async (keyword) => {
-    set({ keyword, page: 1, loading: true })
+    set({ keyword, page: 1, loading: true, error: null, errorDetail: null })
     try {
       const state = get()
       const response = await getKnowledgeArticlesWithFallback({
@@ -282,13 +306,19 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
         selectedStage: state.selectedStage,
         keyword,
       })
-      set({ articles: sortKnowledgeArticles(response.list), total: response.pagination.total, loading: false })
+      set({
+        articles: sortKnowledgeArticles(response.list, state.selectedStage),
+        total: response.pagination.total,
+        loading: false,
+        error: null,
+        errorDetail: null,
+      })
     } catch (error: unknown) {
-      const err = error as { message?: string }
+      const err = error as ApiError
       if (__DEV__) {
         console.warn('[KnowledgeStore] search failed', err.message || error)
       }
-      set({ error: err.message || '搜索失败', loading: false })
+      set({ error: err.message || '搜索失败', errorDetail: err, loading: false })
     }
   },
 
@@ -362,5 +392,14 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
     } catch (_e) { /* ignore */ }
   },
 
-  reset: () => set({ articles: [], page: 1, selectedCategory: null, selectedTag: null, selectedStage: null, keyword: '', error: null }),
+  reset: () => set({
+    articles: [],
+    page: 1,
+    selectedCategory: null,
+    selectedTag: null,
+    selectedStage: null,
+    keyword: '',
+    error: null,
+    errorDetail: null,
+  }),
 }))
