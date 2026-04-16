@@ -14,8 +14,8 @@ import dayjs from 'dayjs'
 import { Button, Card, Chip, Modal, Portal, Snackbar, Switch, Text, TextInput } from 'react-native-paper'
 import LinearGradient from 'react-native-linear-gradient'
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons'
-import { checkinApi } from '../api/modules'
-import type { CheckinStatus } from '../api/modules'
+import { calendarApi, checkinApi } from '../api/modules'
+import type { CheckinStatus, StandardSchedulePlan } from '../api/modules'
 import { useCalendarStore } from '../stores/calendarStore'
 import { useAppStore } from '../stores/appStore'
 import { useMembershipStore } from '../stores/membershipStore'
@@ -323,6 +323,8 @@ export default function CalendarScreen() {
   const [hoveredDate, setHoveredDate] = useState<string | null>(null)
   const [snackMessage, setSnackMessage] = useState('')
   const [checkinStatus, setCheckinStatus] = useState<CheckinStatus | null>(null)
+  const [standardSchedule, setStandardSchedule] = useState<StandardSchedulePlan | null>(null)
+  const [standardScheduleSubmitting, setStandardScheduleSubmitting] = useState(false)
   const dateCellNodesRef = useRef<Record<string, View | null>>({})
   const dateCellRectsRef = useRef<Record<string, Rect>>({})
   const todayString = dayjs().format('YYYY-MM-DD')
@@ -336,13 +338,23 @@ export default function CalendarScreen() {
     }
   }, [])
 
+  const loadStandardSchedule = useCallback(async () => {
+    try {
+      const nextPlan = await calendarApi.getStandardSchedule()
+      setStandardSchedule(nextPlan)
+    } catch (_error) {
+      setStandardSchedule(null)
+    }
+  }, [])
+
   useFocusEffect(
     useCallback(() => {
       const { start, end } = getCalendarFetchRange(currentMonth, todayString)
       fetchEvents(start, end)
       ensureFreshQuota()
       void loadCheckinStatus()
-    }, [currentMonth, ensureFreshQuota, fetchEvents, loadCheckinStatus, todayString]),
+      void loadStandardSchedule()
+    }, [currentMonth, ensureFreshQuota, fetchEvents, loadCheckinStatus, loadStandardSchedule, todayString]),
   )
 
   const calendarEvents = events as unknown as CalendarEventView[]
@@ -432,6 +444,10 @@ export default function CalendarScreen() {
       accent: colors.gold,
     },
   ]
+  const visibleStandardScheduleItems = useMemo(
+    () => (standardSchedule?.items || []).slice(0, 3),
+    [standardSchedule],
+  )
 
   const measureDateCell = useCallback((dateString: string) => {
     requestAnimationFrame(() => {
@@ -712,6 +728,29 @@ export default function CalendarScreen() {
     syncCalendarDate(todayString)
   }, [syncCalendarDate, todayString])
 
+  const handleGenerateStandardSchedule = useCallback(async () => {
+    if (!standardSchedule?.available || standardScheduleSubmitting) {
+      return
+    }
+
+    setStandardScheduleSubmitting(true)
+    try {
+      const result = await calendarApi.generateStandardSchedule()
+      setStandardSchedule(result.plan)
+      const { start, end } = getCalendarFetchRange(currentMonth, todayString)
+      await fetchEvents(start, end)
+      setSnackMessage(
+        result.createdCount > 0
+          ? `已补齐 ${result.createdCount} 个标准节点`
+          : '标准节点已是最新，无需重复生成',
+      )
+    } catch (error) {
+      setSnackMessage(error instanceof Error ? error.message : '标准节点生成失败，请稍后重试')
+    } finally {
+      setStandardScheduleSubmitting(false)
+    }
+  }, [currentMonth, fetchEvents, standardSchedule?.available, standardScheduleSubmitting, todayString])
+
   const renderDayCell = useCallback(({ date, state, marking }: CalendarDayRenderProps) => {
     if (!date) return <View style={styles.dayShell} />
 
@@ -922,6 +961,71 @@ export default function CalendarScreen() {
             </Card.Content>
           </LinearGradient>
         </Card>
+
+        {standardSchedule?.available ? (
+          <Card style={styles.standardScheduleCard}>
+            <LinearGradient
+              colors={['rgba(255,247,239,1)', 'rgba(245,236,226,1)', 'rgba(255,252,248,1)']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.standardScheduleGradient}
+            >
+              <View style={styles.standardScheduleHeader}>
+                <View style={styles.standardScheduleLead}>
+                  <View style={styles.standardScheduleIconShell}>
+                    <MaterialCommunityIcons name="calendar-star" size={18} color={colors.techDark} />
+                  </View>
+                  <View style={styles.standardScheduleHeaderText}>
+                    <Text style={styles.standardScheduleEyebrow}>标准节点</Text>
+                    <Text style={styles.standardScheduleTitle}>{standardSchedule.title}</Text>
+                    <Text style={styles.standardScheduleSubtitle}>{standardSchedule.subtitle}</Text>
+                  </View>
+                </View>
+                <View style={styles.standardScheduleBadge}>
+                  <Text style={styles.standardScheduleBadgeText}>{standardSchedule.pendingCount} 待补齐</Text>
+                </View>
+              </View>
+
+              <Text style={styles.standardScheduleSummary}>{standardSchedule.summary}</Text>
+
+              <View style={styles.standardScheduleStatRow}>
+                <Chip compact style={styles.standardScheduleStatChip} textStyle={styles.standardScheduleStatChipText}>
+                  已生成 {standardSchedule.generatedCount}
+                </Chip>
+                <Chip compact style={styles.standardScheduleStatChip} textStyle={styles.standardScheduleStatChipText}>
+                  待加入 {standardSchedule.pendingCount}
+                </Chip>
+              </View>
+
+              <View style={styles.standardScheduleList}>
+                {visibleStandardScheduleItems.map((item) => (
+                  <View key={item.key} style={styles.standardScheduleItem}>
+                    <View style={styles.standardScheduleItemMain}>
+                      <Text style={styles.standardScheduleItemTitle}>{item.title}</Text>
+                      <Text style={styles.standardScheduleItemMeta}>
+                        {dayjs(item.eventDate).format('MM-DD')} · {item.statusLabel}
+                      </Text>
+                    </View>
+                    <Chip compact style={styles.standardScheduleItemChip} textStyle={styles.standardScheduleItemChipText}>
+                      {item.sourceLabel}
+                    </Chip>
+                  </View>
+                ))}
+              </View>
+
+              <Button
+                mode="contained"
+                onPress={() => void handleGenerateStandardSchedule()}
+                loading={standardScheduleSubmitting}
+                disabled={standardScheduleSubmitting || standardSchedule.pendingCount === 0}
+                buttonColor={standardSchedule.pendingCount > 0 ? colors.ink : colors.techDark}
+                style={styles.standardScheduleButton}
+              >
+                {standardSchedule.pendingCount > 0 ? `一键补齐 ${standardSchedule.pendingCount} 个节点` : '标准节点已补齐'}
+              </Button>
+            </LinearGradient>
+          </Card>
+        ) : null}
 
         <Card style={styles.engineCard}>
           <LinearGradient colors={['#3B2923', '#754534', '#DB9B65']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.engineGradient}>
@@ -1559,6 +1663,124 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: fontSize.xs,
     fontWeight: '600',
+  },
+  standardScheduleCard: {
+    marginTop: spacing.md,
+    borderRadius: borderRadius.xl,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(94,126,134,0.16)',
+    backgroundColor: 'transparent',
+  },
+  standardScheduleGradient: {
+    padding: spacing.md,
+  },
+  standardScheduleHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+  },
+  standardScheduleLead: {
+    flex: 1,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    alignItems: 'flex-start',
+  },
+  standardScheduleIconShell: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(94,126,134,0.12)',
+  },
+  standardScheduleHeaderText: {
+    flex: 1,
+  },
+  standardScheduleEyebrow: {
+    fontSize: fontSize.xs,
+    color: colors.primaryDark,
+    fontWeight: '700',
+    letterSpacing: 1,
+  },
+  standardScheduleTitle: {
+    marginTop: 2,
+    fontSize: fontSize.md,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  standardScheduleSubtitle: {
+    marginTop: 4,
+    color: colors.textSecondary,
+    lineHeight: 18,
+  },
+  standardScheduleBadge: {
+    borderRadius: borderRadius.pill,
+    backgroundColor: 'rgba(59,102,112,0.1)',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+  },
+  standardScheduleBadgeText: {
+    color: colors.techDark,
+    fontSize: fontSize.xs,
+    fontWeight: '700',
+  },
+  standardScheduleSummary: {
+    marginTop: spacing.sm,
+    color: colors.textSecondary,
+    lineHeight: 20,
+  },
+  standardScheduleStatRow: {
+    marginTop: spacing.sm,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+  },
+  standardScheduleStatChip: {
+    backgroundColor: 'rgba(255,253,249,0.92)',
+  },
+  standardScheduleStatChipText: {
+    color: colors.primaryDark,
+    fontWeight: '700',
+  },
+  standardScheduleList: {
+    marginTop: spacing.md,
+    gap: spacing.sm,
+  },
+  standardScheduleItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    padding: spacing.sm,
+    borderRadius: borderRadius.lg,
+    backgroundColor: 'rgba(255,255,255,0.72)',
+  },
+  standardScheduleItemMain: {
+    flex: 1,
+  },
+  standardScheduleItemTitle: {
+    color: colors.text,
+    fontWeight: '700',
+  },
+  standardScheduleItemMeta: {
+    marginTop: 4,
+    color: colors.textSecondary,
+    fontSize: fontSize.sm,
+  },
+  standardScheduleItemChip: {
+    backgroundColor: 'rgba(220,236,238,0.6)',
+    alignSelf: 'flex-start',
+  },
+  standardScheduleItemChipText: {
+    color: colors.techDark,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  standardScheduleButton: {
+    marginTop: spacing.md,
+    borderRadius: borderRadius.pill,
   },
   engineCard: {
     marginTop: spacing.md,

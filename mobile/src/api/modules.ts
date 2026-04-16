@@ -2,10 +2,18 @@ import api from './index'
 import type {
   Category, Tag, Article, CalendarEvent, User, PaginatedResponse,
   PregnancyTodoProgress, PregnancyDiary, PregnancyCustomTodo, PregnancyProfile,
+  StandardSchedulePlan, StandardScheduleGenerateResult,
 } from '../../../shared/types'
 
 export type { Category, Tag, Article, CalendarEvent, User, PaginatedResponse }
-export type { PregnancyTodoProgress, PregnancyDiary, PregnancyCustomTodo, PregnancyProfile }
+export type {
+  PregnancyTodoProgress,
+  PregnancyDiary,
+  PregnancyCustomTodo,
+  PregnancyProfile,
+  StandardSchedulePlan,
+  StandardScheduleGenerateResult,
+}
 export type { PaginationMeta } from '../../../shared/types'
 
 export interface CheckinStatus {
@@ -120,6 +128,10 @@ export const calendarApi = {
   getCustomTodos: (params?: { week?: number }) =>
     api.get<{ list: PregnancyCustomTodo[] }>('/calendar/custom-todos', { params })
       .then(res => (res as { list: PregnancyCustomTodo[] }).list),
+  getStandardSchedule: () =>
+    api.get<StandardSchedulePlan>('/calendar/standard-schedule'),
+  generateStandardSchedule: () =>
+    api.post<StandardScheduleGenerateResult>('/calendar/standard-schedule/generate'),
   createCustomTodo: (data: { week: number; content: string }) =>
     api.post<PregnancyCustomTodo>('/calendar/custom-todos', data),
   updateCustomTodo: (id: string, data: { content: string }) =>

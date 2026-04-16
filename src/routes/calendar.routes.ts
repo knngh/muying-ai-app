@@ -9,6 +9,8 @@ import {
   savePregnancyDiary,
   deletePregnancyDiary,
   getCustomTodos,
+  getStandardSchedule,
+  generateStandardSchedule,
   createCustomTodo,
   updateCustomTodo,
   deleteCustomTodo,
@@ -58,6 +60,10 @@ router.get('/custom-todos', queryRateLimiter, getCustomTodos);
 router.post('/custom-todos', writeRateLimiter, validate({ body: createCustomTodoBody }), createCustomTodo);
 router.put('/custom-todos/:id', writeRateLimiter, validate({ body: updateCustomTodoBody }), updateCustomTodo);
 router.delete('/custom-todos/:id', writeRateLimiter, deleteCustomTodo);
+
+// 标准节点计划
+router.get('/standard-schedule', queryRateLimiter, getStandardSchedule);
+router.post('/standard-schedule/generate', writeRateLimiter, generateStandardSchedule);
 
 // 事件列表（按日期范围）
 router.get('/events', queryRateLimiter, validate({ query: getEventsQuery }), getEvents);

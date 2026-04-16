@@ -2,6 +2,11 @@ import { Request, Response, NextFunction } from 'express';
 import prisma from '../config/database';
 import { successResponse, AppError, ErrorCodes } from '../middlewares/error.middleware';
 import { awardBehaviorPoints } from '../services/checkin.service';
+import {
+  buildStandardScheduleEventPayload,
+  buildStandardSchedulePlan,
+  getMissingStandardScheduleDefinitions,
+} from '../utils/calendar-standard-plan';
 
 const TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
@@ -144,6 +149,40 @@ const parseCustomTodoId = (value: unknown): bigint => {
   }
   return id;
 };
+
+async function loadStandardScheduleContext(
+  userId: string,
+  client: typeof prisma = prisma,
+) {
+  const userIdBigInt = BigInt(userId);
+
+  const [user, existingEvents] = await Promise.all([
+    client.user.findUniqueOrThrow({
+      where: { id: userIdBigInt },
+      select: {
+        pregnancyStatus: true,
+        dueDate: true,
+        babyBirthday: true,
+      },
+    }),
+    client.calendarEvent.findMany({
+      where: {
+        userId: userIdBigInt,
+        deletedAt: null,
+        reminderType: {
+          startsWith: 'std-',
+        },
+      },
+      select: {
+        id: true,
+        reminderType: true,
+        status: true,
+      },
+    }),
+  ]);
+
+  return { user, existingEvents };
+}
 
 // 辅助函数：获取周的唯一标识（YYYY-WW）
 const getWeekId = (date: Date): string => {
@@ -490,6 +529,106 @@ export const getCustomTodos = async (req: Request, res: Response, next: NextFunc
         updatedAt: item.updatedAt.toISOString()
       }))
     }));
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getStandardSchedule = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.userId!;
+    const { user, existingEvents } = await loadStandardScheduleContext(userId);
+    const plan = buildStandardSchedulePlan({
+      user,
+      existingEvents,
+    });
+
+    res.json(successResponse(plan));
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const generateStandardSchedule = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.userId!;
+    const { user, existingEvents } = await loadStandardScheduleContext(userId);
+    const initialPlan = buildStandardSchedulePlan({
+      user,
+      existingEvents,
+    });
+    const babyBirthday = user.babyBirthday;
+
+    if (!initialPlan.available || !babyBirthday) {
+      res.json(successResponse({
+        createdCount: 0,
+        createdEventIds: [],
+        plan: initialPlan,
+      }, '当前阶段没有可生成的标准节点'));
+      return;
+    }
+
+    const createdEventIds = await prisma.$transaction(async (tx) => {
+      const latestExistingEvents = await tx.calendarEvent.findMany({
+        where: {
+          userId: BigInt(userId),
+          deletedAt: null,
+          reminderType: {
+            startsWith: 'std-',
+          },
+        },
+        select: {
+          id: true,
+          reminderType: true,
+          status: true,
+        },
+      });
+
+      const latestPlan = buildStandardSchedulePlan({
+        user,
+        existingEvents: latestExistingEvents,
+      });
+      const missingDefinitions = getMissingStandardScheduleDefinitions(latestPlan);
+
+      if (missingDefinitions.length === 0) {
+        return [] as number[];
+      }
+
+      const ids: number[] = [];
+
+      for (const definition of missingDefinitions) {
+        const payload = buildStandardScheduleEventPayload(babyBirthday, definition);
+        const created = await tx.calendarEvent.create({
+          data: {
+            userId: BigInt(userId),
+            title: payload.title,
+            description: payload.description,
+            eventType: payload.eventType,
+            eventDate: payload.eventDate,
+            isAllDay: 1,
+            reminderMinutes: payload.reminderMinutes,
+            reminderType: payload.reminderType,
+            status: 0,
+          },
+          select: { id: true },
+        });
+        ids.push(Number(created.id));
+      }
+
+      return ids;
+    });
+
+    const refreshedContext = await loadStandardScheduleContext(userId);
+    const refreshedPlan = buildStandardSchedulePlan({
+      user: refreshedContext.user,
+      existingEvents: refreshedContext.existingEvents,
+    });
+
+    res.status(201).json(successResponse({
+      createdCount: createdEventIds.length,
+      createdEventIds,
+      plan: refreshedPlan,
+    }, createdEventIds.length > 0 ? `已生成 ${createdEventIds.length} 个标准节点` : '标准节点已是最新'));
   } catch (error) {
     next(error);
   }
