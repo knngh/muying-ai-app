@@ -5,6 +5,7 @@ import { successResponse, paginatedResponse, AppError, ErrorCodes } from '../mid
 import { assertCommunityContentAllowed } from '../services/community-moderation.service';
 import { applyCommunityReportAction, CommunityReportAction, reviewCommunityReport } from '../services/community-report-review.service';
 import { getCurrentStageCircle } from '../services/stage-circle.service';
+import { awardBehaviorPoints } from '../services/checkin.service';
 
 const formatCommunityPost = (
   post: any,
@@ -398,6 +399,9 @@ export const createPost = async (req: Request, res: Response, next: NextFunction
       categoryName: category?.name,
       isVerifiedMember: verifiedMemberIds.has(post.authorId.toString()),
     }), '发布成功'));
+
+    // 行为积分：发帖奖励（fire-and-forget）
+    awardBehaviorPoints(userId!, 'post', post.id.toString()).catch(() => {});
   } catch (error) {
     next(error);
   }
@@ -518,16 +522,16 @@ export const likePost = async (req: Request, res: Response, next: NextFunction) 
       throw new AppError('已点赞', ErrorCodes.PARAM_ERROR, 400);
     }
 
-    // 创建点赞记录并更新计数
-    await Promise.all([
-      prisma.communityPostLike.create({
+    // 事务内创建点赞记录并更新计数，防止并发导致计数不一致
+    await prisma.$transaction(async (tx) => {
+      await tx.communityPostLike.create({
         data: { userId: BigInt(userId!), postId: BigInt(id) }
-      }),
-      prisma.communityPost.update({
+      });
+      await tx.communityPost.update({
         where: { id: BigInt(id) },
         data: { likeCount: { increment: 1 } }
-      })
-    ]);
+      });
+    });
 
     res.json(successResponse({ liked: true }, '点赞成功'));
   } catch (error) {
@@ -551,13 +555,18 @@ export const unlikePost = async (req: Request, res: Response, next: NextFunction
       throw new AppError('未点赞', ErrorCodes.PARAM_ERROR, 400);
     }
 
-    await Promise.all([
-      prisma.communityPostLike.delete({ where: { id: like.id } }),
-      prisma.communityPost.update({
+    // 事务内删除点赞并更新计数，用 Math.max 防止负数
+    await prisma.$transaction(async (tx) => {
+      await tx.communityPostLike.delete({ where: { id: like.id } });
+      const post = await tx.communityPost.findUnique({
         where: { id: BigInt(id) },
-        data: { likeCount: { decrement: 1 } }
-      })
-    ]);
+        select: { likeCount: true },
+      });
+      await tx.communityPost.update({
+        where: { id: BigInt(id) },
+        data: { likeCount: Math.max(0, (post?.likeCount ?? 1) - 1) }
+      });
+    });
 
     res.json(successResponse({ liked: false }, '取消点赞成功'));
   } catch (error) {

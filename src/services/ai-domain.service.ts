@@ -17,7 +17,7 @@ const GENERAL_HEALTH_PATTERNS = [
 ];
 
 const ADULT_EXCLUSION_PATTERNS = [
-  /成人|大人|老公|老丈人|老婆|同事|领导|老板|朋友/u,
+  /成人|大人|老丈人|同事|领导|老板|朋友/u,
 ];
 
 const OFF_TOPIC_PATTERNS = [

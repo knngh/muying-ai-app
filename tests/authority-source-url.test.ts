@@ -35,6 +35,11 @@ describe('authority source url filtering', () => {
     })).toBe(true);
 
     expect(shouldFilterAuthoritySourceUrl({
+      source_id: 'acog',
+      source_url: 'https://www.acog.org/topics/prenatal-care',
+    })).toBe(true);
+
+    expect(shouldFilterAuthoritySourceUrl({
       source_id: 'nhs',
       source_url: 'https://www.nhs.uk/pregnancy/',
     })).toBe(true);
@@ -42,6 +47,28 @@ describe('authority source url filtering', () => {
     expect(shouldFilterAuthoritySourceUrl({
       source_id: 'cdc',
       source_url: 'https://www.cdc.gov/pregnancy/meds/treatingfortwo/index.html',
+    })).toBe(false);
+
+    expect(shouldFilterAuthoritySourceUrl({
+      source_id: 'acog',
+      source_url: 'https://www.acog.org/clinical/clinical-guidance/practice-advisory/articles/2024/04/screening-for-syphilis-in-pregnancy',
+    })).toBe(false);
+  });
+
+  test('filters NHC topic landing pages but keeps topic article pages', () => {
+    expect(shouldFilterAuthoritySourceUrl({
+      source_id: 'nhc-fys',
+      source_url: 'https://www.nhc.gov.cn/jnr/jrjjk/csqxr_lmtt.shtml',
+    })).toBe(true);
+
+    expect(shouldFilterAuthoritySourceUrl({
+      source_id: 'nhc-fys',
+      source_url: 'https://www.nhc.gov.cn/fys/mrwy/mrwy_index.shtml',
+    })).toBe(true);
+
+    expect(shouldFilterAuthoritySourceUrl({
+      source_id: 'nhc-fys',
+      source_url: 'https://www.nhc.gov.cn/fys/mrkpxc/201505/315c326a1db54022a93b063eb543178b.shtml',
     })).toBe(false);
   });
 

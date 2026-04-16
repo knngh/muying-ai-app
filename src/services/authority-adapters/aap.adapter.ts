@@ -14,13 +14,18 @@ import {
 
 function extractAapContent(rawBody: string): string {
   const candidates = [
-    rawBody.match(/<main[\s\S]*?>([\s\S]*?)<\/main>/i)?.[1],
-    rawBody.match(/<article[\s\S]*?>([\s\S]*?)<\/article>/i)?.[1],
+    rawBody.match(/<div[^>]+id=["']ctl00_cphPageContent_ctl00__ControlWrapper_RichHtmlField["'][^>]*>([\s\S]*?)<\/div>/i)?.[1],
+    rawBody.match(/<div[^>]+id=["']ctl00_cphPageContent_PublishingPageContentField__ControlWrapper_RichHtmlField["'][^>]*>([\s\S]*?)<\/div>/i)?.[1],
     rawBody.match(/<div[^>]+class=["'][^"']*(article-body|hc-content|rich-text|field-body)[^"']*["'][\s\S]*?>([\s\S]*?)<\/div>/i)?.[1],
+    rawBody.match(/<article[\s\S]*?>([\s\S]*?)<\/article>/i)?.[1],
+    rawBody.match(/<main[\s\S]*?>([\s\S]*?)<\/main>/i)?.[1],
   ].filter(Boolean) as string[];
 
-  if (candidates.length > 0) {
-    return stripHtml(candidates[0]);
+  for (const candidate of candidates) {
+    const content = stripHtml(candidate);
+    if (content.length >= 150) {
+      return content;
+    }
   }
 
   return stripHtml(rawBody);

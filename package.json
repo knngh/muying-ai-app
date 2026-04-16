@@ -26,6 +26,7 @@
     "worker:authority": "tsx src/workers/authority-sync.worker.ts",
     "review:authority": "tsx src/scripts/review-authority-documents.ts",
     "audit:authority-coverage": "tsx src/scripts/audit-authority-coverage.ts",
+    "audit:authority-cache": "tsx src/scripts/audit-authority-cache.ts",
     "plan:knowledge-growth": "tsx src/scripts/generate-knowledge-growth-seeds.ts",
     "generate:answers": "tsx src/scripts/generate-answers.ts",
     "lint": "eslint src/**/*.ts",

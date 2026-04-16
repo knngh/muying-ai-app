@@ -9,7 +9,7 @@ import {
   getTaskModelBindings,
   healthCheck,
 } from '../services/ai-gateway.service';
-import { searchQA, getKnowledgeStats } from '../services/knowledge.service';
+import { searchQAWithRewrite, getKnowledgeStats } from '../services/knowledge.service';
 import { buildUserProfileContext } from '../services/ai-user-context.service';
 import {
   saveConversationExchange,
@@ -260,6 +260,10 @@ export const askQuestionStream = async (req: Request, res: Response, next: NextF
       durationMs: Date.now() - startedAt,
       err: error,
     });
+    if (res.headersSent) {
+      res.end();
+      return;
+    }
     next(error);
   }
 };
@@ -358,6 +362,10 @@ export const chatStream = async (req: Request, res: Response, next: NextFunction
 
     return streamTrustedResult(res, trustedResult, model, persistedConversationId);
   } catch (error) {
+    if (res.headersSent) {
+      res.end();
+      return;
+    }
     next(error);
   }
 };
@@ -447,7 +455,7 @@ export const searchKnowledge = async (req: Request, res: Response, next: NextFun
       ? [q, ...profileContext.retrievalHints].filter(Boolean).join(' ')
       : q;
 
-    const results = searchQA(searchQuery, { category, limit }).map((item) => ({
+    const results = (await searchQAWithRewrite(searchQuery, { category, limit })).map((item) => ({
       id: item.id,
       question: item.question,
       answer: item.answer,

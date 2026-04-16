@@ -19,13 +19,14 @@ const prisma = new PrismaClient({
 
 // 连接池状态监控（仅开发环境）
 if (env.isDev && !isTestEnv) {
-  setInterval(async () => {
+  const dbHealthTimer = setInterval(async () => {
     try {
       await prisma.$queryRaw`SELECT 1`;
     } catch (error) {
       console.error('[Database] Connection check failed:', error);
     }
   }, 60000); // 每分钟检查一次
+  dbHealthTimer.unref();
 }
 
 // 优雅关闭连接

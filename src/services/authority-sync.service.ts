@@ -320,7 +320,7 @@ function isAuthorityUrlMatched(url: string, source: AuthoritySourceConfig, ancho
   }
 
   if (source.id === 'nhc-fys') {
-    return /\/(fys|wjw|wsb)\//.test(normalized)
+    return /\/(fys|wjw|wsb|jnr)\//.test(normalized)
       && /(妇幼|孕产|孕妇|母婴|婴幼儿|新生儿|儿童|托育|生育|母乳|哺乳|接种|疫苗|出生|产后)/.test(normalized);
   }
 
@@ -1280,12 +1280,15 @@ export async function exportPublishedAuthoritySnapshot(): Promise<void> {
 
   try {
     const { publishAuthorityDocumentsToVectorStore } = await import('./vector.service.js');
-    const vectorResult = await publishAuthorityDocumentsToVectorStore(rows.map((row) => ({
-      sourceUrl: row.sourceUrl,
-      title: row.title,
-      contentText: row.contentText,
-      topic: row.topic,
-      sourceOrg: row.sourceOrg,
+    const vectorResult = await publishAuthorityDocumentsToVectorStore(payload.map((item) => ({
+      sourceUrl: item.source_url || item.url || item.original_id,
+      title: item.question,
+      contentText: item.answer,
+      topic: item.topic || item.category,
+      category: item.category,
+      sourceOrg: item.source_org || item.source,
+      sourceClass: item.source_class,
+      authoritative: item.is_verified,
     })));
     console.log(`[Authority Sync] 向量发布完成: published=${vectorResult.published}, skipped=${vectorResult.skipped}`);
   } catch (error) {

@@ -805,12 +805,24 @@ export async function generateTrustedAIResponse(request: TrustedAIRequest): Prom
   const degraded = generation.degraded;
 
   if (!structuredAnswer.uncertaintyNote) {
-    if (sourceReliability === 'medical_platform_only') {
+    if (sourceReliability === 'none') {
+      structuredAnswer.uncertaintyNote = '当前没有检索到可支撑判断的参考来源，无法安全给出更具体的建议。';
+    } else if (sourceReliability === 'medical_platform_only') {
       structuredAnswer.uncertaintyNote = MEDICAL_PLATFORM_NOTICE;
-    } else if (sourceReliability === 'dataset_only' || sourceReliability === 'none') {
+    } else if (sourceReliability === 'dataset_only') {
       structuredAnswer.uncertaintyNote = DATASET_ONLY_NOTICE;
+    } else if (sourceReliability === 'mixed') {
+      structuredAnswer.uncertaintyNote = '当前回答同时参考了权威来源和一般知识条目，如症状明显或持续加重，应以线下医生判断为准。';
     }
   }
+
+  const reliabilityDisclaimerMap: Record<TrustedSourceReliability, string> = {
+    authoritative: AI_DISCLAIMER,
+    mixed: `${AI_DISCLAIMER} 当前回答同时参考了权威来源和一般知识条目，如症状明显或持续加重，应以线下医生判断为准。`,
+    medical_platform_only: `${AI_DISCLAIMER} ${MEDICAL_PLATFORM_NOTICE}`,
+    dataset_only: `${AI_DISCLAIMER} ${DATASET_ONLY_NOTICE}`,
+    none: `${AI_DISCLAIMER} 当前没有检索到可支撑判断的参考来源。`,
+  };
 
   return {
     answer: renderStructuredAnswer(structuredAnswer, knowledgePack.sources),
@@ -821,9 +833,7 @@ export async function generateTrustedAIResponse(request: TrustedAIRequest): Prom
     structuredAnswer,
     uncertainty,
     sourceReliability,
-    disclaimer: sourceReliability === 'authoritative'
-      ? AI_DISCLAIMER
-      : `${AI_DISCLAIMER} ${sourceReliability === 'medical_platform_only' ? MEDICAL_PLATFORM_NOTICE : DATASET_ONLY_NOTICE}`,
+    disclaimer: reliabilityDisclaimerMap[sourceReliability] || AI_DISCLAIMER,
     followUpQuestions: triageCategory === 'normal' ? knowledgePack.followUpQuestions : knowledgePack.followUpQuestions.slice(0, 2),
     confidence: estimateConfidence(knowledgePack.sources, sourceReliability, riskLevel),
     degraded,

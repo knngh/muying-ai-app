@@ -79,8 +79,15 @@ export async function buildUserProfileContext(userId?: string): Promise<UserProf
     return { retrievalHints: [] };
   }
 
+  let userIdBigInt: bigint;
+  try {
+    userIdBigInt = BigInt(userId);
+  } catch {
+    return { retrievalHints: [] };
+  }
+
   const user = await prisma.user.findUnique({
-    where: { id: BigInt(userId) },
+    where: { id: userIdBigInt },
     select: {
       nickname: true,
       pregnancyStatus: true,

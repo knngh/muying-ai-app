@@ -100,7 +100,11 @@ class MemoryCache {
     let memoryUsage = 0;
     for (const [key, value] of this.cache.entries()) {
       memoryUsage += key.length * 2; // 字符串字节
-      memoryUsage += JSON.stringify(value.data).length * 2;
+      try {
+        memoryUsage += JSON.stringify(value.data, (_k, v) => typeof v === 'bigint' ? v.toString() : v).length * 2;
+      } catch {
+        memoryUsage += 64; // fallback estimate for non-serializable data
+      }
     }
 
     return {
@@ -188,11 +192,12 @@ export const CacheTTL = {
 };
 
 // 定期清理过期缓存（每5分钟）
-setInterval(() => {
+const cacheCleanupTimer = setInterval(() => {
   const cleaned = cache.cleanup();
   if (cleaned > 0) {
     console.log(`[Cache] Cleaned ${cleaned} expired items`);
   }
 }, 5 * 60 * 1000);
+cacheCleanupTimer.unref();
 
 export default cache;

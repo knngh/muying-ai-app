@@ -1,6 +1,7 @@
 // 向量数据库服务 - Milvus 集成
 
 import { MilvusClient } from '@zilliz/milvus2-sdk-node';
+import { shouldPublishAuthorityVectorDocument } from '../utils/authority-vector-filter';
 
 // Milvus 配置
 const MILVUS_ADDRESS = process.env.MILVUS_ADDRESS
@@ -11,7 +12,6 @@ const MILVUS_TOKEN = process.env.MILVUS_TOKEN
   || process.env.ZILLIZ_TOKEN
   || process.env.ZILLIZ_API_KEY
   || '';
-const COLLECTION_NAME = process.env.MILVUS_COLLECTION_NAME || 'muying_knowledge';
 const EMBEDDING_API_BASE_URL = process.env.EMBEDDING_API_URL
   || process.env.OPENAI_API_BASE_URL
   || process.env.AI_EMBEDDING_URL
@@ -27,15 +27,43 @@ const EMBEDDING_API_KEY = process.env.EMBEDDING_API_KEY
 const EMBEDDING_MODEL = process.env.EMBEDDING_MODEL
   || process.env.OPENAI_EMBEDDING_MODEL
   || process.env.AI_EMBEDDING_MODEL
-  || (EMBEDDING_API_BASE_URL.includes('dashscope.aliyuncs.com') ? 'text-embedding-v4' : 'text-embedding-3-small');
-const EMBEDDING_DIM = Number(process.env.EMBEDDING_DIM || (
-  /Qwen\/Qwen3-Embedding-8B/i.test(EMBEDDING_MODEL) ? 4096 : 1536
-));
+  || resolveDefaultEmbeddingModel(EMBEDDING_API_BASE_URL);
+const EMBEDDING_DIM = Number(process.env.EMBEDDING_DIM || resolveEmbeddingDim(EMBEDDING_MODEL));
+const COLLECTION_NAME = process.env.MILVUS_COLLECTION_NAME || resolveDefaultCollectionName(EMBEDDING_MODEL);
+const MILVUS_TIMEOUT_MS = Math.max(5000, Number(process.env.MILVUS_TIMEOUT_MS || 30000));
 const EMBEDDING_CONCURRENCY = Math.max(1, Number(process.env.EMBEDDING_CONCURRENCY || 1));
 const EMBEDDING_RETRY_429_LIMIT = Math.max(0, Number(process.env.EMBEDDING_RETRY_429_LIMIT || 3));
 const EMBEDDING_RETRY_429_DELAY_MS = Math.max(0, Number(process.env.EMBEDDING_RETRY_429_DELAY_MS || 3000));
 const EMBEDDING_REQUEST_DELAY_MS = Math.max(0, Number(process.env.EMBEDDING_REQUEST_DELAY_MS || 800));
 const VECTOR_INSERT_BATCH_SIZE = Math.max(1, Number(process.env.VECTOR_INSERT_BATCH_SIZE || 50));
+
+function resolveDefaultEmbeddingModel(baseUrl: string): string {
+  if (baseUrl.includes('dashscope.aliyuncs.com')) {
+    return 'text-embedding-v4';
+  }
+
+  return 'BAAI/bge-m3';
+}
+
+function resolveEmbeddingDim(model: string): number {
+  if (/BAAI\/bge-m3/i.test(model)) {
+    return 1024;
+  }
+
+  if (/Qwen\/Qwen3-Embedding-8B/i.test(model)) {
+    return 4096;
+  }
+
+  return 1536;
+}
+
+function resolveDefaultCollectionName(model: string): string {
+  if (/BAAI\/bge-m3/i.test(model)) {
+    return 'muying_knowledge_bge_m3_filtered';
+  }
+
+  return 'muying_knowledge';
+}
 
 function truncateUtf8(input: string, maxBytes: number): string {
   if (Buffer.byteLength(input, 'utf8') <= maxBytes) {
@@ -98,6 +126,73 @@ function parseRetryAfterMs(value: string | null): number | null {
   return Math.max(0, retryAt - Date.now());
 }
 
+function extractCollectionEmbeddingDim(collectionInfo: any): number | null {
+  const fields = Array.isArray(collectionInfo?.schema?.fields)
+    ? collectionInfo.schema.fields
+    : (Array.isArray(collectionInfo?.fields) ? collectionInfo.fields : []);
+  const embeddingField = fields.find((field: any) => field?.name === 'embedding');
+
+  if (!embeddingField) {
+    return null;
+  }
+
+  const directCandidates = [embeddingField.dim, embeddingField.dimension];
+  for (const candidate of directCandidates) {
+    const parsed = Number(candidate);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+
+  const paramGroups = [
+    embeddingField.type_params,
+    embeddingField.params,
+    embeddingField.index_params,
+    embeddingField.element_type_params,
+  ];
+
+  for (const group of paramGroups) {
+    if (!Array.isArray(group)) {
+      continue;
+    }
+
+    for (const entry of group) {
+      const directDim = Number(entry?.dim);
+      if (Number.isFinite(directDim) && directDim > 0) {
+        return directDim;
+      }
+
+      const key = typeof entry?.key === 'string' ? entry.key : '';
+      const value = Number(entry?.value);
+      if (/^dim$/i.test(key) && Number.isFinite(value) && value > 0) {
+        return value;
+      }
+    }
+  }
+
+  return null;
+}
+
+async function ensureCollectionEmbeddingDim(client: MilvusClient): Promise<void> {
+  const describeCollection = (client as MilvusClient & {
+    describeCollection?: (params: { collection_name: string }) => Promise<unknown>;
+  }).describeCollection;
+
+  if (typeof describeCollection !== 'function') {
+    return;
+  }
+
+  const collectionInfo = await describeCollection.call(client, { collection_name: COLLECTION_NAME });
+  const collectionDim = extractCollectionEmbeddingDim(collectionInfo);
+
+  if (collectionDim && collectionDim !== EMBEDDING_DIM) {
+    throw new Error(
+      `Milvus collection "${COLLECTION_NAME}" dim=${collectionDim}, but embedding model "${EMBEDDING_MODEL}" expects dim=${EMBEDDING_DIM}. `
+      + '请改用新的 MILVUS_COLLECTION_NAME，或删除旧集合后重新导入向量。',
+    );
+  }
+}
+
 async function mapWithConcurrency<T, R>(
   items: T[],
   concurrency: number,
@@ -129,7 +224,7 @@ export async function getMilvusClient(): Promise<MilvusClient> {
       address: MILVUS_ADDRESS,
       token: MILVUS_TOKEN || undefined,
       ssl: /^https:\/\//i.test(MILVUS_ADDRESS),
-      timeout: 5000,
+      timeout: MILVUS_TIMEOUT_MS,
     });
     await milvusClient.connectPromise;
   }
@@ -201,7 +296,10 @@ export async function createKnowledgeCollection(): Promise<void> {
     await client.loadCollectionSync({ collection_name: COLLECTION_NAME });
     
     console.log('✅ 知识库集合创建成功');
+    return;
   }
+
+  await ensureCollectionEmbeddingDim(client);
 }
 
 // 插入文档
@@ -268,6 +366,9 @@ export async function publishAuthorityDocumentsToVectorStore(documents: Array<{
   contentText: string;
   topic: string;
   sourceOrg: string;
+  category?: string;
+  sourceClass?: 'official' | 'medical_platform' | 'dataset' | 'unknown';
+  authoritative?: boolean;
 }>): Promise<{ published: number; skipped: number }> {
   if (documents.length === 0) {
     return { published: 0, skipped: 0 };
@@ -277,6 +378,17 @@ export async function publishAuthorityDocumentsToVectorStore(documents: Array<{
 
   const prepared = documents
     .map((document) => {
+      if (!shouldPublishAuthorityVectorDocument({
+        title: document.title,
+        topic: document.topic,
+        category: document.category,
+        sourceOrg: document.sourceOrg,
+        sourceClass: document.sourceClass,
+        authoritative: document.authoritative,
+      })) {
+        return null;
+      }
+
       const question = toVectorSafeText(document.title, 900);
       const answer = toVectorSafeText(document.contentText, 3800);
       if (!question || !answer) {
@@ -403,6 +515,11 @@ export async function getEmbedding(text: string): Promise<number[]> {
 
     const embedding = data?.data?.[0]?.embedding;
     if (response.ok && Array.isArray(embedding)) {
+      if (embedding.length !== EMBEDDING_DIM) {
+        throw new Error(
+          `Embedding dimension mismatch: expected ${EMBEDDING_DIM}, received ${embedding.length} from model "${EMBEDDING_MODEL}"`,
+        );
+      }
       return embedding;
     }
 

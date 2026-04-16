@@ -10,6 +10,19 @@ export type AuthorityStage =
   | '1-3-years'
   | '3-years-plus';
 
+export const AUTHORITY_STAGE_VALUES: AuthorityStage[] = [
+  'preparation',
+  'first-trimester',
+  'second-trimester',
+  'third-trimester',
+  'postpartum',
+  'newborn',
+  '0-6-months',
+  '6-12-months',
+  '1-3-years',
+  '3-years-plus',
+];
+
 interface InferAuthorityStagesInput {
   title?: string;
   summary?: string;

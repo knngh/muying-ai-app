@@ -233,9 +233,15 @@ export const refreshToken = async (req: Request, res: Response, next: NextFuncti
     } catch {
       throw new AppError('Token 无效', ErrorCodes.TOKEN_INVALID, 401);
     }
-    
+
     if (!decoded || !decoded.userId) {
       throw new AppError('Token 无效', ErrorCodes.TOKEN_INVALID, 401);
+    }
+
+    // 限制刷新窗口：token 过期超过 7 天则拒绝刷新，防止泄露的旧 token 被永久利用
+    const MAX_REFRESH_WINDOW_SECONDS = 7 * 24 * 60 * 60;
+    if (decoded.exp && (Math.floor(Date.now() / 1000) - decoded.exp) > MAX_REFRESH_WINDOW_SECONDS) {
+      throw new AppError('Token 已过期太久，请重新登录', ErrorCodes.TOKEN_INVALID, 401);
     }
 
     // 检查用户是否存在

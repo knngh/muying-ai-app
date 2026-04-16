@@ -90,6 +90,40 @@ function isCdcSource(record: AuthoritySourceUrlRecord, url: string): boolean {
   return /\bcdc\b|cdc\.gov/.test(sourceText);
 }
 
+function isCdcHubPage(title: string, url: string): boolean {
+  const pathname = normalizePathname(url);
+
+  if (pathname.endsWith('/site.html')) {
+    return true;
+  }
+
+  if (/\/parents\/spanish\/(?:infants|children)\/index\.html$/i.test(pathname)) {
+    return true;
+  }
+
+  if (
+    /\/(about|resources|data-research|features|impact|budget-funding|provider-tools|communication-resources|prevention|caring|testing|disability-safety|positive-parenting-tips|guidelines-recommendations|contraceptive-guidance)\/index\.html$/i.test(pathname)
+    || /\/php\/(resources|guidelines-recommendations|breastfeeding-strategies)\/index\.html$/i.test(pathname)
+    || /\/parents\/(infants|children)\/index\.html$/i.test(pathname)
+    || /\/(ncbddd|pregnancy|contraception|child-development|breastfeeding)\/index\.html$/i.test(pathname)
+    || /\/ncbddd\/(?:hearingloss|nofo-autism-fxs)\/index\.html$/i.test(pathname)
+  ) {
+    return true;
+  }
+
+  const titleSegments = title
+    .split('|')
+    .map((segment) => segment.trim().toLowerCase())
+    .filter((segment) => segment && segment !== 'cdc');
+  const hasRepeatedTitleSegments = titleSegments.length >= 2
+    && new Set(titleSegments).size < titleSegments.length;
+
+  return (
+    /^(child development|breastfeeding|pregnancy|contraception|national center on birth defects and developmental disabilities \(ncbddd\)|information about infants & toddlers \(ages 0-3\)|information about young children \(ages 4-11\)|site index)\s*\|/i.test(title)
+    || hasRepeatedTitleSegments
+  ) && pathname.endsWith('.html');
+}
+
 function isAapSource(record: AuthoritySourceUrlRecord, url: string): boolean {
   const sourceText = `${record.source_id || ''} ${record.source_org || ''} ${record.source || ''} ${url}`.toLowerCase();
   return /\baap\b|healthychildren\.org/.test(sourceText);
@@ -98,6 +132,11 @@ function isAapSource(record: AuthoritySourceUrlRecord, url: string): boolean {
 function isAcogSource(record: AuthoritySourceUrlRecord, url: string): boolean {
   const sourceText = `${record.source_id || ''} ${record.source_org || ''} ${record.source || ''} ${url}`.toLowerCase();
   return /\bacog\b|acog\.org/.test(sourceText);
+}
+
+function isAcogTopicHubPage(url: string): boolean {
+  const pathname = normalizePathname(url);
+  return /^\/topics\/[^/]+$/i.test(pathname);
 }
 
 function isNhsSource(record: AuthoritySourceUrlRecord, url: string): boolean {
@@ -160,8 +199,12 @@ export function shouldFilterAuthoritySourceUrl(record: AuthoritySourceUrlRecord)
   }
 
   if (isNhcSource(record, url)) {
+    if (/\/(?:fys|rkjcyjtfzs|jnr)\/[^/?#]+\/(?:[^/?#]+_)?(?:index|list|lmtt)\.(?:html?|shtml)$/i.test(url)) {
+      return true;
+    }
+
     return isIndexLikeAuthorityUrl(url)
-      || !/\/(?:fys|rkjcyjtfzs|wjw|wsb)\/(?:c\d+\/)?(?:\d{6,8}\/)?[^/?#]+\.(?:html?|shtml|pdf)(?:$|[?#])/i.test(url);
+      || !/\/(?:fys|rkjcyjtfzs|wjw|wsb|jnr)\/(?:[^/?#]+\/){0,3}[^/?#]+\.(?:html?|shtml|pdf)(?:$|[?#])/i.test(url);
   }
 
   if (isWhoSource(record, url)) {
@@ -177,6 +220,10 @@ export function shouldFilterAuthoritySourceUrl(record: AuthoritySourceUrlRecord)
   }
 
   if (isCdcSource(record, url)) {
+    if (isCdcHubPage(title, url)) {
+      return true;
+    }
+
     return matchesExactLandingPath(url, [
       '/',
       '/pregnancy',
@@ -212,6 +259,10 @@ export function shouldFilterAuthoritySourceUrl(record: AuthoritySourceUrlRecord)
   }
 
   if (isAcogSource(record, url)) {
+    if (isAcogTopicHubPage(url)) {
+      return true;
+    }
+
     return matchesExactLandingPath(url, [
       '/',
       '/clinical',

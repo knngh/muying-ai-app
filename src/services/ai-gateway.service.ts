@@ -561,7 +561,11 @@ async function callProvider(
   }
 
   const data: ChatResponse = await response.json() as ChatResponse;
-  return data.choices?.[0]?.message?.content || '抱歉，我暂时无法回答这个问题。';
+  const content = data.choices?.[0]?.message?.content;
+  if (content == null) {
+    throw new Error('AI provider returned empty response');
+  }
+  return content;
 }
 
 function toRouteInfo(provider: GatewayProvider): AIGatewayRouteInfo {

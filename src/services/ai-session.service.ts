@@ -256,9 +256,13 @@ export async function initializeAIChatStorage(): Promise<void> {
   await ensureTables();
 }
 
-export async function ensureConversationOwnership(userId: string, conversationId: string): Promise<boolean> {
+export async function ensureConversationOwnership(
+  userId: string,
+  conversationId: string,
+  client: { $queryRawUnsafe: typeof prisma.$queryRawUnsafe } = prisma,
+): Promise<boolean> {
   await ensureTables();
-  const rows = await prisma.$queryRawUnsafe<Array<{ id: bigint }>>(
+  const rows = await client.$queryRawUnsafe<Array<{ id: bigint }>>(
     `SELECT id
      FROM ai_chat_conversations
      WHERE id = ? AND user_id = ? AND deleted_at IS NULL
@@ -286,7 +290,7 @@ export async function saveConversationExchange(params: {
   return prisma.$transaction(async (tx) => {
     let conversationId = params.conversationId;
 
-    if (!conversationId || !(await ensureConversationOwnership(params.userId, conversationId))) {
+    if (!conversationId || !(await ensureConversationOwnership(params.userId, conversationId, tx))) {
       conversationId = await createConversation(tx, params.userId, title, summary);
     } else {
       await tx.$executeRawUnsafe(

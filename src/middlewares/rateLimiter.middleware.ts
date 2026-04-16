@@ -23,7 +23,7 @@ export const rateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
   message: {
-    code: 4001,
+    code: 4290,
     message: '请求过于频繁，请稍后再试'
   },
   standardHeaders: true,
@@ -35,7 +35,7 @@ export const authRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 20,
   message: {
-    code: 4001,
+    code: 4290,
     message: '登录请求过于频繁，请15分钟后再试'
   },
   standardHeaders: true,
@@ -47,7 +47,7 @@ export const searchRateLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 30,
   message: {
-    code: 4001,
+    code: 4290,
     message: '搜索请求过于频繁，请1分钟后再试'
   },
   standardHeaders: true,
@@ -59,7 +59,7 @@ export const queryRateLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 100,
   message: {
-    code: 4001,
+    code: 4290,
     message: '请求过于频繁，请稍后再试'
   },
   standardHeaders: true,
@@ -71,7 +71,7 @@ export const writeRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 50,
   message: {
-    code: 4001,
+    code: 4290,
     message: '操作过于频繁，请稍后再试'
   },
   standardHeaders: true,
@@ -83,7 +83,7 @@ export const checkRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
   message: {
-    code: 4001,
+    code: 4290,
     message: '请求过于频繁，请稍后再试'
   },
   standardHeaders: true,
@@ -95,7 +95,7 @@ export const aiRateLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 10,
   message: {
-    code: 4001,
+    code: 4290,
     message: '请求次数已达上限，请1分钟后再试'
   },
   standardHeaders: true,

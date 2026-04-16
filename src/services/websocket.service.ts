@@ -33,6 +33,8 @@ interface WsServerMessage {
     content?: string
     isEmergency?: boolean
     error?: string
+    code?: number | string
+    status?: number
     sources?: SourceReference[]
     disclaimer?: string
     conversationId?: string
@@ -391,11 +393,20 @@ function sendMessage(ws: WebSocket, message: WsServerMessage): void {
 }
 
 // 发送错误辅助函数
-function sendError(ws: WebSocket, requestId: string, error: string): void {
+function sendError(
+  ws: WebSocket,
+  requestId: string,
+  error: string,
+  extras: { code?: number | string; status?: number } = {},
+): void {
   sendMessage(ws, {
     type: 'error',
     requestId,
-    data: { error },
+    data: {
+      error,
+      code: extras.code,
+      status: extras.status,
+    },
   });
 }
 
@@ -405,13 +416,16 @@ async function ensureWsQuota(
   fingerprint?: string,
 ): Promise<boolean> {
   if (!ws.userId) {
-    sendError(ws, requestId, '未授权，请先登录');
+    sendError(ws, requestId, '未授权，请先登录', { status: 401, code: 2005 });
     return false;
   }
 
   const result = await consumeAiQuota(ws.userId, { requestId, fingerprint });
   if (!result.allowed) {
-    sendError(ws, requestId, '今日免费额度已用完，请升级会员后继续使用。');
+    sendError(ws, requestId, '今日免费额度已用完，请升级会员后继续使用。', {
+      status: 429,
+      code: 4003,
+    });
     return false;
   }
 

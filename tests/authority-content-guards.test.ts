@@ -43,5 +43,29 @@ describe('authority content guards', () => {
         source_url: 'https://www.cdc.gov/child-development/index.html',
       }),
     ).toBe(true);
+
+    expect(
+      shouldFilterAuthoritySourceUrl({
+        source_org: 'CDC',
+        question: 'Information About Infants & Toddlers (Ages 0-3) | Parent Information | CDC',
+        source_url: 'https://www.cdc.gov/parents/infants/index.html',
+      }),
+    ).toBe(true);
+
+    expect(
+      shouldFilterAuthoritySourceUrl({
+        source_org: 'CDC',
+        question: 'Información para los padres de niños | CDC',
+        source_url: 'https://www.cdc.gov/parents/spanish/children/index.html',
+      }),
+    ).toBe(true);
+
+    expect(
+      shouldFilterAuthoritySourceUrl({
+        source_org: 'CDC',
+        question: 'Hearing Loss in Children | Hearing Loss in Children | CDC',
+        source_url: 'https://www.cdc.gov/ncbddd/hearingloss/index.html',
+      }),
+    ).toBe(true);
   });
 });

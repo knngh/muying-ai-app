@@ -30,10 +30,10 @@ function normalizeAction(
   }
 
   if (targetType === 'post') {
-    return actionTaken === 'hide_post' ? 'hide_post' : 'hide_post';
+    return actionTaken === 'hide_post' ? 'hide_post' : 'none';
   }
 
-  return actionTaken === 'delete_comment' ? 'delete_comment' : 'delete_comment';
+  return actionTaken === 'delete_comment' ? 'delete_comment' : 'none';
 }
 
 function parseJsonBlock(value: string) {
@@ -50,10 +50,10 @@ function parseJsonBlock(value: string) {
 }
 
 function runHeuristicReview(input: ReviewInput): ReviewOutput {
+  // 只审查被举报的目标内容，不要把举报人描述混入审核（否则举报描述本身会触发规则）
   const analysis = analyzeCommunityContent(
     input.targetTitle ?? undefined,
     input.targetContent,
-    input.reportDescription ?? undefined
   );
   if (analysis.blocked) {
     return {

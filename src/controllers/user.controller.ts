@@ -80,19 +80,20 @@ export const addFavorite = async (req: Request, res: Response, next: NextFunctio
       throw new AppError('已收藏该文章', ErrorCodes.PARAM_ERROR, 400);
     }
 
-    // 创建收藏记录
-    const favorite = await prisma.userFavorite.create({
-      data: {
-        userId: BigInt(userId!),
-        favType: 'article',
-        favId: BigInt(articleId)
-      }
-    });
-
-    // 更新文章收藏数
-    await prisma.article.update({
-      where: { id: BigInt(articleId) },
-      data: { collectCount: { increment: 1 } }
+    // 事务内创建收藏并更新计数
+    const favorite = await prisma.$transaction(async (tx) => {
+      const record = await tx.userFavorite.create({
+        data: {
+          userId: BigInt(userId!),
+          favType: 'article',
+          favId: BigInt(articleId)
+        }
+      });
+      await tx.article.update({
+        where: { id: BigInt(articleId) },
+        data: { collectCount: { increment: 1 } }
+      });
+      return record;
     });
 
     res.json(successResponse(favorite, '收藏成功'));
@@ -121,12 +122,17 @@ export const removeFavorite = async (req: Request, res: Response, next: NextFunc
       throw new AppError('未收藏该文章', ErrorCodes.PARAM_ERROR, 400);
     }
 
-    await prisma.userFavorite.delete({ where: { id: favorite.id } });
-
-    // 更新文章收藏数
-    await prisma.article.update({
-      where: { id: BigInt(articleId) },
-      data: { collectCount: { decrement: 1 } }
+    // 事务内删除收藏并更新计数，用 Math.max 防止负数
+    await prisma.$transaction(async (tx) => {
+      await tx.userFavorite.delete({ where: { id: favorite.id } });
+      const article = await tx.article.findUnique({
+        where: { id: BigInt(articleId) },
+        select: { collectCount: true },
+      });
+      await tx.article.update({
+        where: { id: BigInt(articleId) },
+        data: { collectCount: Math.max(0, (article?.collectCount ?? 1) - 1) }
+      });
     });
 
     res.json(successResponse(null, '取消收藏成功'));

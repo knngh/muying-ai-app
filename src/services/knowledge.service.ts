@@ -7,6 +7,7 @@ import { getAuthoritySourceConfig, inferAuthorityLocaleDefaults, type AuthorityS
 import { buildAuthorityDisplayTags } from '../utils/authority-metadata';
 import { shouldFilterAuthoritySourceUrl } from '../utils/authority-source-url';
 import { inferAuthorityStages } from '../utils/authority-stage';
+import { shouldUseAuthorityVectorSupplement } from '../utils/authority-vector-filter';
 import { detectAudience, detectTopic, sanitizeAuthorityTitle } from './authority-adapters/base.adapter';
 import {
   dedupeSearchQueries,
@@ -351,6 +352,38 @@ const SIGNAL_GROUPS: Array<{
     missingTextPenalty: 16,
   },
   {
+    id: 'fetal-movement',
+    keywords: ['胎动', '胎心', '胎动减少', '胎动少', '胎动异常'],
+    categoryBoost: {
+      'pregnancy-mid': 22,
+      'pregnancy-late': 26,
+      'pregnancy-birth': 18,
+    },
+    mismatchPenalty: {
+      'parenting-newborn': 26,
+      'parenting-0-1': 26,
+      'parenting-1-3': 24,
+    },
+    textBoost: 18,
+    missingTextPenalty: 20,
+  },
+  {
+    id: 'contractions',
+    keywords: ['宫缩', '规律宫缩', '宫缩频繁', '假性宫缩', '阵痛'],
+    categoryBoost: {
+      'pregnancy-late': 26,
+      'pregnancy-birth': 24,
+      'pregnancy-mid': 14,
+    },
+    mismatchPenalty: {
+      'parenting-newborn': 26,
+      'parenting-0-1': 26,
+      'parenting-1-3': 24,
+    },
+    textBoost: 18,
+    missingTextPenalty: 20,
+  },
+  {
     id: 'childcare-sleep',
     keywords: ['夜醒', '夜里总醒', '夜间醒', '睡眠', '睡觉', '哄睡', '闹觉', '安抚', '作息', '睡不踏实', '翻来覆去'],
     categoryBoost: {
@@ -395,7 +428,38 @@ let isLoaded = false;
 const SEARCH_REWRITE_ENABLED = process.env.AI_SEARCH_REWRITE !== 'false';
 const SEARCH_REWRITE_CACHE_TTL_MS = Math.max(60_000, Number(process.env.AI_SEARCH_REWRITE_CACHE_TTL_MS || 30 * 60 * 1000));
 const VECTOR_AUTHORITY_RETRIEVAL_ENABLED = process.env.AI_VECTOR_RETRIEVAL !== 'false';
+const KNOWLEDGE_RERANK_ENABLED = process.env.AI_KNOWLEDGE_RERANK !== 'false';
+const KNOWLEDGE_RERANK_CACHE_TTL_MS = Math.max(60_000, Number(process.env.AI_KNOWLEDGE_RERANK_CACHE_TTL_MS || 10 * 60 * 1000));
+const KNOWLEDGE_RERANK_CANDIDATE_LIMIT = Math.max(4, Number(process.env.AI_KNOWLEDGE_RERANK_CANDIDATE_LIMIT || 8));
+const KNOWLEDGE_RERANK_API_BASE_URL = process.env.RERANK_API_URL
+  || process.env.AI_RERANK_URL
+  || process.env.SILICONFLOW_API_URL
+  || process.env.EMBEDDING_API_URL
+  || 'https://api.siliconflow.cn/v1';
+const KNOWLEDGE_RERANK_API_KEY = process.env.RERANK_API_KEY
+  || process.env.AI_RERANK_KEY
+  || process.env.SILICONFLOW_API_KEY
+  || process.env.EMBEDDING_API_KEY
+  || '';
+const KNOWLEDGE_RERANK_MODEL = process.env.RERANK_MODEL
+  || process.env.AI_RERANK_MODEL
+  || 'BAAI/bge-reranker-v2-m3';
+const KNOWLEDGE_RERANK_TIMEOUT_MS = Math.max(5000, Number(process.env.AI_KNOWLEDGE_RERANK_TIMEOUT_MS || process.env.AI_PROVIDER_TIMEOUT_MS || 12000));
+const KNOWLEDGE_CACHE_MAX_SIZE = 500;
 const searchRewriteCache = new Map<string, { value: string[]; expiresAt: number }>();
+const knowledgeRerankCache = new Map<string, { value: string[]; expiresAt: number }>();
+
+function evictExpiredAndOldest(cache: Map<string, { value: string[]; expiresAt: number }>) {
+  const now = Date.now();
+  for (const [key, entry] of cache) {
+    if (entry.expiresAt <= now) cache.delete(key);
+  }
+  while (cache.size > KNOWLEDGE_CACHE_MAX_SIZE) {
+    const firstKey = cache.keys().next().value;
+    if (firstKey !== undefined) cache.delete(firstKey);
+    else break;
+  }
+}
 
 function buildAuthorityFallbackSourceConfig(qa: QAPair): AuthoritySourceConfig {
   const sourceOrg = qa.source_org || qa.source || '权威机构';
@@ -570,13 +634,41 @@ function mergeSearchResults(
 ): KnowledgeSearchResult[] {
   const merged = new Map<string, KnowledgeSearchResult>();
 
-  for (const result of [...supplementResults, ...primaryResults]) {
+  for (const result of [...primaryResults, ...supplementResults]) {
     if (!merged.has(result.id)) {
       merged.set(result.id, result);
     }
   }
 
   return Array.from(merged.values()).slice(0, limit);
+}
+
+export function shouldShortCircuitKnowledgeAi(
+  query: string,
+  results: KnowledgeSearchResult[],
+): boolean {
+  if (!hasMedicalSymptomIntent(query) || results.length === 0) {
+    return false;
+  }
+
+  const signals = collectQuerySignals(query);
+  if (needsFocusedSupplement(results, signals)) {
+    return false;
+  }
+
+  const head = results.slice(0, Math.min(3, results.length));
+  const topScore = head[0]?.score ?? 0;
+  const strongHeadCount = head.filter((item) => item.score >= 70).length;
+
+  if (topScore < 80 || strongHeadCount < Math.min(2, head.length)) {
+    return false;
+  }
+
+  if (head.some((item) => isPolicyLikeResult(item))) {
+    return false;
+  }
+
+  return true;
 }
 
 function clampScore(score: number): number {
@@ -594,6 +686,17 @@ function hasAvailableSearchRewriteProvider(): boolean {
   );
 }
 
+function hasAvailableSiliconFlowKnowledgeReranker(): boolean {
+  return KNOWLEDGE_RERANK_ENABLED && Boolean(KNOWLEDGE_RERANK_API_KEY);
+}
+
+function hasAvailableKnowledgeReranker(): boolean {
+  return KNOWLEDGE_RERANK_ENABLED && (
+    hasAvailableSiliconFlowKnowledgeReranker()
+    || hasAvailableSearchRewriteProvider()
+  );
+}
+
 function hasAvailableVectorRetrieval(): boolean {
   return VECTOR_AUTHORITY_RETRIEVAL_ENABLED && Boolean(
     process.env.EMBEDDING_API_KEY
@@ -602,6 +705,237 @@ function hasAvailableVectorRetrieval(): boolean {
     || process.env.AI_GENERAL_KEY
     || process.env.AI_MEDICAL_PRIMARY_KEY
   );
+}
+
+function buildKnowledgeRerankCacheKey(query: string, results: KnowledgeSearchResult[]): string {
+  const normalizedQuery = normalizeText(sanitizeQuery(query));
+  return `${normalizedQuery}::${results.map((result) => result.id).join('|')}`;
+}
+
+function formatKnowledgeRerankExcerpt(answer: string): string {
+  return answer
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 220);
+}
+
+function resolveKnowledgeRerankEndpoint(baseUrl: string): string {
+  const normalized = baseUrl.trim().replace(/\/+$/g, '');
+  if (!normalized) {
+    throw new Error('Knowledge rerank API URL is not configured');
+  }
+
+  return /\/rerank$/i.test(normalized) ? normalized : `${normalized}/rerank`;
+}
+
+export function parseKnowledgeRerankOutput(output: string): string[] {
+  const normalized = output.trim();
+  if (!normalized) {
+    return [];
+  }
+
+  const jsonMatch = normalized.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
+  if (jsonMatch) {
+    try {
+      const parsed = JSON.parse(jsonMatch[0]) as unknown;
+      if (Array.isArray(parsed)) {
+        return parsed
+          .filter((item): item is string => typeof item === 'string')
+          .map((item) => item.trim())
+          .filter(Boolean);
+      }
+
+      if (parsed && typeof parsed === 'object') {
+        const rankedIds = (parsed as { ranked_ids?: unknown }).ranked_ids;
+        if (Array.isArray(rankedIds)) {
+          return rankedIds
+            .filter((item): item is string => typeof item === 'string')
+            .map((item) => item.trim())
+            .filter(Boolean);
+        }
+      }
+    } catch {
+      // fall through to line parsing
+    }
+  }
+
+  return normalized
+    .split(/\n+/)
+    .map((line) => line.replace(/^[-*\d.\s]+/, '').trim())
+    .filter(Boolean);
+}
+
+export function applyKnowledgeRerankOrder(
+  results: KnowledgeSearchResult[],
+  rankedIds: string[],
+): KnowledgeSearchResult[] {
+  if (rankedIds.length === 0) {
+    return results;
+  }
+
+  const byId = new Map(results.map((result) => [result.id, result]));
+  const reordered: KnowledgeSearchResult[] = [];
+  const seen = new Set<string>();
+
+  for (const id of rankedIds) {
+    const matched = byId.get(id);
+    if (!matched || seen.has(id)) {
+      continue;
+    }
+
+    reordered.push(matched);
+    seen.add(id);
+  }
+
+  for (const result of results) {
+    if (!seen.has(result.id)) {
+      reordered.push(result);
+    }
+  }
+
+  return reordered;
+}
+
+async function rerankKnowledgeResultsWithSiliconFlow(
+  query: string,
+  candidateResults: KnowledgeSearchResult[],
+): Promise<string[]> {
+  if (!hasAvailableSiliconFlowKnowledgeReranker()) {
+    return [];
+  }
+
+  const response = await fetch(resolveKnowledgeRerankEndpoint(KNOWLEDGE_RERANK_API_BASE_URL), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${KNOWLEDGE_RERANK_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: KNOWLEDGE_RERANK_MODEL,
+      query,
+      documents: candidateResults.map((result) => [
+        buildSourceTitle(result),
+        result.question,
+        formatKnowledgeRerankExcerpt(result.answer),
+        result.category,
+        result.sourceReference.sourceOrg || result.source || '知识库',
+      ].join('\n')),
+      top_n: candidateResults.length,
+      return_documents: false,
+    }),
+    signal: AbortSignal.timeout(KNOWLEDGE_RERANK_TIMEOUT_MS),
+  });
+
+  const bodyText = await response.text();
+  let data: {
+    results?: Array<{ index?: number; relevance_score?: number }>;
+    error?: { message?: string };
+    message?: string;
+  } | null = null;
+  try {
+    data = JSON.parse(bodyText) as {
+      results?: Array<{ index?: number; relevance_score?: number }>;
+      error?: { message?: string };
+      message?: string;
+    };
+  } catch {
+    data = null;
+  }
+
+  if (!response.ok) {
+    throw new Error(data?.error?.message || data?.message || bodyText.slice(0, 200) || `Knowledge rerank request failed with status ${response.status}`);
+  }
+
+  const rankedIds = (data?.results || [])
+    .filter((item): item is { index: number; relevance_score?: number } => Number.isInteger(item?.index))
+    .sort((left, right) => (right.relevance_score || 0) - (left.relevance_score || 0))
+    .map((item) => candidateResults[item.index]?.id)
+    .filter((id): id is string => Boolean(id));
+
+  return rankedIds;
+}
+
+async function rerankKnowledgeResultsWithLLMFallback(
+  query: string,
+  candidateResults: KnowledgeSearchResult[],
+): Promise<string[]> {
+  if (!hasAvailableSearchRewriteProvider()) {
+    return [];
+  }
+
+  const candidateLines = candidateResults.map((result, index) => JSON.stringify({
+    id: result.id,
+    rank_hint: index + 1,
+    title: buildSourceTitle(result),
+    question: result.question,
+    category: result.category,
+    source: result.sourceReference.sourceOrg || result.source || '知识库',
+    authoritative: result.sourceReference.authoritative === true,
+    relevance_hint: result.sourceReference.relevance,
+    excerpt: formatKnowledgeRerankExcerpt(result.answer),
+  }));
+
+  const rerankResult = await callTaskModelDetailed('minimax_render', [
+    {
+      role: 'system',
+      content: [
+        '你是母婴知识检索重排助手。',
+        '任务是根据用户问题，对候选资料按相关性从高到低排序。',
+        '优先考虑：问题意图匹配、孕周/阶段匹配、症状与处理场景匹配、来源权威性。',
+        '不要扩展候选，不要解释，不要总结。',
+        '输出必须是 JSON 对象，格式为 {"ranked_ids":["id1","id2"]}。',
+        '只输出候选里已有的 id。',
+      ].join('\n'),
+    },
+    {
+      role: 'user',
+      content: [
+        `用户问题：${query}`,
+        '候选资料：',
+        ...candidateLines,
+      ].join('\n'),
+    },
+  ], {
+    temperature: 0.1,
+    maxTokens: 240,
+  });
+
+  return parseKnowledgeRerankOutput(rerankResult.answer)
+    .filter((id, index, values) => candidateResults.some((item) => item.id === id) && values.indexOf(id) === index);
+}
+
+async function rerankKnowledgeResults(
+  query: string,
+  results: KnowledgeSearchResult[],
+): Promise<KnowledgeSearchResult[]> {
+  if (results.length <= 1 || !hasAvailableKnowledgeReranker()) {
+    return results;
+  }
+
+  const candidateResults = results.slice(0, KNOWLEDGE_RERANK_CANDIDATE_LIMIT);
+  const cacheKey = buildKnowledgeRerankCacheKey(query, candidateResults);
+  const cached = knowledgeRerankCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return applyKnowledgeRerankOrder(results, cached.value);
+  }
+
+  try {
+    let rankedIds = await rerankKnowledgeResultsWithSiliconFlow(query, candidateResults);
+    if (rankedIds.length === 0) {
+      rankedIds = await rerankKnowledgeResultsWithLLMFallback(query, candidateResults);
+    }
+
+    knowledgeRerankCache.set(cacheKey, {
+      value: rankedIds,
+      expiresAt: Date.now() + KNOWLEDGE_RERANK_CACHE_TTL_MS,
+    });
+    evictExpiredAndOldest(knowledgeRerankCache);
+
+    return applyKnowledgeRerankOrder(results, rankedIds);
+  } catch (error) {
+    console.warn('[Knowledge] Rerank fallback:', error);
+    return results;
+  }
 }
 
 function findAuthorityMatch(question: string, source: string): QAPair | undefined {
@@ -617,6 +951,19 @@ function findAuthorityMatch(question: string, source: string): QAPair | undefine
   }
 
   return authorityQaData.find((item) => normalizeText(item.question) === normalizedQuestion);
+}
+
+function shouldIncludeAuthoritySearchRecord(qa: QAPair): boolean {
+  return shouldUseAuthorityVectorSupplement({
+    title: qa.question,
+    question: qa.question,
+    topic: qa.topic,
+    category: qa.category,
+    source: qa.source,
+    sourceOrg: qa.source_org,
+    sourceClass: qa.source_class,
+    authoritative: qa.is_verified,
+  });
 }
 
 function toSyntheticAuthorityQa(result: {
@@ -670,6 +1017,18 @@ function toVectorSupplementResult(
   }
 
   const matched = findAuthorityMatch(result.question, result.source);
+  if (!shouldUseAuthorityVectorSupplement({
+    title: result.question,
+    question: matched?.question,
+    topic: matched?.topic || result.category,
+    category: matched?.category || result.category,
+    source: matched?.source || result.source,
+    sourceOrg: matched?.source_org || result.source,
+    sourceClass: matched?.source_class,
+  })) {
+    return null;
+  }
+
   const score = Math.max(18, 56 - (rank * 4));
   const qa = matched || toSyntheticAuthorityQa(result);
 
@@ -753,6 +1112,7 @@ export async function rewriteSearchQueries(question: string): Promise<string[]> 
       value: rewritten,
       expiresAt: Date.now() + SEARCH_REWRITE_CACHE_TTL_MS,
     });
+    evictExpiredAndOldest(searchRewriteCache);
 
     return rewritten;
   } catch (error) {
@@ -761,6 +1121,7 @@ export async function rewriteSearchQueries(question: string): Promise<string[]> 
       value: [],
       expiresAt: Date.now() + 60_000,
     });
+    evictExpiredAndOldest(searchRewriteCache);
     return [];
   }
 }
@@ -810,11 +1171,27 @@ function hasCategoryContentConflict(qa: QAPair): boolean {
   return false;
 }
 
-function questionMatchesFocus(qa: QAPair, focus: 'fever' | 'sleep' | 'feeding'): boolean {
+function questionMatchesFocus(qa: QAPair, focus: 'fever' | 'sleep' | 'feeding' | 'bleeding' | 'edema' | 'fetal-movement' | 'contractions'): boolean {
   const text = qa.question;
 
   if (focus === 'fever') {
     return /发烧|发热|高烧|退烧/u.test(text);
+  }
+
+  if (focus === 'bleeding') {
+    return /出血|见红|流血|spotting|bleeding|bloody show/i.test(text);
+  }
+
+  if (focus === 'edema') {
+    return /水肿|浮肿|脚肿|腿肿|肿胀|edema|swelling/i.test(text);
+  }
+
+  if (focus === 'fetal-movement') {
+    return /胎动|胎心|fetal movement|fetal heart/i.test(text);
+  }
+
+  if (focus === 'contractions') {
+    return /宫缩|阵痛|规律宫缩|假性宫缩|contractions?/i.test(text);
   }
 
   if (focus === 'sleep') {
@@ -824,9 +1201,25 @@ function questionMatchesFocus(qa: QAPair, focus: 'fever' | 'sleep' | 'feeding'):
   return /奶量|喂奶|吃奶|厌奶|母乳|配方奶|断奶|辅食/u.test(text);
 }
 
-function focusKeywords(focus: 'fever' | 'sleep' | 'feeding'): RegExp {
+function focusKeywords(focus: 'fever' | 'sleep' | 'feeding' | 'bleeding' | 'edema' | 'fetal-movement' | 'contractions'): RegExp {
   if (focus === 'fever') {
     return /发烧|发热|高烧|退烧/u;
+  }
+
+  if (focus === 'bleeding') {
+    return /出血|见红|流血|spotting|bleeding|bloody show/i;
+  }
+
+  if (focus === 'edema') {
+    return /水肿|浮肿|脚肿|腿肿|肿胀|edema|swelling/i;
+  }
+
+  if (focus === 'fetal-movement') {
+    return /胎动|胎心|fetal movement|fetal heart/i;
+  }
+
+  if (focus === 'contractions') {
+    return /宫缩|阵痛|规律宫缩|假性宫缩|contractions?/i;
   }
 
   if (focus === 'sleep') {
@@ -836,20 +1229,31 @@ function focusKeywords(focus: 'fever' | 'sleep' | 'feeding'): RegExp {
   return /奶量|喂奶|吃奶|厌奶|母乳|配方奶|断奶|辅食/u;
 }
 
-function answerMatchesFocus(qa: QAPair, focus: 'fever' | 'sleep' | 'feeding'): boolean {
+function answerMatchesFocus(qa: QAPair, focus: 'fever' | 'sleep' | 'feeding' | 'bleeding' | 'edema' | 'fetal-movement' | 'contractions'): boolean {
   const text = `${qa.answer} ${(qa.tags || []).join(' ')} ${qa.category}`;
   return focusKeywords(focus).test(text);
 }
 
 function focusMatchesResult(
   qa: Pick<QAPair, 'question' | 'answer' | 'tags' | 'category'>,
-  focus: 'fever' | 'sleep' | 'feeding'
+  focus: 'fever' | 'sleep' | 'feeding' | 'bleeding' | 'edema' | 'fetal-movement' | 'contractions'
 ): boolean {
   return questionMatchesFocus(qa as QAPair, focus) || answerMatchesFocus(qa as QAPair, focus);
 }
 
-function hasQuestionAnswerFocusConflict(qa: QAPair, focus: 'fever' | 'sleep' | 'feeding'): boolean {
+function hasQuestionAnswerFocusConflict(qa: QAPair, focus: 'fever' | 'sleep' | 'feeding' | 'bleeding' | 'edema' | 'fetal-movement' | 'contractions'): boolean {
   return questionMatchesFocus(qa, focus) && !answerMatchesFocus(qa, focus);
+}
+
+function isPolicyLikeResult(qa: Pick<QAPair, 'question' | 'answer' | 'tags' | 'category' | 'topic'>): boolean {
+  const rawText = `${qa.question} ${qa.answer} ${(qa.tags || []).join(' ')} ${qa.category} ${qa.topic || ''}`;
+  return qa.category === 'policy'
+    || qa.topic === 'policy'
+    || /政策|纲要|指导|全指导|practice update|committee opinion|clinical practice update/i.test(rawText);
+}
+
+function hasMedicalSymptomIntent(query: string): boolean {
+  return /出血|见红|流血|腹痛|宫缩|阵痛|水肿|浮肿|脚肿|腿肿|肿胀|发烧|发热|高烧|胎动|胎心|破水|呕吐|腹泻|黄疸|湿疹|咳嗽/u.test(query);
 }
 
 const FEVER_EXTRA_SYMPTOMS: Array<{ id: string; pattern: RegExp }> = [
@@ -1115,20 +1519,32 @@ function reorderFocusedResults(
 ): KnowledgeSearchResult[] {
   const FOCUS_PROMOTION_MAX_SCORE_GAP = 12;
   const feverFocused = signals.matchedGroups.some(group => group.id === 'fever');
+  const bleedingFocused = signals.matchedGroups.some(group => group.id === 'bleeding');
+  const edemaFocused = signals.matchedGroups.some(group => group.id === 'edema');
+  const fetalMovementFocused = signals.matchedGroups.some(group => group.id === 'fetal-movement');
+  const contractionsFocused = signals.matchedGroups.some(group => group.id === 'contractions');
   const sleepFocused = signals.matchedGroups.some(group => group.id === 'childcare-sleep');
   const feedingFocused = signals.matchedGroups.some(group => group.id === 'childcare-feeding');
 
-  let focus: 'fever' | 'sleep' | 'feeding' | undefined;
+  let focus: 'fever' | 'sleep' | 'feeding' | 'bleeding' | 'edema' | 'fetal-movement' | 'contractions' | undefined;
   if (sleepFocused) {
     focus = 'sleep';
   } else if (feedingFocused) {
     focus = 'feeding';
+  } else if (contractionsFocused) {
+    focus = 'contractions';
+  } else if (fetalMovementFocused) {
+    focus = 'fetal-movement';
+  } else if (bleedingFocused) {
+    focus = 'bleeding';
+  } else if (edemaFocused) {
+    focus = 'edema';
   } else if (feverFocused) {
     focus = 'fever';
   }
 
   if (!focus) {
-    return selectAuthorityPreferredResults(results, limit);
+    return selectAuthorityPreferredResults(results, limit, query);
   }
 
   const vaccineIntent = hasVaccineIntent(query);
@@ -1145,11 +1561,15 @@ function reorderFocusedResults(
       return false;
     }
 
-    if (focus === 'fever' && !vaccineIntent && /^vaccine-/.test(result.category)) {
+    if ((focus === 'fever' || focus === 'bleeding' || focus === 'edema' || focus === 'fetal-movement' || focus === 'contractions') && !vaccineIntent && /^vaccine-/.test(result.category)) {
       return false;
     }
 
     if ((focus === 'sleep' || focus === 'feeding') && !vaccineIntent && /^vaccine-/.test(result.category)) {
+      return false;
+    }
+
+    if ((focus === 'bleeding' || focus === 'edema' || focus === 'fetal-movement' || focus === 'contractions') && isPolicyLikeResult(result)) {
       return false;
     }
 
@@ -1161,7 +1581,7 @@ function reorderFocusedResults(
   });
 
   if (focused.length === 0) {
-    return [];
+    return selectAuthorityPreferredResults(results, limit, query);
   }
 
   const preferredFocused = focused.filter((result) => (
@@ -1176,7 +1596,7 @@ function reorderFocusedResults(
   ));
 
   if (promotableFocused.length === 0) {
-    return selectAuthorityPreferredResults(results, limit);
+    return selectAuthorityPreferredResults(results, limit, query);
   }
 
   const merged = new Map<string, KnowledgeSearchResult>();
@@ -1186,20 +1606,48 @@ function reorderFocusedResults(
     }
   }
 
-  return selectAuthorityPreferredResults(Array.from(merged.values()), limit);
+  return selectAuthorityPreferredResults(Array.from(merged.values()), limit, query);
 }
 
 function selectAuthorityPreferredResults(
   results: KnowledgeSearchResult[],
   limit: number,
+  query?: string,
 ): KnowledgeSearchResult[] {
-  const authoritative = results.filter((result) => result.sourceReference.authoritative);
-  if (authoritative.length >= limit) {
-    return authoritative.slice(0, limit);
+  const head = results.slice(0, limit);
+  if (query && hasMedicalSymptomIntent(query)) {
+    return head;
   }
 
-  const fallback = results.filter((result) => !result.sourceReference.authoritative);
-  return authoritative.concat(fallback).slice(0, limit);
+  const authoritativeInHead = head.filter((result) => result.sourceReference.authoritative);
+  if (authoritativeInHead.length >= Math.min(2, limit) || results.length <= limit) {
+    return head;
+  }
+
+  const weakestHeadScore = head[head.length - 1]?.score ?? 0;
+  const promotableAuthority = results
+    .slice(limit)
+    .filter((result) => result.sourceReference.authoritative && result.score >= weakestHeadScore - 8);
+
+  if (promotableAuthority.length === 0) {
+    return head;
+  }
+
+  const selected = [...head];
+  for (const candidate of promotableAuthority) {
+    const replacementIndex = selected
+      .map((item, index) => ({ item, index }))
+      .reverse()
+      .find(({ item }) => !item.sourceReference.authoritative && item.score <= candidate.score + 8)?.index;
+
+    if (replacementIndex === undefined) {
+      continue;
+    }
+
+    selected.splice(replacementIndex, 1, candidate);
+  }
+
+  return selected.slice(0, limit);
 }
 
 function calculateScore(
@@ -1305,13 +1753,33 @@ function calculateScore(
   }
 
   const feverFocused = signals.matchedGroups.some(group => group.id === 'fever');
+  const bleedingFocused = signals.matchedGroups.some(group => group.id === 'bleeding');
+  const edemaFocused = signals.matchedGroups.some(group => group.id === 'edema');
+  const fetalMovementFocused = signals.matchedGroups.some(group => group.id === 'fetal-movement');
+  const contractionsFocused = signals.matchedGroups.some(group => group.id === 'contractions');
   const sleepFocused = signals.matchedGroups.some(group => group.id === 'childcare-sleep');
   const feedingFocused = signals.matchedGroups.some(group => group.id === 'childcare-feeding');
   const sleepSoothingIntent = /安抚|哄睡|哄/u.test(query);
+  const medicalSymptomIntent = hasMedicalSymptomIntent(query);
+  const pregnancyMedicalIntent = /怀孕|孕期|孕妇|胎动|胎心|宫缩|阵痛|见红|破水|羊水|产检|孕周/u.test(query);
   const queryTemperature = extractFeverTemperature(query);
   const queryFeverHandlingIntent = hasFeverHandlingIntent(query);
   const queryExtraSymptoms = new Set(getMatchedExtraSymptoms(query));
   const queryFeverContexts = new Set(getMatchedFeverContexts(query));
+
+  if (medicalSymptomIntent && isPolicyLikeResult(qa)) {
+    score -= 36;
+  }
+
+  if (pregnancyMedicalIntent) {
+    if (qa.category.startsWith('parenting-') || qa.category === 'development') {
+      score -= 28;
+    }
+
+    if (qa.category.startsWith('pregnancy-') || qa.category === 'pregnancy') {
+      score += 10;
+    }
+  }
 
   if (feverFocused) {
     score += questionMatchesFocus(qa, 'fever') ? 14 : -24;
@@ -1422,6 +1890,66 @@ function calculateScore(
     score += questionMatchesFocus(qa, 'feeding') ? 14 : -22;
     if (hasQuestionAnswerFocusConflict(qa, 'feeding')) {
       score -= 14;
+    }
+  }
+
+  if (bleedingFocused) {
+    score += questionMatchesFocus(qa, 'bleeding') ? 18 : -26;
+    if (hasQuestionAnswerFocusConflict(qa, 'bleeding')) {
+      score -= 12;
+    }
+
+    if (/孕早期|先兆流产|异位妊娠|宫外孕|ectopic|spotting|bleeding/i.test(qa.question + qa.answer)) {
+      score += 12;
+    }
+
+    if (isPolicyLikeResult(qa)) {
+      score -= 28;
+    }
+  }
+
+  if (edemaFocused) {
+    score += questionMatchesFocus(qa, 'edema') ? 16 : -22;
+    if (hasQuestionAnswerFocusConflict(qa, 'edema')) {
+      score -= 10;
+    }
+
+    if (/高血压|血压|子痫前期|preeclampsia/i.test(qa.question + qa.answer)) {
+      score += 8;
+    }
+
+    if (isPolicyLikeResult(qa)) {
+      score -= 24;
+    }
+  }
+
+  if (fetalMovementFocused) {
+    score += questionMatchesFocus(qa, 'fetal-movement') ? 18 : -26;
+    if (hasQuestionAnswerFocusConflict(qa, 'fetal-movement')) {
+      score -= 12;
+    }
+
+    if (/减少|变少|轻微|异常|消失/u.test(qa.question + qa.answer)) {
+      score += 10;
+    }
+
+    if (/宝宝|婴儿|新生儿|children|months?/i.test(qa.question + qa.answer) || qa.category === 'development') {
+      score -= 24;
+    }
+  }
+
+  if (contractionsFocused) {
+    score += questionMatchesFocus(qa, 'contractions') ? 18 : -26;
+    if (hasQuestionAnswerFocusConflict(qa, 'contractions')) {
+      score -= 12;
+    }
+
+    if (/频繁|规律|疼痛|见红|破水|住院|临产/u.test(qa.question + qa.answer)) {
+      score += 10;
+    }
+
+    if (/宝宝|婴儿|新生儿|children|months?/i.test(qa.question + qa.answer) || qa.category === 'development') {
+      score -= 24;
     }
   }
 
@@ -1576,7 +2104,8 @@ export function loadKnowledgeBase(): void {
       const rawAuthority = fs.readFileSync(authorityPath, 'utf-8');
       authorityQaData = (JSON.parse(rawAuthority) as QAPair[])
         .filter((item) => !shouldFilterAuthoritySourceUrl(item))
-        .map((item) => normalizeAuthorityKnowledgeRecord(item));
+        .map((item) => normalizeAuthorityKnowledgeRecord(item))
+        .filter((item) => shouldIncludeAuthoritySearchRecord(item));
       console.log(`🏛️ 权威知识快照加载成功: ${authorityQaData.length} 条数据 (路径: ${authorityPath})`);
     } else {
       authorityQaData = [];
@@ -1597,12 +2126,8 @@ function ensureKnowledgeLoaded(): void {
 
 function getSearchableKnowledgePool(): QAPair[] {
   const published = allQaData.filter((qa) => qa.status === 'published');
-  const authoritative = published.filter((qa) => hasAuthorityEvidence(qa));
-
-  if (authoritative.length > 0) {
-    return authoritative;
-  }
-
+  // 搜索阶段保留全部已发布内容，再在排序阶段优先权威来源；
+  // 否则常见症状类问题会因为权威覆盖不足而直接无结果。
   return published;
 }
 
@@ -1662,6 +2187,103 @@ export function getFollowUpQuestions(question: string, topK: number = 3, categor
   return buildFollowUpQuestions(question, results);
 }
 
+function collectKnowledgeCandidates(
+  question: string,
+  options: {
+    category?: string;
+    limit?: number;
+  } = {},
+): KnowledgeSearchResult[] {
+  const limit = options.limit || 3;
+  const results = searchQA(question, {
+    category: options.category,
+    limit,
+  });
+  const signals = collectQuerySignals(question);
+
+  return needsFocusedSupplement(results, signals)
+    ? mergeSearchResults(
+      results,
+      searchQA(buildFocusedQuery(question, signals) || question, {
+        category: options.category,
+        limit,
+      }),
+      limit,
+    )
+    : results;
+}
+
+async function collectKnowledgeCandidatesWithRewrite(
+  question: string,
+  options: {
+    category?: string;
+    limit?: number;
+  } = {},
+): Promise<KnowledgeSearchResult[]> {
+  const limit = options.limit || 3;
+  const candidateLimit = Math.max(limit * 2, KNOWLEDGE_RERANK_CANDIDATE_LIMIT);
+  let mergedResults = collectKnowledgeCandidates(question, {
+    category: options.category,
+    limit: candidateLimit,
+  });
+  const signals = collectQuerySignals(question);
+
+  if (shouldShortCircuitKnowledgeAi(question, mergedResults)) {
+    return reorderFocusedResults(mergedResults, signals, question, candidateLimit);
+  }
+
+  const rewrittenQueries = await rewriteSearchQueries(question);
+  const dedupedQueries = dedupeSearchQueries(question, rewrittenQueries);
+  const vectorSupplements = await searchAuthorityVectorSupplements(dedupedQueries, candidateLimit);
+
+  if (vectorSupplements.length > 0) {
+    mergedResults = mergeSearchResults(mergedResults, vectorSupplements, Math.max(candidateLimit * 2, 12));
+  }
+
+  for (const rewrittenQuery of rewrittenQueries) {
+    mergedResults = mergeSearchResults(
+      mergedResults,
+      collectKnowledgeCandidates(rewrittenQuery, {
+        category: options.category,
+        limit: candidateLimit,
+      }),
+      Math.max(candidateLimit * 2, 12),
+    );
+  }
+
+  return reorderFocusedResults(
+    mergedResults
+      .sort((left, right) => {
+        if (right.score !== left.score) {
+          return right.score - left.score;
+        }
+        return right.view_count - left.view_count;
+      }),
+    signals,
+    question,
+    candidateLimit,
+  );
+}
+
+export async function searchQAWithRewrite(
+  query: string,
+  options: {
+    category?: string;
+    limit?: number;
+  } = {},
+): Promise<KnowledgeSearchResult[]> {
+  const limit = options.limit || 5;
+  const candidates = await collectKnowledgeCandidatesWithRewrite(query, {
+    category: options.category,
+    limit,
+  });
+  if (shouldShortCircuitKnowledgeAi(query, candidates)) {
+    return candidates.slice(0, limit);
+  }
+  const reranked = await rerankKnowledgeResults(query, candidates);
+  return selectAuthorityPreferredResults(reranked, limit, query);
+}
+
 export function buildKnowledgePack(
   question: string,
   options: {
@@ -1675,23 +2297,14 @@ export function buildKnowledgePack(
   results: KnowledgeSearchResult[];
 } {
   const limit = options.limit || 3;
-  const results = searchQA(question, {
-    category: options.category,
+  const authorityPreferredResults = selectAuthorityPreferredResults(
+    collectKnowledgeCandidates(question, {
+      category: options.category,
+      limit,
+    }),
     limit,
-  });
-  const signals = collectQuerySignals(question);
-
-  const finalResults = needsFocusedSupplement(results, signals)
-    ? mergeSearchResults(
-      results,
-      searchQA(buildFocusedQuery(question, signals) || question, {
-        category: options.category,
-        limit,
-      }),
-      limit
-    )
-    : results;
-  const authorityPreferredResults = selectAuthorityPreferredResults(finalResults, limit);
+    question,
+  );
 
   return {
     context: formatContextBlock(authorityPreferredResults),
@@ -1713,37 +2326,19 @@ export async function buildKnowledgePackWithRewrite(
   followUpQuestions: string[];
   results: KnowledgeSearchResult[];
 }> {
-  const basePack = buildKnowledgePack(question, options);
-  const rewrittenQueries = await rewriteSearchQueries(question);
   const limit = options.limit || 3;
-  const vectorSupplements = await searchAuthorityVectorSupplements(
-    dedupeSearchQueries(question, rewrittenQueries),
-    limit,
-  );
-
-  let mergedResults = vectorSupplements.length > 0
-    ? mergeSearchResults(basePack.results, vectorSupplements, Math.max(limit * 2, 6))
-    : basePack.results;
-
-  for (const rewrittenQuery of rewrittenQueries) {
-    const rewrittenPack = buildKnowledgePack(rewrittenQuery, options);
-    mergedResults = mergeSearchResults(mergedResults, rewrittenPack.results, Math.max(limit * 2, 6));
+  const candidates = await collectKnowledgeCandidatesWithRewrite(question, options);
+  if (shouldShortCircuitKnowledgeAi(question, candidates)) {
+    const authorityPreferredResults = candidates.slice(0, limit);
+    return {
+      context: formatContextBlock(authorityPreferredResults),
+      sources: authorityPreferredResults.map((item) => item.sourceReference),
+      followUpQuestions: buildFollowUpQuestions(question, authorityPreferredResults),
+      results: authorityPreferredResults,
+    };
   }
-
-  const signals = collectQuerySignals(question);
-  const finalResults = reorderFocusedResults(
-    mergedResults
-      .sort((left, right) => {
-        if (right.score !== left.score) {
-          return right.score - left.score;
-        }
-        return right.view_count - left.view_count;
-      }),
-    signals,
-    question,
-    limit,
-  );
-  const authorityPreferredResults = selectAuthorityPreferredResults(finalResults, limit);
+  const reranked = await rerankKnowledgeResults(question, candidates);
+  const authorityPreferredResults = selectAuthorityPreferredResults(reranked, limit, question);
 
   return {
     context: formatContextBlock(authorityPreferredResults),
