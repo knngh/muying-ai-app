@@ -7,7 +7,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 SSH_USER="${SSH_USER:-ubuntu}"
 SSH_HOST="${SSH_HOST:-212.64.29.211}"
-SSH_PORT="${SSH_PORT:-22}"
+SSH_PORT="${SSH_PORT:-39022}"
 SSH_IDENTITY_FILE="${SSH_IDENTITY_FILE:-}"
 APP_DIR="${APP_DIR:-/www/wwwroot/muying-ai-app}"
 REMOTE_TMP_DIR="${REMOTE_TMP_DIR:-/tmp}"
@@ -34,7 +34,7 @@ Usage:
 Env:
   SSH_USER        default: ubuntu
   SSH_HOST        default: 212.64.29.211
-  SSH_PORT        default: 22
+  SSH_PORT        default: 39022
   SSH_IDENTITY_FILE optional; local private key path
   APP_DIR         default: /www/wwwroot/muying-ai-app
   REMOTE_TMP_DIR  default: /tmp

@@ -4,7 +4,7 @@ set -euo pipefail
 
 SSH_USER="${SSH_USER:-ubuntu}"
 SSH_HOST="${SSH_HOST:-212.64.29.211}"
-SSH_PORT="${SSH_PORT:-22}"
+SSH_PORT="${SSH_PORT:-39022}"
 SSH_IDENTITY_FILE="${SSH_IDENTITY_FILE:-}"
 SSH_PASSWORD="${SSH_PASSWORD:-}"
 PM2_SERVICE_NAME="${PM2_SERVICE_NAME:-pm2-${SSH_USER}}"
@@ -18,7 +18,7 @@ Usage:
 Env:
   SSH_USER         default: ubuntu
   SSH_HOST         default: 212.64.29.211
-  SSH_PORT         default: 22
+  SSH_PORT         default: 39022
   SSH_IDENTITY_FILE optional; local private key path
   SSH_PASSWORD     optional; when set and sshpass exists, use password auth
   PM2_SERVICE_NAME default: pm2-${SSH_USER}
