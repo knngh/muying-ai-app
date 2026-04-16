@@ -18,6 +18,7 @@ SYNC_PATHS=(
   "prisma"
   "shared"
   "data"
+  "scripts"
   "package.json"
   "package-lock.json"
   "tsconfig.json"
