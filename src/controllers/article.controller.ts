@@ -1055,14 +1055,14 @@ export const getArticles = async (req: Request, res: Response, next: NextFunctio
           return dateBucketDiff;
         }
 
-        const sourceDiff = getAuthorityArticleSourcePriority(left) - getAuthorityArticleSourcePriority(right);
-        if (sourceDiff !== 0) {
-          return sourceDiff;
-        }
-
         const timeDiff = getAuthorityArticleTimestamp(right) - getAuthorityArticleTimestamp(left);
         if (timeDiff !== 0) {
           return timeDiff;
+        }
+
+        const sourceDiff = getAuthorityArticleSourcePriority(left) - getAuthorityArticleSourcePriority(right);
+        if (sourceDiff !== 0) {
+          return sourceDiff;
         }
 
         return 0;
