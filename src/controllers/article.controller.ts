@@ -125,8 +125,128 @@ function toRichTextHtml(text: string): string {
   return textToRichParagraphHtml(text);
 }
 
+const AUTHORITY_CHROME_PATTERNS = [
+  /长者版/gu,
+  /无障碍/gu,
+  /\b(?:邮箱|EN)\b/gu,
+  /登录\s*\|\s*注册\s*\|\s*退出/gu,
+  /语言版本\s*简体中文\s*English/gu,
+  /当前位置：\s*首页/gu,
+  /扫一扫在手机打开当前页/gu,
+  /网站地图/gu,
+  /网站声明/gu,
+  /微信公众号/gu,
+  /相关链接/gu,
+  /技术支持/gu,
+  /版权所有/gu,
+  /网站标识码/gu,
+  /电子标识编号/gu,
+  /京ICP备[^\s]*/gu,
+  /京公网安备[^\s]*/gu,
+  /地址：/gu,
+  /邮编：/gu,
+  /电话：/gu,
+  /字号：\s*【?\s*大\s*中\s*小\s*】?/gu,
+  /分享到：/gu,
+];
+
+function normalizeAuthorityText(text: string): string {
+  return text
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&gt;/gi, '>')
+    .replace(/&lt;/gi, '<')
+    .replace(/&#39;/gi, '\'')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/^-->\s*/, '');
+}
+
+function countAuthorityChromeMatches(text: string): number {
+  const normalized = normalizeAuthorityText(text);
+  if (!normalized) {
+    return 0;
+  }
+
+  return AUTHORITY_CHROME_PATTERNS.reduce((total, pattern) => total + countMatches(normalized, pattern), 0);
+}
+
+function stripAuthorityPageChrome(text: string): string {
+  let normalized = normalizeAuthorityText(text);
+  if (!normalized) {
+    return '';
+  }
+
+  normalized = normalized
+    .replace(/^[\s\S]*?当前位置：\s*首页\s*/u, '')
+    .replace(/(?:扫一扫在手机打开当前页|手机版|微信公众号|网站地图|网站声明|相关链接|地址：)[\s\S]*$/u, '')
+    .replace(/(?:长者版|无障碍|\b邮箱\b|\bEN\b)(?:\s*\|\s*(?:长者版|无障碍|\b邮箱\b|\bEN\b))*/gu, ' ')
+    .replace(/登录\s*\|\s*注册\s*\|\s*退出/gu, ' ')
+    .replace(/语言版本\s*简体中文\s*English/gu, ' ')
+    .replace(/字号：\s*【?\s*大\s*中\s*小\s*】?/gu, ' ')
+    .replace(/分享到：/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return normalized;
+}
+
+function resolveAuthoritySummaryText(record: Pick<AuthorityCacheRecord, 'question' | 'summary' | 'answer'>): string {
+  const title = normalizeAuthorityText(record.question || '');
+  const summary = stripAuthorityPageChrome(record.summary || '');
+  const answer = stripAuthorityPageChrome(record.answer || '');
+  const summaryChromeCount = countAuthorityChromeMatches(record.summary || '');
+
+  if (summary && summaryChromeCount < 4) {
+    return summary;
+  }
+
+  if (answer && answer !== title) {
+    return answer;
+  }
+
+  return title;
+}
+
+function isAuthorityRecordLowValue(record: Pick<AuthorityCacheRecord, 'question' | 'summary' | 'answer'>): boolean {
+  const title = normalizeAuthorityText(record.question || '');
+  const rawSummary = normalizeAuthorityText(record.summary || '');
+  const rawAnswer = normalizeAuthorityText(record.answer || '');
+  if (!rawAnswer) {
+    return false;
+  }
+
+  const answerChromeCount = countAuthorityChromeMatches(rawAnswer);
+  const summaryChromeCount = countAuthorityChromeMatches(rawSummary);
+  const cleanedAnswer = stripAuthorityPageChrome(rawAnswer);
+  const cleanedWithoutTitle = title
+    ? cleanedAnswer.replace(title, '').trim()
+    : cleanedAnswer;
+
+  return answerChromeCount >= 6
+    && summaryChromeCount >= 3
+    && cleanedWithoutTitle.length > 0
+    && cleanedWithoutTitle.length < 120;
+}
+
+function normalizeAuthorityDedupeKey(input: string): string {
+  const trimmed = input.trim();
+  if (!trimmed) {
+    return '';
+  }
+
+  try {
+    const url = new URL(trimmed);
+    url.hash = '';
+    url.hostname = url.hostname.toLowerCase();
+    url.pathname = url.pathname.replace(/\/+$/u, '') || '/';
+    return url.toString();
+  } catch {
+    return trimmed.toLowerCase();
+  }
+}
+
 function toAuthoritySummary(text: string): string {
-  const normalized = text.replace(/\s+/g, ' ').trim();
+  const normalized = normalizeAuthorityText(text);
   return normalized.slice(0, 180);
 }
 
@@ -176,6 +296,16 @@ function normalizeAuthorityCacheRecord(record: AuthorityCacheRecord): AuthorityC
 
     const cleanedSummary = normalizeAapCachedContent(normalizedSummary || '');
     normalizedSummary = cleanedSummary || normalizedAnswer.slice(0, 300) || normalizedSummary;
+  }
+
+  const cleanedAnswer = stripAuthorityPageChrome(normalizedAnswer);
+  if (cleanedAnswer.length >= 150 && cleanedAnswer.length < normalizedAnswer.length) {
+    normalizedAnswer = cleanedAnswer;
+  }
+
+  const cleanedSummary = stripAuthorityPageChrome(normalizedSummary || '');
+  if (cleanedSummary) {
+    normalizedSummary = cleanedSummary;
   }
 
   return {
@@ -288,7 +418,9 @@ function getCachedAuthorityTranslation(
 async function getAuthorityRecords(): Promise<AuthorityCacheRecord[]> {
   const cacheRecords = loadAuthorityCacheRecords();
   if (cacheRecords.length > 0) {
-    return cacheRecords.filter((record) => !shouldFilterAuthoritySourceUrl(record));
+    return cacheRecords
+      .filter((record) => !shouldFilterAuthoritySourceUrl(record))
+      .filter((record) => !isAuthorityRecordLowValue(record));
   }
 
   const rows = await prisma.$queryRawUnsafe<Array<{
@@ -328,7 +460,8 @@ async function getAuthorityRecords(): Promise<AuthorityCacheRecord[]> {
 
   return rows
     .map((row) => mapAuthorityDbRowToRecord(row))
-    .filter((record) => !shouldFilterAuthoritySourceUrl(record));
+    .filter((record) => !shouldFilterAuthoritySourceUrl(record))
+    .filter((record) => !isAuthorityRecordLowValue(record));
 }
 
 async function findAuthorityRecordBySlug(slug: string): Promise<AuthorityCacheRecord | null> {
@@ -670,7 +803,7 @@ function mapAuthorityRecordToArticle(record: AuthorityCacheRecord, index: number
     id: hashStringToPositiveInt(record.id || slug),
     title: record.question,
     slug,
-    summary: toAuthoritySummary(record.summary || record.answer || record.question),
+    summary: toAuthoritySummary(resolveAuthoritySummaryText(record)),
     content: toRichTextHtml(record.answer || ''),
     categoryId: 0,
     category: {
@@ -717,9 +850,50 @@ function isOfficialAuthorityRecord(record: AuthorityCacheRecord): boolean {
   return (record.source_class || 'official') === 'official';
 }
 
+function pickBetterAuthorityArticle(
+  left: ReturnType<typeof mapAuthorityRecordToArticle>,
+  right: ReturnType<typeof mapAuthorityRecordToArticle>,
+) {
+  const leftSummary = normalizeAuthorityText(left.summary || '');
+  const rightSummary = normalizeAuthorityText(right.summary || '');
+  const leftQuality = (leftSummary.length >= 40 ? 1 : 0) - countAuthorityChromeMatches(left.summary || left.content || '');
+  const rightQuality = (rightSummary.length >= 40 ? 1 : 0) - countAuthorityChromeMatches(right.summary || right.content || '');
+  if (leftQuality !== rightQuality) {
+    return leftQuality > rightQuality ? left : right;
+  }
+
+  const updatedDiff = getAuthorityArticleTimestamp(left) - getAuthorityArticleTimestamp(right);
+  if (updatedDiff !== 0) {
+    return updatedDiff > 0 ? left : right;
+  }
+
+  const sourcePriorityDiff = getAuthorityArticleSourcePriority(right) - getAuthorityArticleSourcePriority(left);
+  if (sourcePriorityDiff !== 0) {
+    return sourcePriorityDiff > 0 ? left : right;
+  }
+
+  return (left.lastSyncedAt || '') >= (right.lastSyncedAt || '') ? left : right;
+}
+
 async function getAuthorityArticles() {
   const records = await getAuthorityRecords();
-  return records.filter(isOfficialAuthorityRecord).map(mapAuthorityRecordToArticle);
+  const deduped = new Map<string, ReturnType<typeof mapAuthorityRecordToArticle>>();
+
+  records
+    .filter(isOfficialAuthorityRecord)
+    .map(mapAuthorityRecordToArticle)
+    .forEach((article) => {
+      const dedupeKey = normalizeAuthorityDedupeKey(article.sourceUrl || article.originalId || article.slug);
+      const existing = deduped.get(dedupeKey);
+      if (!existing) {
+        deduped.set(dedupeKey, article);
+        return;
+      }
+
+      deduped.set(dedupeKey, pickBetterAuthorityArticle(existing, article));
+    });
+
+  return Array.from(deduped.values());
 }
 
 function getAuthorityArticleTimestamp(article: ReturnType<typeof mapAuthorityRecordToArticle>): number {
