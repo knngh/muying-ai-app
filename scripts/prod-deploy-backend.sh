@@ -4,6 +4,8 @@ set -euo pipefail
 
 SSH_USER="${SSH_USER:-ubuntu}"
 SSH_HOST="${SSH_HOST:-212.64.29.211}"
+SSH_PORT="${SSH_PORT:-22}"
+SSH_IDENTITY_FILE="${SSH_IDENTITY_FILE:-}"
 APP_DIR="${APP_DIR:-/www/wwwroot/muying-ai-app}"
 PM2_APP_NAME="${PM2_APP_NAME:-muying-api}"
 AUTHORITY_PM2_APP_NAME="${AUTHORITY_PM2_APP_NAME:-muying-authority-worker}"
@@ -24,6 +26,8 @@ Usage:
 Env:
   SSH_USER       default: ubuntu
   SSH_HOST       default: 212.64.29.211
+  SSH_PORT       default: 22
+  SSH_IDENTITY_FILE optional; local private key path
   APP_DIR        default: /www/wwwroot/muying-ai-app
   PM2_APP_NAME   default: muying-api
   AUTHORITY_PM2_APP_NAME default: muying-authority-worker
@@ -39,10 +43,14 @@ EOF
 }
 
 run_ssh() {
+  local ssh_opts=(-p "${SSH_PORT}" -o StrictHostKeyChecking=no)
+  if [[ -n "${SSH_IDENTITY_FILE}" ]]; then
+    ssh_opts+=(-i "${SSH_IDENTITY_FILE}")
+  fi
   if [[ -n "${SSH_PASSWORD}" ]]; then
-    sshpass -p "${SSH_PASSWORD}" ssh -o StrictHostKeyChecking=no "${SSH_USER}@${SSH_HOST}" "$@"
+    sshpass -p "${SSH_PASSWORD}" ssh "${ssh_opts[@]}" "${SSH_USER}@${SSH_HOST}" "$@"
   else
-    ssh "${SSH_USER}@${SSH_HOST}" "$@"
+    ssh "${ssh_opts[@]}" "${SSH_USER}@${SSH_HOST}" "$@"
   fi
 }
 
@@ -100,10 +108,11 @@ if [[ "${WITH_AUTHORITY_WORKER}" == "true" ]]; then
   REMOTE_COMMANDS+=(
     "if pm2 describe ${AUTHORITY_PM2_APP_NAME} >/dev/null 2>&1; then AUTHORITY_SYNC_INTERVAL_MINUTES=${AUTHORITY_SYNC_INTERVAL_MINUTES} AUTHORITY_SYNC_MODE=${AUTHORITY_SYNC_MODE} AUTHORITY_SYNC_RUN_ONCE=false pm2 restart ${AUTHORITY_PM2_APP_NAME} --update-env; else AUTHORITY_SYNC_INTERVAL_MINUTES=${AUTHORITY_SYNC_INTERVAL_MINUTES} AUTHORITY_SYNC_MODE=${AUTHORITY_SYNC_MODE} AUTHORITY_SYNC_RUN_ONCE=false pm2 start dist/workers/authority-sync.worker.js --name ${AUTHORITY_PM2_APP_NAME} --time; fi"
     "pm2 show ${AUTHORITY_PM2_APP_NAME} | sed -n '1,60p'"
-    "pm2 save"
   )
 fi
 
-REMOTE_SCRIPT=$(printf '%s\n' "${REMOTE_COMMANDS[@]}")
+REMOTE_COMMANDS+=("pm2 save")
+
+REMOTE_SCRIPT=$(printf '%s\n' "set -euo pipefail" "${REMOTE_COMMANDS[@]}")
 
 run_ssh "bash -lc $(printf '%q' "${REMOTE_SCRIPT}")"

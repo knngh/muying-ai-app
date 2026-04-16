@@ -4,6 +4,8 @@ set -euo pipefail
 
 SSH_USER="${SSH_USER:-ubuntu}"
 SSH_HOST="${SSH_HOST:-212.64.29.211}"
+SSH_PORT="${SSH_PORT:-22}"
+SSH_IDENTITY_FILE="${SSH_IDENTITY_FILE:-}"
 APP_DIR="${APP_DIR:-/www/wwwroot/muying-ai-app}"
 PM2_APP_NAME="${PM2_APP_NAME:-muying-api}"
 SSH_PASSWORD="${SSH_PASSWORD:-}"
@@ -20,6 +22,8 @@ Usage:
 Env:
   SSH_USER       default: ubuntu
   SSH_HOST       default: 212.64.29.211
+  SSH_PORT       default: 22
+  SSH_IDENTITY_FILE optional; local private key path
   APP_DIR        default: /www/wwwroot/muying-ai-app
   PM2_APP_NAME   default: muying-api
   SSH_PASSWORD   optional; when set and sshpass exists, use password auth
@@ -34,10 +38,14 @@ EOF
 }
 
 run_ssh() {
+  local ssh_opts=(-p "${SSH_PORT}" -o StrictHostKeyChecking=no)
+  if [[ -n "${SSH_IDENTITY_FILE}" ]]; then
+    ssh_opts+=(-i "${SSH_IDENTITY_FILE}")
+  fi
   if [[ -n "${SSH_PASSWORD}" ]]; then
-    sshpass -p "${SSH_PASSWORD}" ssh -o StrictHostKeyChecking=no "${SSH_USER}@${SSH_HOST}" "$@"
+    sshpass -p "${SSH_PASSWORD}" ssh "${ssh_opts[@]}" "${SSH_USER}@${SSH_HOST}" "$@"
   else
-    ssh "${SSH_USER}@${SSH_HOST}" "$@"
+    ssh "${ssh_opts[@]}" "${SSH_USER}@${SSH_HOST}" "$@"
   fi
 }
 

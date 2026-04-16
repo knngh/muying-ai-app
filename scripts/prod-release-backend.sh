@@ -17,7 +17,8 @@ Usage:
 This script runs:
   1. prod-sync-backend.sh
   2. prod-deploy-backend.sh
-  3. prod-smoke-backend.sh
+  3. prod-runtime-guard.sh
+  4. prod-smoke-backend.sh
 EOF
 }
 
@@ -53,20 +54,23 @@ while (($# > 0)); do
   shift
 done
 
-echo "[1/3] sync"
+echo "[1/4] sync"
 bash "${SCRIPT_DIR}/prod-sync-backend.sh"
 
-echo "[2/3] deploy"
+echo "[2/4] deploy"
 if ((${#DEPLOY_ARGS[@]} > 0)); then
   bash "${SCRIPT_DIR}/prod-deploy-backend.sh" "${DEPLOY_ARGS[@]}"
 else
   bash "${SCRIPT_DIR}/prod-deploy-backend.sh"
 fi
 
+echo "[3/4] runtime"
+bash "${SCRIPT_DIR}/prod-runtime-guard.sh"
+
 if [[ "${SKIP_SMOKE}" == "true" ]]; then
-  echo "[3/3] smoke skipped"
+  echo "[4/4] smoke skipped"
   exit 0
 fi
 
-echo "[3/3] smoke"
+echo "[4/4] smoke"
 bash "${SCRIPT_DIR}/prod-smoke-backend.sh"
