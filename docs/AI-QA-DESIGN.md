@@ -177,7 +177,7 @@ milvus:
 # knowledge_collection
 fields = [
     FieldSchema(name="id", dtype=DataType.VARCHAR, max_length=64, is_primary=True),
-    FieldSchema(name="embedding", dtype=DataType.FLOAT_VECTOR, dim=1536),
+    FieldSchema(name="embedding", dtype=DataType.FLOAT_VECTOR, dim=1024),
     FieldSchema(name="question", dtype=DataType.VARCHAR, max_length=500),
     FieldSchema(name="answer", dtype=DataType.VARCHAR, max_length=2000),
     FieldSchema(name="category", dtype=DataType.VARCHAR, max_length=50),

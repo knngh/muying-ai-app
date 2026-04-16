@@ -25,14 +25,6 @@
           <text class="info-value">{{ user.nickname || user.username }}</text>
         </view>
         <view class="info-row">
-          <text class="info-label">手机号</text>
-          <text class="info-value">{{ maskPhone(user.phone) }}</text>
-        </view>
-        <view class="info-row">
-          <text class="info-label">邮箱</text>
-          <text class="info-value">{{ user.email || '未设置' }}</text>
-        </view>
-        <view class="info-row">
           <text class="info-label">预产期</text>
           <text class="info-value">{{ user.dueDate ? formatDate(user.dueDate) : '未设置' }}</text>
         </view>
@@ -77,35 +69,6 @@
                   placeholder="请输入昵称"
                   @tap.stop
                 />
-              </view>
-            </view>
-
-            <view class="form-item">
-              <text class="form-label">手机号</text>
-              <view class="form-main">
-                <input
-                  v-model="editForm.phone"
-                  class="form-input"
-                  type="number"
-                  maxlength="11"
-                  placeholder="请输入11位手机号"
-                  @tap.stop
-                />
-                <text class="form-hint">仅支持 11 位大陆手机号</text>
-              </view>
-            </view>
-
-            <view class="form-item">
-              <text class="form-label">邮箱</text>
-              <view class="form-main">
-                <input
-                  v-model="editForm.email"
-                  class="form-input"
-                  type="text"
-                  placeholder="请输入邮箱，如 name@example.com"
-                  @tap.stop
-                />
-                <text class="form-hint">保存前会校验邮箱格式</text>
               </view>
             </view>
           </view>
@@ -206,14 +169,10 @@ const normalizePregnancyStatus = (value: unknown) => normalizeCode(value, legacy
 
 const editForm = reactive<{
   nickname: string
-  phone: string
-  email: string
   pregnancyWeek: string
   dueDate: string
 }>({
   nickname: '',
-  phone: '',
-  email: '',
   pregnancyWeek: '',
   dueDate: '',
 })
@@ -226,22 +185,11 @@ const currentPregnancyWeekText = computed(() => {
   return currentWeek ? `第 ${currentWeek} 周` : '未设置'
 })
 
-const isValidPhone = (phone: string) => /^1\d{10}$/.test(phone)
-const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
-
 const pregnancyStatusLabel = (status?: number | string) => {
   const normalizedStatus = normalizePregnancyStatus(status)
   return normalizedStatus ? pregnancyLabelMap[normalizedStatus] : '未设置'
 }
 const formatDate = (date: string) => dayjs(date).format('YYYY-MM-DD')
-
-const maskPhone = (phone?: string) => {
-  if (!phone) return '未设置'
-  if (phone.length >= 7) {
-    return phone.slice(0, 3) + '****' + phone.slice(-4)
-  }
-  return phone
-}
 
 const goLogin = () => {
   uni.navigateTo({ url: '/pages/login/index' })
@@ -262,8 +210,6 @@ const consumeAutoOpenEditFlag = () => {
 const openEditModal = () => {
   if (!user.value) return
   editForm.nickname = user.value.nickname || ''
-  editForm.phone = user.value.phone || ''
-  editForm.email = user.value.email || ''
   editForm.dueDate = user.value.dueDate ? dayjs(user.value.dueDate).format('YYYY-MM-DD') : ''
   editForm.pregnancyWeek = user.value.dueDate ? String(calculatePregnancyWeekFromDueDate(user.value.dueDate) || '') : ''
   showEditModal.value = true
@@ -289,32 +235,12 @@ const submitEdit = async () => {
   try {
     const data: {
       nickname?: string
-      phone?: string
-      email?: string
       pregnancyStatus?: number
       dueDate?: string
       babyBirthday?: null
     } = {}
 
     if (editForm.nickname.trim()) data.nickname = editForm.nickname.trim()
-    const trimmedPhone = editForm.phone.trim()
-    const trimmedEmail = editForm.email.trim()
-
-    if (trimmedPhone) {
-      if (!isValidPhone(trimmedPhone)) {
-        uni.showToast({ title: '请输入11位手机号', icon: 'none' })
-        return
-      }
-      data.phone = trimmedPhone
-    }
-
-    if (trimmedEmail) {
-      if (!isValidEmail(trimmedEmail)) {
-        uni.showToast({ title: '请输入正确的邮箱地址', icon: 'none' })
-        return
-      }
-      data.email = trimmedEmail
-    }
 
     if (editForm.dueDate) {
       data.dueDate = editForm.dueDate

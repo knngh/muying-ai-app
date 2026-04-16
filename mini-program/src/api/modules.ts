@@ -120,7 +120,7 @@ export const userApi = {
 
 // ==================== 认证 API ====================
 export const authApi = {
-  register: (data: { username: string; password: string; phone?: string; email?: string; pregnancyWeek?: string }) =>
+  register: (data: { username: string; password: string; pregnancyWeek?: string }) =>
     api.post<{ user: User; token: string }>('/auth/register', data),
   login: (data: { username: string; password: string }) =>
     api.post<{ user: User; token: string }>('/auth/login', data),
@@ -129,7 +129,7 @@ export const authApi = {
   me: () => api.get<User>('/auth/me'),
   refresh: () => api.post<{ token: string }>('/auth/refresh'),
   updateProfile: (data: {
-    nickname?: string; phone?: string; email?: string; avatar?: string; pregnancyStatus?: number;
+    nickname?: string; avatar?: string; pregnancyStatus?: number;
     dueDate?: string | null; babyBirthday?: string | null; babyGender?: number
   }) => api.put<User>('/auth/profile', data),
   changePassword: (data: { oldPassword: string; newPassword: string }) => api.put('/auth/password', data),

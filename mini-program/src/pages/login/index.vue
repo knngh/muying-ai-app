@@ -63,11 +63,11 @@
         </view>
 
         <view class="form-item">
-          <text class="form-label">{{ authMode === 'register' ? '用户名' : '用户名 / 手机号 / 邮箱' }} <text class="required">*</text></text>
+          <text class="form-label">用户名 <text class="required">*</text></text>
           <input
             v-model.trim="username"
             class="form-input"
-            :placeholder="authMode === 'register' ? '请输入用户名' : '请输入用户名、手机号或邮箱'"
+            placeholder="请输入用户名"
             maxlength="50"
           />
         </view>
@@ -82,30 +82,6 @@
             password
           />
         </view>
-
-        <template v-if="authMode === 'register'">
-          <view class="form-item">
-            <text class="form-label">手机号</text>
-            <input
-              v-model.trim="phone"
-              class="form-input"
-              type="number"
-              placeholder="选填"
-              maxlength="20"
-            />
-          </view>
-
-          <view class="form-item">
-            <text class="form-label">邮箱</text>
-            <input
-              v-model.trim="email"
-              class="form-input"
-              type="text"
-              placeholder="选填"
-              maxlength="100"
-            />
-          </view>
-        </template>
 
         <text v-if="authError" class="form-error">{{ authError }}</text>
 
@@ -158,8 +134,6 @@ const pregnancyWeek = ref('')
 const authMode = ref<'login' | 'register'>('login')
 const username = ref('')
 const password = ref('')
-const phone = ref('')
-const email = ref('')
 const authError = ref('')
 const weekOptions = Array.from({ length: 40 }, (_, i) => `第 ${i + 1} 周`)
 const demoAccounts = [
@@ -191,8 +165,6 @@ const applyDemoAccount = (account: typeof demoAccounts[number]) => {
   authMode.value = 'login'
   username.value = account.username
   password.value = account.password
-  phone.value = ''
-  email.value = ''
   authError.value = ''
 }
 
@@ -306,8 +278,6 @@ async function handleAccountAuth() {
       : await authApi.register({
           username: username.value,
           password: password.value,
-          phone: phone.value || undefined,
-          email: email.value || undefined,
         }) as { user: User; token: string }
 
     await finalizeLogin(result)
