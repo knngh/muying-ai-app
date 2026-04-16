@@ -1,5 +1,6 @@
 // 数据导入脚本 - 将 Content 的 500 个问题导入向量数据库
 
+import '../config/env';
 import fs from 'fs';
 import path from 'path';
 import { createKnowledgeCollection, insertDocuments, getEmbedding } from '../services/vector.service';

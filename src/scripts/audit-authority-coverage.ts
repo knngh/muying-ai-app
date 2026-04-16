@@ -1,3 +1,4 @@
+import '../config/env';
 import fs from 'fs';
 import path from 'path';
 import { listEnabledOfficialAuthoritySources } from '../config/authority-sources';

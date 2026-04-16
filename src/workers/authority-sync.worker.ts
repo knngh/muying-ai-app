@@ -1,3 +1,4 @@
+import '../config/env';
 import { syncAllAuthoritySources } from '../services/authority-sync.service';
 
 const intervalMinutes = Number(process.env.AUTHORITY_SYNC_INTERVAL_MINUTES || 360);

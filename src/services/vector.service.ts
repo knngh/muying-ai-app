@@ -1,5 +1,6 @@
 // 向量数据库服务 - Milvus 集成
 
+import '../config/env';
 import { MilvusClient } from '@zilliz/milvus2-sdk-node';
 import { shouldPublishAuthorityVectorDocument } from '../utils/authority-vector-filter';
 

@@ -1,5 +1,6 @@
 // 为 500 个问题生成答案脚本
 
+import '../config/env';
 import fs from 'fs';
 import path from 'path';
 import { callAIGateway } from '../services/ai-gateway.service';

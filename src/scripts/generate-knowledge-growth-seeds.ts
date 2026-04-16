@@ -1,3 +1,4 @@
+import '../config/env';
 import fs from 'fs';
 import path from 'path';
 import { buildKnowledgeGrowthSeeds, KNOWLEDGE_GROWTH_TRACKS } from '../config/knowledge-growth';

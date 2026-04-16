@@ -1,3 +1,4 @@
+import '../config/env';
 import fs from 'fs';
 import path from 'path';
 import { sanitizeAuthorityTitle } from '../services/authority-adapters/base.adapter';

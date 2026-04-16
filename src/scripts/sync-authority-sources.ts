@@ -1,3 +1,4 @@
+import '../config/env';
 import { syncAllAuthoritySources, syncAuthoritySource } from '../services/authority-sync.service';
 
 async function main() {
