@@ -7,6 +7,7 @@ import {
   Platform,
   ScrollView,
 } from 'react-native'
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons'
 import {
   Text,
   Card,
@@ -22,6 +23,7 @@ import { authApi } from '../api/modules'
 import { useAppStore } from '../stores/appStore'
 import { colors, spacing, fontSize, borderRadius } from '../theme'
 import { sessionStorage } from '../utils/storage'
+import LaunchScreen from '../components/launch/LaunchScreen'
 
 interface LoginScreenProps {
   onLoginSuccess: () => Promise<void>
@@ -42,6 +44,21 @@ const demoAccounts = [
     description: '快速填入已开通陪伴方案的账号名，口令仍需单独输入。',
   },
 ]
+
+const benefitRows = [
+  {
+    icon: 'map-marker-path',
+    title: '把阶段重点收拢到一个入口',
+    description: '首页直接接住知识、问答、周报和成长日历，不用在多个页面之间来回找。',
+  },
+  {
+    icon: 'clock-check-outline',
+    title: '每次唤起都能继续上一次节奏',
+    description: '登录后会沿用当前阶段与历史记录，把今天该做的事直接摆在面前。',
+  },
+]
+
+const quickTags = ['知识库直达', '问题助手连续追问', '成长日历提醒', '阶段周报沉淀']
 
 export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   const [mode, setMode] = useState<string>('login')
@@ -122,6 +139,15 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
 
   return (
     <SafeAreaView style={styles.container}>
+      <LinearGradient
+        colors={['#FFF7F0', '#F8E6D9', '#E8F0F1']}
+        start={{ x: 0.1, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.backgroundGradient}
+      />
+      <View style={styles.backgroundOrbTop} />
+      <View style={styles.backgroundOrbBottom} />
+
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -130,27 +156,52 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
         >
+          <View style={styles.heroWrap}>
+            <LaunchScreen variant="welcome" />
+          </View>
+
+          <LinearGradient
+            colors={['rgba(255,250,246,0.92)', 'rgba(247,236,227,0.92)']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.valueCard}
+          >
+            <View style={styles.valueHeader}>
+              <Text style={styles.valueEyebrow}>本次唤起后会得到什么</Text>
+              <Text style={styles.valueTitle}>让首页在 3 秒内告诉你下一步该做什么</Text>
+            </View>
+
+            <View style={styles.quickTagRow}>
+              {quickTags.map((tag) => (
+                <Chip key={tag} compact style={styles.quickTag} textStyle={styles.quickTagText}>
+                  {tag}
+                </Chip>
+              ))}
+            </View>
+
+            <View style={styles.benefitList}>
+              {benefitRows.map((item) => (
+                <View key={item.title} style={styles.benefitItem}>
+                  <View style={styles.benefitIconWrap}>
+                    <MaterialCommunityIcons name={item.icon} size={18} color={colors.techDark} />
+                  </View>
+                  <View style={styles.benefitTextWrap}>
+                    <Text style={styles.benefitTitle}>{item.title}</Text>
+                    <Text style={styles.benefitDescription}>{item.description}</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          </LinearGradient>
+
           <Card style={styles.card}>
             <Card.Content>
-              <LinearGradient
-                colors={['rgba(246,225,212,0.96)', 'rgba(250,242,235,0.94)']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.heroPanel}
-              >
-                <View style={styles.heroGlow} />
-                <Chip compact style={styles.heroChip} textStyle={styles.heroChipText}>
-                  全生命周期陪伴
-                </Chip>
-                <Text style={styles.title}>贝护妈妈</Text>
-                <Text style={styles.heroSubtitle}>
-                  从备孕到育儿，把知识、问答和成长日历放进同一条连续时间线。
+              <View style={styles.formHeader}>
+                <Text style={styles.formTitle}>登录后继续</Text>
+                <Text style={styles.formHint}>
+                  当前是移动端入口，登录后会直接进入你的连续陪伴首页。
                 </Text>
-              </LinearGradient>
-
-              <Text style={styles.introText}>
-                使用账号登录后，首页、问题助手、日历和周报会围绕你的当前阶段联动。
-              </Text>
+              </View>
 
               <SegmentedButtons
                 value={mode}
@@ -282,6 +333,10 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
               >
                 {isRegister ? '注册' : '登录'}
               </Button>
+
+              <Text style={styles.footerText}>
+                登录后将自动恢复本机会话，并按你的当前阶段展示首页推荐、知识库文章与成长日历。
+              </Text>
             </Card.Content>
           </Card>
         </ScrollView>
@@ -293,76 +348,142 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.primaryLight,
+    backgroundColor: colors.backgroundSoft,
   },
   flex: {
     flex: 1,
   },
   scrollContent: {
     flexGrow: 1,
-    justifyContent: 'center',
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.xl,
+    gap: spacing.lg,
+  },
+  backgroundGradient: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  backgroundOrbTop: {
+    position: 'absolute',
+    top: -90,
+    right: -30,
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    backgroundColor: 'rgba(244,216,199,0.7)',
+  },
+  backgroundOrbBottom: {
+    position: 'absolute',
+    bottom: 10,
+    left: -50,
+    width: 260,
+    height: 260,
+    borderRadius: 130,
+    backgroundColor: 'rgba(211,229,233,0.46)',
+  },
+  heroWrap: {
+    height: 420,
+    borderRadius: borderRadius.xl,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(94,126,134,0.08)',
+    shadowColor: colors.shadowStrong,
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.08,
+    shadowRadius: 28,
+  },
+  valueCard: {
+    borderRadius: borderRadius.xl,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(94,126,134,0.1)',
+  },
+  valueHeader: {
+    gap: spacing.xs,
+    marginBottom: spacing.md,
+  },
+  valueEyebrow: {
+    color: colors.techDark,
+    fontSize: fontSize.sm,
+    fontWeight: '700',
+  },
+  valueTitle: {
+    color: colors.ink,
+    fontSize: fontSize.xxl,
+    lineHeight: 30,
+    fontWeight: '800',
+  },
+  quickTagRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  quickTag: {
+    backgroundColor: 'rgba(255,252,248,0.9)',
+    borderWidth: 1,
+    borderColor: 'rgba(94,126,134,0.12)',
+  },
+  quickTagText: {
+    color: colors.inkSoft,
+    fontSize: fontSize.xs,
+    fontWeight: '700',
+  },
+  benefitList: {
+    gap: spacing.md,
+  },
+  benefitItem: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    alignItems: 'flex-start',
+  },
+  benefitIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.techLight,
+    marginTop: 2,
+  },
+  benefitTextWrap: {
+    flex: 1,
+    gap: spacing.xs,
+  },
+  benefitTitle: {
+    fontSize: fontSize.lg,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  benefitDescription: {
+    fontSize: fontSize.md,
+    lineHeight: 22,
+    color: colors.textSecondary,
   },
   card: {
-    backgroundColor: colors.white,
+    backgroundColor: 'rgba(255,253,249,0.96)',
     borderRadius: borderRadius.xl,
     elevation: 0,
     paddingVertical: spacing.lg,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: 'rgba(94,126,134,0.14)',
     shadowColor: colors.inkSoft,
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.08,
     shadowRadius: 24,
   },
-  heroPanel: {
+  formHeader: {
     marginBottom: spacing.lg,
-    padding: spacing.lg,
-    borderRadius: borderRadius.xl,
-    overflow: 'hidden',
   },
-  heroGlow: {
-    position: 'absolute',
-    top: -24,
-    right: -16,
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: 'rgba(255,249,244,0.44)',
-  },
-  heroChip: {
-    alignSelf: 'flex-start',
-    marginBottom: spacing.sm,
-    backgroundColor: 'rgba(255,253,249,0.88)',
-  },
-  heroChipText: {
-    color: colors.primaryDark,
-    fontSize: fontSize.xs,
-    fontWeight: '700',
-  },
-  title: {
-    fontSize: 30,
-    fontWeight: '700',
+  formTitle: {
+    fontSize: 26,
+    fontWeight: '800',
     color: colors.ink,
     marginBottom: spacing.xs,
   },
-  subtitle: {
+  formHint: {
     fontSize: fontSize.md,
+    lineHeight: 22,
     color: colors.textSecondary,
-    lineHeight: 22,
-    marginBottom: spacing.lg,
-  },
-  heroSubtitle: {
-    fontSize: fontSize.md,
-    color: colors.inkSoft,
-    lineHeight: 22,
-  },
-  introText: {
-    fontSize: fontSize.md,
-    color: colors.textSecondary,
-    lineHeight: 22,
-    marginBottom: spacing.lg,
   },
   segmented: {
     marginBottom: spacing.lg,
@@ -429,5 +550,11 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     borderRadius: 24,
     paddingVertical: spacing.xs,
+  },
+  footerText: {
+    marginTop: spacing.md,
+    fontSize: fontSize.sm,
+    lineHeight: 20,
+    color: colors.textSecondary,
   },
 })

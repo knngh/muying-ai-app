@@ -15,6 +15,7 @@ import { useChatStore } from "../stores/chatStore";
 import { useMembershipStore } from "../stores/membershipStore";
 import { sessionStorage } from "../utils/storage";
 import { colors } from "../theme";
+import LaunchScreen from "../components/launch/LaunchScreen";
 
 // Screens
 import HomeScreen from "../screens/HomeScreen";
@@ -423,7 +424,9 @@ export default function AppNavigator() {
     }
   };
 
-  if (isLoggedIn === null) return null; // 加载中
+  if (isLoggedIn === null) {
+    return <LaunchScreen variant="boot" />;
+  }
 
   return (
     <NavigationContainer ref={navigationRef}>
