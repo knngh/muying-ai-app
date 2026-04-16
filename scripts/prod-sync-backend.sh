@@ -75,7 +75,7 @@ if [[ -n "${SSH_PASSWORD}" ]] && ! command -v sshpass >/dev/null 2>&1; then
   exit 1
 fi
 
-ARCHIVE_PATH="$(mktemp /tmp/muying-backend-sync.XXXXXX.tar.gz)"
+ARCHIVE_PATH="$(mktemp "${TMPDIR:-/tmp}/muying-backend-sync.XXXXXX").tar.gz"
 REMOTE_ARCHIVE="${REMOTE_TMP_DIR}/$(basename "${ARCHIVE_PATH}")"
 
 cleanup() {
