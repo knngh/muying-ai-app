@@ -8,12 +8,15 @@ LEGACY_API_BASE="${LEGACY_API_BASE:-${BASE_URL}/api}"
 LEGACY_HEALTH_URL="${LEGACY_HEALTH_URL:-${BASE_URL}/api/health}"
 FREE_USERNAME="${FREE_USERNAME:-demo_free_user}"
 VIP_USERNAME="${VIP_USERNAME:-demo_vip_user}"
+POSTPARTUM_USERNAME="${POSTPARTUM_USERNAME:-demo_postpartum_user}"
 ADMIN_USERNAME="${ADMIN_USERNAME:-admin}"
 DEFAULT_PASSWORD="${DEFAULT_PASSWORD:-Test123456!}"
 FREE_PASSWORD="${FREE_PASSWORD:-${DEFAULT_PASSWORD}}"
 VIP_PASSWORD="${VIP_PASSWORD:-${DEFAULT_PASSWORD}}"
+POSTPARTUM_PASSWORD="${POSTPARTUM_PASSWORD:-${DEFAULT_PASSWORD}}"
 ADMIN_PASSWORD="${ADMIN_PASSWORD:-${DEFAULT_PASSWORD}}"
 RUN_ADMIN_FUNNEL="${RUN_ADMIN_FUNNEL:-true}"
+RUN_STANDARD_SCHEDULE_SMOKE="${RUN_STANDARD_SCHEDULE_SMOKE:-true}"
 RUN_KNOWLEDGE_SMOKE="${RUN_KNOWLEDGE_SMOKE:-true}"
 KNOWLEDGE_SMOKE_MAX_MS="${KNOWLEDGE_SMOKE_MAX_MS:-4000}"
 
@@ -96,6 +99,20 @@ assert_knowledge_search() {
   fi
 }
 
+assert_standard_schedule() {
+  local token="$1"
+
+  local get_response
+  get_response="$(curl -fsS "${API_BASE}/calendar/standard-schedule" -H "Authorization: Bearer ${token}")"
+  printf '%s\n' "${get_response}" | jq '{code,message,data:{available:.data.available,lifecycleKey:.data.lifecycleKey,generatedCount:.data.generatedCount,pendingCount:.data.pendingCount,totalItems:(.data.items|length),firstItem:(.data.items[0] // null)}}'
+  printf '%s\n' "${get_response}" | jq -e '.code == 0 and .data.available == true and (.data.items | length) > 0' >/dev/null
+
+  local post_response
+  post_response="$(print_json_with_status "POST" "${API_BASE}/calendar/standard-schedule/generate" "" -H "Authorization: Bearer ${token}")"
+  printf '%s\n' "${post_response}" | jq '{httpStatus,code,message,data:{createdCount:.data.createdCount,generatedCount:.data.plan.generatedCount,pendingCount:.data.plan.pendingCount,totalItems:(.data.plan.items|length)}}'
+  printf '%s\n' "${post_response}" | jq -e '.httpStatus == 201 and .code == 0 and .data.plan.available == true and (.data.plan.items | length) > 0' >/dev/null
+}
+
 echo "[1/7] health"
 curl -fsS "${BASE_URL}/health" | jq '{status,database}'
 curl -fsS "${LEGACY_HEALTH_URL}" | jq '{status,database}'
@@ -132,8 +149,14 @@ curl -fsS "${API_BASE}/analytics/events" \
   -d '{"eventName":"app_weekly_report_open","source":"app","page":"WeeklyReportScreen","clientId":"smoke-client","sessionId":"smoke-session","properties":{"from":"script-smoke"}}' |
   jq '{code,message,data}'
 
+if [[ "${RUN_STANDARD_SCHEDULE_SMOKE}" == "true" ]]; then
+  echo "[7/8] standard schedule"
+  POSTPARTUM_TOKEN="$(login "${POSTPARTUM_USERNAME}" "${POSTPARTUM_PASSWORD}")"
+  assert_standard_schedule "${POSTPARTUM_TOKEN}"
+fi
+
 if [[ "${RUN_KNOWLEDGE_SMOKE}" == "true" ]]; then
-  echo "[7/7] knowledge"
+  echo "[8/8] knowledge"
   assert_knowledge_search "${VIP_TOKEN}" "孕早期见红怎么办" "见红|出血|pregnancy-early" "政策解读|孕期全指导|Permanent Contraception|sterilisation|sterilization|Committee Opinion|Practice Update|Appendix"
   assert_knowledge_search "${VIP_TOKEN}" "宝宝发烧怎么办" "发烧|发热|高烧|common-symptoms|parenting" "政策解读|孕期全指导|Permanent Contraception|sterilisation|sterilization|Committee Opinion|Practice Update|Appendix"
   assert_knowledge_search "${VIP_TOKEN}" "孕晚期脚肿怎么办" "脚肿|浮肿|水肿|pregnancy-late" "政策解读|孕期全指导|Permanent Contraception|sterilisation|sterilization|Committee Opinion|Practice Update|Appendix"
@@ -143,6 +166,7 @@ fi
 
 if [[ "${RUN_ADMIN_FUNNEL}" == "true" ]]; then
   ADMIN_TOKEN="$(login "${ADMIN_USERNAME}" "${ADMIN_PASSWORD}")"
+  echo "[admin] funnel"
   curl -fsS "${API_BASE}/analytics/funnel?rangeDays=7" -H "Authorization: Bearer ${ADMIN_TOKEN}" | jq '{rangeDays:.data.rangeDays,steps:.data.steps}'
 fi
 

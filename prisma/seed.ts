@@ -536,6 +536,27 @@ async function main() {
     }
   });
 
+  const postpartumBirthday = dayjs().subtract(45, 'day').startOf('day').toDate();
+  await prisma.user.upsert({
+    where: { username: 'demo_postpartum_user' },
+    update: {
+      passwordHash,
+      nickname: '产后演示用户',
+      pregnancyStatus: 3,
+      dueDate: null,
+      babyBirthday: postpartumBirthday,
+      status: 1,
+    },
+    create: {
+      username: 'demo_postpartum_user',
+      passwordHash,
+      nickname: '产后演示用户',
+      pregnancyStatus: 3,
+      babyBirthday: postpartumBirthday,
+      status: 1,
+    }
+  });
+
   // ============================================
   // 8. 为测试用户准备会员演示数据
   // ============================================
@@ -554,6 +575,11 @@ async function main() {
   const demoVipUser = await prisma.user.findUniqueOrThrow({
     where: { username: 'demo_vip_user' },
     select: { id: true, dueDate: true, pregnancyStatus: true },
+  });
+
+  const demoPostpartumUser = await prisma.user.findUniqueOrThrow({
+    where: { username: 'demo_postpartum_user' },
+    select: { id: true, babyBirthday: true, pregnancyStatus: true },
   });
 
   const quarterlyPlan = await prisma.subscriptionPlan.findUniqueOrThrow({
@@ -663,6 +689,57 @@ async function main() {
     },
   });
 
+  const demoPostpartumSubscription = await prisma.subscription.findFirst({
+    where: {
+      userId: demoPostpartumUser.id,
+      status: 'active',
+    },
+    orderBy: { expireAt: 'desc' },
+  });
+
+  if (demoPostpartumSubscription) {
+    await prisma.subscription.update({
+      where: { id: demoPostpartumSubscription.id },
+      data: {
+        planId: quarterlyPlan.id,
+        expireAt: dayjs().add(90, 'day').toDate(),
+      },
+    });
+  } else {
+    await prisma.subscription.create({
+      data: {
+        userId: demoPostpartumUser.id,
+        planId: quarterlyPlan.id,
+        status: 'active',
+        startAt: new Date(),
+        expireAt: dayjs().add(90, 'day').toDate(),
+        autoRenew: 1,
+      },
+    });
+  }
+
+  await prisma.paymentOrder.upsert({
+    where: { orderNo: 'SEED-QUARTERLY-DEMOPOSTPARTUM' },
+    update: {
+      status: 'paid',
+      payChannel: 'wechat',
+      amount: 49.9,
+      paidAt: new Date(),
+      planId: quarterlyPlan.id,
+      userId: demoPostpartumUser.id,
+    },
+    create: {
+      orderNo: 'SEED-QUARTERLY-DEMOPOSTPARTUM',
+      userId: demoPostpartumUser.id,
+      planId: quarterlyPlan.id,
+      amount: 49.9,
+      payChannel: 'wechat',
+      status: 'paid',
+      tradeNo: 'SEED-TRADE-DEMOPOSTPARTUM',
+      paidAt: new Date(),
+    },
+  });
+
   const today = dayjs().startOf('day').toDate();
   await prisma.aiWeeklyReport.deleteMany({
     where: { userId: demoFreeUser.id },
@@ -679,6 +756,7 @@ async function main() {
   await seedDailyQuota(demoFreeUser.id, today, 0, 3);
   await seedDailyQuota(testUser.id, today, 1, 9999);
   await seedDailyQuota(demoVipUser.id, today, 0, 9999);
+  await seedDailyQuota(demoPostpartumUser.id, today, 0, 9999);
 
   const weekStart = dayjs().startOf('week').add(1, 'day').startOf('day').toDate();
   await seedWeeklyReport(testUser.id, weekStart, '孕 24 周', {

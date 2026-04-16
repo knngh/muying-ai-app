@@ -12,6 +12,11 @@
   - 密码：`Test123456!`
   - 预期状态：季度会员，AI 额度 `9999/天`
 
+- 产后演示账号
+  - 用户名：`demo_postpartum_user`
+  - 密码：`Test123456!`
+  - 预期状态：季度会员，宝宝出生 45 天左右，可用于标准日程与产后路径演示
+
 - 历史测试账号
   - 用户名：`testuser`
   - 密码：`Test123456!`
@@ -24,12 +29,14 @@
 3. 在 App 会员页选择套餐并下单
 4. 触发 mock 支付回调后，重新查看会员状态和额度
 5. 使用 `demo_vip_user` 登录，直接查看 AI 周报、会员权益和社区会员标识
+6. 使用 `demo_postpartum_user` 登录，查看标准日程卡片并验证一键生成
 
 ## 备注
 
-- `prisma/seed.ts` 会稳定重置 `demo_free_user` 和 `demo_vip_user` 的状态。
+- `prisma/seed.ts` 会稳定重置 `demo_free_user`、`demo_vip_user` 和 `demo_postpartum_user` 的状态。
 - `demo_free_user` 每次 seed 后会清空订阅、订单和周报历史，恢复为纯免费用户。
 - `demo_vip_user` 每次 seed 后会恢复为季度会员，并生成一份演示周报。
+- `demo_postpartum_user` 每次 seed 后会恢复为季度会员，并固定到产后演示阶段。
 - 标准重置命令：
   - `npm run db:seed`
   - `npm run seed:community`
