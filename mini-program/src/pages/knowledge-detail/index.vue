@@ -103,7 +103,8 @@ const translation = ref<AuthorityArticleTranslation | null>(null)
 const translating = ref(false)
 const translationError = ref('')
 const showingTranslation = ref(false)
-const translationPrefetchStarted = ref(false)
+let translationRequest: Promise<AuthorityArticleTranslation> | null = null
+let translationRequestSlug = ''
 
 const displayedTitle = computed(() => (
   showingTranslation.value && translation.value?.translatedTitle
@@ -411,6 +412,15 @@ function openSource(url?: string) {
   uni.navigateTo({ url: `/pages/webview/index?url=${encodeURIComponent(url)}` })
 }
 
+function normalizeTranslationError(err: unknown): string {
+  const message = err instanceof Error ? err.message : '翻译失败，请稍后重试'
+  if (/timeout|超时|timed out/i.test(message)) {
+    return '译文生成时间较长，请稍后再试'
+  }
+
+  return message
+}
+
 async function toggleTranslation() {
   if (!article.value || !currentSlug || translating.value || translationDisabled.value) {
     return
@@ -425,9 +435,9 @@ async function toggleTranslation() {
     translating.value = true
     translationError.value = ''
     try {
-      translation.value = await articleApi.getTranslation(currentSlug)
+      translation.value = await ensureTranslationLoaded(currentSlug)
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : '翻译失败，请稍后重试'
+      const message = normalizeTranslationError(err)
       translationError.value = message
       uni.showToast({ title: '翻译失败', icon: 'none' })
       return
@@ -440,35 +450,74 @@ async function toggleTranslation() {
 }
 
 async function loadArticleDetail(slug: string) {
-  translation.value = null
+  translationRequest = null
+  translationRequestSlug = ''
+  translation.value = knowledgeStore.getCachedTranslation(slug)
   translating.value = false
   translationError.value = ''
-  showingTranslation.value = false
-  translationPrefetchStarted.value = false
+  showingTranslation.value = Boolean(translation.value && !translation.value.isSourceChinese)
 
   await knowledgeStore.fetchArticleDetail(slug)
 
-  if (!isLikelyChineseSource.value) {
+  if (!translation.value && !isLikelyChineseSource.value) {
     void prefetchTranslation()
   }
+}
+
+async function ensureTranslationLoaded(slug: string): Promise<AuthorityArticleTranslation> {
+  const cachedTranslation = knowledgeStore.getCachedTranslation(slug)
+  if (cachedTranslation) {
+    if (currentSlug === slug) {
+      translation.value = cachedTranslation
+    }
+    return cachedTranslation
+  }
+
+  if (currentSlug === slug && translation.value) {
+    return translation.value
+  }
+
+  if (translationRequest && translationRequestSlug === slug) {
+    return translationRequest
+  }
+
+  translationRequestSlug = slug
+  translationRequest = articleApi.getTranslation(slug)
+    .then((result) => {
+      knowledgeStore.cacheTranslation(slug, result)
+      if (currentSlug === slug) {
+        translation.value = result
+      }
+      return result
+    })
+    .catch((err) => {
+      knowledgeStore.markTranslationFailed(slug)
+      throw err
+    })
+    .finally(() => {
+      if (translationRequestSlug === slug) {
+        translationRequest = null
+        translationRequestSlug = ''
+      }
+    })
+
+  return translationRequest
 }
 
 async function prefetchTranslation() {
   if (
     !currentSlug
     || translation.value
-    || translating.value
-    || translationPrefetchStarted.value
+    || translationRequest
     || isLikelyChineseSource.value
   ) {
     return
   }
 
-  translationPrefetchStarted.value = true
   try {
-    translation.value = await articleApi.getTranslation(currentSlug)
+    await ensureTranslationLoaded(currentSlug)
   } catch {
-    translationPrefetchStarted.value = false
+    return
   }
 }
 

@@ -9,6 +9,12 @@ interface RequestOptions {
   data?: unknown
   params?: Record<string, unknown>
   header?: Record<string, string>
+  timeout?: number
+}
+
+interface RequestConfig {
+  header?: Record<string, string>
+  timeout?: number
 }
 
 interface ApiResponse<T = unknown> {
@@ -42,6 +48,7 @@ async function request<T = unknown>(options: RequestOptions): Promise<T> {
       method: (options.method || 'GET') as any,
       data: options.data as AnyObject,
       header,
+      timeout: options.timeout,
       success: async (res) => {
         const statusCode = res.statusCode
         const body = res.data as ApiResponse<T>
@@ -73,20 +80,20 @@ async function request<T = unknown>(options: RequestOptions): Promise<T> {
 
 // 导出便捷方法
 export const api = {
-  get: <T = unknown>(url: string, params?: Record<string, unknown>) =>
-    request<T>({ url, method: 'GET', params }),
+  get: <T = unknown>(url: string, params?: Record<string, unknown>, config?: RequestConfig) =>
+    request<T>({ url, method: 'GET', params, ...config }),
 
-  post: <T = unknown>(url: string, data?: unknown) =>
-    request<T>({ url, method: 'POST', data }),
+  post: <T = unknown>(url: string, data?: unknown, config?: RequestConfig) =>
+    request<T>({ url, method: 'POST', data, ...config }),
 
-  put: <T = unknown>(url: string, data?: unknown) =>
-    request<T>({ url, method: 'PUT', data }),
+  put: <T = unknown>(url: string, data?: unknown, config?: RequestConfig) =>
+    request<T>({ url, method: 'PUT', data, ...config }),
 
-  patch: <T = unknown>(url: string, data?: unknown) =>
-    request<T>({ url, method: 'PATCH', data }),
+  patch: <T = unknown>(url: string, data?: unknown, config?: RequestConfig) =>
+    request<T>({ url, method: 'PATCH', data, ...config }),
 
-  delete: <T = unknown>(url: string, params?: Record<string, unknown>) =>
-    request<T>({ url, method: 'DELETE', params }),
+  delete: <T = unknown>(url: string, params?: Record<string, unknown>, config?: RequestConfig) =>
+    request<T>({ url, method: 'DELETE', params, ...config }),
 }
 
 export default api

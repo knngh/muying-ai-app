@@ -14,6 +14,29 @@ import { getStageSummary } from '../utils/stage'
 import { markWeeklyReportSeen } from '../utils/weeklyReportRead'
 import { colors, fontSize, spacing, borderRadius } from '../theme'
 
+const workflowSteps = [
+  {
+    icon: 'file-chart-outline',
+    title: '先收住本周重点',
+    description: '周报先帮你把当前阶段最值得关注的 2-3 件事收口。',
+  },
+  {
+    icon: 'calendar-heart',
+    title: '能落地的直接进日历',
+    description: '把提醒从“看见”转成“安排”，否则这页很容易只读不执行。',
+  },
+  {
+    icon: 'message-question-outline',
+    title: '复杂点继续问 AI',
+    description: '把看不懂或拿不准的提醒继续追问，接住后续几天的安排。',
+  },
+  {
+    icon: 'timeline-text-outline',
+    title: '最后沉到成长档案',
+    description: '当周重点不是一次性消费，而是给后面的阶段变化留上下文。',
+  },
+] as const
+
 function buildWeeklyReportCalendarPrefill(report: WeeklyReport, highlight: string, index: number) {
   const normalizedHighlight = highlight.replace(/\s+/g, ' ').trim()
   const shortTitle = normalizedHighlight.length <= 18
@@ -56,6 +79,7 @@ export default function WeeklyReportScreen() {
   const latestReportDate = weeklyReports[0]?.createdAt
     ? dayjs(weeklyReports[0].createdAt).format('MM-DD')
     : '--'
+  const latestHighlightCount = weeklyReports[0]?.highlights?.length || 0
 
   useEffect(() => {
     if (status !== 'active' || !weeklyReports[0]?.id) {
@@ -132,13 +156,13 @@ export default function WeeklyReportScreen() {
               <Text style={styles.heroEyebrow}>周报中心</Text>
               <Text style={styles.heroTitle}>{stage.lifecycleLabel}周报与阶段回顾</Text>
               <Text style={styles.heroSubtitle}>
-                每周自动汇总你当前阶段的重点提醒、执行节奏和阶段摘要，适合做复盘与家庭协作。
+                这里不是单独一篇内容，而是把当前阶段最重要的提醒收进来，再继续分发到日历、问题助手和成长档案。
               </Text>
 
               <View style={styles.heroSignalPanel}>
                 <View style={styles.heroSignalItem}>
-                  <Text style={styles.heroSignalValue}>{weeklyReports.length}</Text>
-                  <Text style={styles.heroSignalLabel}>周报数量</Text>
+                  <Text style={styles.heroSignalValue}>{latestHighlightCount || '--'}</Text>
+                  <Text style={styles.heroSignalLabel}>本期重点</Text>
                 </View>
                 <View style={styles.heroSignalDivider} />
                 <View style={styles.heroSignalItem}>
@@ -154,14 +178,45 @@ export default function WeeklyReportScreen() {
 
               <View style={styles.heroSignalRow}>
                 <Chip compact style={styles.heroSignalChip} textStyle={styles.heroSignalChipText}>
-                  日历与问答记录自动汇总
+                  周报负责收重点，日历负责接执行
                 </Chip>
                 <Chip compact style={styles.heroSignalChip} textStyle={styles.heroSignalChipText}>
-                  适合做阶段复盘与家庭协作
+                  问 AI 与成长档案负责延续上下文
                 </Chip>
               </View>
             </View>
           </LinearGradient>
+        </StandardCard>
+
+        <StandardCard style={styles.workflowCard} elevation={1}>
+          <Text style={styles.workflowEyebrow}>这页不是终点，而是分发枢纽</Text>
+          <Text style={styles.workflowTitle}>先把本周重点收住，再继续推进到后面的链路</Text>
+          <View style={styles.workflowGrid}>
+            {workflowSteps.map((step) => (
+              <View key={step.title} style={styles.workflowItem}>
+                <View style={styles.workflowIconWrap}>
+                  <MaterialCommunityIcons name={step.icon} size={18} color={colors.techDark} />
+                </View>
+                <Text style={styles.workflowItemTitle}>{step.title}</Text>
+                <Text style={styles.workflowItemDescription}>{step.description}</Text>
+              </View>
+            ))}
+          </View>
+          <View style={styles.workflowFooter}>
+            <Text style={styles.workflowFooterText}>
+              {status === 'active'
+                ? '建议先处理最重要的 1 条提醒，再把剩余内容交给日历和后续追问，执行感会明显更强。'
+                : '当前先给你预览这条链路，升级后能把每周重点持续沉淀进长期陪伴流程。'}
+            </Text>
+            <Button
+              mode={status === 'active' ? 'contained-tonal' : 'outlined'}
+              onPress={() => navigation.navigate(status === 'active' ? 'GrowthArchive' : 'Membership')}
+              style={styles.workflowFooterButton}
+              textColor={colors.ink}
+            >
+              {status === 'active' ? '去成长档案看沉淀' : '升级解锁完整链路'}
+            </Button>
+          </View>
         </StandardCard>
 
         {weeklyReports.length === 0 ? (
@@ -172,7 +227,7 @@ export default function WeeklyReportScreen() {
             <Text style={styles.reportEyebrow}>周报预览</Text>
             <Text style={styles.reportTitle}>当前还没有周报</Text>
             <Text style={styles.reportItem}>
-              持续使用成长日历、问题助手和阶段记录后，这里会逐步形成更完整的生命周期周报。
+              持续使用成长日历、问题助手和阶段记录后，这里会逐步形成更完整的阶段周报，并反过来推动后续安排。
             </Text>
             <Text style={styles.emptyHint}>
               先把日历安排和关键问题记录连续起来，周报的价值会明显提升。
@@ -214,7 +269,7 @@ export default function WeeklyReportScreen() {
                       style={styles.reportLineAction}
                       textColor={colors.techDark}
                     >
-                      加入日历
+                      安排今天
                     </Button>
                     <Button
                       mode="contained-tonal"
@@ -223,7 +278,7 @@ export default function WeeklyReportScreen() {
                       style={[styles.reportLineAction, styles.reportLineActionFilled]}
                       textColor={colors.ink}
                     >
-                      问 AI
+                      继续追问
                     </Button>
                   </View>
                 </View>
@@ -388,6 +443,75 @@ const styles = StyleSheet.create({
     color: colors.primaryDark,
     fontSize: fontSize.xs,
     fontWeight: '700',
+  },
+  workflowCard: {
+    marginTop: spacing.lg,
+    padding: spacing.md,
+  },
+  workflowEyebrow: {
+    color: colors.techDark,
+    fontSize: fontSize.xs,
+    fontWeight: '700',
+    letterSpacing: 0.7,
+    marginBottom: spacing.xs,
+  },
+  workflowTitle: {
+    color: colors.ink,
+    fontSize: fontSize.xxl,
+    lineHeight: 30,
+    fontWeight: '800',
+  },
+  workflowGrid: {
+    marginTop: spacing.lg,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  workflowItem: {
+    flexBasis: '47%',
+    flexGrow: 1,
+    minHeight: 128,
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    backgroundColor: 'rgba(255,251,247,0.9)',
+    borderWidth: 1,
+    borderColor: 'rgba(184,138,72,0.12)',
+  },
+  workflowIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(220,236,238,0.72)',
+    marginBottom: spacing.sm,
+  },
+  workflowItemTitle: {
+    color: colors.text,
+    fontSize: fontSize.md,
+    lineHeight: 21,
+    fontWeight: '700',
+    marginBottom: spacing.xs,
+  },
+  workflowItemDescription: {
+    color: colors.textSecondary,
+    fontSize: fontSize.sm,
+    lineHeight: 19,
+  },
+  workflowFooter: {
+    marginTop: spacing.md,
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(184,138,72,0.12)',
+    gap: spacing.md,
+  },
+  workflowFooterText: {
+    color: colors.textSecondary,
+    lineHeight: 21,
+  },
+  workflowFooterButton: {
+    alignSelf: 'flex-start',
+    borderRadius: borderRadius.pill,
   },
   emptyCard: {
     marginTop: spacing.lg,

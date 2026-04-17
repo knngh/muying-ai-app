@@ -9,7 +9,7 @@ interface AppState {
   setUser: (user: User | null) => void
   setIsLoading: (loading: boolean) => void
   setToken: (token: string | null) => void
-  fetchUser: () => Promise<void>
+  fetchUser: () => Promise<User | null>
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -23,8 +23,10 @@ export const useAppStore = create<AppState>((set) => ({
     try {
       const userData = await authApi.me() as User
       set({ user: userData })
+      return userData
     } catch (_e) {
       // ignore
+      return null
     }
   },
 }))

@@ -15,7 +15,8 @@ import { useChatStore } from "../stores/chatStore";
 import { useMembershipStore } from "../stores/membershipStore";
 import { sessionStorage } from "../utils/storage";
 import { colors } from "../theme";
-import LaunchScreen from "../components/launch/LaunchScreen";
+import LaunchScreen, { type LaunchStep } from "../components/launch/LaunchScreen";
+import { getStageSummary } from "../utils/stage";
 
 // Screens
 import HomeScreen from "../screens/HomeScreen";
@@ -104,6 +105,47 @@ const Stack = createStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<TabParamList>();
 
 const navigationRef = createNavigationContainerRef<RootStackParamList>();
+
+type BootScreenState = {
+  chipLabel: string;
+  title: string;
+  subtitle: string;
+  statusTitle: string;
+  statusText: string;
+  progress: number;
+  spotlight: {
+    eyebrow: string;
+    title: string;
+    caption: string;
+  };
+  journey: string[];
+  steps: LaunchStep[];
+};
+
+function buildBootSteps(activeIndex: number, doneCount: number): LaunchStep[] {
+  const labels = ["识别本机会话", "恢复当前阶段", "同步配额与周报", "进入首页"];
+
+  return labels.map((label, index) => ({
+    label,
+    status: index < doneCount ? "done" : index === activeIndex ? "active" : "pending",
+  }));
+}
+
+const DEFAULT_BOOT_SCREEN: BootScreenState = {
+  chipLabel: "移动端唤起中",
+  title: "正在恢复连续陪伴链路",
+  subtitle: "会先恢复当前阶段，再同步问题助手、周报与成长档案入口。",
+  statusTitle: "准备恢复你的移动端上下文",
+  statusText: "贝护妈妈不会把你扔回通用首页，而是尽量接上上次看到的阶段与任务。",
+  progress: 0.18,
+  spotlight: {
+    eyebrow: "恢复内容",
+    title: "阶段知识、成长日历、周报与成长档案",
+    caption: "这四块会围绕当前阶段一起恢复，而不是分散在独立页面里。",
+  },
+  journey: ["阶段知识", "成长日历", "周报回顾", "成长档案"],
+  steps: buildBootSteps(0, 0),
+};
 
 const TAB_VISUALS: Record<keyof TabParamList, {
   label: string;
@@ -399,11 +441,13 @@ const styles = StyleSheet.create({
 
 export default function AppNavigator() {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
+  const [bootScreen, setBootScreen] = useState<BootScreenState>(DEFAULT_BOOT_SCREEN);
   const setToken = useAppStore((state) => state.setToken);
   const setUser = useAppStore((state) => state.setUser);
+  const ensureFreshQuota = useMembershipStore((state) => state.ensureFreshQuota);
 
   useEffect(() => {
-    checkAuth();
+    void checkAuth();
     // 设置导航重置函数供 API 401 使用
     setNavigationReset(() => {
       setIsLoggedIn(false);
@@ -415,17 +459,107 @@ export default function AppNavigator() {
   }, []);
 
   const checkAuth = async () => {
+    setBootScreen(DEFAULT_BOOT_SCREEN);
     const token = await sessionStorage.getToken();
+    setBootScreen((current) => ({
+      ...current,
+      statusTitle: token ? "已检测到本机会话" : "未检测到登录态",
+      statusText: token
+        ? "接下来会继续恢复当前阶段、问题助手额度和周报入口。"
+        : "将进入移动端入口页，你可以登录后继续之前的陪伴链路。",
+      progress: token ? 0.28 : 0.74,
+      steps: buildBootSteps(token ? 1 : 3, 1),
+    }));
     await updateCachedToken();
-    setIsLoggedIn(!!token);
-    if (token) {
-      setToken(token);
-      useAppStore.getState().fetchUser();
+    if (!token) {
+      setBootScreen((current) => ({
+        ...current,
+        chipLabel: "准备进入移动端入口",
+        title: "先登录，再把连续陪伴接起来",
+        subtitle: "登录后会按照你的阶段恢复知识、日历、周报和成长档案，而不是从空白页重新开始。",
+        statusTitle: "已准备好进入入口页",
+        statusText: "如果是新用户，会先从账号登录开始；如果是老用户，后续会按当前阶段恢复首页内容。",
+        progress: 0.92,
+        spotlight: {
+          eyebrow: "为什么要登录",
+          title: "因为你的项目核心是“连续陪伴”",
+          caption: "只有拿到账号阶段信息，首页、日历、周报和档案才能围绕同一条时间线组织。",
+        },
+        journey: ["备孕", "孕期", "产后恢复", "育儿阶段"],
+        steps: buildBootSteps(3, 3),
+      }));
+      setIsLoggedIn(false);
+      return;
     }
+
+    setToken(token);
+    setBootScreen((current) => ({
+      ...current,
+      statusTitle: "正在恢复当前阶段",
+      statusText: "会优先恢复你的阶段信息，让首页和知识库先按当前状态重排。",
+      progress: 0.46,
+      steps: buildBootSteps(1, 1),
+    }));
+
+    const userData = await useAppStore.getState().fetchUser();
+    const stage = getStageSummary(userData);
+
+    setBootScreen((current) => ({
+      ...current,
+      title: `正在恢复${stage.lifecycleLabel}的连续陪伴`,
+      subtitle: `${stage.title} 对应的知识、日历、周报与档案入口会一起恢复，不再让你回到通用母婴首页。`,
+      statusTitle: "当前阶段已识别",
+      statusText: `${stage.focusTitle}：${stage.reminder}`,
+      progress: 0.68,
+      spotlight: {
+        eyebrow: "当前阶段",
+        title: `${stage.lifecycleLabel} · ${stage.title}`,
+        caption: stage.subtitle,
+      },
+      journey: ["阶段知识", "成长日历", "周报回顾", "成长档案"],
+      steps: buildBootSteps(2, 2),
+    }));
+
+    await ensureFreshQuota();
+    const membershipState = useMembershipStore.getState();
+    const quotaSummary = membershipState.status === "active"
+      ? "会员状态已恢复，问题助手连续追问和完整周报入口可直接使用。"
+      : `基础状态已恢复，问题助手今日还剩 ${membershipState.remainingToday} 次，可继续从首页任务链路进入。`;
+
+    setBootScreen((current) => ({
+      ...current,
+      chipLabel: membershipState.status === "active" ? "会员陪伴已恢复" : "基础陪伴已恢复",
+      statusTitle: "配额与周报入口已同步",
+      statusText: quotaSummary,
+      progress: 0.94,
+      spotlight: {
+        eyebrow: membershipState.status === "active" ? "已恢复的能力" : "当前可用能力",
+        title: membershipState.status === "active" ? "连续追问 + 完整周报 + 长期档案" : "阶段知识 + 日历安排 + 周报预览",
+        caption: membershipState.status === "active"
+          ? "现在进入首页后，会更像回到一套连续陪伴工作台。"
+          : "即使没开会员，首页也会先接住当前阶段最重要的下一步。",
+      },
+      steps: buildBootSteps(3, 3),
+    }));
+
+    setIsLoggedIn(true);
   };
 
   if (isLoggedIn === null) {
-    return <LaunchScreen variant="boot" />;
+    return (
+      <LaunchScreen
+        variant="boot"
+        chipLabel={bootScreen.chipLabel}
+        title={bootScreen.title}
+        subtitle={bootScreen.subtitle}
+        statusTitle={bootScreen.statusTitle}
+        statusText={bootScreen.statusText}
+        progress={bootScreen.progress}
+        spotlight={bootScreen.spotlight}
+        journey={bootScreen.journey}
+        steps={bootScreen.steps}
+      />
+    );
   }
 
   return (
@@ -451,6 +585,7 @@ export default function AppNavigator() {
                 {...props}
                 onLoginSuccess={async () => {
                   await updateCachedToken();
+                  await ensureFreshQuota();
                   setIsLoggedIn(true);
                 }}
               />

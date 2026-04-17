@@ -223,9 +223,15 @@ export function useHomeData() {
   const loadCheckinStatus = useCallback(async () => {
     try {
       const nextStatus = await checkinApi.getStatus()
-      setCheckinStatus(nextStatus)
+      setCheckinStatus((current) => {
+        if (current?.checkedInToday && !nextStatus.checkedInToday) {
+          return current
+        }
+
+        return nextStatus
+      })
     } catch (_error) {
-      setCheckinStatus(null)
+      setCheckinStatus((current) => current)
     }
   }, [])
 
@@ -329,6 +335,15 @@ export function useHomeData() {
       }
 
       const result = await checkinApi.checkin()
+      setCheckinStatus((current) => ({
+        checkedInToday: true,
+        currentStreak: result.streakCount,
+        totalPoints: result.totalPoints,
+        monthlyCheckins: current?.monthlyCheckins ?? [],
+        nextBonusAt: result.nextBonusAt,
+        nextBonusPoints: result.nextBonusPoints,
+      }))
+
       await Promise.all([
         ensureFreshQuota(),
         loadHomeCalendar(),
@@ -357,7 +372,7 @@ export function useHomeData() {
 
   const statusTags = [
     ...stage.statusTags,
-    `连续打卡 ${checkInStreak} 天`,
+    `连续打卡 ${resolvedCheckInStreak} 天`,
     `本周完成 ${weeklyCompletionRate}%`,
     todoStats.total > 0 && todoStats.week ? `孕${todoStats.week}周待办 ${todoStats.completed}/${todoStats.total}` : null,
     upcomingEvents[0] ? `${eventTypeLabels[upcomingEvents[0].eventType] || '提醒'} · ${upcomingEvents[0].title}` : null,

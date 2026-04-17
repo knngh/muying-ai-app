@@ -99,7 +99,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { onShareAppMessage, onShareTimeline, onShow } from '@dcloudio/uni-app'
 import { useKnowledgeStore } from '@/stores/knowledge'
 import { getAuthorityRegionLabel, getAuthorityRegionTag } from '@/utils/authority-source'
@@ -140,6 +140,15 @@ const loading = computed(() => knowledgeStore.loading)
 const total = computed(() => knowledgeStore.total)
 const selectedSource = computed(() => knowledgeStore.selectedSource)
 const selectedStageLabel = computed(() => stageOptions[selectedStageIndex.value]?.label || '全部阶段')
+
+watch(articles, (list) => {
+  if (list.length === 0) {
+    return
+  }
+
+  void knowledgeStore.prefetchTranslations(list, 4)
+}, { immediate: true })
+
 async function loadArticles(reset = true) {
   await knowledgeStore.fetchArticles({ reset, page: reset ? 1 : knowledgeStore.page + 1 })
 }

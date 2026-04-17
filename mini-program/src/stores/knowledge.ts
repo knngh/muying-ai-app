@@ -1,7 +1,9 @@
 import { defineStore } from 'pinia'
 import { articleApi } from '@/api/modules'
-import type { Article, PaginatedResponse } from '@/api/modules'
+import type { Article, AuthorityArticleTranslation, PaginatedResponse } from '@/api/modules'
 import { getAuthorityRegionPriority } from '@/utils/authority-source'
+
+const translationInFlight = new Set<string>()
 
 function getArticleTimestamp(article: Article): number {
   const value = article.publishedAt || article.createdAt
@@ -43,6 +45,8 @@ export const useKnowledgeStore = defineStore('knowledge', {
   state: () => ({
     articles: [] as Article[],
     currentArticle: null as Article | null,
+    translationCache: {} as Record<string, AuthorityArticleTranslation>,
+    translationFailed: {} as Record<string, boolean>,
     total: 0,
     page: 1,
     pageSize: 10,
@@ -92,6 +96,54 @@ export const useKnowledgeStore = defineStore('knowledge', {
         this.error = err.message || '获取文章详情失败'
       } finally {
         this.loading = false
+      }
+    },
+
+    async prefetchTranslations(candidates: Article[], limit = 6) {
+      const queue = candidates
+        .filter((item) => item.contentType === 'authority')
+        .filter((item) => item.sourceLanguage !== 'zh' && item.sourceLocale !== 'zh-CN')
+        .filter((item) => !this.translationCache[item.slug] && !this.translationFailed[item.slug])
+        .filter((item) => !translationInFlight.has(item.slug))
+        .slice(0, limit)
+
+      if (queue.length === 0) {
+        return
+      }
+
+      await Promise.all(queue.map(async (item) => {
+        translationInFlight.add(item.slug)
+        try {
+          const translation = await articleApi.getTranslation(item.slug) as AuthorityArticleTranslation
+          this.cacheTranslation(item.slug, translation)
+        } catch (_error) {
+          this.markTranslationFailed(item.slug)
+        } finally {
+          translationInFlight.delete(item.slug)
+        }
+      }))
+    },
+
+    getCachedTranslation(slug: string) {
+      return this.translationCache[slug] || null
+    },
+
+    cacheTranslation(slug: string, translation: AuthorityArticleTranslation) {
+      this.translationCache = {
+        ...this.translationCache,
+        [slug]: translation,
+      }
+
+      if (this.translationFailed[slug]) {
+        const { [slug]: _ignored, ...rest } = this.translationFailed
+        this.translationFailed = rest
+      }
+    },
+
+    markTranslationFailed(slug: string) {
+      this.translationFailed = {
+        ...this.translationFailed,
+        [slug]: true,
       }
     },
 

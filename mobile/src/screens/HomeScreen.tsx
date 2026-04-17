@@ -792,14 +792,16 @@ export default function HomeScreen() {
                 ))}
               </View>
 
-              <Button
-                mode="contained-tonal"
-                onPress={handleMomentumPress}
-                style={styles.momentumActionButton}
-                textColor={colors.ink}
-              >
-                {momentumNextStep ? momentumNextStep.actionLabel : '再问个问题'}
-              </Button>
+              {momentumNextStep?.action !== 'checkin' ? (
+                <Button
+                  mode="contained-tonal"
+                  onPress={handleMomentumPress}
+                  style={styles.momentumActionButton}
+                  textColor={colors.ink}
+                >
+                  {momentumNextStep ? momentumNextStep.actionLabel : '再问个问题'}
+                </Button>
+              ) : null}
             </StandardCard>
           </ContentSection>
         ) : null}
@@ -834,14 +836,16 @@ export default function HomeScreen() {
 
             <View style={styles.returnPlanFooter}>
               <Text style={styles.returnPlanHint}>把回来的理由写清楚，第二次打开才更容易发生。</Text>
-              <Button
-                mode="contained-tonal"
-                onPress={handleReturnPlanPress}
-                style={styles.returnPlanActionButton}
-                textColor={colors.ink}
-              >
-                {returnPlan.actionLabel}
-              </Button>
+              {returnPlan.action !== 'checkin' ? (
+                <Button
+                  mode="contained-tonal"
+                  onPress={handleReturnPlanPress}
+                  style={styles.returnPlanActionButton}
+                  textColor={colors.ink}
+                >
+                  {returnPlan.actionLabel}
+                </Button>
+              ) : null}
             </View>
           </StandardCard>
         </ContentSection>

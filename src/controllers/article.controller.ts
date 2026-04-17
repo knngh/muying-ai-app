@@ -483,6 +483,139 @@ function extractTaggedContent(input: string, tag: string): string {
   return match?.[1]?.trim() || '';
 }
 
+function stripCodeFence(input: string): string {
+  const fenced = input.trim().match(/^```(?:xml|json|markdown|md|text)?\s*([\s\S]*?)\s*```$/i);
+  return fenced?.[1]?.trim() || input.trim();
+}
+
+function normalizeWhitespace(input: string): string {
+  return input
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function extractJsonObject(input: string): Record<string, unknown> | null {
+  const normalized = stripCodeFence(input);
+  const candidates = [
+    normalized,
+    (() => {
+      const start = normalized.indexOf('{');
+      const end = normalized.lastIndexOf('}');
+      if (start === -1 || end === -1 || end <= start) {
+        return '';
+      }
+      return normalized.slice(start, end + 1);
+    })(),
+  ].filter(Boolean);
+
+  for (const candidate of candidates) {
+    try {
+      const parsed = JSON.parse(candidate) as unknown;
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      // ignore malformed JSON candidates
+    }
+  }
+
+  return null;
+}
+
+function pickFirstNonEmptyString(...values: unknown[]): string {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+
+  return '';
+}
+
+function extractSectionBody(input: string, labels: string[]): string {
+  const escapedLabels = labels.map((label) => label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const pattern = new RegExp(
+    `(?:^|\\n)\\s*(?:${escapedLabels.join('|')})\\s*[:：]\\s*([\\s\\S]*?)(?=(?:\\n\\s*(?:${escapedLabels.join('|')}|标题|摘要|正文|内容|Title|Summary|Content)\\s*[:：])|$)`,
+    'i',
+  );
+  const matched = input.match(pattern);
+  return matched?.[1]?.trim() || '';
+}
+
+function extractTranslationPayload(
+  answer: string,
+  sourceTitle: string,
+  sourceSummary: string,
+): {
+  translatedTitle: string;
+  translatedSummary: string;
+  translatedContent: string;
+  parseMode: 'xml' | 'json' | 'section' | 'raw';
+} {
+  const normalizedAnswer = normalizeWhitespace(stripCodeFence(answer));
+
+  const xmlTitle = extractTaggedContent(normalizedAnswer, 'translated_title');
+  const xmlSummary = extractTaggedContent(normalizedAnswer, 'translated_summary');
+  const xmlContent = extractTaggedContent(normalizedAnswer, 'translated_content');
+  if (xmlContent) {
+    return {
+      translatedTitle: xmlTitle || sourceTitle,
+      translatedSummary: xmlSummary || sourceSummary,
+      translatedContent: xmlContent,
+      parseMode: 'xml',
+    };
+  }
+
+  const parsedJson = extractJsonObject(normalizedAnswer);
+  if (parsedJson) {
+    const jsonContent = pickFirstNonEmptyString(
+      parsedJson.translated_content,
+      parsedJson.translatedContent,
+      parsedJson.content,
+      parsedJson.body,
+    );
+    if (jsonContent) {
+      return {
+        translatedTitle: pickFirstNonEmptyString(
+          parsedJson.translated_title,
+          parsedJson.translatedTitle,
+          parsedJson.title,
+          sourceTitle,
+        ),
+        translatedSummary: pickFirstNonEmptyString(
+          parsedJson.translated_summary,
+          parsedJson.translatedSummary,
+          parsedJson.summary,
+          sourceSummary,
+        ),
+        translatedContent: jsonContent,
+        parseMode: 'json',
+      };
+    }
+  }
+
+  const sectionTitle = extractSectionBody(normalizedAnswer, ['translated_title', '标题', 'Title']);
+  const sectionSummary = extractSectionBody(normalizedAnswer, ['translated_summary', '摘要', 'Summary']);
+  const sectionContent = extractSectionBody(normalizedAnswer, ['translated_content', '正文', '内容', 'Content']);
+  if (sectionContent) {
+    return {
+      translatedTitle: sectionTitle || sourceTitle,
+      translatedSummary: sectionSummary || sourceSummary,
+      translatedContent: sectionContent,
+      parseMode: 'section',
+    };
+  }
+
+  return {
+    translatedTitle: sourceTitle,
+    translatedSummary: sourceSummary,
+    translatedContent: normalizedAnswer,
+    parseMode: 'raw',
+  };
+}
+
 async function translateAuthorityRecord(slug: string, record: AuthorityCacheRecord): Promise<AuthorityTranslationCacheRecord> {
   const sourceUpdatedAt = record.updated_at || record.published_at || record.created_at;
   const cached = getCachedAuthorityTranslation(slug, sourceUpdatedAt);
@@ -543,9 +676,10 @@ async function translateAuthorityRecord(slug: string, record: AuthorityCacheReco
     maxTokens: 4000,
   });
 
-  const translatedTitle = extractTaggedContent(result.answer, 'translated_title') || sourceTitle;
-  const translatedSummary = extractTaggedContent(result.answer, 'translated_summary') || sourceSummary;
-  const translatedContent = extractTaggedContent(result.answer, 'translated_content');
+  const parsedTranslation = extractTranslationPayload(result.answer, sourceTitle, sourceSummary);
+  const translatedTitle = parsedTranslation.translatedTitle || sourceTitle;
+  const translatedSummary = parsedTranslation.translatedSummary || sourceSummary;
+  const translatedContent = parsedTranslation.translatedContent;
 
   if (!translatedContent) {
     throw new Error('翻译结果解析失败');
@@ -559,7 +693,9 @@ async function translateAuthorityRecord(slug: string, record: AuthorityCacheReco
     translatedContent,
     translationNotice,
     updatedAt: new Date().toISOString(),
-    model: result.route.model,
+    model: parsedTranslation.parseMode === 'raw'
+      ? `${result.route.model}:raw-fallback`
+      : result.route.model,
     provider: result.route.provider,
     isSourceChinese: false,
   };

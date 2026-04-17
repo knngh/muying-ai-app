@@ -45,20 +45,49 @@ const demoAccounts = [
   },
 ]
 
-const benefitRows = [
+const flowRows = [
   {
-    icon: 'map-marker-path',
-    title: '把阶段重点收拢到一个入口',
-    description: '首页直接接住知识、问答、周报和成长日历，不用在多个页面之间来回找。',
+    icon: 'book-open-page-variant-outline',
+    title: '阶段知识不是泛信息流',
+    description: '知识库会优先围绕当前阶段给内容，不是把所有母婴主题平铺给用户自己筛。',
   },
   {
-    icon: 'clock-check-outline',
-    title: '每次唤起都能继续上一次节奏',
-    description: '登录后会沿用当前阶段与历史记录，把今天该做的事直接摆在面前。',
+    icon: 'calendar-heart',
+    title: '成长日历接住今天该做什么',
+    description: '产检、提醒、待办和家庭安排会落到同一条时间线上，减少“看完就断掉”。',
+  },
+  {
+    icon: 'file-chart-outline',
+    title: '周报负责把本周重点收口',
+    description: '周报不是一次性海报，而是帮你把当前阶段的重点提醒和执行节奏沉淀成回顾。',
+  },
+  {
+    icon: 'timeline-text-outline',
+    title: '成长档案留住长期变化',
+    description: '记录、问答和阶段变化会逐步累成成长档案，适合后面回看和家庭协作。',
   },
 ]
 
-const quickTags = ['知识库直达', '问题助手连续追问', '成长日历提醒', '阶段周报沉淀']
+const lifecycleScenes = [
+  {
+    label: '备孕',
+    description: '把准备期知识、检查与节律收拢到一个入口',
+  },
+  {
+    label: '孕期',
+    description: '围绕孕周组织知识、日历、周报和问题助手',
+  },
+  {
+    label: '产后恢复',
+    description: '接住恢复、喂养、作息与家人分工',
+  },
+  {
+    label: '育儿阶段',
+    description: '把阶段提醒和成长记录沉淀进长期档案',
+  },
+]
+
+const quickTags = ['当前阶段优先', '知识库与日历联动', '周报持续回顾', '档案长期沉淀']
 
 export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   const [mode, setMode] = useState<string>('login')
@@ -157,18 +186,31 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.heroWrap}>
-            <LaunchScreen variant="welcome" />
+            <LaunchScreen
+              variant="welcome"
+              compact
+              title="你的项目核心不是登录，而是把连续陪伴接上"
+              subtitle="贝护妈妈移动端会围绕当前阶段，把知识库、成长日历、周报和成长档案接成一条可持续使用的链路。"
+              statusTitle="登录后会优先恢复什么"
+              statusText="先拿到当前阶段，再恢复首页推荐、问题助手配额和后续周报入口，让用户一进来就知道今天下一步是什么。"
+              spotlight={{
+                eyebrow: '项目核心链路',
+                title: '阶段知识 -> 今天安排 -> 周报回顾 -> 成长档案',
+                caption: '这不是通用母婴 App 的登录页，而是连续陪伴系统的移动端入口。',
+              }}
+              journey={['备孕', '孕期', '产后恢复', '育儿阶段']}
+            />
           </View>
 
           <LinearGradient
             colors={['rgba(255,250,246,0.92)', 'rgba(247,236,227,0.92)']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
-            style={styles.valueCard}
+            style={styles.journeyCard}
           >
             <View style={styles.valueHeader}>
-              <Text style={styles.valueEyebrow}>本次唤起后会得到什么</Text>
-              <Text style={styles.valueTitle}>让首页在 3 秒内告诉你下一步该做什么</Text>
+              <Text style={styles.valueEyebrow}>这套入口服务哪些阶段</Text>
+              <Text style={styles.valueTitle}>从备孕到育儿，不同阶段进入后看到的重点应该不同</Text>
             </View>
 
             <View style={styles.quickTagRow}>
@@ -179,20 +221,36 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
               ))}
             </View>
 
-            <View style={styles.benefitList}>
-              {benefitRows.map((item) => (
-                <View key={item.title} style={styles.benefitItem}>
-                  <View style={styles.benefitIconWrap}>
-                    <MaterialCommunityIcons name={item.icon} size={18} color={colors.techDark} />
-                  </View>
-                  <View style={styles.benefitTextWrap}>
-                    <Text style={styles.benefitTitle}>{item.title}</Text>
-                    <Text style={styles.benefitDescription}>{item.description}</Text>
-                  </View>
+            <View style={styles.lifecycleGrid}>
+              {lifecycleScenes.map((item) => (
+                <View key={item.label} style={styles.lifecycleCard}>
+                  <Text style={styles.lifecycleLabel}>{item.label}</Text>
+                  <Text style={styles.lifecycleDescription}>{item.description}</Text>
                 </View>
               ))}
             </View>
           </LinearGradient>
+
+          <Card style={styles.projectCard}>
+            <Card.Content>
+              <Text style={styles.projectEyebrow}>登录后为什么会更像你的项目</Text>
+              <Text style={styles.projectTitle}>入口页必须直接承接连续陪伴，而不是只做账号验证</Text>
+
+              <View style={styles.benefitList}>
+                {flowRows.map((item) => (
+                  <View key={item.title} style={styles.benefitItem}>
+                    <View style={styles.benefitIconWrap}>
+                      <MaterialCommunityIcons name={item.icon} size={18} color={colors.techDark} />
+                    </View>
+                    <View style={styles.benefitTextWrap}>
+                      <Text style={styles.benefitTitle}>{item.title}</Text>
+                      <Text style={styles.benefitDescription}>{item.description}</Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            </Card.Content>
+          </Card>
 
           <Card style={styles.card}>
             <Card.Content>
@@ -391,7 +449,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 28,
   },
-  valueCard: {
+  journeyCard: {
     borderRadius: borderRadius.xl,
     padding: spacing.lg,
     borderWidth: 1,
@@ -458,6 +516,55 @@ const styles = StyleSheet.create({
     fontSize: fontSize.md,
     lineHeight: 22,
     color: colors.textSecondary,
+  },
+  lifecycleGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  lifecycleCard: {
+    flexBasis: '47%',
+    flexGrow: 1,
+    minHeight: 112,
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    backgroundColor: 'rgba(255,252,248,0.9)',
+    borderWidth: 1,
+    borderColor: 'rgba(94,126,134,0.1)',
+  },
+  lifecycleLabel: {
+    fontSize: fontSize.lg,
+    fontWeight: '800',
+    color: colors.ink,
+    marginBottom: spacing.xs,
+  },
+  lifecycleDescription: {
+    fontSize: fontSize.sm,
+    lineHeight: 20,
+    color: colors.textSecondary,
+  },
+  projectCard: {
+    backgroundColor: 'rgba(255,253,249,0.94)',
+    borderRadius: borderRadius.xl,
+    borderWidth: 1,
+    borderColor: 'rgba(94,126,134,0.1)',
+    shadowColor: colors.shadowSoft,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+  },
+  projectEyebrow: {
+    color: colors.techDark,
+    fontSize: fontSize.sm,
+    fontWeight: '700',
+    marginBottom: spacing.xs,
+  },
+  projectTitle: {
+    color: colors.ink,
+    fontSize: fontSize.xxl,
+    lineHeight: 30,
+    fontWeight: '800',
+    marginBottom: spacing.lg,
   },
   card: {
     backgroundColor: 'rgba(255,253,249,0.96)',

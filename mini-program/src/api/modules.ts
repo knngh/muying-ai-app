@@ -45,7 +45,11 @@ export const articleApi = {
     difficulty?: string; contentType?: string; stage?: string; sort?: string; keyword?: string; source?: string
   }) => api.get<PaginatedResponse<Article>>('/articles', params as Record<string, unknown>),
   getBySlug: (slug: string) => api.get<Article>(`/articles/${slug}`),
-  getTranslation: (slug: string) => api.get<AuthorityArticleTranslation>(`/articles/${slug}/translation`),
+  getTranslation: (slug: string) => api.get<AuthorityArticleTranslation>(
+    `/articles/${slug}/translation`,
+    undefined,
+    { timeout: 180000 },
+  ),
   search: (keyword: string, params?: { page?: number; pageSize?: number }) =>
     api.get<PaginatedResponse<Article>>('/articles/search', { q: keyword, ...params } as Record<string, unknown>),
   getRelated: (id: number, limit = 5) =>
