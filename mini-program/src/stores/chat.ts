@@ -4,6 +4,9 @@ import { aiApi, getEmergencyWarning } from '@/api/ai'
 import { wsManager } from '@/utils/websocket'
 import type { AIMessage } from '@/api/ai'
 
+const RECENT_CHAT_QUESTIONS_STORAGE_KEY = 'recentChatQuestions'
+const MAX_RECENT_CHAT_QUESTIONS = 4
+
 function generateId() {
   return uuidv4()
 }
@@ -45,6 +48,35 @@ function appendText(base: string, addition: string) {
   return `${base}${trimmedAddition}`
 }
 
+interface RecentChatQuestionItem {
+  question: string
+  updatedAt: string
+}
+
+function normalizeQuestion(content: string) {
+  return content.replace(/\s+/g, ' ').trim()
+}
+
+function persistRecentQuestion(content: string) {
+  const question = normalizeQuestion(content)
+  if (!question) {
+    return
+  }
+
+  const stored = uni.getStorageSync(RECENT_CHAT_QUESTIONS_STORAGE_KEY) as RecentChatQuestionItem[] | null
+  const current = Array.isArray(stored) ? stored : []
+  const deduped = current.filter(item => normalizeQuestion(item.question) !== question)
+  const next: RecentChatQuestionItem[] = [
+    {
+      question,
+      updatedAt: new Date().toISOString(),
+    },
+    ...deduped,
+  ].slice(0, MAX_RECENT_CHAT_QUESTIONS)
+
+  uni.setStorageSync(RECENT_CHAT_QUESTIONS_STORAGE_KEY, next)
+}
+
 export const useChatStore = defineStore('chat', {
   state: () => ({
     messages: [] as AIMessage[],
@@ -82,6 +114,8 @@ export const useChatStore = defineStore('chat', {
       targetMessage.structuredAnswer = payload?.structuredAnswer ?? targetMessage.structuredAnswer
       targetMessage.uncertainty = payload?.uncertainty ?? targetMessage.uncertainty
       targetMessage.sourceReliability = payload?.sourceReliability ?? targetMessage.sourceReliability
+      targetMessage.followUpQuestions = payload?.followUpQuestions ?? targetMessage.followUpQuestions
+      targetMessage.confidence = payload?.confidence ?? targetMessage.confidence
       targetMessage.degraded = payload?.degraded ?? targetMessage.degraded
       targetMessage.model = payload?.model ?? targetMessage.model
       targetMessage.provider = payload?.provider ?? targetMessage.provider
@@ -196,6 +230,7 @@ export const useChatStore = defineStore('chat', {
         }
 
         this.messages.push(userMessage)
+        persistRecentQuestion(content)
       }
 
       this.clearFallbackTimer()
@@ -242,6 +277,7 @@ export const useChatStore = defineStore('chat', {
               structuredAnswer: msg.data.structuredAnswer,
               uncertainty: msg.data.uncertainty,
               sourceReliability: msg.data.sourceReliability,
+              followUpQuestions: msg.data.followUpQuestions,
               model: msg.data.model,
               provider: msg.data.provider,
               route: msg.data.route,
@@ -263,6 +299,7 @@ export const useChatStore = defineStore('chat', {
               structuredAnswer: msg.data.structuredAnswer,
               uncertainty: msg.data.uncertainty,
               sourceReliability: msg.data.sourceReliability,
+              followUpQuestions: msg.data.followUpQuestions,
               provider: 'system',
               route: 'emergency',
             }, { resumeMessageId: this.resumeMessageId })
@@ -382,6 +419,8 @@ export const useChatStore = defineStore('chat', {
           structuredAnswer: response.structuredAnswer,
           uncertainty: response.uncertainty,
           sourceReliability: response.sourceReliability,
+          followUpQuestions: response.followUpQuestions,
+          confidence: response.confidence,
           model: response.model,
           provider: response.provider,
           route: response.route,

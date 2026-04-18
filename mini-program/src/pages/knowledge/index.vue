@@ -3,6 +3,14 @@
     <view class="hero">
       <text class="hero-title">权威知识库</text>
       <text class="hero-subtitle">优先展示中国政府网、国家卫健委、中国疾控、国家疾控局及 WHO、CDC、AAP、ACOG、NHS 等公开资料，减少经验帖干扰。</text>
+      <view class="hero-pills">
+        <view class="hero-pill">
+          <text class="hero-pill-text">中国权威源优先</text>
+        </view>
+        <view class="hero-pill">
+          <text class="hero-pill-text">国际原文支持中文辅助阅读</text>
+        </view>
+      </view>
     </view>
 
     <view class="search-bar">
@@ -56,13 +64,16 @@
 
       <view v-else-if="!loading && articles.length === 0" class="state-box">
         <text class="state-text">当前筛选条件下暂无权威文章</text>
+        <view class="state-btn" @tap="resetFilters">
+          <text class="state-btn-text">恢复默认筛选</text>
+        </view>
       </view>
 
       <view
         v-for="article in articles"
         :key="article.slug"
         class="article-card"
-        @tap="goToDetail(article.slug)"
+        @tap="goToDetail(article)"
       >
         <view class="article-header">
           <view class="badge-row">
@@ -79,6 +90,10 @@
           <text v-if="article.audience" class="meta-item">{{ article.audience }}</text>
           <text v-if="article.region" class="meta-item">{{ article.region }}</text>
           <text class="meta-item">来源更新 {{ formatDate(article.sourceUpdatedAt || article.publishedAt || article.createdAt) }}</text>
+        </view>
+
+        <view class="reading-note">
+          <text class="reading-note-text">{{ getReadingHint(article) }}</text>
         </view>
 
         <view class="article-footer">
@@ -102,6 +117,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { onShareAppMessage, onShareTimeline, onShow } from '@dcloudio/uni-app'
 import { useKnowledgeStore } from '@/stores/knowledge'
+import type { Article } from '@/api/modules'
 import { getAuthorityRegionLabel, getAuthorityRegionTag } from '@/utils/authority-source'
 
 const knowledgeStore = useKnowledgeStore()
@@ -146,7 +162,7 @@ watch(articles, (list) => {
     return
   }
 
-  void knowledgeStore.prefetchTranslations(list, 4)
+  void knowledgeStore.prefetchTranslations(list, 6)
 }, { immediate: true })
 
 async function loadArticles(reset = true) {
@@ -190,8 +206,28 @@ function handleLoadMore() {
   void loadArticles(false)
 }
 
-function goToDetail(slug: string) {
-  uni.navigateTo({ url: `/pages/knowledge-detail/index?slug=${slug}` })
+function resetFilters() {
+  selectedStageIndex.value = 0
+  searchText.value = ''
+  knowledgeStore.reset()
+  void knowledgeStore.fetchArticles({ reset: true, page: 1 })
+}
+
+function goToDetail(article: Article) {
+  if (article.sourceLanguage !== 'zh' && article.sourceLocale !== 'zh-CN') {
+    void knowledgeStore.prefetchTranslations([article], 1)
+  }
+
+  const shouldWarmTranslation = article.sourceLanguage !== 'zh' && article.sourceLocale !== 'zh-CN' ? '1' : '0'
+  uni.navigateTo({ url: `/pages/knowledge-detail/index?slug=${article.slug}&translation=${shouldWarmTranslation}` })
+}
+
+function getReadingHint(article: Article): string {
+  if (article.sourceLanguage === 'zh' || article.sourceLocale === 'zh-CN') {
+    return '优先读中文原文与同步时间，适合直接核对政策和指南表述。'
+  }
+
+  return '进入详情后会自动准备中文辅助阅读，适合先看摘要再决定是否打开机构原文。'
 }
 
 function formatDate(dateStr?: string): string {
@@ -266,6 +302,25 @@ onShareTimeline(() => {
   font-size: 26rpx;
   line-height: 1.6;
   color: #5d6b7b;
+}
+
+.hero-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14rpx;
+  margin-top: 20rpx;
+}
+
+.hero-pill {
+  padding: 10rpx 18rpx;
+  border-radius: 999rpx;
+  background: rgba(31, 143, 116, 0.08);
+}
+
+.hero-pill-text {
+  font-size: 22rpx;
+  font-weight: 700;
+  color: #1c7a63;
 }
 
 .search-bar {
@@ -384,6 +439,20 @@ onShareTimeline(() => {
   color: #788595;
 }
 
+.state-btn {
+  display: inline-flex;
+  margin-top: 20rpx;
+  padding: 16rpx 30rpx;
+  border-radius: 999rpx;
+  background: #1f8f74;
+}
+
+.state-btn-text {
+  font-size: 24rpx;
+  font-weight: 700;
+  color: #fff;
+}
+
 .article-card {
   margin-bottom: 22rpx;
   padding: 28rpx;
@@ -459,6 +528,20 @@ onShareTimeline(() => {
   flex-wrap: wrap;
   gap: 14rpx;
   margin-bottom: 18rpx;
+}
+
+.reading-note {
+  margin-bottom: 18rpx;
+  padding: 18rpx 20rpx;
+  border-radius: 20rpx;
+  background: #f7f9fc;
+}
+
+.reading-note-text {
+  display: block;
+  font-size: 23rpx;
+  line-height: 1.6;
+  color: #657284;
 }
 
 .meta-item {

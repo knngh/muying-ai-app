@@ -2,16 +2,28 @@
   <view class="login-page">
     <view class="login-header">
       <text class="login-logo">贝护妈妈</text>
-      <text class="login-subtitle">欢迎来到专属您的孕产空间</text>
+      <text class="login-subtitle">先浏览权威内容，需要保存进度时再进入登录</text>
     </view>
 
     <view class="login-form">
+      <view class="visitor-box">
+        <text class="visitor-title">不登录也可以先看</text>
+        <view class="visitor-actions">
+          <view class="visitor-chip" @tap="navigateGuest('/pages/knowledge/index')">
+            <text class="visitor-chip-text">权威知识库</text>
+          </view>
+          <view class="visitor-chip" @tap="navigateGuest('/pages/calendar/index')">
+            <text class="visitor-chip-text">孕周指南</text>
+          </view>
+        </view>
+      </view>
+
       <view class="form-title">
-        <text>{{ loginStep === 'auth' ? '先完成登录' : '请选择当前孕周' }}</text>
+        <text>{{ loginStep === 'auth' ? '进入后再保存你的进度' : '请选择当前孕周' }}</text>
       </view>
 
       <text class="form-desc">
-        {{ loginStep === 'auth' ? '首次登录后再完善孕周信息，之后登录无需重复选择。' : '仅首次登录需要选择一次，后续可在编辑资料里修改。' }}
+        {{ loginStep === 'auth' ? '当前版本仅使用微信会话或账号凭证完成登录，不要求上传身份证件、真实姓名或手机号。' : '仅需选择一次孕周，用于生成更贴近当前阶段的知识库、日历和提醒。' }}
       </text>
 
       <template v-if="loginStep === 'auth'">
@@ -23,8 +35,9 @@
           hover-stay-time="80"
           @tap="handleWechatLogin()"
         >
-          <text class="btn-text">微信一键登录</text>
+          <text class="btn-text">微信快捷进入</text>
         </view>
+        <text class="wechat-note">仅用于识别当前微信会话和保存孕周进度，可稍后再补充资料。</text>
         <!-- #endif -->
 
         <!-- #ifndef MP-WEIXIN -->
@@ -116,6 +129,11 @@
       >
         <text class="btn-text">保存并进入</text>
       </view>
+
+      <view class="safety-note">
+        <text class="safety-note-title">使用说明</text>
+        <text class="safety-note-text">知识库与孕周指南支持先浏览；只有在你需要保存记录、待办或个性化阶段信息时，才会用到登录状态。</text>
+      </view>
     </view>
   </view>
 </template>
@@ -129,6 +147,7 @@ import { calculateDueDateFromPregnancyWeek, syncPregnancyWeekStorage } from '@/u
 import dayjs from 'dayjs'
 
 const appStore = useAppStore()
+const CHAT_DRAFT_STORAGE_KEY = 'pendingChatDraft'
 const loginStep = ref<'auth' | 'week'>('auth')
 const pregnancyWeek = ref('')
 const authMode = ref<'login' | 'register'>('login')
@@ -168,9 +187,25 @@ const applyDemoAccount = (account: typeof demoAccounts[number]) => {
   authError.value = ''
 }
 
+const navigateGuest = (url: string) => {
+  const tabPages = new Set(['/pages/home/index', '/pages/knowledge/index', '/pages/profile/index'])
+  if (tabPages.has(url)) {
+    uni.switchTab({ url })
+    return
+  }
+  uni.navigateTo({ url })
+}
+
 const navigateHome = () => {
   uni.showToast({ title: '登录成功', icon: 'success' })
   setTimeout(() => {
+    const pendingChatDraft = uni.getStorageSync(CHAT_DRAFT_STORAGE_KEY) as { question?: string } | null
+    const question = pendingChatDraft?.question?.trim()
+    if (question) {
+      uni.removeStorageSync(CHAT_DRAFT_STORAGE_KEY)
+      uni.navigateTo({ url: `/pages/chat/index?q=${encodeURIComponent(question)}` })
+      return
+    }
     uni.switchTab({ url: '/pages/home/index' })
   }, 500)
 }
@@ -372,6 +407,41 @@ onMounted(async () => {
   box-shadow: 0 8rpx 32rpx rgba(0, 0, 0, 0.08);
 }
 
+.visitor-box {
+  margin-bottom: 34rpx;
+  padding: 24rpx;
+  border-radius: 22rpx;
+  background: linear-gradient(135deg, #fff7f1 0%, #fffdfb 100%);
+  border: 2rpx solid #ffe7d8;
+}
+
+.visitor-title {
+  display: block;
+  font-size: 26rpx;
+  font-weight: 700;
+  color: #b25d35;
+}
+
+.visitor-actions {
+  display: flex;
+  gap: 14rpx;
+  margin-top: 18rpx;
+}
+
+.visitor-chip {
+  flex: 1;
+  padding: 18rpx 16rpx;
+  border-radius: 18rpx;
+  background: #ffffff;
+  text-align: center;
+}
+
+.visitor-chip-text {
+  font-size: 24rpx;
+  font-weight: 600;
+  color: #5d6573;
+}
+
 .form-title {
   text-align: center;
   margin-bottom: 20rpx;
@@ -567,10 +637,40 @@ onMounted(async () => {
   opacity: 0.8;
 }
 
+.wechat-note {
+  display: block;
+  margin-top: 16rpx;
+  font-size: 24rpx;
+  line-height: 1.6;
+  color: #6f7c88;
+  text-align: center;
+}
+
 .btn-text {
   font-size: 32rpx;
   font-weight: bold;
   color: #ffffff;
   letter-spacing: 2rpx;
+}
+
+.safety-note {
+  margin-top: 28rpx;
+  padding-top: 24rpx;
+  border-top: 2rpx solid #f1f3f6;
+}
+
+.safety-note-title {
+  display: block;
+  font-size: 26rpx;
+  font-weight: 700;
+  color: #434d59;
+}
+
+.safety-note-text {
+  display: block;
+  margin-top: 12rpx;
+  font-size: 24rpx;
+  line-height: 1.65;
+  color: #7a8592;
 }
 </style>

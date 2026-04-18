@@ -11,6 +11,8 @@ export interface AIMessage {
   structuredAnswer?: StructuredAnswer
   uncertainty?: UncertaintyInfo
   sourceReliability?: SourceReliability
+  followUpQuestions?: string[]
+  confidence?: number
   model?: string
   provider?: string
   route?: string
@@ -109,6 +111,7 @@ export interface ChatResponse {
   uncertainty?: UncertaintyInfo
   sourceReliability?: SourceReliability
   followUpQuestions?: string[]
+  confidence?: number
   model?: string
   provider?: string
   route?: string

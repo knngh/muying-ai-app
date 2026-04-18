@@ -30,6 +30,34 @@
         <text class="empty-title">您可以先说说现在最担心的问题</text>
         <text class="empty-subtitle">例如作息安排、喂养节奏、辅食添加，或新生儿日常护理中的具体情况。</text>
 
+        <view v-if="prefillQuestion" class="prefill-box">
+          <text class="prefill-title">已为你准备好一个问题草稿</text>
+          <text class="prefill-text">{{ prefillQuestion }}</text>
+          <view class="prefill-actions">
+            <view class="prefill-btn prefill-btn--primary" @tap="handleSend">
+              <text class="prefill-btn-text prefill-btn-text--primary">直接发送</text>
+            </view>
+            <view class="prefill-btn" @tap="clearPrefillQuestion">
+              <text class="prefill-btn-text">我自己改一下</text>
+            </view>
+          </view>
+        </view>
+
+        <view v-if="recentQuestions.length" class="recent-question-panel">
+          <text class="recent-question-title">最近问过</text>
+          <view class="recent-question-list">
+            <view
+              v-for="item in recentQuestions"
+              :key="item.question"
+              class="recent-question-item"
+              hover-class="recent-question-item--hover"
+              @tap="applyPrefillQuestion(item.question)"
+            >
+              <text class="recent-question-text">{{ item.question }}</text>
+            </view>
+          </view>
+        </view>
+
         <view class="quick-list">
           <view
             v-for="question in quickQuestions"
@@ -64,6 +92,17 @@
               <mp-html :content="getDisplayedContent(item)" :copy-link="true" :selectable="true" />
             </view>
 
+            <view v-if="item.role === 'assistant' && getTrustChips(item).length" class="trust-chips">
+              <text
+                v-for="chip in getTrustChips(item)"
+                :key="`${item.id}-${chip.label}`"
+                class="trust-chip"
+                :class="`trust-chip--${chip.tone}`"
+              >
+                {{ chip.label }}
+              </text>
+            </view>
+
             <view v-if="item.role === 'assistant' && shouldShowTrustOverview(item)" class="trust-overview">
               <text class="trust-overview-title">本轮可信判断</text>
               <text v-if="item.sourceReliability" class="trust-overview-text">
@@ -91,6 +130,43 @@
             <view v-if="item.role === 'assistant'" class="answer-origin">
               <text class="answer-origin-label">答案来源</text>
               <text user-select class="answer-origin-text">{{ getAnswerOrigin(item) }}</text>
+            </view>
+
+            <view v-if="item.role === 'assistant' && shouldShowActionPlan(item)" class="action-plan">
+              <text class="action-plan-title">建议怎么用这条回答</text>
+              <view v-if="item.structuredAnswer?.reasons?.length" class="action-plan-block">
+                <text class="action-plan-label">为什么这样判断</text>
+                <text
+                  v-for="reason in item.structuredAnswer.reasons"
+                  :key="`${item.id}-reason-${reason}`"
+                  user-select
+                  class="action-plan-item"
+                >
+                  {{ reason }}
+                </text>
+              </view>
+              <view v-if="item.structuredAnswer?.actions?.length" class="action-plan-block">
+                <text class="action-plan-label">现在可以先做</text>
+                <text
+                  v-for="action in item.structuredAnswer.actions"
+                  :key="`${item.id}-action-${action}`"
+                  user-select
+                  class="action-plan-item"
+                >
+                  {{ action }}
+                </text>
+              </view>
+              <view v-if="item.structuredAnswer?.whenToSeekCare?.length" class="action-plan-block">
+                <text class="action-plan-label">出现这些情况尽快线下处理</text>
+                <text
+                  v-for="trigger in item.structuredAnswer.whenToSeekCare"
+                  :key="`${item.id}-care-${trigger}`"
+                  user-select
+                  class="action-plan-item action-plan-item--alert"
+                >
+                  {{ trigger }}
+                </text>
+              </view>
             </view>
 
             <view v-if="item.sources?.length" class="source-list-container">
@@ -199,6 +275,21 @@
                 </scroll-view>
               </view>
             </view>
+
+            <view v-if="item.role === 'assistant' && getFollowUpQuestions(item).length" class="follow-up-card">
+              <text class="follow-up-title">继续追问</text>
+              <view class="follow-up-list">
+                <view
+                  v-for="question in getFollowUpQuestions(item)"
+                  :key="`${item.id}-${question}`"
+                  class="follow-up-chip"
+                  hover-class="follow-up-chip--hover"
+                  @tap="handleQuickQuestion(question)"
+                >
+                  <text class="follow-up-chip-text">{{ question }}</text>
+                </view>
+              </view>
+            </view>
           </view>
         </view>
 
@@ -284,7 +375,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
-import { onHide, onShow } from '@dcloudio/uni-app'
+import { onHide, onLoad, onShow, onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app'
 import { useChatStore } from '@/stores/chat'
 import { getDisclaimer, type AIMessage, type SourceReference } from '@/api/ai'
 import mpHtml from 'mp-html/dist/uni-app/components/mp-html/mp-html.vue'
@@ -302,6 +393,7 @@ const chatStore = useChatStore()
 const { messages, loading, loadingHistory, error, streamingContent, canResume, resumeMessageId } = storeToRefs(chatStore)
 
 const inputValue = ref('')
+const prefillQuestion = ref('')
 const disclaimer = getDisclaimer()
 const scrollAnchor = ref('chat-bottom')
 const scrollTop = ref(0)
@@ -341,6 +433,13 @@ const MEDICAL_PLATFORM_NAMES = [
   '丁香医生',
   '春雨医生',
 ]
+const CHAT_DRAFT_STORAGE_KEY = 'pendingChatDraft'
+const RECENT_CHAT_QUESTIONS_STORAGE_KEY = 'recentChatQuestions'
+
+interface RecentChatQuestionItem {
+  question: string
+  updatedAt: string
+}
 
 function redirectWhenAssistantDisabled() {
   uni.showToast({ title: '问题助手正在调整中', icon: 'none' })
@@ -393,8 +492,32 @@ async function handleResume() {
 }
 
 function handleQuickQuestion(question: string) {
+  prefillQuestion.value = question
   inputValue.value = question
   handleSend()
+}
+
+function applyPrefillQuestion(question?: string) {
+  const trimmedQuestion = question?.trim() || ''
+  if (!trimmedQuestion) {
+    return
+  }
+
+  prefillQuestion.value = trimmedQuestion
+  inputValue.value = trimmedQuestion
+}
+
+function clearPrefillQuestion() {
+  prefillQuestion.value = ''
+}
+
+const recentQuestions = ref<RecentChatQuestionItem[]>([])
+
+function syncRecentQuestions() {
+  const stored = uni.getStorageSync(RECENT_CHAT_QUESTIONS_STORAGE_KEY) as RecentChatQuestionItem[] | null
+  recentQuestions.value = Array.isArray(stored)
+    ? stored.filter(item => item?.question?.trim()).slice(0, 3)
+    : []
 }
 
 function getDisplayedContent(message: AIMessage) {
@@ -582,6 +705,28 @@ function getReliabilityLabel(sourceReliability?: AIMessage['sourceReliability'])
   return '未命中可靠来源'
 }
 
+function getRiskLevelLabel(riskLevel?: AIMessage['riskLevel']) {
+  if (riskLevel === 'red') return '需尽快线下处理'
+  if (riskLevel === 'yellow') return '建议重点观察'
+  if (riskLevel === 'green') return '可先居家参考'
+  return ''
+}
+
+function getTriageCategoryLabel(triageCategory?: AIMessage['triageCategory']) {
+  if (triageCategory === 'emergency') return '紧急分流'
+  if (triageCategory === 'caution') return '需要谨慎判断'
+  if (triageCategory === 'out_of_scope') return '超出直接建议范围'
+  if (triageCategory === 'normal') return '一般咨询'
+  return ''
+}
+
+function getConfidenceLabel(confidence?: number) {
+  if (typeof confidence !== 'number') return ''
+  if (confidence >= 0.85) return '把握较高'
+  if (confidence >= 0.65) return '把握中等'
+  return '把握有限'
+}
+
 function getRouteLabel(route?: AIMessage['route']) {
   if (route === 'trusted_rag') return '可信检索'
   if (route === 'safety_fallback') return '保守兜底'
@@ -599,6 +744,59 @@ function getChineseAuthoritySourceCount(message: AIMessage) {
 
 function shouldShowTrustOverview(message: AIMessage) {
   return Boolean(message.sourceReliability || message.route || message.structuredAnswer?.conclusion || getAuthoritySourceCount(message) > 0)
+}
+
+function shouldShowActionPlan(message: AIMessage) {
+  return Boolean(
+    message.structuredAnswer?.reasons?.length
+    || message.structuredAnswer?.actions?.length
+    || message.structuredAnswer?.whenToSeekCare?.length,
+  )
+}
+
+function getFollowUpQuestions(message: AIMessage) {
+  return (message.followUpQuestions || []).filter(Boolean).slice(0, 3)
+}
+
+function getTrustChips(message: AIMessage) {
+  const chips: Array<{ label: string; tone: 'warm' | 'blue' | 'green' | 'red' | 'muted' }> = []
+  if (message.sourceReliability) {
+    chips.push({
+      label: getReliabilityLabel(message.sourceReliability),
+      tone: message.sourceReliability === 'authoritative' ? 'green' : message.sourceReliability === 'mixed' ? 'blue' : 'warm',
+    })
+  }
+
+  if (message.riskLevel) {
+    chips.push({
+      label: getRiskLevelLabel(message.riskLevel),
+      tone: message.riskLevel === 'red' ? 'red' : message.riskLevel === 'yellow' ? 'warm' : 'green',
+    })
+  }
+
+  if (message.triageCategory && message.triageCategory !== 'normal') {
+    chips.push({
+      label: getTriageCategoryLabel(message.triageCategory),
+      tone: message.triageCategory === 'emergency' ? 'red' : 'muted',
+    })
+  }
+
+  if (message.route) {
+    chips.push({
+      label: getRouteLabel(message.route),
+      tone: 'muted',
+    })
+  }
+
+  const confidenceLabel = getConfidenceLabel(message.confidence)
+  if (confidenceLabel) {
+    chips.push({
+      label: confidenceLabel,
+      tone: 'blue',
+    })
+  }
+
+  return chips.slice(0, 4)
 }
 
 function getOfficialRegionLabel(source: SourceReference) {
@@ -656,6 +854,12 @@ function handleOpenSource(source: SourceReference) {
   })
 }
 
+onLoad((options) => {
+  if (typeof options?.q === 'string' && options.q.trim()) {
+    applyPrefillQuestion(decodeURIComponent(options.q))
+  }
+})
+
 onShow(() => {
   if (!features.aiQaAssistant) {
     redirectWhenAssistantDisabled()
@@ -664,6 +868,9 @@ onShow(() => {
 
   const token = uni.getStorageSync('token')
   if (!token) {
+    if (prefillQuestion.value.trim()) {
+      uni.setStorageSync(CHAT_DRAFT_STORAGE_KEY, { question: prefillQuestion.value.trim() })
+    }
     uni.showToast({ title: '请先登录后使用问题助手', icon: 'none' })
     setTimeout(() => {
       uni.reLaunch({ url: '/pages/login/index' })
@@ -671,6 +878,14 @@ onShow(() => {
     return
   }
 
+  const pendingChatDraft = uni.getStorageSync(CHAT_DRAFT_STORAGE_KEY) as { question?: string } | null
+  const pendingQuestion = pendingChatDraft?.question?.trim()
+  if (pendingQuestion) {
+    uni.removeStorageSync(CHAT_DRAFT_STORAGE_KEY)
+    applyPrefillQuestion(pendingQuestion)
+  }
+
+  syncRecentQuestions()
   chatStore.initialize()
 })
 
@@ -683,6 +898,39 @@ onHide(() => {
 watch([messages, streamingContent], () => {
   syncScrollAnchor()
 }, { deep: true })
+
+const latestUserQuestion = computed(() => {
+  const latestUserMessage = [...messages.value].reverse().find(message => message.role === 'user')
+  return latestUserMessage?.content?.trim() || prefillQuestion.value.trim()
+})
+
+function buildSharePayload() {
+  const question = latestUserQuestion.value
+  if (!question) {
+    return {
+      title: '贝护妈妈问题助手：把问题先整理清楚，再决定下一步',
+      path: '/pages/chat/index',
+      query: '',
+    }
+  }
+
+  const shortQuestion = question.length > 26 ? `${question.slice(0, 26)}...` : question
+  return {
+    title: `一起问：${shortQuestion}`,
+    path: '/pages/chat/index',
+    query: `q=${encodeURIComponent(question)}`,
+  }
+}
+
+onShareAppMessage(() => buildSharePayload())
+
+onShareTimeline(() => {
+  const payload = buildSharePayload()
+  return {
+    title: payload.title,
+    query: payload.query,
+  }
+})
 </script>
 
 <style scoped>
@@ -818,6 +1066,101 @@ watch([messages, streamingContent], () => {
   text-align: center;
 }
 
+.prefill-box {
+  width: 100%;
+  margin-top: 28rpx;
+  padding: 24rpx;
+  border-radius: 24rpx;
+  background: rgba(255, 255, 255, 0.88);
+  border: 2rpx solid rgba(95, 133, 229, 0.1);
+  box-sizing: border-box;
+}
+
+.prefill-title {
+  display: block;
+  font-size: 24rpx;
+  font-weight: 700;
+  color: #5a6477;
+}
+
+.prefill-text {
+  display: block;
+  margin-top: 12rpx;
+  font-size: 25rpx;
+  line-height: 1.65;
+  color: #344054;
+}
+
+.prefill-actions {
+  display: flex;
+  gap: 14rpx;
+  margin-top: 18rpx;
+}
+
+.prefill-btn {
+  padding: 14rpx 20rpx;
+  border-radius: 16rpx;
+  background: #f4f6fb;
+}
+
+.prefill-btn--primary {
+  background: linear-gradient(135deg, #ff8f5a 0%, #ffb077 100%);
+}
+
+.prefill-btn-text {
+  font-size: 22rpx;
+  font-weight: 700;
+  color: #556273;
+}
+
+.prefill-btn-text--primary {
+  color: #fff;
+}
+
+.recent-question-panel {
+  width: 100%;
+  margin-top: 26rpx;
+  padding: 22rpx 24rpx;
+  border-radius: 24rpx;
+  background: rgba(255, 255, 255, 0.72);
+  box-sizing: border-box;
+}
+
+.recent-question-title {
+  display: block;
+  font-size: 24rpx;
+  font-weight: 700;
+  color: #7b695c;
+}
+
+.recent-question-list {
+  margin-top: 16rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 14rpx;
+}
+
+.recent-question-item {
+  padding: 18rpx 20rpx;
+  border-radius: 20rpx;
+  background: linear-gradient(145deg, rgba(255, 245, 238, 0.96) 0%, rgba(255, 255, 255, 0.94) 100%);
+  border: 2rpx solid rgba(255, 143, 90, 0.1);
+}
+
+.recent-question-item--hover {
+  transform: scale(0.985);
+}
+
+.recent-question-text {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  font-size: 24rpx;
+  line-height: 1.6;
+  color: #6c5444;
+}
+
 .quick-list {
   width: 100%;
   margin-top: 30rpx;
@@ -916,6 +1259,38 @@ watch([messages, streamingContent], () => {
   display: flex;
   flex-wrap: wrap;
   gap: 12rpx;
+}
+
+.trust-chip {
+  padding: 8rpx 16rpx;
+  border-radius: 999rpx;
+  font-size: 20rpx;
+  font-weight: 700;
+}
+
+.trust-chip--warm {
+  background: rgba(255, 143, 90, 0.12);
+  color: #b96736;
+}
+
+.trust-chip--blue {
+  background: rgba(95, 133, 229, 0.1);
+  color: #4666c1;
+}
+
+.trust-chip--green {
+  background: rgba(31, 143, 116, 0.12);
+  color: #18755f;
+}
+
+.trust-chip--red {
+  background: rgba(225, 87, 89, 0.12);
+  color: #c4494b;
+}
+
+.trust-chip--muted {
+  background: rgba(120, 132, 146, 0.1);
+  color: #66788a;
 }
 
 .trust-chip {
@@ -1074,6 +1449,43 @@ watch([messages, streamingContent], () => {
   font-size: 22rpx;
   line-height: 1.5;
   color: #6b7285;
+}
+
+.action-plan {
+  margin-top: 16rpx;
+  padding-top: 16rpx;
+  border-top: 2rpx solid rgba(95, 133, 229, 0.08);
+}
+
+.action-plan-title {
+  display: block;
+  font-size: 22rpx;
+  font-weight: 700;
+  color: #6f4b2f;
+}
+
+.action-plan-block + .action-plan-block {
+  margin-top: 14rpx;
+}
+
+.action-plan-label {
+  display: block;
+  margin-top: 12rpx;
+  font-size: 20rpx;
+  font-weight: 700;
+  color: #8d715f;
+}
+
+.action-plan-item {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 23rpx;
+  line-height: 1.6;
+  color: #4f5968;
+}
+
+.action-plan-item--alert {
+  color: #b84d4b;
 }
 
 .loading-dot {
@@ -1236,6 +1648,45 @@ watch([messages, streamingContent], () => {
   font-size: 20rpx;
   font-weight: 700;
   color: #4c6fd1;
+}
+
+.follow-up-card {
+  margin-top: 16rpx;
+  padding-top: 16rpx;
+  border-top: 2rpx solid rgba(95, 133, 229, 0.08);
+}
+
+.follow-up-title {
+  display: block;
+  font-size: 22rpx;
+  font-weight: 700;
+  color: #6f4b2f;
+}
+
+.follow-up-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin-top: 12rpx;
+}
+
+.follow-up-chip {
+  max-width: 100%;
+  padding: 14rpx 18rpx;
+  border-radius: 18rpx;
+  background: rgba(95, 133, 229, 0.08);
+  border: 2rpx solid rgba(95, 133, 229, 0.1);
+}
+
+.follow-up-chip--hover {
+  transform: scale(0.98);
+}
+
+.follow-up-chip-text {
+  font-size: 22rpx;
+  line-height: 1.45;
+  color: #4c6fd1;
+  font-weight: 600;
 }
 
 .error-bar {

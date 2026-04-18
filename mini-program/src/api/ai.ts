@@ -63,6 +63,7 @@ export const aiApi = {
       uncertainty?: ChatResponse['uncertainty']
       sourceReliability?: ChatResponse['sourceReliability']
       followUpQuestions?: ChatResponse['followUpQuestions']
+      confidence?: ChatResponse['confidence']
       degraded?: ChatResponse['degraded']
       model?: ChatResponse['model']
       provider?: ChatResponse['provider']
@@ -81,6 +82,7 @@ export const aiApi = {
       uncertainty: res.uncertainty,
       sourceReliability: res.sourceReliability,
       followUpQuestions: res.followUpQuestions,
+      confidence: res.confidence,
       degraded: res.degraded,
       model: res.model,
       provider: res.provider,

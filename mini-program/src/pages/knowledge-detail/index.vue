@@ -37,6 +37,17 @@
         <text class="authority-callout-text">{{ authorityCalloutText }}</text>
       </view>
 
+      <view class="read-guide-box">
+        <text class="read-guide-title">建议这样阅读</text>
+        <text
+          v-for="item in detailHighlights"
+          :key="item"
+          class="read-guide-item"
+        >
+          {{ item }}
+        </text>
+      </view>
+
       <view v-if="displayedSummary" class="summary-box">
         <text class="summary-label">{{ showingTranslation ? '中文摘要' : '核心摘要' }}</text>
         <text class="summary-text">{{ displayedSummary }}</text>
@@ -48,6 +59,10 @@
         <view class="source-btn" @tap="openSource(displayedSourceUrl)">
           <text class="source-btn-text">查看机构原文</text>
         </view>
+      </view>
+      <view v-else class="source-box source-box--muted">
+        <text class="source-label">原始来源</text>
+        <text class="source-url">当前未提供可直接打开的机构原文链接，请优先参考本页摘要、同步时间和机构标签。</text>
       </view>
 
       <view v-if="showTranslationEntry" class="translation-box">
@@ -66,6 +81,7 @@
         <text class="translation-desc">
           {{ translationDescriptionText }}
         </text>
+        <text v-if="translationReadyText" class="translation-ready-text">{{ translationReadyText }}</text>
       </view>
 
       <view class="article-content">
@@ -75,6 +91,29 @@
 
       <view v-if="article.disclaimer" class="disclaimer-box">
         <text class="disclaimer-text">{{ article.disclaimer }}</text>
+      </view>
+
+      <view v-if="continueReadingItems.length" class="continue-reading-box">
+        <text class="continue-reading-title">继续阅读</text>
+        <text class="continue-reading-desc">顺着当前主题继续看，信息会更连贯。</text>
+        <view
+          v-for="item in continueReadingItems"
+          :key="item.slug"
+          class="continue-reading-item"
+          @tap="openContinueReading(item.slug)"
+        >
+          <view class="continue-reading-copy">
+            <text class="continue-reading-item-title">{{ item.title }}</text>
+            <text class="continue-reading-item-meta">{{ item.meta }}</text>
+          </view>
+          <text class="continue-reading-action">继续看</text>
+        </view>
+      </view>
+
+      <view class="detail-actions">
+        <view class="detail-link-btn" @tap="goBackToKnowledge">
+          <text class="detail-link-btn-text">返回知识库</text>
+        </view>
       </view>
 
       <view class="share-bar">
@@ -89,12 +128,27 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { onLoad, onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app'
-import { articleApi, type AuthorityArticleTranslation } from '@/api/modules'
+import type { AuthorityArticleTranslation } from '@/api/modules'
 import { useKnowledgeStore } from '@/stores/knowledge'
 import { getAuthorityRegionLabel, getAuthorityRegionTag, isChineseAuthoritySource } from '@/utils/authority-source'
 
 const knowledgeStore = useKnowledgeStore()
 let currentSlug = ''
+const RECENT_KNOWLEDGE_STORAGE_KEY = 'recentKnowledgeArticles'
+
+interface ContinueReadingItem {
+  slug: string
+  title: string
+  meta: string
+  shouldWarmTranslation: boolean
+}
+
+interface RecentKnowledgeItem {
+  slug: string
+  title: string
+  sourceLabel: string
+  updatedAtLabel: string
+}
 
 const article = computed(() => knowledgeStore.currentArticle)
 const loading = computed(() => knowledgeStore.loading)
@@ -103,8 +157,9 @@ const translation = ref<AuthorityArticleTranslation | null>(null)
 const translating = ref(false)
 const translationError = ref('')
 const showingTranslation = ref(false)
-let translationRequest: Promise<AuthorityArticleTranslation> | null = null
-let translationRequestSlug = ''
+const shouldWarmTranslation = ref(false)
+const autoShowTranslation = ref(false)
+const continueReadingItems = ref<ContinueReadingItem[]>([])
 
 const displayedTitle = computed(() => (
   showingTranslation.value && translation.value?.translatedTitle
@@ -175,9 +230,38 @@ const authorityCalloutText = computed(() => {
   return '这篇内容来自国际权威机构公开资料，可切换中文辅助阅读并查看原文链接。'
 })
 
+const detailHighlights = computed(() => {
+  const highlights: string[] = []
+
+  if (isChineseAuthoritySource(article.value)) {
+    highlights.push('先看中文原文和来源更新时间，适合直接核对政策、指南和官方口径。')
+  } else {
+    highlights.push('先看摘要，再决定是否切换中文辅助阅读或打开机构原文。')
+  }
+
+  if (article.value?.audience) {
+    highlights.push(`当前更适合 ${article.value.audience} 人群参考，使用前先确认是否与你的阶段一致。`)
+  } else {
+    highlights.push('使用前先确认适用阶段和对象，避免把通用建议直接套用到个体情况。')
+  }
+
+  highlights.push('如果内容涉及症状恶化、紧急情况或个体治疗方案，请结合线下医生意见判断。')
+  return highlights
+})
+
+const translationReadyText = computed(() => {
+  if (!showTranslationEntry.value) return ''
+  if (translating.value) return '正在准备译文，保持当前页面即可。'
+  if (translation.value && !showingTranslation.value) return '中文阅读版已准备好，点“查看中文”可直接切换。'
+  if (translation.value && showingTranslation.value) return '当前正在查看中文辅助阅读版。'
+  return ''
+})
+
 onLoad((options) => {
   if (typeof options?.slug === 'string') {
     currentSlug = options.slug
+    shouldWarmTranslation.value = options?.translation === '1'
+    autoShowTranslation.value = options?.translation === '1'
     void loadArticleDetail(options.slug)
   }
 })
@@ -427,6 +511,7 @@ async function toggleTranslation() {
   }
 
   if (showingTranslation.value) {
+    autoShowTranslation.value = false
     showingTranslation.value = false
     return
   }
@@ -450,14 +535,19 @@ async function toggleTranslation() {
 }
 
 async function loadArticleDetail(slug: string) {
-  translationRequest = null
-  translationRequestSlug = ''
   translation.value = knowledgeStore.getCachedTranslation(slug)
   translating.value = false
   translationError.value = ''
-  showingTranslation.value = Boolean(translation.value && !translation.value.isSourceChinese)
+  showingTranslation.value = Boolean(translation.value && !translation.value.isSourceChinese && autoShowTranslation.value)
 
-  await knowledgeStore.fetchArticleDetail(slug)
+  const articleDetailTask = knowledgeStore.fetchArticleDetail(slug)
+  if (shouldWarmTranslation.value && !translation.value) {
+    void prefetchTranslation()
+  }
+
+  await articleDetailTask
+  persistRecentKnowledge()
+  syncContinueReading()
 
   if (!translation.value && !isLikelyChineseSource.value) {
     void prefetchTranslation()
@@ -465,60 +555,134 @@ async function loadArticleDetail(slug: string) {
 }
 
 async function ensureTranslationLoaded(slug: string): Promise<AuthorityArticleTranslation> {
-  const cachedTranslation = knowledgeStore.getCachedTranslation(slug)
-  if (cachedTranslation) {
-    if (currentSlug === slug) {
-      translation.value = cachedTranslation
-    }
-    return cachedTranslation
+  const result = await knowledgeStore.fetchTranslation(slug)
+  if (currentSlug === slug) {
+    translation.value = result
   }
-
-  if (currentSlug === slug && translation.value) {
-    return translation.value
-  }
-
-  if (translationRequest && translationRequestSlug === slug) {
-    return translationRequest
-  }
-
-  translationRequestSlug = slug
-  translationRequest = articleApi.getTranslation(slug)
-    .then((result) => {
-      knowledgeStore.cacheTranslation(slug, result)
-      if (currentSlug === slug) {
-        translation.value = result
-      }
-      return result
-    })
-    .catch((err) => {
-      knowledgeStore.markTranslationFailed(slug)
-      throw err
-    })
-    .finally(() => {
-      if (translationRequestSlug === slug) {
-        translationRequest = null
-        translationRequestSlug = ''
-      }
-    })
-
-  return translationRequest
+  return result
 }
 
 async function prefetchTranslation() {
   if (
     !currentSlug
     || translation.value
-    || translationRequest
     || isLikelyChineseSource.value
   ) {
     return
   }
 
   try {
-    await ensureTranslationLoaded(currentSlug)
+    const result = await ensureTranslationLoaded(currentSlug)
+    if (currentSlug === result.slug && autoShowTranslation.value && !result.isSourceChinese) {
+      showingTranslation.value = true
+    }
   } catch {
     return
   }
+}
+
+function persistRecentKnowledge() {
+  if (!article.value?.slug || !article.value?.title) {
+    return
+  }
+
+  const currentItem = {
+    slug: article.value.slug,
+    title: article.value.title,
+    sourceLabel: formatSourceLabel(article.value.sourceOrg || article.value.source || '权威来源'),
+    updatedAtLabel: formatDate(article.value.sourceUpdatedAt || article.value.publishedAt || article.value.createdAt) || '最近同步',
+  }
+
+  const stored = uni.getStorageSync(RECENT_KNOWLEDGE_STORAGE_KEY) as Array<typeof currentItem> | null
+  const nextList = [currentItem, ...(Array.isArray(stored) ? stored : []).filter(item => item.slug !== currentItem.slug)].slice(0, 3)
+  uni.setStorageSync(RECENT_KNOWLEDGE_STORAGE_KEY, nextList)
+}
+
+function buildContinueReadingMeta(input: {
+  sourceLabel?: string
+  updatedAtLabel?: string
+  topic?: string | null
+  audience?: string | null
+}) {
+  return [
+    input.sourceLabel,
+    input.topic || undefined,
+    input.audience || undefined,
+    input.updatedAtLabel,
+  ].filter(Boolean).join(' · ')
+}
+
+function syncContinueReading() {
+  const currentArticle = article.value
+  if (!currentArticle?.slug) {
+    continueReadingItems.value = []
+    return
+  }
+
+  const currentRegionTag = getAuthorityRegionTag(currentArticle)
+  const relatedFromStore = knowledgeStore.articles
+    .filter(item => item.slug !== currentArticle.slug)
+    .map((item) => {
+      let score = 0
+      if (currentArticle.topic && item.topic === currentArticle.topic) score += 5
+      if ((currentArticle.sourceOrg || currentArticle.source) && (item.sourceOrg || item.source) === (currentArticle.sourceOrg || currentArticle.source)) score += 3
+      if (getAuthorityRegionTag(item) === currentRegionTag) score += 2
+      if (currentArticle.audience && item.audience === currentArticle.audience) score += 1
+      return { item, score }
+    })
+    .sort((left, right) => right.score - left.score)
+    .map(({ item }) => ({
+      slug: item.slug,
+      title: item.title,
+      meta: buildContinueReadingMeta({
+        sourceLabel: formatSourceLabel(item.sourceOrg || item.source || '权威来源'),
+        updatedAtLabel: formatDate(item.sourceUpdatedAt || item.publishedAt || item.createdAt) || '最近同步',
+        topic: item.topic,
+        audience: item.audience,
+      }),
+      shouldWarmTranslation: item.sourceLanguage !== 'zh' && item.sourceLocale !== 'zh-CN',
+    }))
+
+  const storedRecent = uni.getStorageSync(RECENT_KNOWLEDGE_STORAGE_KEY) as RecentKnowledgeItem[] | null
+  const fallbackRecent = (Array.isArray(storedRecent) ? storedRecent : [])
+    .filter(item => item.slug !== currentArticle.slug)
+    .map(item => ({
+      slug: item.slug,
+      title: item.title,
+      meta: buildContinueReadingMeta({
+        sourceLabel: item.sourceLabel,
+        updatedAtLabel: item.updatedAtLabel,
+      }),
+      shouldWarmTranslation: false,
+    }))
+
+  const merged = [...relatedFromStore, ...fallbackRecent]
+  const uniqueItems: ContinueReadingItem[] = []
+  merged.forEach((item) => {
+    if (!item.slug || uniqueItems.some(existing => existing.slug === item.slug)) {
+      return
+    }
+    uniqueItems.push(item)
+  })
+
+  continueReadingItems.value = uniqueItems.slice(0, 3)
+}
+
+function openContinueReading(slug: string) {
+  const target = continueReadingItems.value.find(item => item.slug === slug)
+  if (!slug || slug === currentSlug || !target) {
+    return
+  }
+
+  currentSlug = slug
+  shouldWarmTranslation.value = target.shouldWarmTranslation
+  autoShowTranslation.value = target.shouldWarmTranslation
+  uni.pageScrollTo({ scrollTop: 0, duration: 0 })
+  void loadArticleDetail(slug)
+}
+
+function goBackToKnowledge() {
+  uni.switchTab({ url: '/pages/knowledge/index' })
 }
 
 function buildSharePayload() {
@@ -586,11 +750,13 @@ onShareTimeline(() => {
 
 .article-header,
 .authority-callout,
+.read-guide-box,
 .summary-box,
 .source-box,
 .translation-box,
 .article-content,
-.disclaimer-box {
+.disclaimer-box,
+.continue-reading-box {
   background: #fff;
   border-radius: 28rpx;
   margin-bottom: 20rpx;
@@ -692,6 +858,21 @@ onShareTimeline(() => {
   color: #526072;
 }
 
+.read-guide-title {
+  display: block;
+  font-size: 24rpx;
+  font-weight: 700;
+  color: #24303d;
+}
+
+.read-guide-item {
+  display: block;
+  margin-top: 12rpx;
+  font-size: 25rpx;
+  line-height: 1.7;
+  color: #5d6b7b;
+}
+
 .summary-label,
 .source-label {
   display: block;
@@ -710,6 +891,10 @@ onShareTimeline(() => {
 
 .source-url {
   word-break: break-all;
+}
+
+.source-box--muted {
+  background: rgba(255, 255, 255, 0.78);
 }
 
 .source-btn {
@@ -751,6 +936,90 @@ onShareTimeline(() => {
   font-size: 25rpx;
   line-height: 1.7;
   color: #66788a;
+}
+
+.translation-ready-text {
+  display: block;
+  margin-top: 12rpx;
+  font-size: 23rpx;
+  color: #1c7a63;
+}
+
+.continue-reading-title {
+  display: block;
+  font-size: 28rpx;
+  font-weight: 700;
+  color: #24303d;
+}
+
+.continue-reading-desc {
+  display: block;
+  margin-top: 12rpx;
+  font-size: 25rpx;
+  line-height: 1.7;
+  color: #5d6b7b;
+}
+
+.continue-reading-item + .continue-reading-item {
+  margin-top: 16rpx;
+}
+
+.continue-reading-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18rpx;
+  margin-top: 20rpx;
+  padding: 22rpx 24rpx;
+  border-radius: 22rpx;
+  background: #f7f9fc;
+}
+
+.continue-reading-copy {
+  flex: 1;
+}
+
+.continue-reading-item-title {
+  display: block;
+  font-size: 26rpx;
+  line-height: 1.55;
+  font-weight: 700;
+  color: #25303c;
+}
+
+.continue-reading-item-meta {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 22rpx;
+  color: #7a8592;
+}
+
+.continue-reading-action {
+  flex-shrink: 0;
+  font-size: 24rpx;
+  font-weight: 700;
+  color: #f36f45;
+}
+
+.detail-actions {
+  display: flex;
+  margin-bottom: 20rpx;
+}
+
+.detail-link-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 20rpx 28rpx;
+  border-radius: 24rpx;
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.detail-link-btn-text {
+  font-size: 26rpx;
+  font-weight: 700;
+  color: #3a4a5d;
 }
 
 .translation-btn {

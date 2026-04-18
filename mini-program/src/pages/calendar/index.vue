@@ -127,6 +127,22 @@
 
     <!-- 待办事项 内容 -->
     <view class="content-section" v-if="activeTab === 'todo'">
+      <view class="week-overview-card">
+        <view class="week-overview-copy">
+          <text class="week-overview-title">第 {{ currentSelectedWeek }} 周执行面板</text>
+          <text class="week-overview-desc">
+            {{ canUseTodoActions ? `已完成 ${completedTodoCount} / ${todoList.length} 项，本周事项会实时保存。` : '未登录也可先看本周重点；登录后再保存待办和完成状态。' }}
+          </text>
+        </view>
+        <view
+          v-if="!canUseTodoActions"
+          class="week-overview-btn"
+          @tap="goLoginForTimeline('登录后可保存待办和记录')"
+        >
+          <text class="week-overview-btn-text">去登录</text>
+        </view>
+      </view>
+
       <view class="info-card todo-card">
         <view class="card-header">
           <view class="header-left">
@@ -152,6 +168,7 @@
             :class="{
               'todo-item--done': todo.completed,
               'todo-item--disabled': !canUseTodoActions,
+              'todo-item--pending': todoPendingKey === todo.stateKey,
             }"
             v-for="todo in todoList"
             :key="todo.stateKey"
@@ -165,6 +182,7 @@
                 <view class="todo-type" :class="'type-' + todo.type">
                   {{ todo.type === 'checkup' ? '产检' : todo.type === 'custom' ? '自定义' : '事项' }}
                 </view>
+                <text v-if="todoPendingKey === todo.stateKey" class="todo-state todo-state--muted">同步中</text>
                 <text v-if="todo.completed" class="todo-state">已完成</text>
               </view>
               <text class="todo-title">{{ todo.title }}</text>
@@ -186,10 +204,23 @@
 
     <!-- 我的记录 内容 -->
     <view class="content-section" v-if="activeTab === 'diary'">
+      <view v-if="!canUseTodoActions" class="week-overview-card week-overview-card--soft">
+        <view class="week-overview-copy">
+          <text class="week-overview-title">登录后可保存本周记录</text>
+          <text class="week-overview-desc">未登录时可以先浏览孕周指南，确认有需要再保存你这周的感受和重点事项。</text>
+        </view>
+        <view
+          class="week-overview-btn"
+          @tap="goLoginForTimeline('登录后可保存本周记录')"
+        >
+          <text class="week-overview-btn-text">去登录</text>
+        </view>
+      </view>
+
       <view class="diary-empty" v-if="!currentDiary">
         <text class="empty-emoji">📝</text>
-        <text class="empty-text">这周还没有记录哦，写下你的孕期感受吧！</text>
-        <button class="add-diary-btn" @tap="openDiaryModal">添加本周记录</button>
+        <text class="empty-text">{{ canUseTodoActions ? '这周还没有记录哦，写下你的孕期感受吧！' : '当前还没有保存记录，登录后可以把本周感受与医生建议留下来。' }}</text>
+        <button class="add-diary-btn" @tap="openDiaryModal">{{ canUseTodoActions ? '添加本周记录' : '登录后记录' }}</button>
       </view>
 
       <view class="diary-card" v-else>
@@ -291,6 +322,7 @@ const diaryInput = ref('')
 const showCustomTodoModal = ref(false)
 const customTodoInput = ref('')
 const editingCustomTodoId = ref('')
+const todoPendingKey = ref('')
 
 const fallbackData = {
   title: '数据未收录',
@@ -456,6 +488,13 @@ const handleSelectWeek = (e: any) => {
   }
 }
 
+const goLoginForTimeline = (toastTitle = '请先登录后保存') => {
+  uni.showToast({ title: toastTitle, icon: 'none' })
+  setTimeout(() => {
+    uni.navigateTo({ url: '/pages/login/index' })
+  }, 900)
+}
+
 // 登录检查（编辑功能需要登录）
 const checkLogin = (
   toastTitle = '请先登录后再记录',
@@ -463,11 +502,10 @@ const checkLogin = (
 ): boolean => {
   const token = uni.getStorageSync('token')
   if (!token) {
-    uni.showToast({ title: toastTitle, icon: 'none' })
     if (shouldRedirect) {
-      setTimeout(() => {
-        uni.navigateTo({ url: '/pages/login/index' })
-      }, 1000)
+      goLoginForTimeline(toastTitle)
+    } else {
+      uni.showToast({ title: toastTitle, icon: 'none' })
     }
     return false
   }
@@ -661,6 +699,15 @@ const toggleTodo = async (todo: { todoKey: string; stateKey: string; completed: 
   if (!checkLogin('请先登录后使用待办', false) || !canUseTodoActions.value) return
 
   const nextCompleted = !todo.completed
+  const previousState = { ...todoState.value }
+  const nextState = { ...todoState.value }
+  if (nextCompleted) {
+    nextState[todo.stateKey] = true
+  } else {
+    delete nextState[todo.stateKey]
+  }
+  todoState.value = nextState
+  todoPendingKey.value = todo.stateKey
 
   try {
     await calendarApi.updateTodoProgress({
@@ -668,17 +715,15 @@ const toggleTodo = async (todo: { todoKey: string; stateKey: string; completed: 
       todoKey: todo.todoKey,
       completed: nextCompleted,
     })
-
-    const nextState = { ...todoState.value }
-    if (nextCompleted) {
-      nextState[todo.stateKey] = true
-    } else {
-      delete nextState[todo.stateKey]
-    }
-    todoState.value = nextState
+    uni.showToast({ title: nextCompleted ? '已标记完成' : '已恢复待办', icon: 'none' })
   } catch (err: any) {
+    todoState.value = previousState
     console.error('[Calendar] 保存待办进度失败:', err)
     uni.showToast({ title: err?.message || '保存失败，请稍后重试', icon: 'none' })
+  } finally {
+    if (todoPendingKey.value === todo.stateKey) {
+      todoPendingKey.value = ''
+    }
   }
 }
 
@@ -840,6 +885,46 @@ onShareTimeline(() => {
 
 /* 内容区 */
 .content-section { padding: 30rpx; background-color: #f7f9fa; }
+.week-overview-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20rpx;
+  margin-bottom: 22rpx;
+  padding: 28rpx 30rpx;
+  border-radius: 24rpx;
+  background: linear-gradient(135deg, #fff7f1 0%, #ffffff 100%);
+  box-shadow: 0 8rpx 24rpx rgba(180, 112, 72, 0.08);
+}
+.week-overview-card--soft {
+  background: linear-gradient(135deg, #eef6ff 0%, #ffffff 100%);
+}
+.week-overview-copy { flex: 1; }
+.week-overview-title {
+  display: block;
+  font-size: 30rpx;
+  font-weight: 700;
+  color: #313b47;
+}
+.week-overview-desc {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 24rpx;
+  line-height: 1.6;
+  color: #727f8d;
+}
+.week-overview-btn {
+  flex-shrink: 0;
+  padding: 16rpx 22rpx;
+  border-radius: 999rpx;
+  background: #ffffff;
+  border: 2rpx solid #ffd9bf;
+}
+.week-overview-btn-text {
+  font-size: 24rpx;
+  font-weight: 700;
+  color: #b4633d;
+}
 .summary-card {
   background: linear-gradient(135deg, #ffffff 0%, #fff5f8 100%);
   padding: 40rpx 30rpx; border-radius: 24rpx; margin-bottom: 30rpx;
@@ -883,6 +968,7 @@ onShareTimeline(() => {
 .todo-item:nth-child(even) { border-left-color: #ff9800; }
 .todo-item--done { background-color: #eef7f1; border-left-color: #5dbb7f !important; }
 .todo-item--disabled { opacity: 0.78; }
+.todo-item--pending { opacity: 0.72; }
 .todo-check {
   width: 40rpx; height: 40rpx; border-radius: 20rpx; border: 2rpx solid #d7dbe2;
   background: #fff; display: flex; align-items: center; justify-content: center;
@@ -897,6 +983,7 @@ onShareTimeline(() => {
 .type-action { background-color: #fff3e0; color: #ff9800; }
 .type-custom { background-color: #eef1ff; color: #6274ff; }
 .todo-state { font-size: 22rpx; color: #5dbb7f; }
+.todo-state--muted { color: #8b96a3; }
 .todo-title { display: block; font-size: 28rpx; font-weight: bold; color: #333; margin-bottom: 8rpx; }
 .todo-desc { font-size: 24rpx; color: #777; }
 .todo-item--done .todo-title { color: #7e8b84; text-decoration: line-through; }

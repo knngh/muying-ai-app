@@ -3,7 +3,33 @@ import { articleApi } from '@/api/modules'
 import type { Article, AuthorityArticleTranslation, PaginatedResponse } from '@/api/modules'
 import { getAuthorityRegionPriority } from '@/utils/authority-source'
 
-const translationInFlight = new Set<string>()
+const TRANSLATION_CACHE_STORAGE_KEY = 'knowledgeTranslationCache'
+const MAX_PERSISTED_TRANSLATIONS = 12
+const translationInFlight = new Map<string, Promise<AuthorityArticleTranslation>>()
+
+function loadPersistedTranslations() {
+  const stored = uni.getStorageSync(TRANSLATION_CACHE_STORAGE_KEY) as Array<{ slug: string; translation: AuthorityArticleTranslation }> | null
+  if (!Array.isArray(stored)) {
+    return {
+      cache: {} as Record<string, AuthorityArticleTranslation>,
+      order: [] as string[],
+    }
+  }
+
+  const cache: Record<string, AuthorityArticleTranslation> = {}
+  const order: string[] = []
+  stored.forEach((item) => {
+    if (!item?.slug || !item?.translation) {
+      return
+    }
+    cache[item.slug] = item.translation
+    order.push(item.slug)
+  })
+
+  return { cache, order }
+}
+
+const persistedTranslations = loadPersistedTranslations()
 
 function getArticleTimestamp(article: Article): number {
   const value = article.publishedAt || article.createdAt
@@ -45,7 +71,8 @@ export const useKnowledgeStore = defineStore('knowledge', {
   state: () => ({
     articles: [] as Article[],
     currentArticle: null as Article | null,
-    translationCache: {} as Record<string, AuthorityArticleTranslation>,
+    translationCache: persistedTranslations.cache,
+    translationCacheOrder: persistedTranslations.order,
     translationFailed: {} as Record<string, boolean>,
     total: 0,
     page: 1,
@@ -58,6 +85,18 @@ export const useKnowledgeStore = defineStore('knowledge', {
   }),
 
   actions: {
+    persistTranslationCache() {
+      const entries = this.translationCacheOrder
+        .filter(slug => this.translationCache[slug])
+        .slice(0, MAX_PERSISTED_TRANSLATIONS)
+        .map(slug => ({
+          slug,
+          translation: this.translationCache[slug],
+        }))
+
+      uni.setStorageSync(TRANSLATION_CACHE_STORAGE_KEY, entries)
+    },
+
     async fetchArticles(params?: { page?: number; reset?: boolean }) {
       const page = params?.page || this.page
       this.loading = true
@@ -99,6 +138,34 @@ export const useKnowledgeStore = defineStore('knowledge', {
       }
     },
 
+    async fetchTranslation(slug: string) {
+      const cachedTranslation = this.translationCache[slug]
+      if (cachedTranslation) {
+        return cachedTranslation
+      }
+
+      const inFlightRequest = translationInFlight.get(slug)
+      if (inFlightRequest) {
+        return inFlightRequest
+      }
+
+      const request = (articleApi.getTranslation(slug) as Promise<AuthorityArticleTranslation>)
+      translationInFlight.set(slug, request)
+
+      try {
+        const translation = await request
+        this.cacheTranslation(slug, translation)
+        return translation
+      } catch (error) {
+        this.markTranslationFailed(slug)
+        throw error
+      } finally {
+        if (translationInFlight.get(slug) === request) {
+          translationInFlight.delete(slug)
+        }
+      }
+    },
+
     async prefetchTranslations(candidates: Article[], limit = 6) {
       const queue = candidates
         .filter((item) => item.contentType === 'authority')
@@ -112,14 +179,10 @@ export const useKnowledgeStore = defineStore('knowledge', {
       }
 
       await Promise.all(queue.map(async (item) => {
-        translationInFlight.add(item.slug)
         try {
-          const translation = await articleApi.getTranslation(item.slug) as AuthorityArticleTranslation
-          this.cacheTranslation(item.slug, translation)
+          await this.fetchTranslation(item.slug)
         } catch (_error) {
-          this.markTranslationFailed(item.slug)
-        } finally {
-          translationInFlight.delete(item.slug)
+          return
         }
       }))
     },
@@ -129,10 +192,13 @@ export const useKnowledgeStore = defineStore('knowledge', {
     },
 
     cacheTranslation(slug: string, translation: AuthorityArticleTranslation) {
+      const nextOrder = [slug, ...this.translationCacheOrder.filter(item => item !== slug)].slice(0, MAX_PERSISTED_TRANSLATIONS)
       this.translationCache = {
         ...this.translationCache,
         [slug]: translation,
       }
+      this.translationCacheOrder = nextOrder
+      this.persistTranslationCache()
 
       if (this.translationFailed[slug]) {
         const { [slug]: _ignored, ...rest } = this.translationFailed
