@@ -122,14 +122,12 @@
 import { ref, computed, onMounted, reactive } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useAppStore } from '@/stores/app'
-import { useChatStore } from '@/stores/chat'
 import { authApi } from '@/api/modules'
 import dayjs from 'dayjs'
 import { calculateDueDateFromPregnancyWeek, calculatePregnancyWeekFromDueDate, clearLocalSession } from '@/utils'
 
 const PROFILE_AUTO_OPEN_EDIT_KEY = 'profileAutoOpenEdit'
 const appStore = useAppStore()
-const chatStore = useChatStore()
 
 const user = computed(() => appStore.user)
 const showEditModal = ref(false)
@@ -265,7 +263,6 @@ const onLogout = () => {
     content: '确定要退出登录吗？',
     success: (res) => {
       if (res.confirm) {
-        chatStore.resetState()
         clearLocalSession()
         appStore.setUser(null)
         uni.reLaunch({ url: '/pages/login/index' })

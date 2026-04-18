@@ -147,7 +147,6 @@ import { calculateDueDateFromPregnancyWeek, syncPregnancyWeekStorage } from '@/u
 import dayjs from 'dayjs'
 
 const appStore = useAppStore()
-const CHAT_DRAFT_STORAGE_KEY = 'pendingChatDraft'
 const loginStep = ref<'auth' | 'week'>('auth')
 const pregnancyWeek = ref('')
 const authMode = ref<'login' | 'register'>('login')
@@ -199,13 +198,6 @@ const navigateGuest = (url: string) => {
 const navigateHome = () => {
   uni.showToast({ title: '登录成功', icon: 'success' })
   setTimeout(() => {
-    const pendingChatDraft = uni.getStorageSync(CHAT_DRAFT_STORAGE_KEY) as { question?: string } | null
-    const question = pendingChatDraft?.question?.trim()
-    if (question) {
-      uni.removeStorageSync(CHAT_DRAFT_STORAGE_KEY)
-      uni.navigateTo({ url: `/pages/chat/index?q=${encodeURIComponent(question)}` })
-      return
-    }
     uni.switchTab({ url: '/pages/home/index' })
   }, 500)
 }

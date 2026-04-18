@@ -19,7 +19,7 @@
       </view>
 
       <view class="trust-strip">
-        <text class="trust-strip-text">先查权威资料，再问问题，再记录本周安排</text>
+        <text class="trust-strip-text">先查权威资料，再安排本周重点与记录</text>
       </view>
 
       <view class="calendar-spotlight" @tap="navigateTo('/pages/calendar/index')">
@@ -56,13 +56,13 @@
       </view>
 
       <view class="quick-grid">
-        <view class="quick-card quick-card--warm" @tap="openChat()">
-          <text class="quick-card-title">问一个问题</text>
-          <text class="quick-card-desc">优先参考权威资料，回答结果标明可信等级。</text>
-        </view>
         <view class="quick-card quick-card--soft" @tap="navigateTo('/pages/calendar/index')">
           <text class="quick-card-title">看本周安排</text>
           <text class="quick-card-desc">查看孕周重点、待办和本周记录，完成状态实时更新。</text>
+        </view>
+        <view class="quick-card quick-card--warm" @tap="navigateTo('/pages/pregnancy-profile/index')">
+          <text class="quick-card-title">完善孕周档案</text>
+          <text class="quick-card-desc">补充当前阶段后，首页、日历和知识库会自动贴近你的进度。</text>
         </view>
       </view>
 
@@ -82,42 +82,6 @@
             <text class="recent-meta">{{ item.sourceLabel }} · {{ item.updatedAtLabel }}</text>
           </view>
           <text class="recent-action">继续看</text>
-        </view>
-      </view>
-
-      <view v-if="recentQuestions.length" class="recent-chat-card">
-        <view class="section-head">
-          <text class="section-title">继续追问</text>
-          <text class="section-caption">回到最近的问题，接着问更快</text>
-        </view>
-        <view
-          v-for="item in recentQuestions"
-          :key="item.question"
-          class="recent-chat-item"
-          @tap="openChat(item.question)"
-        >
-          <view class="recent-chat-copy">
-            <text class="recent-chat-title">{{ item.question }}</text>
-            <text class="recent-chat-meta">问题助手 · {{ formatRecentQuestionTime(item.updatedAt) }}</text>
-          </view>
-          <text class="recent-chat-action">继续问</text>
-        </view>
-      </view>
-
-      <view class="ask-card">
-        <view class="section-head">
-          <text class="section-title">现在就能这样提问</text>
-          <text class="section-caption">带着具体场景进入更快</text>
-        </view>
-        <view class="ask-chip-list">
-          <view
-            v-for="question in suggestedQuestions"
-            :key="question"
-            class="ask-chip"
-            @tap="openChat(question)"
-          >
-            <text class="ask-chip-text">{{ question }}</text>
-          </view>
         </view>
       </view>
 
@@ -155,7 +119,7 @@
 
       <view class="notice-card">
         <text class="notice-title">当前版本说明</text>
-        <text class="notice-text">小程序首发优先提供权威知识库、问题助手、孕周指南与基础档案，不要求上传身份证件或其他敏感身份材料。</text>
+        <text class="notice-text">小程序当前优先提供权威知识库、孕周指南与基础档案，不要求上传身份证件或其他敏感身份材料。</text>
       </view>
     </view>
   </view>
@@ -169,18 +133,12 @@ import { calculatePregnancyWeekFromDueDate } from '@/utils'
 
 const appStore = useAppStore()
 const RECENT_KNOWLEDGE_STORAGE_KEY = 'recentKnowledgeArticles'
-const RECENT_CHAT_QUESTIONS_STORAGE_KEY = 'recentChatQuestions'
 
 interface RecentKnowledgeItem {
   slug: string
   title: string
   sourceLabel: string
   updatedAtLabel: string
-}
-
-interface RecentChatQuestionItem {
-  question: string
-  updatedAt: string
 }
 
 const TAB_PAGES = new Set([
@@ -198,47 +156,16 @@ const PUBLIC_PAGES = new Set([
 
 const sessionLoggedIn = ref(Boolean(uni.getStorageSync('token')))
 const storedWeek = ref<number | null>(null)
-const CHAT_DRAFT_STORAGE_KEY = 'pendingChatDraft'
 const recentKnowledge = ref<RecentKnowledgeItem[]>([])
-const recentQuestions = ref<RecentChatQuestionItem[]>([])
-
-function formatRecentQuestionTime(updatedAt?: string) {
-  if (!updatedAt) {
-    return '最近提问'
-  }
-
-  const target = new Date(updatedAt)
-  if (Number.isNaN(target.getTime())) {
-    return '最近提问'
-  }
-
-  const now = new Date()
-  const diff = now.getTime() - target.getTime()
-  if (diff < 60 * 60 * 1000) {
-    return '刚刚提过'
-  }
-  if (diff < 24 * 60 * 60 * 1000) {
-    return '今天提过'
-  }
-  if (diff < 2 * 24 * 60 * 60 * 1000) {
-    return '昨天提过'
-  }
-
-  const month = `${target.getMonth() + 1}`.padStart(2, '0')
-  const day = `${target.getDate()}`.padStart(2, '0')
-  return `${month}-${day} 提过`
-}
 
 const syncHomeState = () => {
+  uni.removeStorageSync('pendingChatDraft')
+  uni.removeStorageSync('recentChatQuestions')
   sessionLoggedIn.value = Boolean(uni.getStorageSync('token'))
   const rawWeek = Number.parseInt(String(uni.getStorageSync('userPregnancyWeek') || ''), 10)
   storedWeek.value = !Number.isNaN(rawWeek) && rawWeek >= 1 && rawWeek <= 40 ? rawWeek : null
   const storedRecent = uni.getStorageSync(RECENT_KNOWLEDGE_STORAGE_KEY) as RecentKnowledgeItem[] | null
   recentKnowledge.value = Array.isArray(storedRecent) ? storedRecent.slice(0, 3) : []
-  const storedRecentQuestions = uni.getStorageSync(RECENT_CHAT_QUESTIONS_STORAGE_KEY) as RecentChatQuestionItem[] | null
-  recentQuestions.value = Array.isArray(storedRecentQuestions)
-    ? storedRecentQuestions.filter(item => item?.question?.trim()).slice(0, 3)
-    : []
 }
 
 syncHomeState()
@@ -271,7 +198,7 @@ const heroTitle = computed(() => (
 ))
 const heroSubtitle = computed(() => (
   isLoggedIn.value
-    ? '知识库、问题助手和孕周安排会围绕你当前阶段提供更贴近的内容。'
+    ? '知识库、孕周安排和个人记录会围绕你当前阶段提供更贴近的内容。'
     : '不登录也可以先浏览知识库和孕周指南；需要保存记录时再进入登录。'
 ))
 
@@ -309,7 +236,7 @@ const focusItems = computed(() => {
     return [
       { index: '01', title: '先确认本周风险点', desc: '重点看孕吐、出血、叶酸、早孕检查等高频主题。' },
       { index: '02', title: '安排本周待办', desc: '把产检、补剂和需要观察的身体变化整理进本周清单。' },
-      { index: '03', title: '有疑问就问助手', desc: '先快速提问，再回到知识库核对来源和细节。' },
+      { index: '03', title: '补齐阶段档案', desc: '保存孕周后，首页和日历会更准确地贴合你当前这一阶段。' },
     ]
   }
 
@@ -328,43 +255,6 @@ const focusItems = computed(() => {
   ]
 })
 
-const suggestedQuestions = computed(() => {
-  const week = currentWeek.value
-  if (!week) {
-    return [
-      '孕早期第一次产检前，应该先了解哪些重点？',
-      '新生儿夜里总醒，先从哪些护理细节排查？',
-      '母乳喂养初期最常见的问题有哪些？',
-    ]
-  }
-
-  if (week <= 12) {
-    return [
-      '我现在孕早期，这周最需要重点观察什么？',
-      '孕吐严重时，哪些情况需要尽快线下就医？',
-      '叶酸、饮食和作息这周应该怎么安排？',
-    ]
-  }
-
-  if (week <= 27) {
-    return [
-      '我现在孕中期，这周产检和营养要重点看什么？',
-      '胎动、体重和睡眠变化，哪些算需要关注？',
-      '这周如果要做运动，强度应该怎么把握？',
-    ]
-  }
-
-  return [
-    '我现在孕晚期，这周待产准备优先做哪几件事？',
-    '出现宫缩、见红或胎动变化时，应该先怎么判断？',
-    '临近分娩，这周要重点补哪些母乳和新生儿护理知识？',
-  ]
-})
-
-function persistChatDraft(question: string) {
-  uni.setStorageSync(CHAT_DRAFT_STORAGE_KEY, { question })
-}
-
 const checkLogin = (): boolean => {
   if (!isLoggedIn.value) {
     uni.showToast({ title: '登录后可保存你的进度', icon: 'none' })
@@ -374,23 +264,6 @@ const checkLogin = (): boolean => {
     return false
   }
   return true
-}
-
-function openChat(question = '') {
-  const trimmedQuestion = question.trim()
-  if (!isLoggedIn.value) {
-    if (trimmedQuestion) {
-      persistChatDraft(trimmedQuestion)
-    }
-    uni.showToast({ title: '登录后可进入问题助手', icon: 'none' })
-    setTimeout(() => {
-      uni.navigateTo({ url: '/pages/login/index' })
-    }, 900)
-    return
-  }
-
-  const query = trimmedQuestion ? `?q=${encodeURIComponent(trimmedQuestion)}` : ''
-  uni.navigateTo({ url: `/pages/chat/index${query}` })
 }
 
 function openRecentKnowledge(slug: string) {
@@ -693,8 +566,6 @@ onShareTimeline(() => ({
 
 .focus-card,
 .recent-card,
-.recent-chat-card,
-.ask-card,
 .notice-card {
   margin-top: 22rpx;
   padding: 30rpx;
@@ -811,78 +682,6 @@ onShareTimeline(() => ({
   font-size: 24rpx;
   font-weight: 700;
   color: #f36f45;
-}
-
-.recent-chat-card {
-  background:
-    linear-gradient(145deg, rgba(255, 247, 241, 0.94) 0%, rgba(255, 255, 255, 0.9) 100%);
-}
-
-.recent-chat-item + .recent-chat-item {
-  margin-top: 18rpx;
-}
-
-.recent-chat-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18rpx;
-  margin-top: 20rpx;
-  padding: 24rpx;
-  border-radius: 24rpx;
-  background: rgba(255, 255, 255, 0.72);
-  border: 2rpx solid rgba(243, 111, 69, 0.08);
-}
-
-.recent-chat-copy {
-  flex: 1;
-}
-
-.recent-chat-title {
-  display: -webkit-box;
-  overflow: hidden;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  font-size: 26rpx;
-  line-height: 1.55;
-  font-weight: 700;
-  color: #25303c;
-}
-
-.recent-chat-meta {
-  display: block;
-  margin-top: 10rpx;
-  font-size: 22rpx;
-  color: #8a7480;
-}
-
-.recent-chat-action {
-  flex-shrink: 0;
-  font-size: 24rpx;
-  font-weight: 700;
-  color: #cf5a39;
-}
-
-.ask-chip-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 14rpx;
-  margin-top: 20rpx;
-}
-
-.ask-chip {
-  max-width: 100%;
-  padding: 16rpx 20rpx;
-  border-radius: 18rpx;
-  background: #f7f9fc;
-  border: 2rpx solid rgba(95, 133, 229, 0.08);
-}
-
-.ask-chip-text {
-  font-size: 23rpx;
-  line-height: 1.5;
-  color: #4f5d71;
-  font-weight: 600;
 }
 
 .secondary-card {

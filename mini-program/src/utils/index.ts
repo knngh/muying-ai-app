@@ -114,6 +114,8 @@ export function clearLocalSession(): void {
   uni.removeStorageSync('token')
   uni.removeStorageSync('user')
   uni.removeStorageSync('userPregnancyWeek')
+  uni.removeStorageSync('pendingChatDraft')
+  uni.removeStorageSync('recentChatQuestions')
 }
 
 function normalizePregnancyStatus(value: unknown): number | undefined {
