@@ -84,6 +84,10 @@
           <text class="article-title">{{ article.title }}</text>
         </view>
 
+        <view v-if="getArticleContextLabel(article)" class="article-context-row">
+          <text class="article-context-chip">{{ getArticleContextLabel(article) }}</text>
+        </view>
+
         <text v-if="article.summary" class="article-summary">{{ article.summary }}</text>
 
         <view class="article-meta">
@@ -156,6 +160,17 @@ const loading = computed(() => knowledgeStore.loading)
 const total = computed(() => knowledgeStore.total)
 const selectedSource = computed(() => knowledgeStore.selectedSource)
 const selectedStageLabel = computed(() => stageOptions[selectedStageIndex.value]?.label || '全部阶段')
+const duplicateArticleKeyCounts = computed(() => {
+  const counts = new Map<string, number>()
+  articles.value.forEach((article) => {
+    const key = getArticleDuplicateKey(article)
+    if (!key) {
+      return
+    }
+    counts.set(key, (counts.get(key) || 0) + 1)
+  })
+  return counts
+})
 
 watch(articles, (list) => {
   if (list.length === 0) {
@@ -252,6 +267,45 @@ function formatSourceLabel(label?: string): string {
   if (/centers? for disease control|\bcdc\b|cdc\.gov/.test(lower)) return 'CDC'
   if (/american college of obstetricians and gynecologists|\bacog\b|acog\.org/.test(lower)) return 'ACOG'
   return value
+}
+
+function normalizeArticleKeyPart(value?: string) {
+  return (value || '')
+    .toLowerCase()
+    .replace(/[“”"']/g, '')
+    .replace(/[，。；：、]/g, ' ')
+    .replace(/[|()[\]{}]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function getArticleDuplicateKey(article: Article) {
+  const sourceKey = normalizeArticleKeyPart(article.sourceOrg || article.source)
+  const titleKey = normalizeArticleKeyPart(article.title)
+  if (!sourceKey || !titleKey) {
+    return ''
+  }
+  return `${sourceKey}::${titleKey}`
+}
+
+function getArticleContextLabel(article: Article) {
+  const duplicateKey = getArticleDuplicateKey(article)
+  const hasDuplicateTitle = duplicateKey ? (duplicateArticleKeyCounts.value.get(duplicateKey) || 0) > 1 : false
+  const parts: string[] = []
+
+  if (article.audience) {
+    parts.push(`适用对象：${article.audience}`)
+  }
+
+  if (hasDuplicateTitle && article.topic) {
+    parts.push(`重点：${article.topic}`)
+  }
+
+  if (hasDuplicateTitle && !parts.length) {
+    parts.push('同题不同页面，进入前先看适用对象')
+  }
+
+  return parts.join(' · ')
 }
 
 function buildSharePayload() {
@@ -521,6 +575,22 @@ onShareTimeline(() => {
   line-height: 1.7;
   color: #5d6b7b;
   margin-bottom: 18rpx;
+}
+
+.article-context-row {
+  margin-bottom: 14rpx;
+}
+
+.article-context-chip {
+  display: inline-flex;
+  max-width: 100%;
+  padding: 10rpx 16rpx;
+  border-radius: 999rpx;
+  background: rgba(47, 124, 246, 0.08);
+  font-size: 22rpx;
+  line-height: 1.45;
+  color: #326ac8;
+  font-weight: 700;
 }
 
 .article-meta {

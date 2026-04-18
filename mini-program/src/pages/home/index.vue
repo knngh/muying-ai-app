@@ -21,6 +21,18 @@
       <view class="trust-strip">
         <text class="trust-strip-text">先查权威资料，再问问题，再记录本周安排</text>
       </view>
+
+      <view class="calendar-spotlight" @tap="navigateTo('/pages/calendar/index')">
+        <view class="calendar-spotlight-copy">
+          <text class="calendar-spotlight-kicker">更直接的入口</text>
+          <text class="calendar-spotlight-title">{{ calendarSpotlightTitle }}</text>
+          <text class="calendar-spotlight-desc">{{ calendarSpotlightDesc }}</text>
+        </view>
+        <view class="calendar-spotlight-side">
+          <text class="calendar-spotlight-week">{{ calendarSpotlightBadge }}</text>
+          <text class="calendar-spotlight-action">去日历</text>
+        </view>
+      </view>
     </view>
 
     <view class="content-section">
@@ -173,6 +185,7 @@ interface RecentChatQuestionItem {
 
 const TAB_PAGES = new Set([
   '/pages/home/index',
+  '/pages/calendar/index',
   '/pages/knowledge/index',
   '/pages/profile/index',
 ])
@@ -260,6 +273,22 @@ const heroSubtitle = computed(() => (
   isLoggedIn.value
     ? '知识库、问题助手和孕周安排会围绕你当前阶段提供更贴近的内容。'
     : '不登录也可以先浏览知识库和孕周指南；需要保存记录时再进入登录。'
+))
+
+const calendarSpotlightTitle = computed(() => (
+  currentWeek.value
+    ? `第 ${currentWeek.value} 周安排与记录`
+    : '先看孕周日历与本周安排'
+))
+
+const calendarSpotlightDesc = computed(() => (
+  currentWeek.value
+    ? '把本周重点、待办事项和个人记录放在一个页面里，进入后就能继续跟进。'
+    : '日历里能直接看阶段重点、待办和记录入口，不用先翻首页其它区块。'
+))
+
+const calendarSpotlightBadge = computed(() => (
+  currentWeek.value ? `W${currentWeek.value}` : '日历'
 ))
 
 const focusCaption = computed(() => (
@@ -485,6 +514,71 @@ onShareTimeline(() => ({
   font-size: 24rpx;
   color: #16735d;
   font-weight: 600;
+}
+
+.calendar-spotlight {
+  margin-top: 22rpx;
+  padding: 26rpx 28rpx;
+  border-radius: 30rpx;
+  background: linear-gradient(135deg, #2f7cf6 0%, #5a99ff 100%);
+  box-shadow: 0 18rpx 38rpx rgba(59, 122, 232, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20rpx;
+}
+
+.calendar-spotlight-copy {
+  flex: 1;
+}
+
+.calendar-spotlight-kicker {
+  display: block;
+  font-size: 22rpx;
+  font-weight: 700;
+  letter-spacing: 2rpx;
+  color: rgba(235, 244, 255, 0.72);
+}
+
+.calendar-spotlight-title {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 36rpx;
+  line-height: 1.3;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.calendar-spotlight-desc {
+  display: block;
+  margin-top: 14rpx;
+  font-size: 24rpx;
+  line-height: 1.65;
+  color: rgba(245, 249, 255, 0.88);
+}
+
+.calendar-spotlight-side {
+  flex-shrink: 0;
+  min-width: 128rpx;
+  padding: 18rpx 18rpx 16rpx;
+  border-radius: 24rpx;
+  background: rgba(255, 255, 255, 0.16);
+  text-align: center;
+}
+
+.calendar-spotlight-week {
+  display: block;
+  font-size: 30rpx;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.calendar-spotlight-action {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 22rpx;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .content-section {

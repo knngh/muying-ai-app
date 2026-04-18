@@ -51,16 +51,169 @@ function getSourcePriority(article: Article): number {
   return getAuthorityRegionPriority(article)
 }
 
+function getKnowledgeArticlePathname(article: Article): string {
+  const url = article.sourceUrl || ''
+  if (!url) {
+    return ''
+  }
+
+  try {
+    return new URL(url).pathname.toLowerCase().replace(/\/+$/u, '') || '/'
+  } catch {
+    return ''
+  }
+}
+
+function isKnowledgeLandingLikePath(pathname: string): boolean {
+  if (!pathname) {
+    return false
+  }
+
+  return [
+    /^\/$/,
+    /^\/topics(?:\/[^/]+)?$/,
+    /^\/parents$/,
+    /^\/pregnancy$/,
+    /^\/breastfeeding$/,
+    /^\/contraception$/,
+    /^\/child-development$/,
+    /^\/conditions(?:\/[^/]+)?$/,
+    /^\/english\/(?:ages-stages|health-issues|healthy-living|safety-prevention|family-life)$/,
+  ].some(pattern => pattern.test(pathname))
+}
+
+function normalizeKnowledgeSourceKey(article: Article): string {
+  return `${article.sourceOrg || ''} ${article.source || ''}`
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function normalizeKnowledgeTitleKey(article: Article): string {
+  return (article.title || '')
+    .toLowerCase()
+    .replace(/[“”"']/g, '')
+    .replace(/[，。；：、]/g, ' ')
+    .replace(/[|()[\]{}]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function buildKnowledgeDedupeKeys(article: Article): string[] {
+  const keys = [article.slug].filter(Boolean)
+  const sourceKey = normalizeKnowledgeSourceKey(article)
+  const titleKey = normalizeKnowledgeTitleKey(article)
+
+  if (sourceKey && titleKey && titleKey.length >= 8) {
+    keys.push(`title:${sourceKey}:${titleKey}`)
+  }
+
+  return Array.from(new Set(keys))
+}
+
+function isGenericKnowledgeTitleKey(titleKey: string): boolean {
+  if (!titleKey) {
+    return true
+  }
+
+  const genericTitleKeys = new Set([
+    'nutrition',
+    'pregnancy',
+    'breastfeeding',
+    'immunization',
+    'vaccines',
+    'contraception',
+    'child development',
+    'parents',
+    'participants',
+  ])
+
+  return titleKey.length < 8 || genericTitleKeys.has(titleKey)
+}
+
+function getKnowledgeArticleQualityScore(article: Article): number {
+  const titleKey = normalizeKnowledgeTitleKey(article)
+  const sourceKey = normalizeKnowledgeSourceKey(article)
+  const pathname = getKnowledgeArticlePathname(article)
+  const summaryLength = (article.summary || '').trim().length
+
+  let score = 0
+
+  if (summaryLength >= 80) score += 4
+  else if (summaryLength >= 40) score += 2
+
+  if (article.audience) score += 2
+  if (article.topic && article.topic !== 'general') score += 2
+  if (article.topic && article.topic !== 'policy') score += 1
+  if (titleKey.length >= 12 && titleKey.length <= 120) score += 1
+  if (!isKnowledgeLandingLikePath(pathname)) score += 2
+
+  if (article.topic === 'policy') score -= 5
+  if (isGenericKnowledgeTitleKey(titleKey)) score -= 4
+  if (sourceKey && titleKey === sourceKey) score -= 8
+  if (isKnowledgeLandingLikePath(pathname)) score -= 3
+
+  return score
+}
+
+function pickBetterKnowledgeArticle(left: Article, right: Article): Article {
+  const leftSummaryLength = (left.summary || '').trim().length
+  const rightSummaryLength = (right.summary || '').trim().length
+  if (leftSummaryLength !== rightSummaryLength) {
+    return rightSummaryLength > leftSummaryLength ? right : left
+  }
+
+  const timestampDiff = getArticleTimestamp(right) - getArticleTimestamp(left)
+  if (timestampDiff !== 0) {
+    return timestampDiff > 0 ? right : left
+  }
+
+  const sourcePriorityDiff = getSourcePriority(left) - getSourcePriority(right)
+  if (sourcePriorityDiff !== 0) {
+    return sourcePriorityDiff < 0 ? left : right
+  }
+
+  return left
+}
+
+function dedupeKnowledgeArticles(list: Article[]): Article[] {
+  const deduped = new Map<string, Article>()
+
+  list.forEach((article) => {
+    const keys = buildKnowledgeDedupeKeys(article)
+    const existing = keys
+      .map(key => deduped.get(key))
+      .find((item): item is Article => Boolean(item))
+
+    if (!existing) {
+      keys.forEach(key => deduped.set(key, article))
+      return
+    }
+
+    const selected = pickBetterKnowledgeArticle(existing, article)
+    keys.forEach(key => deduped.set(key, selected))
+  })
+
+  return Array.from(new Map(
+    Array.from(deduped.values()).map(article => [article.slug, article]),
+  ).values())
+}
+
 function sortKnowledgeArticles(list: Article[]): Article[] {
-  return [...list].sort((left, right) => {
-    const dateBucketDiff = getArticleDateBucket(right).localeCompare(getArticleDateBucket(left))
-    if (dateBucketDiff !== 0) {
-      return dateBucketDiff
+  return [...dedupeKnowledgeArticles(list)].sort((left, right) => {
+    const qualityDiff = getKnowledgeArticleQualityScore(right) - getKnowledgeArticleQualityScore(left)
+    if (qualityDiff !== 0) {
+      return qualityDiff
     }
 
     const sourceDiff = getSourcePriority(left) - getSourcePriority(right)
     if (sourceDiff !== 0) {
       return sourceDiff
+    }
+
+    const dateBucketDiff = getArticleDateBucket(right).localeCompare(getArticleDateBucket(left))
+    if (dateBucketDiff !== 0) {
+      return dateBucketDiff
     }
 
     return getArticleTimestamp(right) - getArticleTimestamp(left)

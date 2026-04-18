@@ -70,6 +70,12 @@
         "selectedIconPath": "static/tab-home-active.png"
       },
       {
+        "pagePath": "pages/calendar/index",
+        "text": "日历",
+        "iconPath": "static/tab-calendar.png",
+        "selectedIconPath": "static/tab-calendar-active.png"
+      },
+      {
         "pagePath": "pages/knowledge/index",
         "text": "知识库",
         "iconPath": "static/tab-book.png",

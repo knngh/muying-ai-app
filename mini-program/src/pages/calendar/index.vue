@@ -44,6 +44,33 @@
       </scroll-view>
     </view>
 
+    <view class="week-command-card">
+      <view class="week-command-head">
+        <view class="week-command-copy">
+          <text class="week-command-kicker">当前周总览</text>
+          <text class="week-command-title">第 {{ currentSelectedWeek }} 周先看这里</text>
+          <text class="week-command-desc">{{ weekCommandDescription }}</text>
+        </view>
+        <view class="week-command-badge">
+          <text class="week-command-badge-text">{{ weekCommandBadge }}</text>
+        </view>
+      </view>
+
+      <view class="week-command-grid">
+        <view
+          v-for="item in tabQuickActions"
+          :key="item.key"
+          class="week-command-item"
+          :class="{ 'week-command-item--active': activeTab === item.key }"
+          @tap="activeTab = item.key"
+        >
+          <text class="week-command-item-label">{{ item.label }}</text>
+          <text class="week-command-item-value">{{ item.value }}</text>
+          <text class="week-command-item-meta">{{ item.meta }}</text>
+        </view>
+      </view>
+    </view>
+
     <!-- 选项卡切换 -->
     <view class="tabs-container">
       <view 
@@ -466,6 +493,40 @@ const defaultTodoList = computed(() =>
 )
 const todoList = computed(() => [...customTodoList.value, ...defaultTodoList.value])
 const completedTodoCount = computed(() => todoList.value.filter(todo => todo.completed).length)
+const weekCommandDescription = computed(() => (
+  activeTab.value === 'guide'
+    ? '先扫一眼本周发育与注意事项，再决定要不要补待办或记录。'
+    : activeTab.value === 'todo'
+      ? (canUseTodoActions.value ? '把这一周要做的事集中处理，完成进度会实时保存。' : '先看本周待办结构，登录后再保存完成状态。')
+      : (canUseTodoActions.value ? '把这一周的变化和提醒记下来，后面回看更省力。' : '登录后可以把这周感受、医生建议和提醒留下来。')
+))
+const weekCommandBadge = computed(() => (
+  activeTab.value === 'guide'
+    ? '指南'
+    : activeTab.value === 'todo'
+      ? `${completedTodoCount.value}/${todoList.value.length || 0}`
+      : (currentDiary.value ? '已记录' : '未记录')
+))
+const tabQuickActions = computed(() => [
+  {
+    key: 'guide',
+    label: '孕周指南',
+    value: currentWeekData.value.babySizeText || '查看重点',
+    meta: parsedContent.value.tips?.length ? `${parsedContent.value.tips.length} 条本周建议` : '先看宝宝发育和妈妈变化',
+  },
+  {
+    key: 'todo',
+    label: '待办事项',
+    value: todoList.value.length ? `${completedTodoCount.value}/${todoList.value.length} 已完成` : '本周待办待整理',
+    meta: canUseTodoActions.value ? '产检、补剂和自定义事项都在这里' : '登录后可勾选并保存待办进度',
+  },
+  {
+    key: 'diary',
+    label: '我的记录',
+    value: currentDiary.value ? '本周已写记录' : '还没写记录',
+    meta: currentDiary.value ? '可继续补充这周变化和提醒' : '适合记下感受、医生建议和异常变化',
+  },
+])
 
 const scrollToWeek = async (week: number) => {
   timelineScrollTarget.value = ''
@@ -868,6 +929,116 @@ onShareTimeline(() => {
 
 .week-label { font-size: 22rpx; color: #999; }
 .timeline-item.active .week-label { color: #ff6b9d; font-weight: bold; }
+
+.week-command-card {
+  position: relative;
+  z-index: 12;
+  margin: -4rpx 28rpx 20rpx;
+  padding: 28rpx;
+  border-radius: 32rpx;
+  background:
+    radial-gradient(circle at top right, rgba(72, 126, 255, 0.16), transparent 36%),
+    linear-gradient(145deg, #ffffff 0%, #f8fbff 100%);
+  box-shadow: 0 18rpx 44rpx rgba(70, 86, 115, 0.1);
+}
+
+.week-command-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 22rpx;
+}
+
+.week-command-copy {
+  flex: 1;
+}
+
+.week-command-kicker {
+  display: block;
+  font-size: 22rpx;
+  font-weight: 700;
+  letter-spacing: 2rpx;
+  color: #5572a5;
+}
+
+.week-command-title {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 36rpx;
+  line-height: 1.3;
+  font-weight: 800;
+  color: #27313d;
+}
+
+.week-command-desc {
+  display: block;
+  margin-top: 12rpx;
+  font-size: 24rpx;
+  line-height: 1.65;
+  color: #657284;
+}
+
+.week-command-badge {
+  flex-shrink: 0;
+  min-width: 112rpx;
+  padding: 18rpx 16rpx;
+  border-radius: 24rpx;
+  text-align: center;
+  background: linear-gradient(135deg, #ff7c98 0%, #ff9f70 100%);
+  box-shadow: 0 12rpx 24rpx rgba(255, 124, 152, 0.22);
+}
+
+.week-command-badge-text {
+  font-size: 28rpx;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.week-command-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14rpx;
+  margin-top: 24rpx;
+}
+
+.week-command-item {
+  min-height: 150rpx;
+  padding: 20rpx 18rpx;
+  border-radius: 24rpx;
+  background: #f4f7fb;
+  border: 2rpx solid transparent;
+  box-sizing: border-box;
+}
+
+.week-command-item--active {
+  background: #fff6f8;
+  border-color: rgba(255, 107, 157, 0.28);
+  box-shadow: 0 10rpx 24rpx rgba(255, 107, 157, 0.1);
+}
+
+.week-command-item-label {
+  display: block;
+  font-size: 22rpx;
+  font-weight: 700;
+  color: #8a96a3;
+}
+
+.week-command-item-value {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 25rpx;
+  line-height: 1.35;
+  font-weight: 800;
+  color: #293542;
+}
+
+.week-command-item-meta {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 20rpx;
+  line-height: 1.45;
+  color: #788595;
+}
 
 /* Tabs */
 .tabs-container {

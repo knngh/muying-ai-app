@@ -254,6 +254,75 @@ function normalizeAuthorityDedupeKey(input: string): string {
   }
 }
 
+function normalizeAuthorityTitleDedupeKey(input: string): string {
+  return sanitizeAuthorityTitle(input)
+    .toLowerCase()
+    .replace(/&amp;/g, '&')
+    .replace(/[“”"']/g, '')
+    .replace(/[，。；：、]/g, ' ')
+    .replace(/[|()[\]{}]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function normalizeAuthoritySourceDedupeKey(input: string): string {
+  return normalizeAuthorityText(input)
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function isGenericAuthorityTitleKey(titleKey: string): boolean {
+  if (!titleKey) {
+    return true;
+  }
+
+  const genericTitleKeys = new Set([
+    'nutrition',
+    'pregnancy',
+    'breastfeeding',
+    'immunization',
+    'vaccines',
+    'contraception',
+    'child development',
+    'parents',
+    'participants',
+  ]);
+
+  return titleKey.length < 8 || genericTitleKeys.has(titleKey);
+}
+
+function isLowValueAuthorityListTitle(
+  article: ReturnType<typeof mapAuthorityRecordToArticle>,
+): boolean {
+  const titleKey = normalizeAuthorityTitleDedupeKey(article.title || '');
+  const sourceKey = normalizeAuthoritySourceDedupeKey(article.sourceOrg || article.source || '');
+  if (!titleKey) {
+    return true;
+  }
+
+  if (sourceKey && titleKey === sourceKey) {
+    return true;
+  }
+
+  return /^(acknowledgments?, contributors?, and participants|keeping guidance up to date)(?:\s*\|.*)?$/i.test(titleKey);
+}
+
+function buildAuthorityArticleDedupeKeys(
+  article: ReturnType<typeof mapAuthorityRecordToArticle>,
+): string[] {
+  const keys = [normalizeAuthorityDedupeKey(article.sourceUrl || article.originalId || article.slug)]
+    .filter(Boolean);
+
+  const titleKey = normalizeAuthorityTitleDedupeKey(article.title || '');
+  const sourceKey = normalizeAuthoritySourceDedupeKey(article.sourceOrg || article.source || '');
+  if (sourceKey && titleKey && !isGenericAuthorityTitleKey(titleKey)) {
+    keys.push(`title:${sourceKey}:${titleKey}`);
+  }
+
+  return Array.from(new Set(keys));
+}
+
 function toAuthoritySummary(text: string): string {
   const normalized = normalizeAuthorityText(text);
   return normalized.slice(0, 180);
@@ -1027,18 +1096,24 @@ async function getAuthorityArticles() {
   records
     .filter(isOfficialAuthorityRecord)
     .map(mapAuthorityRecordToArticle)
+    .filter((article) => !isLowValueAuthorityListTitle(article))
     .forEach((article) => {
-      const dedupeKey = normalizeAuthorityDedupeKey(article.sourceUrl || article.originalId || article.slug);
-      const existing = deduped.get(dedupeKey);
+      const dedupeKeys = buildAuthorityArticleDedupeKeys(article);
+      const existing = dedupeKeys
+        .map(key => deduped.get(key))
+        .find((item): item is ReturnType<typeof mapAuthorityRecordToArticle> => Boolean(item));
       if (!existing) {
-        deduped.set(dedupeKey, article);
+        dedupeKeys.forEach(key => deduped.set(key, article));
         return;
       }
 
-      deduped.set(dedupeKey, pickBetterAuthorityArticle(existing, article));
+      const selected = pickBetterAuthorityArticle(existing, article);
+      dedupeKeys.forEach(key => deduped.set(key, selected));
     });
 
-  return Array.from(deduped.values());
+  return Array.from(new Map(
+    Array.from(deduped.values()).map(article => [article.slug, article]),
+  ).values());
 }
 
 function getAuthorityArticleTimestamp(article: ReturnType<typeof mapAuthorityRecordToArticle>): number {
@@ -1063,6 +1138,64 @@ function getAuthorityArticleDateBucket(article: ReturnType<typeof mapAuthorityRe
 
 function getAuthorityArticleSourcePriority(article: ReturnType<typeof mapAuthorityRecordToArticle>): number {
   return article.sourceLanguage === 'zh' || article.sourceLocale === 'zh-CN' ? 0 : 1;
+}
+
+function getAuthorityArticlePathname(article: ReturnType<typeof mapAuthorityRecordToArticle>): string {
+  const url = article.sourceUrl || '';
+  if (!url) {
+    return '';
+  }
+
+  try {
+    return new URL(url).pathname.toLowerCase().replace(/\/+$/u, '') || '/';
+  } catch {
+    return '';
+  }
+}
+
+function isAuthorityLandingLikePath(pathname: string): boolean {
+  if (!pathname) {
+    return false;
+  }
+
+  return [
+    /^\/$/,
+    /^\/topics(?:\/[^/]+)?$/,
+    /^\/parents$/,
+    /^\/pregnancy$/,
+    /^\/breastfeeding$/,
+    /^\/contraception$/,
+    /^\/child-development$/,
+    /^\/conditions(?:\/[^/]+)?$/,
+    /^\/english\/(?:ages-stages|health-issues|healthy-living|safety-prevention|family-life)$/,
+  ].some(pattern => pattern.test(pathname));
+}
+
+function getAuthorityArticleQualityScore(article: ReturnType<typeof mapAuthorityRecordToArticle>): number {
+  const titleKey = normalizeAuthorityTitleDedupeKey(article.title || '');
+  const sourceKey = normalizeAuthoritySourceDedupeKey(article.sourceOrg || article.source || '');
+  const pathname = getAuthorityArticlePathname(article);
+  const summaryLength = normalizeAuthorityText(article.summary || '').length;
+  const titleLength = titleKey.length;
+
+  let score = 0;
+
+  if (summaryLength >= 80) score += 4;
+  else if (summaryLength >= 40) score += 2;
+
+  if (article.audience) score += 2;
+  if (article.topic && article.topic !== 'general') score += 2;
+  if (article.topic && article.topic !== 'policy') score += 1;
+  if (titleLength >= 12 && titleLength <= 120) score += 1;
+  if (!isAuthorityLandingLikePath(pathname)) score += 2;
+
+  if (article.topic === 'policy') score -= 5;
+  if (isGenericAuthorityTitleKey(titleKey)) score -= 4;
+  if (isLowValueAuthorityListTitle(article)) score -= 8;
+  if (sourceKey && titleKey === sourceKey) score -= 8;
+  if (isAuthorityLandingLikePath(pathname)) score -= 3;
+
+  return score;
 }
 
 function toAuthorityArticleListItem(article: ReturnType<typeof mapAuthorityRecordToArticle>) {
@@ -1186,6 +1319,16 @@ export const getArticles = async (req: Request, res: Response, next: NextFunctio
           return (right.viewCount || 0) - (left.viewCount || 0);
         }
 
+        const qualityDiff = getAuthorityArticleQualityScore(right) - getAuthorityArticleQualityScore(left);
+        if (qualityDiff !== 0) {
+          return qualityDiff;
+        }
+
+        const sourceDiff = getAuthorityArticleSourcePriority(left) - getAuthorityArticleSourcePriority(right);
+        if (sourceDiff !== 0) {
+          return sourceDiff;
+        }
+
         const dateBucketDiff = getAuthorityArticleDateBucket(right).localeCompare(getAuthorityArticleDateBucket(left));
         if (dateBucketDiff !== 0) {
           return dateBucketDiff;
@@ -1194,11 +1337,6 @@ export const getArticles = async (req: Request, res: Response, next: NextFunctio
         const timeDiff = getAuthorityArticleTimestamp(right) - getAuthorityArticleTimestamp(left);
         if (timeDiff !== 0) {
           return timeDiff;
-        }
-
-        const sourceDiff = getAuthorityArticleSourcePriority(left) - getAuthorityArticleSourcePriority(right);
-        if (sourceDiff !== 0) {
-          return sourceDiff;
         }
 
         return 0;
