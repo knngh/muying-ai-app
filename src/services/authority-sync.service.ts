@@ -88,6 +88,7 @@ let lastAuthorityFetchAt = 0;
 const AUTHORITY_REQUEST_DELAY_MS = Math.max(0, Number(process.env.AUTHORITY_REQUEST_DELAY_MS || 0));
 const AUTHORITY_RETRY_429_LIMIT = Math.max(0, Number(process.env.AUTHORITY_RETRY_429_LIMIT || 0));
 const AUTHORITY_RETRY_429_DELAY_MS = Math.max(0, Number(process.env.AUTHORITY_RETRY_429_DELAY_MS || 3000));
+const AUTHORITY_FETCH_TIMEOUT_MS = Math.max(5000, Number(process.env.AUTHORITY_FETCH_TIMEOUT_MS || 20000));
 const AUTHORITY_CACHE_PATH = path.join(process.cwd(), 'data', 'authority-knowledge-cache.json');
 const AUTHORITY_VECTOR_PUBLISH_ENABLED = /^true$/i.test(process.env.AUTHORITY_VECTOR_PUBLISH_ENABLED || '');
 
@@ -366,9 +367,126 @@ function filterAuthorityUrls(urls: string[], source: AuthoritySourceConfig): str
   });
 }
 
+function extractSitemapLocUrls(xml: string): string[] {
+  const discovered = new Set<string>();
+
+  for (const match of xml.matchAll(/<loc>(.*?)<\/loc>/gi)) {
+    const candidate = match[1]?.trim();
+    if (candidate) {
+      discovered.add(candidate);
+    }
+  }
+
+  return Array.from(discovered);
+}
+
+function getAuthorityUrlRelevanceScore(url: string, source: AuthoritySourceConfig): number {
+  const normalized = url.toLowerCase();
+  let score = 0;
+
+  if (source.language === 'zh') {
+    score += 5;
+  }
+
+  if (/(pregnan|prenatal|postpartum|birth|labor|delivery|newborn|infant|baby|toddler|child|children|breast|feeding|vaccine|immun|fertility|contracept|妇产|孕|婴|儿童|新生儿|母乳|喂养|疫苗)/u.test(normalized)) {
+    score += 20;
+  }
+
+  if (source.id === 'mayo-clinic-zh') {
+    if (/\/zh-hans\//.test(normalized)) {
+      score += 25;
+    }
+
+    if (/\/(healthy-lifestyle|diseases-conditions|tests-procedures|drugs-supplements)\//.test(normalized)) {
+      score += 60;
+    }
+
+    if (/\/(in-depth|art-\d+|symptoms-causes|diagnosis-treatment|expert-answers)\b/.test(normalized)) {
+      score += 70;
+    }
+
+    if (/(newborn|infant|baby|toddler|child|children|pediatric|paediatric|breast|feeding|vaccine|immun)/.test(normalized)) {
+      score += 75;
+    }
+
+    if (/(pregnan|prenatal|postpartum|labor|delivery|birth|fertility|contracept|women)/.test(normalized)) {
+      score += 65;
+    }
+
+    if (/\/departments-centers\//.test(normalized)) {
+      score -= 120;
+    }
+
+    if (/\/overview(?:\/|$)/.test(normalized)) {
+      score -= 40;
+    }
+
+    if (/\/specialty-groups\//.test(normalized)) {
+      score -= 60;
+    }
+
+    if (/(patient-visitor-guide|appointments|medical-professionals|international-patient|research|education|giving-to-mayo-clinic)/.test(normalized)) {
+      score -= 120;
+    }
+  }
+
+  if (source.id === 'msd-manuals-cn') {
+    if (/\/sitemaps\/home-topic\.xml(?:\.gz)?$/i.test(normalized)) {
+      score += 140;
+    }
+
+    if (/\/sitemaps\/home-generic-pages\.xml(?:\.gz)?$/i.test(normalized)) {
+      score += 120;
+    }
+
+    if (/\/home\//.test(normalized)) {
+      score += 40;
+    }
+
+    if (/(children-s-health-issues|symptoms-in-infants-and-children|women-s-health-issues|pregnancy-and-childbirth|newborn|infant|child|children|breast|feeding|vaccine|immun)/.test(normalized)) {
+      score += 90;
+    }
+
+    if (/\/professional\//.test(normalized)) {
+      score -= 120;
+    }
+  }
+
+  if (source.id === 'chinacdc-immunization' || source.id === 'chinacdc-nutrition') {
+    if (/\/t\d{8}_\d+\.(?:html?|shtml)(?:$|[?#])/i.test(normalized)) {
+      score += 80;
+    }
+
+    if (/(免疫|疫苗|接种|儿童|婴幼儿|新生儿|孕妇|孕产|母乳|喂养|营养|辅食)/u.test(normalized)) {
+      score += 60;
+    }
+  }
+
+  if (source.id === 'nhc-fys' || source.id === 'nhc-rkjt' || source.id.startsWith('ndcpa-')) {
+    if (/(妇幼|孕产|孕妇|母婴|婴幼儿|新生儿|儿童|托育|生育|母乳|哺乳|接种|疫苗|照护|家庭发展)/u.test(normalized)) {
+      score += 60;
+    }
+  }
+
+  return score;
+}
+
+function prioritizeAuthorityUrls(urls: string[], source: AuthoritySourceConfig): string[] {
+  return Array.from(new Set(urls))
+    .map((url, index) => ({
+      url,
+      index,
+      score: getAuthorityUrlRelevanceScore(url, source),
+    }))
+    .sort((left, right) => right.score - left.score || left.index - right.index)
+    .map((item) => item.url);
+}
+
 function extractSitemapUrls(xml: string, source: AuthoritySourceConfig): string[] {
-  const urls = Array.from(xml.matchAll(/<loc>(.*?)<\/loc>/gi)).map((match) => match[1]?.trim()).filter(Boolean) as string[];
-  return filterAuthorityUrls(urls, source);
+  return prioritizeAuthorityUrls(
+    filterAuthorityUrls(extractSitemapLocUrls(xml), source),
+    source,
+  );
 }
 
 function looksLikeSitemapIndex(xml: string): boolean {
@@ -380,15 +498,17 @@ function isXmlSitemapUrl(url: string): boolean {
 }
 
 function filterNestedSitemapCandidates(urls: string[], source: AuthoritySourceConfig): string[] {
+  let filtered = urls.filter((url) => isAllowedAuthorityUrl(url, source));
+
   if (source.id === 'cdc') {
-    return urls.filter((url) => /\/(pregnancy|breastfeeding|parents|child-development|vaccines-(children|pregnancy|for-children)|reproductivehealth|womens-health|contraception|growthcharts|ncbddd|act-early|early-care|protect-children|medicines?-and-pregnancy|opioid-use-during-pregnancy|pregnancy-hiv-std-tb-hepatitis|rsv|flu|measles|mumps|rubella|chickenpox|rotavirus|pinkbook|acip-recs)\//i.test(url));
+    filtered = filtered.filter((url) => /\/(pregnancy|breastfeeding|parents|child-development|vaccines-(children|pregnancy|for-children)|reproductivehealth|womens-health|contraception|growthcharts|ncbddd|act-early|early-care|protect-children|medicines?-and-pregnancy|opioid-use-during-pregnancy|pregnancy-hiv-std-tb-hepatitis|rsv|flu|measles|mumps|rubella|chickenpox|rotavirus|pinkbook|acip-recs)\//i.test(url));
   }
 
   if (source.id === 'msd-manuals-cn') {
-    return urls.filter((url) => /\/home-(?:generic-pages|topic)\.xml(?:\.gz)?$/i.test(url));
+    filtered = filtered.filter((url) => /\/home-(?:generic-pages|topic)\.xml(?:\.gz)?$/i.test(url));
   }
 
-  return urls;
+  return prioritizeAuthorityUrls(filtered, source);
 }
 
 function buildAuthorityUrlCandidate(rawUrl: string, pageUrl: string): string | null {
@@ -609,15 +729,24 @@ function extractApiLinks(payload: unknown, source: AuthoritySourceConfig): strin
 async function fetchText(url: string, headers?: Record<string, string>): Promise<Response> {
   for (let attempt = 0; ; attempt += 1) {
     await throttleAuthorityFetch();
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36 muying-ai-app-authority-sync/1.0',
-        Accept: 'text/html,application/xhtml+xml,application/xml,text/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-        ...headers,
-      },
-    });
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        method: 'GET',
+        signal: AbortSignal.timeout(AUTHORITY_FETCH_TIMEOUT_MS),
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36 muying-ai-app-authority-sync/1.0',
+          Accept: 'text/html,application/xhtml+xml,application/xml,text/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+          ...headers,
+        },
+      });
+    } catch (error) {
+      if ((error as { name?: string }).name === 'TimeoutError' || (error as { name?: string }).name === 'AbortError') {
+        throw new Error(`Authority fetch timed out after ${AUTHORITY_FETCH_TIMEOUT_MS}ms: ${url}`);
+      }
+      throw error;
+    }
     lastAuthorityFetchAt = Date.now();
 
     if (response.status !== 429 || attempt >= AUTHORITY_RETRY_429_LIMIT) {
@@ -627,6 +756,30 @@ async function fetchText(url: string, headers?: Record<string, string>): Promise
     const retryAfterMs = parseRetryAfterMs(response.headers.get('retry-after'));
     const delayMs = retryAfterMs ?? (AUTHORITY_RETRY_429_DELAY_MS * (attempt + 1));
     await sleep(delayMs);
+  }
+}
+
+async function readResponseArrayBuffer(response: Response, url: string): Promise<ArrayBuffer> {
+  let timeoutId: NodeJS.Timeout | null = null;
+
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      void response.body?.cancel().catch(() => {
+        // Ignore body cancellation errors; the sync caller will handle timeout.
+      });
+      reject(new Error(`Authority response body timed out after ${AUTHORITY_FETCH_TIMEOUT_MS}ms: ${url}`));
+    }, AUTHORITY_FETCH_TIMEOUT_MS);
+  });
+
+  try {
+    return await Promise.race([
+      response.arrayBuffer(),
+      timeout,
+    ]);
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
   }
 }
 
@@ -656,7 +809,7 @@ function detectResponseCharset(response: Response, buffer: Buffer): string {
 }
 
 async function readResponseText(response: Response, url: string): Promise<string> {
-  const arrayBuffer = await response.arrayBuffer();
+  const arrayBuffer = await readResponseArrayBuffer(response, url);
   let buffer = Buffer.from(arrayBuffer);
   const contentType = response.headers.get('content-type') || '';
   const contentEncoding = response.headers.get('content-encoding') || '';
@@ -763,25 +916,27 @@ export async function discoverAuthorityUrls(
       }
 
       const text = await readResponseText(response, url);
-      const candidates = extractSitemapUrls(text, source);
-      if (candidates.length === 0) {
+      const locUrls = extractSitemapLocUrls(text);
+      if (locUrls.length === 0) {
         continue;
       }
 
       if (looksLikeSitemapIndex(text)) {
         const nestedCandidates = filterNestedSitemapCandidates(
-          candidates
-          .filter((candidate) => isXmlSitemapUrl(candidate))
-          .slice(0, source.maxPagesPerRun - pageUrls.length),
+          locUrls
+            .filter((candidate) => isXmlSitemapUrl(candidate)),
           source,
         );
-        const nestedUrls = await collectSitemapPageUrls(nestedCandidates, depth + 1);
+        const nestedUrls = await collectSitemapPageUrls(
+          nestedCandidates.slice(0, source.maxPagesPerRun - pageUrls.length),
+          depth + 1,
+        );
         pageUrls.push(...nestedUrls);
         continue;
       }
 
       pageUrls.push(
-        ...candidates
+        ...extractSitemapUrls(text, source)
           .filter((candidate) => !isXmlSitemapUrl(candidate))
           .slice(0, source.maxPagesPerRun - pageUrls.length)
       );
@@ -864,7 +1019,7 @@ export async function discoverAuthorityUrls(
       normalizedCandidates.push(...await collectIndexPageUrls([entryUrl]));
     }
 
-    for (const url of normalizedCandidates.slice(0, source.maxPagesPerRun)) {
+    for (const url of prioritizeAuthorityUrls(normalizedCandidates, source).slice(0, source.maxPagesPerRun)) {
       if (!discovered.has(url)) {
         discovered.set(url, {
           url,
@@ -884,8 +1039,13 @@ export const __authoritySyncTestUtils = {
   extractEmbeddedIndexLinks,
   extractIndexLinks,
   extractPaginationLinks,
+  extractSitemapLocUrls,
+  extractSitemapUrls,
+  filterNestedSitemapCandidates,
+  getAuthorityUrlRelevanceScore,
   isAuthorityUrlMatched,
   isIndexLikeAuthorityUrl,
+  prioritizeAuthorityUrls,
 };
 
 export async function persistDiscoveredAuthorityUrls(urls: DiscoveredAuthorityUrl[]): Promise<void> {
@@ -1117,6 +1277,16 @@ export async function syncAllAuthoritySources(
   return summaries;
 }
 
+export function shouldExportAuthoritySnapshotDocument(document: Pick<NormalizedAuthorityDocument, 'publishStatus' | 'riskLevelDefault'>): boolean {
+  if (document.publishStatus === 'published') {
+    return true;
+  }
+
+  // Existing yellow-risk records may already be parked in review from the old
+  // publication rule. Export them now, while red emergency content stays gated.
+  return document.publishStatus === 'review' && document.riskLevelDefault !== 'red';
+}
+
 export async function exportPublishedAuthoritySnapshot(): Promise<void> {
   await ensureAuthoritySyncTables();
   const rows = await prisma.$queryRawUnsafe<Array<{
@@ -1151,11 +1321,16 @@ export async function exportPublishedAuthoritySnapshot(): Promise<void> {
       metadata_json AS metadataJson,
       publish_status AS publishStatus
      FROM authority_normalized_documents
-     WHERE publish_status = 'published'
+     WHERE publish_status IN ('published', 'review')
      ORDER BY COALESCE(updated_at, created_at) DESC, id DESC`
   );
 
-  const payload = rows.map((row, index) => {
+  const exportableRows = rows.filter((row) => shouldExportAuthoritySnapshotDocument({
+    publishStatus: row.publishStatus as NormalizedAuthorityDocument['publishStatus'],
+    riskLevelDefault: row.riskLevelDefault as NormalizedAuthorityDocument['riskLevelDefault'],
+  }));
+
+  const payload = exportableRows.map((row, index) => {
     const cleanedTitle = sanitizeAuthorityTitle(row.title);
     const localeDefaults = inferAuthorityLocaleDefaults(row.sourceId, row.region);
     const metadata = row.metadataJson ? JSON.parse(row.metadataJson) : {};

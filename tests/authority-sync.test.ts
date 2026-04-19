@@ -1,6 +1,6 @@
 import { getAuthoritySourceConfig } from '../src/config/authority-sources';
-import { __authoritySyncTestUtils, normalizeAuthorityDocument } from '../src/services/authority-sync.service';
-import { detectAudience, detectTopic, extractTitle } from '../src/services/authority-adapters/base.adapter';
+import { __authoritySyncTestUtils, normalizeAuthorityDocument, shouldExportAuthoritySnapshotDocument } from '../src/services/authority-sync.service';
+import { detectAudience, detectTopic, extractTitle, shouldPublishDocument } from '../src/services/authority-adapters/base.adapter';
 import { inferAuthorityStages } from '../src/utils/authority-stage';
 
 describe('authority index discovery', () => {
@@ -52,6 +52,47 @@ describe('authority index discovery', () => {
     );
 
     expect(matched).toBe(false);
+  });
+
+  test('prioritizes Mayo Chinese maternal-child article URLs before department pages from large sitemap files', () => {
+    const source = getAuthoritySourceConfig('mayo-clinic-zh');
+    expect(source).toBeDefined();
+
+    const xml = `
+      <urlset>
+        <url><loc>https://www.mayoclinic.org/zh-hans/departments-centers/childrens-center</loc></url>
+        <url><loc>https://www.mayoclinic.org/zh-hans/departments-centers/childrens-center/overview/specialty-groups/newborn-intensive-care-unit-follow-up-clinic</loc></url>
+        <url><loc>https://www.mayoclinic.org/zh-hans/healthy-lifestyle/infant-and-toddler-health/in-depth/baby-poop/art-20043980</loc></url>
+        <url><loc>https://www.mayoclinic.org/zh-hans/diseases-conditions/childhood-asthma/symptoms-causes/syc-20351507</loc></url>
+      </urlset>
+    `;
+
+    const links = __authoritySyncTestUtils.extractSitemapUrls(xml, source!);
+
+    expect(links[0]).toBe('https://www.mayoclinic.org/zh-hans/healthy-lifestyle/infant-and-toddler-health/in-depth/baby-poop/art-20043980');
+    expect(links[1]).toBe('https://www.mayoclinic.org/zh-hans/diseases-conditions/childhood-asthma/symptoms-causes/syc-20351507');
+    expect(links[links.length - 1]).toBe('https://www.mayoclinic.org/zh-hans/departments-centers/childrens-center/overview/specialty-groups/newborn-intensive-care-unit-follow-up-clinic');
+  });
+
+  test('keeps MSD Chinese nested sitemap URLs before article matching is applied', () => {
+    const source = getAuthoritySourceConfig('msd-manuals-cn');
+    expect(source).toBeDefined();
+
+    const xml = `
+      <sitemapindex>
+        <sitemap><loc>https://www.msdmanuals.cn/sitemaps/professional-topic.xml.gz</loc></sitemap>
+        <sitemap><loc>https://www.msdmanuals.cn/sitemaps/home-generic-pages.xml</loc></sitemap>
+        <sitemap><loc>https://www.msdmanuals.cn/sitemaps/home-topic.xml.gz</loc></sitemap>
+      </sitemapindex>
+    `;
+
+    const locUrls = __authoritySyncTestUtils.extractSitemapLocUrls(xml);
+    const nestedSitemaps = __authoritySyncTestUtils.filterNestedSitemapCandidates(locUrls, source!);
+
+    expect(nestedSitemaps).toEqual([
+      'https://www.msdmanuals.cn/sitemaps/home-topic.xml.gz',
+      'https://www.msdmanuals.cn/sitemaps/home-generic-pages.xml',
+    ]);
   });
 
   test('extracts pagination links from category pages without following other channel tabs', () => {
@@ -397,5 +438,100 @@ describe('authority index discovery', () => {
   test('sanitizeAuthorityTitle removes known authority site suffixes', () => {
     expect(extractTitle('<title>Baby Sunburn Prevention - HealthyChildren.org</title>')).toBe('Baby Sunburn Prevention');
     expect(extractTitle('<title>Pregnancy at Age 35 Years or Older | ACOG</title>')).toBe('Pregnancy at Age 35 Years or Older');
+  });
+
+  test('publishes yellow-risk maternal guidance so common Chinese medical articles enter the cache', () => {
+    expect(shouldPublishDocument({
+      sourceId: 'msd-manuals-cn',
+      sourceOrg: 'MSD Manuals',
+      sourceUrl: 'https://www.msdmanuals.cn/home/childrens-health-issues/symptoms-in-infants-and-children/fever-in-infants-and-children',
+      sourceLanguage: 'zh',
+      sourceLocale: 'zh-CN',
+      title: '儿童发热',
+      updatedAt: '2026-04-18T00:00:00.000Z',
+      audience: '婴幼儿家长',
+      topic: 'common-symptoms',
+      region: 'GLOBAL',
+      riskLevelDefault: 'yellow',
+      summary: '介绍儿童发热的常见原因和处理思路。',
+      contentText: '儿童发热是常见症状。'.repeat(40),
+      metadataJson: {},
+      publishStatus: 'draft',
+    })).toBe('published');
+  });
+
+  test('allows concise official Chinese authority notices into the cache but keeps short platform articles rejected', () => {
+    expect(shouldPublishDocument({
+      sourceId: 'chinacdc-immunization',
+      sourceOrg: '中国疾病预防控制中心',
+      sourceUrl: 'https://www.chinacdc.cn/jkkp/mygh/ztrxc/202504/t20250411_305918.html',
+      sourceLanguage: 'zh',
+      sourceLocale: 'zh-CN',
+      title: '全国儿童预防接种日宣传核心信息',
+      updatedAt: '2026-04-18T00:00:00.000Z',
+      audience: '婴幼儿家长',
+      topic: 'vaccination',
+      region: 'CN',
+      riskLevelDefault: 'green',
+      summary: '儿童预防接种核心宣传信息。',
+      contentText: '全国儿童预防接种日核心宣传信息，倡导适龄儿童按程序完成接种，家长及时查验接种证并咨询接种门诊。'.repeat(2),
+      metadataJson: {},
+      publishStatus: 'draft',
+    })).toBe('published');
+
+    expect(shouldPublishDocument({
+      sourceId: 'familydoctor-maternal',
+      sourceOrg: '家庭医生在线',
+      sourceUrl: 'https://www.familydoctor.com.cn/baby/a/202604/3948358.html',
+      sourceLanguage: 'zh',
+      sourceLocale: 'zh-CN',
+      title: '宝宝发烧怎么办',
+      updatedAt: '2026-04-18T00:00:00.000Z',
+      audience: '婴幼儿家长',
+      topic: 'common-symptoms',
+      region: 'CN',
+      riskLevelDefault: 'green',
+      summary: '短内容示例。',
+      contentText: '短内容提示。'.repeat(20),
+      metadataJson: {},
+      publishStatus: 'draft',
+    })).toBe('rejected');
+  });
+
+  test('keeps red-risk emergency guidance in review queue', () => {
+    expect(shouldPublishDocument({
+      sourceId: 'cdc',
+      sourceOrg: 'CDC',
+      sourceUrl: 'https://www.cdc.gov/pregnancy/emergency-warning-signs.html',
+      sourceLanguage: 'en',
+      sourceLocale: 'en-US',
+      title: 'Emergency Warning Signs During Pregnancy',
+      updatedAt: '2026-04-18T00:00:00.000Z',
+      audience: '孕妇',
+      topic: 'pregnancy',
+      region: 'US',
+      riskLevelDefault: 'red',
+      summary: 'Emergency warning signs requiring urgent care.',
+      contentText: 'Emergency warning signs during pregnancy require urgent evaluation. '.repeat(20),
+      metadataJson: {},
+      publishStatus: 'draft',
+    })).toBe('review');
+  });
+
+  test('exports already-reviewed yellow-risk documents but keeps red review documents gated', () => {
+    expect(shouldExportAuthoritySnapshotDocument({
+      publishStatus: 'review',
+      riskLevelDefault: 'yellow',
+    })).toBe(true);
+
+    expect(shouldExportAuthoritySnapshotDocument({
+      publishStatus: 'review',
+      riskLevelDefault: 'red',
+    })).toBe(false);
+
+    expect(shouldExportAuthoritySnapshotDocument({
+      publishStatus: 'published',
+      riskLevelDefault: 'red',
+    })).toBe(true);
   });
 });

@@ -12,7 +12,7 @@ type SupportedLifecycleKey =
   | 'toddler_1_3'
   | 'child_3_plus';
 
-type StandardSourceKey = 'postpartum' | 'checkup' | 'vaccine';
+type StandardSourceKey = 'postpartum' | 'checkup' | 'vaccine' | 'prenatal';
 
 type StandardScheduleDefinition = {
   key: string;
@@ -43,11 +43,173 @@ export type StandardSchedulePreviewItem = StandardScheduleItem;
 
 const STANDARD_REMINDER_MINUTES = 12 * 60;
 
+const PRENATAL_SOURCE_LABEL = '国家孕产妇健康管理规范';
 const POSTPARTUM_SOURCE_LABEL = '国家基本公共卫生产后访视';
 const CHILD_CHECK_SOURCE_LABEL = '国家基本公共卫生儿童健康管理';
 const VACCINE_SOURCE_LABEL = '国家免疫规划接种程序';
 
+// Prenatal events use negative offsetDays relative to dueDate.
+// offsetDays = -(280 - targetGestationalDays)
+// e.g. 12 weeks = 84 days gestation → offsetDays = -(280 - 84) = -196
+const PRENATAL_SCHEDULE_DEFINITIONS: StandardScheduleDefinition[] = [
+  {
+    key: 'std-pn12',
+    title: '建档 & 首次产检',
+    description: '孕 12 周前建议完成建档和首次系统产检，包括血常规、尿常规、肝肾功能、血型、传染病筛查等。',
+    eventType: 'checkup',
+    sourceKey: 'prenatal',
+    sourceLabel: PRENATAL_SOURCE_LABEL,
+    offsetDays: -196, // 280 - 84(12w)
+    dateLabel: '孕 12 周',
+    stageKeys: ['pregnant'],
+  },
+  {
+    key: 'std-pnnt',
+    title: 'NT 检查（颈项透明层）',
+    description: '孕 11-13⁺⁶ 周完成 NT 超声检查，是早孕期重要的胎儿染色体异常筛查手段。',
+    eventType: 'checkup',
+    sourceKey: 'prenatal',
+    sourceLabel: PRENATAL_SOURCE_LABEL,
+    offsetDays: -189, // 280 - 91(13w)
+    dateLabel: '孕 11-13⁺⁶ 周',
+    stageKeys: ['pregnant'],
+  },
+  {
+    key: 'std-pn16',
+    title: '唐氏筛查',
+    description: '孕 15-20 周建议完成中孕期血清学筛查（唐筛），评估胎儿 21/18/13 三体风险。',
+    eventType: 'checkup',
+    sourceKey: 'prenatal',
+    sourceLabel: PRENATAL_SOURCE_LABEL,
+    offsetDays: -168, // 280 - 112(16w)
+    dateLabel: '孕 15-20 周',
+    stageKeys: ['pregnant'],
+  },
+  {
+    key: 'std-pn20',
+    title: '系统超声（大排畸）',
+    description: '孕 20-24 周完成胎儿系统超声检查，重点排查结构畸形。',
+    eventType: 'checkup',
+    sourceKey: 'prenatal',
+    sourceLabel: PRENATAL_SOURCE_LABEL,
+    offsetDays: -140, // 280 - 140(20w)
+    dateLabel: '孕 20-24 周',
+    stageKeys: ['pregnant'],
+  },
+  {
+    key: 'std-pn24',
+    title: '糖耐量检查（OGTT）',
+    description: '孕 24-28 周进行 75g 口服葡萄糖耐量试验，筛查妊娠期糖尿病。',
+    eventType: 'checkup',
+    sourceKey: 'prenatal',
+    sourceLabel: PRENATAL_SOURCE_LABEL,
+    offsetDays: -112, // 280 - 168(24w)
+    dateLabel: '孕 24-28 周',
+    stageKeys: ['pregnant'],
+  },
+  {
+    key: 'std-pn28',
+    title: '孕 28 周产检',
+    description: '进入孕晚期，产检频率建议提高到每两周一次，检查血压、宫高、胎心、血常规等。',
+    eventType: 'checkup',
+    sourceKey: 'prenatal',
+    sourceLabel: PRENATAL_SOURCE_LABEL,
+    offsetDays: -84, // 280 - 196(28w)
+    dateLabel: '孕 28 周',
+    stageKeys: ['pregnant'],
+  },
+  {
+    key: 'std-pn30',
+    title: '孕 30 周产检',
+    description: '继续监测血压、宫高腹围、胎位和胎心。',
+    eventType: 'checkup',
+    sourceKey: 'prenatal',
+    sourceLabel: PRENATAL_SOURCE_LABEL,
+    offsetDays: -70, // 280 - 210(30w)
+    dateLabel: '孕 30 周',
+    stageKeys: ['pregnant'],
+  },
+  {
+    key: 'std-pn32',
+    title: '孕 32 周产检 + 超声',
+    description: '孕 32 周左右建议复查超声评估胎儿生长和羊水量，核实胎位。',
+    eventType: 'checkup',
+    sourceKey: 'prenatal',
+    sourceLabel: PRENATAL_SOURCE_LABEL,
+    offsetDays: -56, // 280 - 224(32w)
+    dateLabel: '孕 32 周',
+    stageKeys: ['pregnant'],
+  },
+  {
+    key: 'std-pn34',
+    title: '孕 34 周产检',
+    description: '重点监测血压、水肿和胎动，评估是否需要额外检查。',
+    eventType: 'checkup',
+    sourceKey: 'prenatal',
+    sourceLabel: PRENATAL_SOURCE_LABEL,
+    offsetDays: -42, // 280 - 238(34w)
+    dateLabel: '孕 34 周',
+    stageKeys: ['pregnant'],
+  },
+  {
+    key: 'std-pn36',
+    title: '孕 36 周产检 + GBS',
+    description: '孕 35-37 周建议完成 B 族链球菌（GBS）筛查，同时评估分娩方式。产检频率建议每周一次。',
+    eventType: 'checkup',
+    sourceKey: 'prenatal',
+    sourceLabel: PRENATAL_SOURCE_LABEL,
+    offsetDays: -28, // 280 - 252(36w)
+    dateLabel: '孕 36 周',
+    stageKeys: ['pregnant'],
+  },
+  {
+    key: 'std-pn37',
+    title: '孕 37 周产检（足月）',
+    description: '进入足月期，每周产检关注胎心监护、胎位、宫颈成熟度和入院准备。',
+    eventType: 'checkup',
+    sourceKey: 'prenatal',
+    sourceLabel: PRENATAL_SOURCE_LABEL,
+    offsetDays: -21, // 280 - 259(37w)
+    dateLabel: '孕 37 周',
+    stageKeys: ['pregnant'],
+  },
+  {
+    key: 'std-pn38',
+    title: '孕 38 周产检',
+    description: '继续每周胎心监护，关注宫缩和入院时机。',
+    eventType: 'checkup',
+    sourceKey: 'prenatal',
+    sourceLabel: PRENATAL_SOURCE_LABEL,
+    offsetDays: -14, // 280 - 266(38w)
+    dateLabel: '孕 38 周',
+    stageKeys: ['pregnant'],
+  },
+  {
+    key: 'std-pn39',
+    title: '孕 39 周产检',
+    description: '评估是否需要引产或继续等待自然发动，复核入院清单。',
+    eventType: 'checkup',
+    sourceKey: 'prenatal',
+    sourceLabel: PRENATAL_SOURCE_LABEL,
+    offsetDays: -7, // 280 - 273(39w)
+    dateLabel: '孕 39 周',
+    stageKeys: ['pregnant'],
+  },
+  {
+    key: 'std-pnedd',
+    title: '预产期',
+    description: '预产期当天如未发动，建议与产科医生确认后续监测方案和是否计划引产。',
+    eventType: 'reminder',
+    sourceKey: 'prenatal',
+    sourceLabel: PRENATAL_SOURCE_LABEL,
+    offsetDays: 0,
+    dateLabel: '预产期',
+    stageKeys: ['pregnant'],
+  },
+];
+
 const STANDARD_SCHEDULE_DEFINITIONS: StandardScheduleDefinition[] = [
+  ...PRENATAL_SCHEDULE_DEFINITIONS,
   {
     key: 'std-pp03',
     title: '产后首次访视',
@@ -471,9 +633,9 @@ function getLifecycleCopy(lifecycleKey: SupportedLifecycleKey): Pick<StandardSch
       };
     case 'pregnant':
       return {
-        title: '标准节点待扩展',
-        subtitle: '孕期主线当前仍以周度建议和手动安排为主。',
-        summary: '下一步可继续把孕期产检标准时间表也固化进日历。',
+        title: '孕期产检标准节点',
+        subtitle: '按国家孕产妇健康管理规范，把建档到预产期的关键产检一次排进日历。',
+        summary: '系统会根据预产期自动计算每次产检的建议时间，包括 NT、唐筛、大排畸、糖耐等关键检查。',
       };
     default:
       return {
@@ -487,10 +649,14 @@ function getLifecycleCopy(lifecycleKey: SupportedLifecycleKey): Pick<StandardSch
 function buildPlanItems(params: {
   lifecycleKey: SupportedLifecycleKey;
   babyBirthday?: Date | null;
+  dueDate?: Date | null;
   existingEvents: ExistingStandardEvent[];
   now?: Date;
 }): StandardSchedulePreviewItem[] {
-  if (!params.babyBirthday) {
+  const isPrenatal = params.lifecycleKey === 'pregnant';
+  const anchorDate = isPrenatal ? params.dueDate : params.babyBirthday;
+
+  if (!anchorDate) {
     return [];
   }
 
@@ -502,7 +668,7 @@ function buildPlanItems(params: {
   return STANDARD_SCHEDULE_DEFINITIONS
     .filter((item) => item.stageKeys.includes(params.lifecycleKey))
     .map((item) => {
-      const eventDate = toEventDate(params.babyBirthday as Date, item);
+      const eventDate = toEventDate(anchorDate as Date, item);
       const dateText = dayjs(eventDate).format('YYYY-MM-DD');
       const existingEvent = existingMap.get(item.key);
       let status: StandardScheduleItem['status'] = 'upcoming';
@@ -541,7 +707,11 @@ export function buildStandardSchedulePlan(params: {
   const lifecycleCopy = getLifecycleCopy(lifecycleKey);
   const babyBirthday = params.user.babyBirthday || null;
 
-  if (!babyBirthday || lifecycleKey === 'preparing' || lifecycleKey === 'pregnant') {
+  const dueDate = params.user.dueDate || null;
+  const isPrenatal = lifecycleKey === 'pregnant';
+  const hasAnchor = isPrenatal ? Boolean(dueDate) : Boolean(babyBirthday);
+
+  if (!hasAnchor || lifecycleKey === 'preparing') {
     return {
       available: false,
       lifecycleKey,
@@ -557,6 +727,7 @@ export function buildStandardSchedulePlan(params: {
   const items = buildPlanItems({
     lifecycleKey,
     babyBirthday,
+    dueDate,
     existingEvents: params.existingEvents || [],
     now: params.now,
   });

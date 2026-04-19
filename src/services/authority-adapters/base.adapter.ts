@@ -1,5 +1,5 @@
 import type { AuthorityRawDocument, NormalizedAuthorityDocument } from '../authority-sync.service';
-import type { AuthoritySourceConfig } from '../../config/authority-sources';
+import { OFFICIAL_AUTHORITY_SOURCE_IDS, type AuthoritySourceConfig } from '../../config/authority-sources';
 
 export interface AuthorityDocumentAdapter {
   id: string;
@@ -230,11 +230,24 @@ export function isMaternalInfantRelevant(sourceUrl: string, title: string, text:
 }
 
 export function shouldPublishDocument(document: NormalizedAuthorityDocument): 'draft' | 'review' | 'published' | 'rejected' {
-  if (!document.contentText || document.contentText.length < 300) {
+  const officialSignalText = `${document.title} ${document.summary}`.toLowerCase();
+  const isOfficialShortFormGuidance = OFFICIAL_AUTHORITY_SOURCE_IDS.has(document.sourceId)
+    && (
+      /核心信息|健康提示|科普|提醒|通知|解读|指南|建议|知识要点|宣传|要点|接种日/u.test(officialSignalText)
+      || /(免疫|疫苗|接种|儿童|婴幼儿|新生儿|孕妇|孕产|母乳|喂养|营养|辅食|托育|妇幼)/u.test(officialSignalText)
+      || /\/t\d{8}_\d+\.(?:html?|shtml)(?:$|[?#])/i.test(document.sourceUrl)
+      || /\/common\/content\/content_\d+\.html(?:$|[?#])/i.test(document.sourceUrl)
+    );
+  const minimumContentLength = OFFICIAL_AUTHORITY_SOURCE_IDS.has(document.sourceId)
+    ? (isOfficialShortFormGuidance ? 80 : 150)
+    : 300;
+  if (!document.contentText || document.contentText.length < minimumContentLength) {
     return 'rejected';
   }
 
-  if (document.riskLevelDefault === 'red' || document.riskLevelDefault === 'yellow') {
+  // Keep emergency content in manual review, but let common maternal/infant
+  // symptom, feeding, and vaccination guidance flow into the authority cache.
+  if (document.riskLevelDefault === 'red') {
     return 'review';
   }
 

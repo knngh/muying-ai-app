@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react'
 import dayjs from 'dayjs'
-import { ScrollView, StyleSheet, View } from 'react-native'
+import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native'
 import LinearGradient from 'react-native-linear-gradient'
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons'
 import { Button, Chip, Snackbar, Text } from 'react-native-paper'
@@ -100,6 +100,8 @@ export default function HomeScreen() {
     hasUnreadWeeklyReport,
     handleQuickCheckIn,
     checkInSubmitting,
+    refreshing,
+    handleRefresh,
   } = useHomeData()
   const [snackMessage, setSnackMessage] = useState('')
   const [postCheckInVisible, setPostCheckInVisible] = useState(false)
@@ -615,10 +617,18 @@ export default function HomeScreen() {
 
   return (
     <ScreenContainer>
-      <ScrollView 
+      <ScrollView
         showsVerticalScrollIndicator={false}
         style={styles.scrollContainer}
         contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
       >
         <ContentSection style={styles.heroSection}>
           <HeroCard

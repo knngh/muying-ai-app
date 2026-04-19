@@ -20,7 +20,7 @@ export function Home() {
   const fetchRecommended = async () => {
     setLoading(true)
     try {
-      const response = await articleApi.getList({ pageSize: 5 })
+      const response = await articleApi.getList({ pageSize: 5, sort: 'recommended' })
       const result = response as unknown as { list: Article[] }
       setRecommendedArticles(result.list || [])
     } catch (error) {
@@ -118,7 +118,7 @@ export function Home() {
               renderItem={(article) => (
                 <List.Item
                   style={{ cursor: 'pointer' }}
-                  onClick={() => navigate(`/knowledge/${article.id}`)}
+                  onClick={() => navigate(`/knowledge/${article.slug}`)}
                 >
                   <List.Item.Meta
                     title={

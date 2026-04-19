@@ -897,9 +897,47 @@ export async function getPaymentOrder(userId: string, orderNo: string): Promise<
   };
 }
 
+function getStageHighlight(stageLabel: string): string {
+  if (stageLabel === '备孕阶段') {
+    return `当前阶段：${stageLabel}，这周重点关注叶酸补充、作息规律和孕前检查进展。`;
+  }
+
+  const weekMatch = stageLabel.match(/孕\s*(\d+)\s*周/);
+  if (weekMatch) {
+    const week = parseInt(weekMatch[1], 10);
+    if (week <= 12) {
+      return `当前阶段：${stageLabel}，孕早期重点关注早孕反应、叶酸补充和首次产检安排。`;
+    }
+    if (week <= 27) {
+      return `当前阶段：${stageLabel}，孕中期重点关注唐筛/排畸检查进度、体重管理和胎动感知。`;
+    }
+    return `当前阶段：${stageLabel}，孕晚期重点关注胎心监护、入院准备和产检频率。`;
+  }
+
+  const monthMatch = stageLabel.match(/宝宝\s*(\d+)\s*月/);
+  if (monthMatch) {
+    const month = parseInt(monthMatch[1], 10);
+    if (month <= 1) {
+      return `当前阶段：${stageLabel}，新生儿期重点关注喂养节奏、黄疸观察和产后恢复。`;
+    }
+    if (month <= 6) {
+      return `当前阶段：${stageLabel}，这周重点关注奶量/辅食过渡、睡眠规律和疫苗接种进度。`;
+    }
+    if (month <= 12) {
+      return `当前阶段：${stageLabel}，这周重点关注辅食多样化、大运动发育和作息巩固。`;
+    }
+    if (month <= 36) {
+      return `当前阶段：${stageLabel}，这周重点关注语言启蒙、行为边界和饮食均衡。`;
+    }
+    return `当前阶段：${stageLabel}，学龄前阶段重点关注社交能力、视力保护和学习习惯。`;
+  }
+
+  return `当前阶段：${stageLabel}，这周更适合围绕睡眠、饮食和固定节律做微调。`;
+}
+
 function buildWeeklyHighlights(stageLabel: string, metrics: { checkInStreak: number; weeklyCompletionRate: number }) {
   return [
-    `当前阶段：${stageLabel}，这周更适合围绕睡眠、饮食和固定节律做微调。`,
+    getStageHighlight(stageLabel),
     metrics.weeklyCompletionRate > 0
       ? `本周日历完成率 ${metrics.weeklyCompletionRate}%，优先补齐最关键的一项待办。`
       : '本周还没有形成稳定打卡，先从一个最容易坚持的小目标开始。',

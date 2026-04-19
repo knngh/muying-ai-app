@@ -163,7 +163,7 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
       const result = (await articleApi.like(id)) as { liked: boolean }
       const articles = get().articles.map((a) =>
         a.id === id
-          ? { ...a, isLiked: result.liked, likeCount: a.likeCount + (result.liked ? 1 : 0) }
+          ? { ...a, isLiked: result.liked, likeCount: a.likeCount + (result.liked ? 1 : -1) }
           : a
       )
       set({ articles })

@@ -120,17 +120,23 @@ const PostDetailScreen: React.FC = () => {
       return
     }
     try {
+      let result: { liked: boolean; likeCount?: number }
       if (post.isLiked) {
-        await communityApi.unlikePost(post.id)
+        result = (await communityApi.unlikePost(post.id)) as { liked: boolean; likeCount?: number }
       } else {
-        await communityApi.likePost(post.id)
+        result = (await communityApi.likePost(post.id)) as { liked: boolean; likeCount?: number }
       }
       setPost((prev) =>
         prev
           ? {
               ...prev,
-              isLiked: !prev.isLiked,
-              likeCount: prev.isLiked ? prev.likeCount - 1 : prev.likeCount + 1,
+              isLiked: result.liked,
+              likeCount:
+                typeof result.likeCount === 'number'
+                  ? result.likeCount
+                  : result.liked
+                    ? prev.likeCount + 1
+                    : Math.max(prev.likeCount - 1, 0),
             }
           : prev,
       )

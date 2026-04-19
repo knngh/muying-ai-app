@@ -165,6 +165,12 @@ function isGenericForeignTitle(title?: string) {
   )
 }
 
+function hasLeakedPrompt(text?: string) {
+  if (!text) return false
+  return /<translated_(title|summary|content)>/i.test(text)
+    || /Be accurate and faithful to the original/i.test(text)
+}
+
 function getTranslatedHeadline(summary?: string) {
   const value = (summary || '').trim()
   if (!value) return ''
@@ -259,9 +265,9 @@ export default function KnowledgeScreen() {
 
     candidates.forEach((item) => {
       translationInFlightRef.current.add(item.slug)
-      void articleApi.getTranslation(item.slug)
+      void articleApi.kickoffTranslation(item.slug)
         .then((nextTranslation) => {
-          if (cancelled) return
+          if (cancelled || !nextTranslation) return
           setTranslations((prev) => ({ ...prev, [item.slug]: nextTranslation }))
         })
         .catch(() => {
@@ -332,7 +338,10 @@ export default function KnowledgeScreen() {
     const stageLabel = formatArticleStage(item.stage)
     const dateLabel = formatArticleDate(item)
     const previewTags = getArticleDisplayTags(item).slice(0, 2)
-    const articleTranslation = translations[item.slug]
+    const rawTranslation = translations[item.slug]
+    const articleTranslation = rawTranslation && !hasLeakedPrompt(rawTranslation.translatedTitle) && !hasLeakedPrompt(rawTranslation.translatedSummary)
+      ? rawTranslation
+      : undefined
     const translatedHeadline = getTranslatedHeadline(articleTranslation?.translatedSummary)
     const displayedTitle = articleTranslation?.translatedTitle
       || (isGenericForeignTitle(item.title)

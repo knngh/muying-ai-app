@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Card, Typography, Tag, Space, Button, Spin, Divider, message } from 'antd'
 import { ArrowLeftOutlined, HeartOutlined, StarOutlined, EyeOutlined } from '@ant-design/icons'
+import DOMPurify from 'dompurify'
 import { useKnowledgeStore } from '@/stores/knowledgeStore'
 
 const { Title, Paragraph, Text } = Typography
@@ -141,7 +142,7 @@ export function KnowledgeDetail() {
         <div
           className="article-content"
           style={{ lineHeight: 1.9, fontSize: 16 }}
-          dangerouslySetInnerHTML={{ __html: currentArticle.content }}
+          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(currentArticle.content) }}
         />
 
         <Divider />

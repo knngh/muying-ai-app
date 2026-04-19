@@ -378,6 +378,22 @@ export function useHomeData() {
     upcomingEvents[0] ? `${eventTypeLabels[upcomingEvents[0].eventType] || '提醒'} · ${upcomingEvents[0].title}` : null,
   ].filter(Boolean) as string[]
 
+  const [refreshing, setRefreshing] = useState(false)
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true)
+    try {
+      await Promise.all([
+        loadArticles(),
+        loadHomeCalendar(),
+        loadWeeklyReportReadState(),
+        loadCheckinStatus(),
+      ])
+      ensureFreshQuota()
+    } finally {
+      setRefreshing(false)
+    }
+  }, [loadArticles, loadHomeCalendar, loadWeeklyReportReadState, loadCheckinStatus, ensureFreshQuota])
+
   const initialLoading = !hydrated || loadingArticles
 
   return {
@@ -400,5 +416,7 @@ export function useHomeData() {
     hasUnreadWeeklyReport,
     handleQuickCheckIn,
     checkInSubmitting,
+    refreshing,
+    handleRefresh,
   }
 }

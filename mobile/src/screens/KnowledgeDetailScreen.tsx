@@ -16,7 +16,13 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 import { useRoute } from '@react-navigation/native'
 import type { RouteProp } from '@react-navigation/native'
 import type { RootStackParamList } from '../navigation/AppNavigator'
-import { articleApi, userApi, type Article, type AuthorityArticleTranslation } from '../api/modules'
+import {
+  articleApi,
+  isTranslationPendingError,
+  userApi,
+  type Article,
+  type AuthorityArticleTranslation,
+} from '../api/modules'
 import { ScreenContainer, StandardCard } from '../components/layout'
 import { useKnowledgeStore } from '../stores/knowledgeStore'
 import { colors, spacing, fontSize, categoryColors, borderRadius } from '../theme'
@@ -149,8 +155,8 @@ export default function KnowledgeDetailScreen() {
     let cancelled = false
     const prefetch = async () => {
       try {
-        const nextTranslation = await articleApi.getTranslation(slug)
-        if (!cancelled) {
+        const nextTranslation = await articleApi.kickoffTranslation(slug)
+        if (!cancelled && nextTranslation) {
           setTranslation(nextTranslation)
         }
       } catch {
@@ -226,7 +232,11 @@ export default function KnowledgeDetailScreen() {
         setTranslation(nextTranslation)
         setShowingTranslation(true)
       } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : '翻译失败，请稍后重试'
+        const message = isTranslationPendingError(error)
+          ? '中文辅助阅读正在准备中，请稍后再试'
+          : error instanceof Error
+            ? error.message
+            : '翻译失败，请稍后重试'
         setTranslationError(message)
       } finally {
         setTranslating(false)

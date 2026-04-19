@@ -394,6 +394,7 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
 
   reset: () => set({
     articles: [],
+    currentArticle: null,
     page: 1,
     selectedCategory: null,
     selectedTag: null,

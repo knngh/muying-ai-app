@@ -49,7 +49,7 @@ export function Knowledge() {
   } = useKnowledgeStore()
 
   useEffect(() => {
-    fetchArticles()
+    fetchArticles({ reset: true })
     fetchCategories()
     fetchTags()
   }, [])

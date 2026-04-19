@@ -169,6 +169,7 @@ export const CacheKeys = {
   ARTICLE_RELATED: (id: string) => `article:related:${id}`,
   ARTICLES_POPULAR: 'articles:popular',
   ARTICLES_RECOMMENDED: 'articles:recommended',
+  ARTICLES_AUTHORITY: 'articles:authority',
   
   // 分类相关
   CATEGORIES_ALL: 'categories:all',
