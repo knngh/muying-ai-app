@@ -220,6 +220,9 @@ export default function KnowledgeDetailScreen() {
       : formatRichArticleContent(displayedBodyContent)
     return buildSafeArticleHtml(rawContent)
   }, [displayedBodyContent, displayedSummary, isBodyFallback])
+  useEffect(() => {
+    setWebViewHeight(120)
+  }, [displayedContentHtml])
   const riskAlert = useMemo(() => {
     const plainText = stripHtmlTags([
       article?.title || '',
@@ -822,6 +825,7 @@ export default function KnowledgeDetailScreen() {
           ) : null}
           <View style={styles.webviewFrame}>
             <WebView
+              key={`${slug}:${showingTranslation ? 'translated' : 'source'}:${displayedContentHtml.length}`}
               originWhitelist={['about:blank']}
               source={{ html: displayedContentHtml }}
               style={[styles.webview, { height: webViewHeight }]}
@@ -1645,6 +1649,19 @@ function appendInlineStyle(attrs: string | undefined, inlineStyle: string): stri
   return normalizedAttrs.replace(/\sstyle=(['"])(.*?)\1/i, ` style=${quote}${merged}${quote}`)
 }
 
+function stripProblematicInlineStyles(html: string): string {
+  return html.replace(/\sstyle=(['"])(.*?)\1/gi, (_match, quote: string, rawStyle: string) => {
+    const cleaned = rawStyle
+      .split(';')
+      .map(item => item.trim())
+      .filter(Boolean)
+      .filter((item) => !/^(?:margin(?:-(?:top|right|bottom|left))?|padding(?:-(?:top|right|bottom|left))?|height|min-height|max-height)\s*:/i.test(item))
+      .join(';')
+
+    return cleaned ? ` style=${quote}${cleaned}${quote}` : ''
+  })
+}
+
 function addBlockSpacingToHtml(html: string): string {
   const blockStyles: Array<{ tag: string; style: string }> = [
     { tag: 'p', style: 'margin:0 0 1.1em;line-height:1.9;display:block;' },
@@ -1926,14 +1943,26 @@ function formatRichArticleContent(content: string): string {
       .replace(/<script[\s\S]*?<\/script>/gi, '')
       .replace(/<style[\s\S]*?<\/style>/gi, '')
       .replace(/<(?:nav|footer|header|aside)[\s\S]*?<\/(?:nav|footer|header|aside)>/gi, '')
-      .replace(/<(?:p|div|section|article)[^>]*>(?:\s|&nbsp;|&#160;|<br\s*\/?>)*<\/(?:p|div|section|article)>/gi, '')
+      .replace(/<(?:p|div|section|article|blockquote)[^>]*>(?:\s|&nbsp;|&#160;|<br\s*\/?>)*<\/(?:p|div|section|article|blockquote)>/gi, '')
+      .replace(/(?:<br\s*\/?>\s*){3,}/gi, '<br><br>')
+      .replace(/\sclass=(['"])[^'"]*\1/gi, '')
+      .replace(/\sid=(['"])[^'"]*\1/gi, '')
+      .replace(/\sdata-[\w-]+=(['"])[^'"]*\1/gi, '')
+      .replace(/\saria-[\w-]+=(['"])[^'"]*\1/gi, '')
+      .replace(/\srole=(['"])[^'"]*\1/gi, '')
+      .replace(/\s(?:width|height|cellpadding|cellspacing|valign|align)=(['"])[^'"]*\1/gi, '')
+      .replace(/\s(?:width|height|cellpadding|cellspacing|valign|align)=([^\s>]+)/gi, '')
+      .replace(/&nbsp;/gi, ' ')
       .trim()
 
-    if (/<(?:p|div|section|article|li|ul|ol|h[1-6]|blockquote)\b/i.test(sanitizedHtml)) {
-      return addBlockSpacingToHtml(sanitizedHtml)
+    const normalizedHtml = stripProblematicInlineStyles(sanitizedHtml)
+      .trim()
+
+    if (/<(?:p|div|section|article|li|ul|ol|h[1-6]|blockquote)\b/i.test(normalizedHtml)) {
+      return addBlockSpacingToHtml(normalizedHtml)
     }
 
-    return convertTextToRichHtml(stripHtmlTags(sanitizedHtml))
+    return convertTextToRichHtml(stripHtmlTags(normalizedHtml))
   }
 
   return convertTextToRichHtml(trimmed)
