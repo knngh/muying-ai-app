@@ -128,9 +128,9 @@
         </text>
       </view>
 
-      <view v-if="displayedSummary" class="summary-box">
+      <view v-if="displayedSummaryText" class="summary-box">
         <text class="summary-label">{{ showingTranslation ? '中文摘要' : '核心摘要' }}</text>
-        <text class="summary-text">{{ displayedSummary }}</text>
+        <text class="summary-text">{{ displayedSummaryText }}</text>
       </view>
 
       <view v-if="displayedSourceUrl" class="source-box">
@@ -289,6 +289,8 @@ const displayedSummary = computed(() => {
   }
   return article.value?.summary || ''
 })
+
+const displayedSummaryText = computed(() => normalizePlainText(displayedSummary.value))
 
 const displayedSourceUrl = computed(() => sanitizeAuthoritySourceUrl(
   article.value?.sourceUrl,
@@ -568,6 +570,12 @@ function sanitizeAuthoritySourceUrl(url?: string, sourceText = ''): string {
   }
 
   return url
+}
+
+function normalizePlainText(input?: string | null): string {
+  return stripHtmlTags(input || '')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 function openSource(url?: string) {
