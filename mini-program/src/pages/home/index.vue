@@ -396,7 +396,7 @@ const syncHomeState = () => {
       .map(item => ({
         articleId: Number(item.articleId),
         slug: item.slug || '',
-        title: isGenericForeignTitle(item.title) ? getLocalizedFallbackTitle() : (item.title || ''),
+        title: isGenericForeignTitle(item.title) ? getLocalizedFallbackTitle(item.topic, item.stage) : (item.title || ''),
         summary: item.summary || '',
         source: item.source,
         sourceOrg: item.sourceOrg,
