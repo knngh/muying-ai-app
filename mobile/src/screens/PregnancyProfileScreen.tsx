@@ -283,7 +283,7 @@ export default function PregnancyProfileScreen() {
               <View style={styles.diaryAiCard}>
                 <View style={styles.diaryAiHeader}>
                   <View style={styles.diaryAiHeaderCopy}>
-                    <Text style={styles.diaryAiEyebrow}>AI 自动打标签</Text>
+                    <Text style={styles.diaryAiEyebrow}>自动整理标签</Text>
                     <Text style={styles.diaryAiTitle}>这条记录已整理成重点</Text>
                   </View>
                   <Chip compact style={styles.diaryAiCountChip} textStyle={styles.diaryAiCountText}>

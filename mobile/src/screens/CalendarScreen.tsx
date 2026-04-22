@@ -1019,7 +1019,7 @@ export default function CalendarScreen() {
           <LinearGradient colors={['#EFF5FF', '#E6EEF8', '#FBFDFF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.aiPriorityGradient}>
             <View style={styles.aiPriorityHeader}>
               <View style={styles.aiPriorityHeaderCopy}>
-                <Text style={styles.aiPriorityEyebrow}>AI 本周重点待办</Text>
+                <Text style={styles.aiPriorityEyebrow}>本周优先待办</Text>
                 <Text style={styles.aiPriorityTitle}>{aiWeekPriority.title}</Text>
                 <Text style={styles.aiPrioritySubtitle}>{aiWeekPriority.subtitle}</Text>
               </View>

@@ -150,7 +150,7 @@ export function buildKnowledgeAiAssist(article: Article | null | undefined): Kno
       article?.sourceOrg || article?.source ? `来源来自${article.sourceOrg || article.source}，建议结合原文更新时间核对。` : '建议结合原始来源、摘要和同步时间一起判断。',
     ],
     terms,
-    safetyNote: 'AI 辅助只做阅读整理，不替代医生判断；涉及症状加重、用药或治疗方案时请线下确认。',
+    safetyNote: '阅读整理只用于帮助理解，不替代医生判断；涉及症状加重、用药或治疗方案时请线下确认。',
   }
 }
 
@@ -207,7 +207,7 @@ export function buildWeekPriorityPlan(params: {
   }]
 
   return {
-    title: params.week ? `第 ${params.week} 周 AI 重点` : 'AI 本周重点',
+    title: params.week ? `第 ${params.week} 周阅读重点` : '本周阅读重点',
     subtitle: params.summary ? truncateText(params.summary, 56) : '先处理最影响本周节奏的事项。',
     items: itemsSource.map((todo, index) => ({
       title: todo.title,
