@@ -211,6 +211,16 @@ function getLocalizedFallbackTitle(article: Article) {
   return `${primary}参考`
 }
 
+function getRecentAiHitDisplayTitle(item: RecentAIHitArticle) {
+  if (!isGenericForeignTitle(item.title)) {
+    return item.title || '权威参考'
+  }
+
+  const stage = item.stage ? formatArticleStage(item.stage) : '全阶段'
+  const primary = normalizeKnowledgeLabel(item.topic) || (stage !== '全阶段' ? stage : '权威')
+  return `${primary}参考`
+}
+
 function formatRecentHitTime(value?: string) {
   if (!value) return '刚刚命中'
 
@@ -556,9 +566,9 @@ export default function KnowledgeScreen() {
   }, [search, setKeyword])
 
   const handleAskRecentAiArticle = useCallback((item: RecentAIHitArticle) => {
-    const title = item.title || '这篇权威内容'
+    const title = getRecentAiHitDisplayTitle(item)
     const sourceOrg = item.sourceOrg || item.source || ''
-    const summary = item.summary || ''
+    const summary = normalizePlainText(item.summary)
     const question = buildKnowledgeDetailQuestion({
       title,
       summary,
@@ -799,7 +809,7 @@ export default function KnowledgeScreen() {
                 onPress={() => handleOpenRecentAiHit(item)}
               >
                 <Text style={styles.recentAiHitCardEyebrow}>{formatRecentHitTime(item.lastHitAt)}</Text>
-                <Text style={styles.recentAiHitCardTitle} numberOfLines={2}>{item.title}</Text>
+                <Text style={styles.recentAiHitCardTitle} numberOfLines={2}>{getRecentAiHitDisplayTitle(item)}</Text>
                 <Text style={styles.recentAiHitCardMeta} numberOfLines={1}>
                   {normalizeKnowledgeLabel(item.sourceOrg || item.source) || '权威机构'}
                 </Text>
