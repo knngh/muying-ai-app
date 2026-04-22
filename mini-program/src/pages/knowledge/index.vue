@@ -363,7 +363,10 @@ const articles = computed(() => knowledgeStore.articles)
 const loading = computed(() => knowledgeStore.loading)
 const total = computed(() => knowledgeStore.total)
 const selectedSource = computed(() => knowledgeStore.selectedSource)
-const recentAiHitArticles = computed(() => knowledgeStore.recentAiHitArticles.slice(0, 3))
+const recentAiHitArticles = computed(() => knowledgeStore.recentAiHitArticles.slice(0, 3).map(item => ({
+  ...item,
+  title: getRecentAiHitDisplayTitle(item),
+})))
 const recentAiHitTopics = computed(() => buildRecentAIHitTopics(knowledgeStore.recentAiHitArticles))
 const recentAiHitSources = computed(() => buildRecentAIHitSources(knowledgeStore.recentAiHitArticles))
 const selectedStageLabel = computed(() => stageOptions[selectedStageIndex.value]?.label || '全部阶段')
@@ -734,6 +737,14 @@ function getReadingHint(article: Article): string {
 
 function getStageLabel(stage?: string | null): string {
   return stageOptions.find(item => item.value === (stage || ''))?.label || '当前阶段'
+}
+
+function getRecentAiHitDisplayTitle(item: RecentAIHitArticle): string {
+  if (!isGenericForeignTitle(item.title)) {
+    return item.title || '权威参考'
+  }
+
+  return getLocalizedFallbackTitle(item.topic, item.stage)
 }
 
 function getListDisplayTitle(article: Article): string {
