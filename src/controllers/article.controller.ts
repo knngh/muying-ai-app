@@ -19,6 +19,13 @@ import { matchesAuthorityStageFilters } from '../utils/authority-stage-filter';
 import { shouldFilterAuthoritySourceUrl } from '../utils/authority-source-url';
 import { matchesExpandedSearch } from '../utils/search-query-expansion';
 import { rewriteSearchQueries } from '../services/knowledge.service';
+import {
+  extractJsonObject,
+  hasTranslationPromptLeak,
+  normalizeWhitespace,
+  sanitizeTranslationText,
+  stripCodeFence,
+} from '../utils/article-translation';
 
 interface AuthorityCacheRecord {
   id: string;
@@ -98,8 +105,6 @@ interface AuthorityArticleTranslationApiResponse {
   retryAfterMs?: number;
   translation?: AuthorityTranslationCacheRecord;
 }
-
-const AUTHORITY_TRANSLATION_PROMPT_LEAK_PATTERN = /<translated_(title|summary|content)>|Be accurate and faithful to the original|不要输出任何额外说明|输出必须严格使用以下标签/i;
 
 function hashStringToPositiveInt(input: string): number {
   let hash = 0;
@@ -631,52 +636,6 @@ function extractTaggedContent(input: string, tag: string): string {
   return match?.[1]?.trim() || '';
 }
 
-function stripCodeFence(input: string): string {
-  const fenced = input.trim().match(/^```(?:xml|json|markdown|md|text)?\s*([\s\S]*?)\s*```$/i);
-  return fenced?.[1]?.trim() || input.trim();
-}
-
-function normalizeWhitespace(input: string): string {
-  return input
-    .replace(/\r\n/g, '\n')
-    .replace(/\r/g, '\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
-}
-
-function sanitizeTranslationText(
-  input: string,
-  type: 'title' | 'summary' | 'content',
-): string {
-  if (!input) {
-    return '';
-  }
-
-  const labelPattern = type === 'title'
-    ? /^(?:[-*•·]\s*)?(?:translated_title|title|标题)\s*[:：]\s*/i
-    : type === 'summary'
-      ? /^(?:[-*•·]\s*)?(?:translated_summary|summary|摘要)\s*[:：]\s*/i
-      : /^(?:[-*•·]\s*)?(?:translated_content|content|正文|内容)\s*[:：]\s*/i;
-
-  let normalized = normalizeWhitespace(stripCodeFence(input))
-    .replace(/<\/?translated_(title|summary|content)>/gi, '')
-    .replace(/^\s*#{1,6}\s*/g, '')
-    .replace(/^[`"'“”‘’]+|[`"'“”‘’]+$/g, '')
-    .trim();
-
-  if (AUTHORITY_TRANSLATION_PROMPT_LEAK_PATTERN.test(normalized)) {
-    return '';
-  }
-
-  normalized = normalized
-    .replace(/^(?:好的[，,]?\s*)/u, '')
-    .replace(/^(?:以下(?:是|为)|下面(?:是|为)|这是)(?:本篇|这篇|当前)?(?:文章|原文|内容)?(?:的)?(?:中文)?(?:辅助)?(?:翻译|译文|中文版)?\s*[：:。.]?\s*/u, '')
-    .replace(labelPattern, '')
-    .trim();
-
-  return normalized;
-}
-
 function normalizeAuthorityTranslationRecord(
   translation: AuthorityTranslationCacheRecord,
 ): AuthorityTranslationCacheRecord | null {
@@ -720,34 +679,6 @@ function buildAuthorityTranslationSourceContent(input: string): { content: strin
   const content = clipped.slice(0, safeBreak >= AUTHORITY_TRANSLATION_SOURCE_CHAR_LIMIT * 0.65 ? safeBreak + 1 : clipped.length).trim();
 
   return { content, truncated: true };
-}
-
-function extractJsonObject(input: string): Record<string, unknown> | null {
-  const normalized = stripCodeFence(input);
-  const candidates = [
-    normalized,
-    (() => {
-      const start = normalized.indexOf('{');
-      const end = normalized.lastIndexOf('}');
-      if (start === -1 || end === -1 || end <= start) {
-        return '';
-      }
-      return normalized.slice(start, end + 1);
-    })(),
-  ].filter(Boolean);
-
-  for (const candidate of candidates) {
-    try {
-      const parsed = JSON.parse(candidate) as unknown;
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        return parsed as Record<string, unknown>;
-      }
-    } catch {
-      // ignore malformed JSON candidates
-    }
-  }
-
-  return null;
 }
 
 function pickFirstNonEmptyString(...values: unknown[]): string {
@@ -936,9 +867,9 @@ async function translateAuthorityRecord(slug: string, record: AuthorityCacheReco
     }
 
     if (
-      AUTHORITY_TRANSLATION_PROMPT_LEAK_PATTERN.test(title)
-      || AUTHORITY_TRANSLATION_PROMPT_LEAK_PATTERN.test(summary)
-      || AUTHORITY_TRANSLATION_PROMPT_LEAK_PATTERN.test(content)
+      hasTranslationPromptLeak(title)
+      || hasTranslationPromptLeak(summary)
+      || hasTranslationPromptLeak(content)
     ) {
       lastError = new Error('翻译结果包含提示词模板，已丢弃');
       console.error(`[Authority Translation] Prompt leak detected for ${slug} via ${taskRole}, trying next model`);
