@@ -22,6 +22,36 @@ export interface AuthorityArticleTranslation {
   isSourceChinese?: boolean
 }
 
+export interface AuthorityArticleTranslationResponse {
+  status: 'ready' | 'processing'
+  retryAfterMs?: number
+  translation?: AuthorityArticleTranslation
+}
+
+export type TranslationPendingError = Error & {
+  translationPending: true
+  retryAfterMs?: number
+}
+
+const AUTHORITY_TRANSLATION_REQUEST_TIMEOUT_MS = 45000
+
+function sleep(ms: number) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms)
+  })
+}
+
+function buildTranslationPendingError(retryAfterMs?: number): TranslationPendingError {
+  const error = new Error('中文辅助阅读正在准备中，请稍后查看') as TranslationPendingError
+  error.translationPending = true
+  error.retryAfterMs = retryAfterMs
+  return error
+}
+
+export function isTranslationPendingError(error: unknown): error is TranslationPendingError {
+  return Boolean(error && typeof error === 'object' && 'translationPending' in error)
+}
+
 // ==================== 分类 API ====================
 export const categoryApi = {
   getAll: (params?: { parentId?: number }) =>
@@ -45,11 +75,40 @@ export const articleApi = {
     difficulty?: string; contentType?: string; stage?: string; sort?: string; keyword?: string; source?: string
   }) => api.get<PaginatedResponse<Article>>('/articles', params as Record<string, unknown>),
   getBySlug: (slug: string) => api.get<Article>(`/articles/${slug}`),
-  getTranslation: (slug: string) => api.get<AuthorityArticleTranslation>(
+  getTranslationStatus: (slug: string) => api.get<AuthorityArticleTranslationResponse>(
     `/articles/${slug}/translation`,
     undefined,
-    { timeout: 180000 },
+    { timeout: 12000 },
   ),
+  kickoffTranslation: async (slug: string) => {
+    const response = await api.get<AuthorityArticleTranslationResponse>(
+      `/articles/${slug}/translation`,
+      undefined,
+      { timeout: 12000 },
+    )
+    return response.status === 'ready' ? (response.translation || null) : null
+  },
+  getTranslation: async (slug: string, options?: { maxAttempts?: number }) => {
+    const maxAttempts = Math.max(1, options?.maxAttempts || 3)
+
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      const response = await api.get<AuthorityArticleTranslationResponse>(
+        `/articles/${slug}/translation`,
+        { wait: '1' },
+        { timeout: AUTHORITY_TRANSLATION_REQUEST_TIMEOUT_MS },
+      )
+      if (response.status === 'ready' && response.translation) {
+        return response.translation
+      }
+
+      if (attempt < maxAttempts - 1) {
+        const baseDelay = response.retryAfterMs || 2000
+        await sleep(Math.min(baseDelay * Math.pow(1.5, attempt), 10000))
+      }
+    }
+
+    throw buildTranslationPendingError()
+  },
   search: (keyword: string, params?: { page?: number; pageSize?: number }) =>
     api.get<PaginatedResponse<Article>>('/articles/search', { q: keyword, ...params } as Record<string, unknown>),
   getRelated: (id: number, limit = 5) =>

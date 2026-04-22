@@ -78,7 +78,7 @@
         :class="{ 'active': activeTab === 'guide' }" 
         @tap="activeTab = 'guide'"
       >
-        <text class="tab-text">孕周指南</text>
+        <text class="tab-text">孕周日历</text>
         <view class="tab-line" v-if="activeTab === 'guide'"></view>
       </view>
       <view 
@@ -99,7 +99,7 @@
       </view>
     </view>
 
-    <!-- 孕周指南 内容 -->
+    <!-- 孕周日历 内容 -->
     <view class="content-section" v-if="activeTab === 'guide'">
       <!-- 总体总结 -->
       <view class="summary-card">
@@ -170,6 +170,35 @@
         </view>
       </view>
 
+      <view class="ai-priority-card">
+        <view class="ai-priority-head">
+          <view class="ai-priority-copy">
+            <text class="ai-priority-kicker">本周重点待办</text>
+            <text class="ai-priority-title">{{ aiWeekPriority.title }}</text>
+            <text class="ai-priority-subtitle">{{ aiWeekPriority.subtitle }}</text>
+          </view>
+          <view class="ai-priority-badge">
+            <text class="ai-priority-badge-text">{{ aiWeekPriority.items.length }}</text>
+          </view>
+        </view>
+
+        <view
+          v-for="item in aiWeekPriority.items"
+          :key="`${item.label}-${item.title}`"
+          class="ai-priority-item"
+          :class="{ 'ai-priority-item--done': item.completed }"
+        >
+          <view class="ai-priority-item-head">
+            <text class="ai-priority-item-title">{{ item.title }}</text>
+            <text class="ai-priority-item-label">{{ item.label }}</text>
+          </view>
+          <text class="ai-priority-item-desc">{{ item.desc }}</text>
+          <text class="ai-priority-item-reason">{{ item.reason }}</text>
+        </view>
+
+        <text class="ai-priority-reminder">{{ aiWeekPriority.reminder }}</text>
+      </view>
+
       <view class="info-card todo-card">
         <view class="card-header">
           <view class="header-left">
@@ -234,7 +263,7 @@
       <view v-if="!canUseTodoActions" class="week-overview-card week-overview-card--soft">
         <view class="week-overview-copy">
           <text class="week-overview-title">登录后可保存本周记录</text>
-          <text class="week-overview-desc">未登录时可以先浏览孕周指南，确认有需要再保存你这周的感受和重点事项。</text>
+          <text class="week-overview-desc">未登录时可以先浏览孕周日历，确认有需要再保存你这周的感受和重点事项。</text>
         </view>
         <view
           class="week-overview-btn"
@@ -265,7 +294,7 @@
       </view>
     </view>
 
-    <!-- 浮动操作按钮 (仅在孕周指南下显示快捷记录) -->
+    <!-- 浮动操作按钮 (仅在孕周日历下显示快捷记录) -->
     <view class="fab-button" v-if="activeTab === 'guide'" @tap="openDiaryModal">
       <text class="fab-icon">✏️</text>
     </view>
@@ -314,6 +343,7 @@ import mockDataArray from './mockData.json'
 import { useAppStore } from '@/stores/app'
 import { calendarApi, type PregnancyTodoProgress, type PregnancyDiary, type PregnancyCustomTodo } from '@/api/modules'
 import { calculatePregnancyWeekFromDueDate } from '@/utils'
+import { buildWeekPriorityPlan } from '@/utils/ai-assist'
 
 const weeksList = ref(Array.from({ length: 40 }, (_, i) => ({ num: i + 1 })))
 const appStore = useAppStore()
@@ -353,7 +383,7 @@ const todoPendingKey = ref('')
 
 const fallbackData = {
   title: '数据未收录',
-  summary: '这周的详细科普数据还在采集中，敬请期待！',
+  summary: '当前周内容暂未完整收录，可先使用待办、日记和知识库继续记录本周重点。',
   babySizeEmoji: '✨',
   babySizeText: '不断成长中',
   babyWeight: '',
@@ -493,6 +523,14 @@ const defaultTodoList = computed(() =>
 )
 const todoList = computed(() => [...customTodoList.value, ...defaultTodoList.value])
 const completedTodoCount = computed(() => todoList.value.filter(todo => todo.completed).length)
+const aiWeekPriority = computed(() => buildWeekPriorityPlan({
+  week: currentSelectedWeek.value,
+  summary: currentWeekData.value.summary,
+  tips: parsedContent.value.tips || [],
+  todos: todoList.value,
+  completedCount: completedTodoCount.value,
+  hasDiary: Boolean(currentDiary.value),
+}))
 const weekCommandDescription = computed(() => (
   activeTab.value === 'guide'
     ? '先扫一眼本周发育与注意事项，再决定要不要补待办或记录。'
@@ -510,7 +548,7 @@ const weekCommandBadge = computed(() => (
 const tabQuickActions = computed(() => [
   {
     key: 'guide',
-    label: '孕周指南',
+    label: '孕周日历',
     value: currentWeekData.value.babySizeText || '查看重点',
     meta: parsedContent.value.tips?.length ? `${parsedContent.value.tips.length} 条本周建议` : '先看宝宝发育和妈妈变化',
   },
@@ -796,7 +834,7 @@ onShow(() => {
 
 function buildSharePayload() {
   return {
-    title: `贝护妈妈孕育时间轴：第 ${currentSelectedWeek.value} 周重点与记录`,
+    title: `贝护妈妈孕周日历：第 ${currentSelectedWeek.value} 周重点与记录`,
     path: '/pages/calendar/index',
     query: '',
   }
@@ -1095,6 +1133,101 @@ onShareTimeline(() => {
   font-size: 24rpx;
   font-weight: 700;
   color: #b4633d;
+}
+.ai-priority-card {
+  margin-bottom: 24rpx;
+  padding: 28rpx 30rpx;
+  border-radius: 26rpx;
+  background: linear-gradient(140deg, #eef6ff 0%, #ffffff 100%);
+  box-shadow: 0 12rpx 30rpx rgba(84, 117, 176, 0.1);
+}
+.ai-priority-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 22rpx;
+}
+.ai-priority-copy { flex: 1; }
+.ai-priority-kicker {
+  display: block;
+  font-size: 22rpx;
+  font-weight: 700;
+  letter-spacing: 2rpx;
+  color: #5474b0;
+}
+.ai-priority-title {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 32rpx;
+  line-height: 1.3;
+  font-weight: 800;
+  color: #27313d;
+}
+.ai-priority-subtitle {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 24rpx;
+  line-height: 1.65;
+  color: #6f7f93;
+}
+.ai-priority-badge {
+  flex-shrink: 0;
+  min-width: 92rpx;
+  padding: 16rpx 14rpx;
+  border-radius: 22rpx;
+  text-align: center;
+  background: linear-gradient(135deg, #6d8fff 0%, #8cb4ff 100%);
+  box-shadow: 0 10rpx 22rpx rgba(109, 143, 255, 0.2);
+}
+.ai-priority-badge-text {
+  font-size: 28rpx;
+  font-weight: 800;
+  color: #fff;
+}
+.ai-priority-item {
+  margin-top: 20rpx;
+  padding: 22rpx 24rpx;
+  border-radius: 22rpx;
+  background: #f8fbff;
+}
+.ai-priority-item--done {
+  background: #f1f7f3;
+}
+.ai-priority-item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+}
+.ai-priority-item-title {
+  flex: 1;
+  font-size: 27rpx;
+  line-height: 1.45;
+  font-weight: 700;
+  color: #2b3542;
+}
+.ai-priority-item-label {
+  flex-shrink: 0;
+  padding: 6rpx 14rpx;
+  border-radius: 999rpx;
+  background: rgba(84, 116, 176, 0.12);
+  font-size: 21rpx;
+  font-weight: 700;
+  color: #5474b0;
+}
+.ai-priority-item-desc,
+.ai-priority-item-reason,
+.ai-priority-reminder {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 24rpx;
+  line-height: 1.7;
+}
+.ai-priority-item-desc { color: #59697c; }
+.ai-priority-item-reason { color: #7d8c9b; }
+.ai-priority-reminder {
+  margin-top: 18rpx;
+  color: #5a6d83;
 }
 .summary-card {
   background: linear-gradient(135deg, #ffffff 0%, #fff5f8 100%);

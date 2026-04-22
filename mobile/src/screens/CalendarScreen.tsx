@@ -21,6 +21,8 @@ import { useAppStore } from '../stores/appStore'
 import { useMembershipStore } from '../stores/membershipStore'
 import { ScreenContainer, StandardCard } from '../components/layout'
 import { getStageSummary, type CalendarSuggestion } from '../utils/stage'
+import { calculatePregnancyWeekFromDueDate } from '../utils'
+import { buildWeekPriorityPlan } from '../utils/aiAssist'
 import { borderRadius, colors, fontSize, spacing } from '../theme'
 
 type EventType = 'checkup' | 'vaccine' | 'reminder' | 'exercise' | 'diet' | 'other'
@@ -301,9 +303,13 @@ export default function CalendarScreen() {
   const user = useAppStore((state) => state.user)
   const {
     events = [],
+    todoProgress = [],
+    customTodos = [],
+    diaries = [],
     currentMonth,
     setCurrentMonth,
     fetchEvents,
+    fetchTodoContext,
     createEvent,
     updateEvent,
     deleteEvent,
@@ -328,6 +334,10 @@ export default function CalendarScreen() {
   const dateCellNodesRef = useRef<Record<string, View | null>>({})
   const dateCellRectsRef = useRef<Record<string, Rect>>({})
   const todayString = dayjs().format('YYYY-MM-DD')
+  const currentPregnancyWeek = useMemo(
+    () => (user?.dueDate ? calculatePregnancyWeekFromDueDate(user.dueDate) : null),
+    [user?.dueDate],
+  )
 
   const loadCheckinStatus = useCallback(async () => {
     try {
@@ -351,10 +361,13 @@ export default function CalendarScreen() {
     useCallback(() => {
       const { start, end } = getCalendarFetchRange(currentMonth, todayString)
       fetchEvents(start, end)
+      if (currentPregnancyWeek) {
+        void fetchTodoContext(currentPregnancyWeek)
+      }
       ensureFreshQuota()
       void loadCheckinStatus()
       void loadStandardSchedule()
-    }, [currentMonth, ensureFreshQuota, fetchEvents, loadCheckinStatus, loadStandardSchedule, todayString]),
+    }, [currentMonth, currentPregnancyWeek, ensureFreshQuota, fetchEvents, fetchTodoContext, loadCheckinStatus, loadStandardSchedule, todayString]),
   )
 
   const calendarEvents = events as unknown as CalendarEventView[]
@@ -448,6 +461,46 @@ export default function CalendarScreen() {
     () => (standardSchedule?.items || []).slice(0, 3),
     [standardSchedule],
   )
+  const currentWeekDiary = useMemo(
+    () => (currentPregnancyWeek ? diaries.find((item) => item.week === currentPregnancyWeek) || null : null),
+    [currentPregnancyWeek, diaries],
+  )
+  const aiTodoCandidates = useMemo(() => {
+    const eventStates = new Map<string, boolean>()
+    calendarEvents.forEach((event) => {
+      const key = `${event.eventType}:${event.title}`.toLowerCase()
+      const previous = eventStates.get(key)
+      eventStates.set(key, Boolean(previous) || event.isCompleted)
+    })
+
+    const suggestionTodos = stage.calendarSuggestions.map((suggestion) => ({
+      type: suggestion.eventType,
+      title: suggestion.title,
+      desc: suggestion.description,
+      completed: Boolean(eventStates.get(`${suggestion.eventType}:${suggestion.title}`.toLowerCase())),
+    }))
+
+    const weeklyCustomTodos = currentPregnancyWeek
+      ? customTodos
+        .filter((item) => item.week === currentPregnancyWeek)
+        .map((item) => ({
+          type: 'custom',
+          title: '我的待办',
+          desc: item.content,
+          completed: todoProgress.some(progress => progress.week === item.week && progress.todoKey === `custom-${item.id}` && progress.completed),
+        }))
+      : []
+
+    return [...weeklyCustomTodos, ...suggestionTodos]
+  }, [calendarEvents, currentPregnancyWeek, customTodos, stage.calendarSuggestions, todoProgress])
+  const aiWeekPriority = useMemo(() => buildWeekPriorityPlan({
+    week: currentPregnancyWeek,
+    summary: stage.reminder,
+    tips: stage.calendarSuggestions.map(item => item.description),
+    todos: aiTodoCandidates,
+    completedCount: aiTodoCandidates.filter(item => item.completed).length,
+    hasDiary: Boolean(currentWeekDiary),
+  }), [aiTodoCandidates, currentPregnancyWeek, currentWeekDiary, stage.calendarSuggestions, stage.reminder])
 
   const measureDateCell = useCallback((dateString: string) => {
     requestAnimationFrame(() => {
@@ -959,6 +1012,42 @@ export default function CalendarScreen() {
                 ))}
               </View>
             </Card.Content>
+          </LinearGradient>
+        </Card>
+
+        <Card style={styles.aiPriorityCard}>
+          <LinearGradient colors={['#EFF5FF', '#E6EEF8', '#FBFDFF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.aiPriorityGradient}>
+            <View style={styles.aiPriorityHeader}>
+              <View style={styles.aiPriorityHeaderCopy}>
+                <Text style={styles.aiPriorityEyebrow}>AI 本周重点待办</Text>
+                <Text style={styles.aiPriorityTitle}>{aiWeekPriority.title}</Text>
+                <Text style={styles.aiPrioritySubtitle}>{aiWeekPriority.subtitle}</Text>
+              </View>
+              <View style={styles.aiPriorityCountBox}>
+                <Text style={styles.aiPriorityCountValue}>{aiWeekPriority.items.length}</Text>
+                <Text style={styles.aiPriorityCountLabel}>重点</Text>
+              </View>
+            </View>
+
+            <View style={styles.aiPriorityList}>
+              {aiWeekPriority.items.map((item) => (
+                <View
+                  key={`${item.label}-${item.title}`}
+                  style={[styles.aiPriorityItem, item.completed ? styles.aiPriorityItemDone : null]}
+                >
+                  <View style={styles.aiPriorityItemTop}>
+                    <Text style={styles.aiPriorityItemTitle}>{item.title}</Text>
+                    <Chip compact style={styles.aiPriorityItemChip} textStyle={styles.aiPriorityItemChipText}>
+                      {item.label}
+                    </Chip>
+                  </View>
+                  <Text style={styles.aiPriorityItemDesc}>{item.desc}</Text>
+                  <Text style={styles.aiPriorityItemReason}>{item.reason}</Text>
+                </View>
+              ))}
+            </View>
+
+            <Text style={styles.aiPriorityReminder}>{aiWeekPriority.reminder}</Text>
           </LinearGradient>
         </Card>
 
@@ -1663,6 +1752,110 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: fontSize.xs,
     fontWeight: '600',
+  },
+  aiPriorityCard: {
+    marginTop: spacing.md,
+    borderRadius: borderRadius.xl,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(94,126,134,0.16)',
+    backgroundColor: 'transparent',
+  },
+  aiPriorityGradient: {
+    padding: spacing.md,
+  },
+  aiPriorityHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+  },
+  aiPriorityHeaderCopy: {
+    flex: 1,
+  },
+  aiPriorityEyebrow: {
+    fontSize: fontSize.xs,
+    color: colors.techDark,
+    fontWeight: '700',
+    letterSpacing: 1,
+  },
+  aiPriorityTitle: {
+    marginTop: 2,
+    fontSize: fontSize.md,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  aiPrioritySubtitle: {
+    marginTop: 4,
+    color: colors.textSecondary,
+    lineHeight: 18,
+  },
+  aiPriorityCountBox: {
+    minWidth: 64,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.lg,
+    backgroundColor: 'rgba(255,255,255,0.78)',
+    alignItems: 'center',
+  },
+  aiPriorityCountValue: {
+    color: colors.techDark,
+    fontSize: fontSize.xl,
+    fontWeight: '800',
+  },
+  aiPriorityCountLabel: {
+    color: colors.textSecondary,
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  aiPriorityList: {
+    marginTop: spacing.md,
+    gap: spacing.sm,
+  },
+  aiPriorityItem: {
+    padding: spacing.sm,
+    borderRadius: borderRadius.lg,
+    backgroundColor: 'rgba(255,255,255,0.72)',
+  },
+  aiPriorityItemDone: {
+    backgroundColor: 'rgba(234,240,226,0.88)',
+  },
+  aiPriorityItemTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  aiPriorityItemTitle: {
+    flex: 1,
+    color: colors.ink,
+    fontWeight: '700',
+    lineHeight: 20,
+  },
+  aiPriorityItemChip: {
+    backgroundColor: 'rgba(94,126,134,0.12)',
+    alignSelf: 'flex-start',
+  },
+  aiPriorityItemChipText: {
+    color: colors.techDark,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  aiPriorityItemDesc: {
+    marginTop: spacing.xs,
+    color: colors.inkSoft,
+    lineHeight: 20,
+  },
+  aiPriorityItemReason: {
+    marginTop: 4,
+    color: colors.textSecondary,
+    fontSize: fontSize.xs,
+    lineHeight: 18,
+  },
+  aiPriorityReminder: {
+    marginTop: spacing.md,
+    color: colors.textSecondary,
+    lineHeight: 20,
   },
   standardScheduleCard: {
     marginTop: spacing.md,

@@ -14,6 +14,7 @@ import { Text, Chip, Button, ActivityIndicator } from 'react-native-paper'
 import LinearGradient from 'react-native-linear-gradient'
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons'
 import { useRoute } from '@react-navigation/native'
+import { useNavigation } from '@react-navigation/native'
 import type { RouteProp } from '@react-navigation/native'
 import type { RootStackParamList } from '../navigation/AppNavigator'
 import {
@@ -25,16 +26,25 @@ import {
 } from '../api/modules'
 import { ScreenContainer, StandardCard } from '../components/layout'
 import { useKnowledgeStore } from '../stores/knowledgeStore'
+import { trackAppEvent } from '../services/analytics'
 import { colors, spacing, fontSize, categoryColors, borderRadius } from '../theme'
 import { buildSafeArticleHtml, getSafeRemoteImageSource, shouldAllowWebViewNavigation } from '../utils/security'
+import { buildKnowledgeDetailChatContext } from '../utils/aiEntryContext'
+import { buildKnowledgeDetailQuestion } from '../utils/aiEntryPrompts'
+import { buildKnowledgeAiAssist } from '../utils/aiAssist'
+import { useAppStore } from '../stores/appStore'
+import { getStageSummary } from '../utils/stage'
 
 type DetailRouteProp = RouteProp<RootStackParamList, 'KnowledgeDetail'>
 
 const { width: screenWidth } = Dimensions.get('window')
 
 export default function KnowledgeDetailScreen() {
+  const navigation = useNavigation<any>()
   const route = useRoute<DetailRouteProp>()
-  const { slug } = route.params
+  const user = useAppStore((state) => state.user)
+  const stage = getStageSummary(user)
+  const { slug, source, aiContext } = route.params
   const [translation, setTranslation] = useState<AuthorityArticleTranslation | null>(null)
   const [translating, setTranslating] = useState(false)
   const [translationError, setTranslationError] = useState('')
@@ -42,12 +52,14 @@ export default function KnowledgeDetailScreen() {
   const [webViewHeight, setWebViewHeight] = useState(120)
   const articleOpenedAtRef = useRef(Date.now())
   const reportedReadKeyRef = useRef<string | null>(null)
+  const aiHitTrackedRef = useRef<string | null>(null)
 
   const {
     currentArticle: article,
     loading,
     error,
     fetchArticleDetail,
+    recordAiHitArticle,
     likeArticle,
     favoriteArticle,
   } = useKnowledgeStore()
@@ -99,6 +111,41 @@ export default function KnowledgeDetailScreen() {
     }
   }, [article?.id, slug])
 
+  useEffect(() => {
+    if (!article || source !== 'chat_hit') {
+      return
+    }
+
+    const trackKey = `${slug}:${aiContext?.qaId || 'unknown'}:${aiContext?.trigger || 'unknown'}`
+    if (aiHitTrackedRef.current === trackKey) {
+      return
+    }
+
+    aiHitTrackedRef.current = trackKey
+    void recordAiHitArticle(article, {
+      qaId: aiContext?.qaId,
+      trigger: aiContext?.trigger,
+      matchReason: aiContext?.matchReason,
+      originEntrySource: aiContext?.originEntrySource,
+      originReportId: aiContext?.originReportId,
+    })
+    void trackAppEvent('app_knowledge_detail_ai_hit_open', {
+      page: 'KnowledgeDetailScreen',
+      properties: {
+        slug,
+        articleId: article.id,
+        qaId: aiContext?.qaId || null,
+        trigger: aiContext?.trigger || null,
+        matchReason: aiContext?.matchReason || null,
+        sourceOrg: article.sourceOrg || article.source || null,
+        topic: article.topic || null,
+        entrySource: aiContext?.originEntrySource || null,
+        articleSlug: slug,
+        reportId: aiContext?.originReportId || null,
+      },
+    })
+  }, [aiContext?.matchReason, aiContext?.originEntrySource, aiContext?.originReportId, aiContext?.qaId, aiContext?.trigger, article, recordAiHitArticle, slug, source])
+
   const sourceLanguageSample = useMemo(() => stripHtmlTags([
     article?.title || '',
     article?.summary || '',
@@ -137,6 +184,7 @@ export default function KnowledgeDetailScreen() {
   ), [article?.source, article?.sourceOrg, article?.sourceUrl])
   const displayTags = useMemo(() => getDisplayTags(article), [article])
   const displayTopic = useMemo(() => normalizeKnowledgeLabel(article?.topic), [article?.topic])
+  const aiAssist = useMemo(() => buildKnowledgeAiAssist(article), [article])
   const displayedBodyContent = showingTranslation && translation?.translatedContent
     ? translation.translatedContent
     : article?.content || ''
@@ -214,6 +262,50 @@ export default function KnowledgeDetailScreen() {
     } catch {
       Alert.alert('提示', '打开原始来源失败，请稍后重试')
     }
+  }
+
+  const handleAskAi = () => {
+    if (!article) return
+
+    const question = buildKnowledgeDetailQuestion({
+      title: displayedTitle || article.title,
+      summary: displayedSummary || article.summary,
+      sourceOrg: article.sourceOrg || article.source,
+      topic: article.topic,
+    })
+
+    void trackAppEvent('app_knowledge_detail_ask_ai_click', {
+      page: 'KnowledgeDetailScreen',
+      properties: {
+        slug,
+        articleId: article.id,
+        sourceOrg: article.sourceOrg || article.source || null,
+        topic: article.topic || null,
+        entrySource: 'knowledge_detail',
+        articleSlug: slug,
+        reportId: aiContext?.originReportId || null,
+        originSource: source || null,
+        originQaId: aiContext?.qaId || null,
+        originEntrySource: aiContext?.originEntrySource || null,
+      },
+    })
+
+    navigation.navigate('Main', {
+      screen: 'Chat',
+      params: {
+        prefillQuestion: question,
+        prefillContext: buildKnowledgeDetailChatContext({
+          slug,
+          title: displayedTitle || article.title,
+          summary: displayedSummary || article.summary,
+          sourceOrg: article.sourceOrg || article.source,
+          topic: article.topic,
+          stageKey: stage.lifecycleKey,
+        }),
+        autoSend: true,
+        source: 'knowledge_detail',
+      },
+    })
   }
 
   const handleToggleTranslation = async () => {
@@ -426,7 +518,95 @@ export default function KnowledgeDetailScreen() {
           </View>
         ) : null}
 
+        {source === 'chat_hit' ? (
+          <View style={styles.aiHitContextCard}>
+            <View style={styles.panelHeader}>
+              <View style={[styles.panelIconShell, styles.aiHitIconShell]}>
+                <MaterialCommunityIcons name="message-badge-outline" size={18} color={colors.techDark} />
+              </View>
+              <View style={styles.panelHeaderBody}>
+                <Text style={styles.cardEyebrow}>来自问题助手</Text>
+                <Text style={styles.panelTitle}>这篇文章命中了刚才的 AI 回答</Text>
+              </View>
+            </View>
+            <Text style={styles.aiHitContextText}>
+              {buildAiHitContextText(aiContext?.trigger, aiContext?.matchReason, aiContext?.originEntrySource)}
+            </Text>
+            <Button
+              mode="contained-tonal"
+              icon="message-question-outline"
+              onPress={handleAskAi}
+              style={styles.aiHitContextButton}
+              contentStyle={styles.quickActionContent}
+              buttonColor="rgba(54,92,104,0.14)"
+              textColor={colors.techDark}
+            >
+              继续追问这篇文章
+            </Button>
+          </View>
+        ) : null}
+
+        <View style={styles.aiAssistCard}>
+          <View style={styles.panelHeader}>
+            <View style={[styles.panelIconShell, styles.aiAssistIconShell]}>
+              <MaterialCommunityIcons name="lightbulb-on-outline" size={18} color={colors.primaryDark} />
+            </View>
+            <View style={styles.panelHeaderBody}>
+              <Text style={styles.cardEyebrow}>AI 阅读助手</Text>
+              <Text style={styles.panelTitle}>先抓住这 3 个重点</Text>
+            </View>
+            <Chip compact style={styles.aiAssistBadge} textStyle={styles.aiAssistBadgeText}>
+              {aiAssist.focusLabel}
+            </Chip>
+          </View>
+
+          <View style={styles.aiAssistMetaRow}>
+            <View style={styles.aiAssistMetaCard}>
+              <Text style={styles.aiAssistMetaLabel}>适合谁看</Text>
+              <Text style={styles.aiAssistMetaValue}>{aiAssist.audienceLabel}</Text>
+            </View>
+            <View style={styles.aiAssistMetaCard}>
+              <Text style={styles.aiAssistMetaLabel}>主题焦点</Text>
+              <Text style={styles.aiAssistMetaValue}>{aiAssist.focusLabel}</Text>
+            </View>
+          </View>
+
+          <View style={styles.aiAssistPointList}>
+            {aiAssist.points.map((item) => (
+              <View key={item} style={styles.aiAssistPointRow}>
+                <View style={styles.aiAssistPointDot} />
+                <Text style={styles.aiAssistPointText}>{item}</Text>
+              </View>
+            ))}
+          </View>
+
+          {aiAssist.terms.length ? (
+            <View style={styles.aiAssistTermsBox}>
+              <Text style={styles.aiAssistTermsTitle}>术语解释</Text>
+              {aiAssist.terms.map((term) => (
+                <View key={term.term} style={styles.aiAssistTermCard}>
+                  <Text style={styles.aiAssistTermName}>{term.term}</Text>
+                  <Text style={styles.aiAssistTermText}>{term.explanation}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+
+          <Text style={styles.aiAssistNote}>{aiAssist.safetyNote}</Text>
+        </View>
+
         <View style={styles.quickActionRow}>
+          <Button
+            mode="contained-tonal"
+            icon="message-question-outline"
+            onPress={handleAskAi}
+            style={styles.quickActionButton}
+            contentStyle={styles.quickActionContent}
+            buttonColor="rgba(54,92,104,0.14)"
+            textColor={colors.techDark}
+          >
+            去问题助手
+          </Button>
           {displayedSourceUrl ? (
             <Button
               mode="contained-tonal"
@@ -877,6 +1057,9 @@ const styles = StyleSheet.create({
   summaryIconShell: {
     backgroundColor: 'rgba(197,108,71,0.12)',
   },
+  aiHitIconShell: {
+    backgroundColor: 'rgba(94,126,134,0.12)',
+  },
   sourceIconShell: {
     backgroundColor: 'rgba(94,126,134,0.12)',
   },
@@ -885,6 +1068,9 @@ const styles = StyleSheet.create({
   },
   readingIconShell: {
     backgroundColor: 'rgba(94,126,134,0.12)',
+  },
+  aiAssistIconShell: {
+    backgroundColor: 'rgba(197,108,71,0.12)',
   },
   panelHeaderBody: {
     flex: 1,
@@ -905,6 +1091,122 @@ const styles = StyleSheet.create({
     fontSize: fontSize.md,
     color: colors.inkSoft,
     lineHeight: 24,
+  },
+  aiHitContextCard: {
+    backgroundColor: 'rgba(247, 251, 251, 0.94)',
+    borderRadius: borderRadius.xl,
+    borderWidth: 1,
+    borderColor: 'rgba(94,126,134,0.16)',
+    padding: spacing.md,
+    marginBottom: spacing.lg,
+    shadowColor: colors.inkSoft,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.06,
+    shadowRadius: 18,
+  },
+  aiHitContextText: {
+    color: colors.inkSoft,
+    lineHeight: 22,
+  },
+  aiHitContextButton: {
+    alignSelf: 'flex-start',
+    marginTop: spacing.md,
+    borderRadius: 18,
+  },
+  aiAssistCard: {
+    backgroundColor: 'rgba(255, 250, 246, 0.98)',
+    borderRadius: borderRadius.xl,
+    borderWidth: 1,
+    borderColor: 'rgba(197,108,71,0.14)',
+    padding: spacing.md,
+    marginBottom: spacing.lg,
+    shadowColor: colors.inkSoft,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.06,
+    shadowRadius: 18,
+  },
+  aiAssistBadge: {
+    backgroundColor: 'rgba(255,255,255,0.92)',
+  },
+  aiAssistBadgeText: {
+    color: colors.primaryDark,
+    fontSize: fontSize.xs,
+    fontWeight: '700',
+  },
+  aiAssistMetaRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  aiAssistMetaCard: {
+    flex: 1,
+    padding: spacing.sm,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.76)',
+  },
+  aiAssistMetaLabel: {
+    color: colors.textSecondary,
+    fontSize: fontSize.xs,
+  },
+  aiAssistMetaValue: {
+    marginTop: 6,
+    color: colors.ink,
+    fontWeight: '700',
+    lineHeight: 20,
+  },
+  aiAssistPointList: {
+    marginTop: spacing.md,
+    gap: spacing.sm,
+  },
+  aiAssistPointRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+  },
+  aiAssistPointDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginTop: 8,
+    backgroundColor: colors.primary,
+  },
+  aiAssistPointText: {
+    flex: 1,
+    color: colors.inkSoft,
+    lineHeight: 22,
+  },
+  aiAssistTermsBox: {
+    marginTop: spacing.md,
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(197,108,71,0.12)',
+    gap: spacing.sm,
+  },
+  aiAssistTermsTitle: {
+    color: colors.ink,
+    fontSize: fontSize.md,
+    fontWeight: '700',
+  },
+  aiAssistTermCard: {
+    padding: spacing.sm,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.82)',
+  },
+  aiAssistTermName: {
+    color: colors.primaryDark,
+    fontSize: fontSize.sm,
+    fontWeight: '700',
+  },
+  aiAssistTermText: {
+    marginTop: 6,
+    color: colors.textSecondary,
+    lineHeight: 20,
+  },
+  aiAssistNote: {
+    marginTop: spacing.md,
+    color: colors.textSecondary,
+    fontSize: fontSize.xs,
+    lineHeight: 18,
   },
   sourceBox: {
     backgroundColor: 'rgba(247, 251, 251, 0.92)',
@@ -1213,6 +1515,33 @@ function getLocalizedFallbackSummary(article: Article) {
   const focus = topic || audience || category || '当前阶段重点'
   const stagePrefix = stage && stage !== '全阶段' ? `${stage}阶段` : '当前阶段'
   return `${source}相关原文正在准备中文辅助阅读，这篇内容聚焦${stagePrefix}的${focus}，可先查看导读要点，再按需打开机构原文。`
+}
+
+function buildAiHitContextText(
+  trigger?: 'hit_card' | 'knowledge_action',
+  matchReason?: 'entry_meta' | 'source_url' | 'source_title' | 'source_keyword',
+  originEntrySource?: string,
+) {
+  const triggerText = trigger === 'knowledge_action'
+    ? '你是从回答里的“相关知识”动作继续打开的。'
+    : '你是从回答里的命中文章卡片继续打开的。'
+
+  const matchReasonText = {
+    entry_meta: '这次命中直接沿用了当前会话绑定的文章上下文。',
+    source_url: '这次命中优先对齐了回答来源里的原始链接。',
+    source_title: '这次命中根据回答来源标题做了精确匹配。',
+    source_keyword: '这次命中根据回答主题关键词做了兜底匹配。',
+  }[matchReason || 'source_keyword']
+
+  const originText = originEntrySource === 'weekly_report'
+    ? '最初的问题入口来自周报。'
+    : originEntrySource === 'knowledge_detail'
+      ? '最初的问题入口来自知识详情页。'
+      : originEntrySource === 'home_suggested_question'
+        ? '最初的问题入口来自首页建议提问。'
+        : ''
+
+  return [triggerText, matchReasonText, originText].filter(Boolean).join('')
 }
 
 function isMostlyChineseText(input: string): boolean {

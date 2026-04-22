@@ -25,7 +25,17 @@ type AppAnalyticsEventName =
   | 'app_home_post_checkin_next_click'
   | 'app_chat_prefill_entry'
   | 'app_chat_message_send'
-  | 'app_chat_response_receive';
+  | 'app_chat_response_receive'
+  | 'app_chat_add_calendar_click'
+  | 'app_chat_open_knowledge_click'
+  | 'app_chat_open_hit_article_click'
+  | 'app_chat_open_archive_click'
+  | 'app_knowledge_recent_ai_hit_click'
+  | 'app_knowledge_recent_ai_topic_click'
+  | 'app_knowledge_recent_ai_source_click'
+  | 'app_knowledge_recent_ai_ask_click'
+  | 'app_knowledge_detail_ai_hit_open'
+  | 'app_knowledge_detail_ask_ai_click';
 
 const CLIENT_ID_KEY = 'analytics_client_id';
 const SESSION_ID = createId();

@@ -14,7 +14,7 @@ import { useAppStore } from '../stores/appStore'
 import { useMembershipStore } from '../stores/membershipStore'
 import type { WeeklyReport } from '../stores/membershipStore'
 import { eventTypeLabels } from '../theme'
-import { getSuggestedQuestion } from '../utils/chatPrompts'
+import { buildHomeSuggestedQuestion } from '../utils/aiEntryPrompts'
 import { getStageSummary } from '../utils/stage'
 import { getLastSeenWeeklyReportId } from '../utils/weeklyReportRead'
 import {
@@ -320,7 +320,7 @@ export function useHomeData() {
       action: 'chat',
     }
   }, [hasCheckedInToday, hasUnreadWeeklyReport, pendingTodayEvent, todoStats.completed, todoStats.total, upcomingEvents])
-  const suggestedQuestion = useMemo(() => getSuggestedQuestion(stage.lifecycleKey), [stage.lifecycleKey])
+  const suggestedQuestion = useMemo(() => buildHomeSuggestedQuestion(stage.lifecycleKey), [stage.lifecycleKey])
 
   const handleQuickCheckIn = useCallback(async () => {
     if (checkInSubmitting) {

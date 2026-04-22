@@ -10,6 +10,7 @@ import type {
   StructuredAnswer,
   UncertaintyInfo,
   SourceReliability,
+  AIActionCard,
 } from '../../../shared/types'
 
 type WsServerMessage = {
@@ -23,6 +24,7 @@ type WsServerMessage = {
     status?: number
     disclaimer?: string
     sources?: SourceReference[]
+    actionCards?: AIActionCard[]
     conversationId?: string
     triageCategory?: TriageCategory
     riskLevel?: RiskLevel

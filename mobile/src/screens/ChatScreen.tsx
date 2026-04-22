@@ -17,16 +17,38 @@ import { ScreenContainer, StandardCard } from '../components/layout'
 import { useChatLogic } from '../hooks/useChatLogic'
 import { trackAppEvent } from '../services/analytics'
 import { useAppStore } from '../stores/appStore'
+import { useChatStore } from '../stores/chatStore'
 import { getStageSummary } from '../utils/stage'
 import { QUICK_QUESTION_MAP } from '../utils/chatPrompts'
 import { colors, spacing, borderRadius } from '../theme'
 
-type ChatEntrySource = 'weekly_report' | 'home_suggested_question'
+type ChatEntrySource = 'weekly_report' | 'home_suggested_question' | 'knowledge_detail' | 'knowledge_recent_ai'
 
 type PendingResponseMeta = {
   source: ChatEntrySource | 'native'
   trigger: 'auto_prefill' | 'manual_input' | 'quick_question'
   questionLength: number
+}
+
+type ChatEntryContext = string | Record<string, string | number | boolean | null>
+
+function getTrackingEntryMeta(
+  context: ChatEntryContext | undefined,
+  activeEntryMeta: AIMessage['entryMeta'] | null,
+) {
+  if (context && typeof context === 'object' && !Array.isArray(context)) {
+    return {
+      entrySource: typeof context.entrySource === 'string' ? context.entrySource : activeEntryMeta?.entrySource,
+      articleSlug: typeof context.articleSlug === 'string' ? context.articleSlug : activeEntryMeta?.articleSlug,
+      reportId: typeof context.reportId === 'string' ? context.reportId : activeEntryMeta?.reportId,
+    }
+  }
+
+  return {
+    entrySource: activeEntryMeta?.entrySource,
+    articleSlug: activeEntryMeta?.articleSlug,
+    reportId: activeEntryMeta?.reportId,
+  }
 }
 
 const CHAT_SOURCE_LABEL: Record<ChatEntrySource, { title: string; subtitle: string }> = {
@@ -38,17 +60,27 @@ const CHAT_SOURCE_LABEL: Record<ChatEntrySource, { title: string; subtitle: stri
     title: '来自首页建议提问',
     subtitle: '这是按当前阶段推荐的问题，先问这一句通常最容易打开后续对话。',
   },
+  knowledge_detail: {
+    title: '来自权威知识库',
+    subtitle: '这条问题由当前阅读内容带入，继续追问会保留文章主题和来源线索。',
+  },
+  knowledge_recent_ai: {
+    title: '来自 AI 命中回看',
+    subtitle: '这条问题由最近命中的文章、主题或机构带入，方便直接沿着上次线索继续问。',
+  },
 }
 
 export default function ChatScreen() {
   const navigation = useNavigation<any>()
   const route = useRoute<any>()
   const user = useAppStore((state) => state.user)
+  const activeEntryMeta = useChatStore((state) => state.activeEntryMeta)
   const flatListRef = useRef<FlatList>(null)
   const [inputText, setInputText] = useState('')
   const [snackVisible, setSnackVisible] = useState(false)
   const [snackText, setSnackText] = useState('已复制到剪贴板')
   const [entrySource, setEntrySource] = useState<ChatEntrySource | null>(null)
+  const [pendingInputContext, setPendingInputContext] = useState<ChatEntryContext | undefined>(undefined)
   const [pendingResponseMeta, setPendingResponseMeta] = useState<PendingResponseMeta | null>(null)
   const stage = getStageSummary(user)
   const quickQuestions = QUICK_QUESTION_MAP[stage.lifecycleKey]
@@ -107,7 +139,15 @@ export default function ChatScreen() {
         route: lastMessage.route,
         provider: lastMessage.provider,
         model: lastMessage.model,
+        entrySource: lastMessage.entryMeta?.entrySource,
+        articleSlug: lastMessage.entryMeta?.articleSlug,
+        reportId: lastMessage.entryMeta?.reportId,
         sourcesCount: lastMessage.sources?.length ?? 0,
+        actionCardsCount: lastMessage.actionCards?.length ?? 0,
+        degraded: Boolean(lastMessage.degraded),
+        sourceReliability: lastMessage.sourceReliability,
+        riskLevel: lastMessage.riskLevel,
+        triageCategory: lastMessage.triageCategory,
       },
     })
 
@@ -118,6 +158,7 @@ export default function ChatScreen() {
     question: string,
     trigger: PendingResponseMeta['trigger'],
     sourceOverride?: ChatEntrySource | 'native',
+    context?: ChatEntryContext,
   ) => {
     const trimmed = question.trim()
     if (!trimmed) {
@@ -125,9 +166,10 @@ export default function ChatScreen() {
     }
 
     const source = sourceOverride ?? entrySource ?? 'native'
+    const trackingEntryMeta = getTrackingEntryMeta(context, activeEntryMeta)
     const sent = trigger === 'manual_input'
-      ? sendFromHook(trimmed)
-      : handleQuickQuestion(trimmed)
+      ? sendFromHook(trimmed, context)
+      : handleQuickQuestion(trimmed, context)
 
     if (!sent) {
       return false
@@ -140,6 +182,12 @@ export default function ChatScreen() {
         trigger,
         stage: stage.lifecycleKey,
         questionLength: trimmed.length,
+        contextEntrySource: typeof context === 'object' && context && !Array.isArray(context)
+          ? context.entrySource
+          : undefined,
+        entrySource: trackingEntryMeta.entrySource,
+        articleSlug: trackingEntryMeta.articleSlug,
+        reportId: trackingEntryMeta.reportId,
       },
     })
 
@@ -154,11 +202,12 @@ export default function ChatScreen() {
     }
 
     return true
-  }, [entrySource, handleQuickQuestion, sendFromHook, stage.lifecycleKey])
+  }, [activeEntryMeta, entrySource, handleQuickQuestion, sendFromHook, stage.lifecycleKey])
 
   useEffect(() => {
     const params = route.params as {
       prefillQuestion?: string
+      prefillContext?: Record<string, string | number | boolean | null>
       autoSend?: boolean
       source?: ChatEntrySource
     } | undefined
@@ -171,6 +220,7 @@ export default function ChatScreen() {
     if (!nextQuestion) {
       navigation.setParams({
         prefillQuestion: undefined,
+        prefillContext: undefined,
         autoSend: undefined,
         source: undefined,
       })
@@ -184,6 +234,9 @@ export default function ChatScreen() {
         source: params.source ?? 'native',
         autoSend: Boolean(params.autoSend),
         stage: stage.lifecycleKey,
+        entrySource: params.prefillContext?.entrySource,
+        articleSlug: params.prefillContext?.articleSlug,
+        reportId: params.prefillContext?.reportId,
         questionLength: nextQuestion.length,
       },
     })
@@ -191,13 +244,16 @@ export default function ChatScreen() {
     if (params.autoSend) {
       startFreshSession()
       setInputText('')
-      sendTrackedQuestion(nextQuestion, 'auto_prefill', params.source ?? 'native')
+      setPendingInputContext(undefined)
+      sendTrackedQuestion(nextQuestion, 'auto_prefill', params.source ?? 'native', params.prefillContext)
     } else {
       setInputText(nextQuestion)
+      setPendingInputContext(params.prefillContext)
     }
 
     navigation.setParams({
       prefillQuestion: undefined,
+      prefillContext: undefined,
       autoSend: undefined,
       source: undefined,
     })
@@ -207,8 +263,9 @@ export default function ChatScreen() {
     const trimmed = inputText.trim()
     if (!trimmed) return
     setInputText('')
-    sendTrackedQuestion(trimmed, 'manual_input')
-  }, [inputText, sendTrackedQuestion])
+    sendTrackedQuestion(trimmed, 'manual_input', undefined, pendingInputContext)
+    setPendingInputContext(undefined)
+  }, [inputText, pendingInputContext, sendTrackedQuestion])
 
   const handleQuickQuestionPress = useCallback((question: string) => {
     setEntrySource(null)

@@ -170,6 +170,7 @@ export const CacheKeys = {
   ARTICLES_POPULAR: 'articles:popular',
   ARTICLES_RECOMMENDED: 'articles:recommended',
   ARTICLES_AUTHORITY: 'articles:authority',
+  ARTICLES_AUTHORITY_FILTERED: (params: string) => `articles:authority:filtered:${params}`,
   
   // 分类相关
   CATEGORIES_ALL: 'categories:all',

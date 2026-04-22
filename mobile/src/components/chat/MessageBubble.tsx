@@ -1,12 +1,14 @@
-import React, { useCallback, useMemo } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Clipboard, StyleSheet, TouchableOpacity, View } from 'react-native'
 import { useNavigation } from '@react-navigation/native'
 import { IconButton, Text } from 'react-native-paper'
-import type { AIMessage } from '../../api/ai'
+import { aiApi, type AIActionCard, type AIMessage } from '../../api/ai'
 import { articleApi, type Article } from '../../api/modules'
 import { useAppStore } from '../../stores/appStore'
+import { useChatStore } from '../../stores/chatStore'
 import { useKnowledgeStore } from '../../stores/knowledgeStore'
 import { getStageSummary, type LifecycleStageKey } from '../../utils/stage'
+import { trackAppEvent } from '../../services/analytics'
 import { colors, fontSize, spacing, borderRadius } from '../../theme'
 import MarkdownText from './MarkdownText'
 import TrustPanel from './TrustPanel'
@@ -25,6 +27,14 @@ type CalendarPrefill = {
   description: string
   eventType: 'checkup' | 'vaccine' | 'reminder' | 'exercise' | 'diet' | 'other'
   targetDate: string
+}
+
+type FeedbackValue = 'helpful' | 'not_helpful'
+type KnowledgeHitReason = 'entry_meta' | 'source_url' | 'source_title' | 'source_keyword'
+
+type KnowledgeArticleMatch = {
+  article: Article
+  reason: KnowledgeHitReason
 }
 
 function normalizeSearchText(value: string) {
@@ -139,7 +149,19 @@ function buildKnowledgeKeyword(message: AIMessage) {
   return '孕期重点提醒'
 }
 
-async function findBestKnowledgeArticle(message: AIMessage, fallbackKeyword: string) {
+async function resolveKnowledgeArticleMatch(
+  message: AIMessage,
+  fallbackKeyword: string,
+): Promise<KnowledgeArticleMatch | null> {
+  if (message.entryMeta?.articleSlug) {
+    try {
+      const article = await articleApi.getBySlug(message.entryMeta.articleSlug)
+      return article ? { article, reason: 'entry_meta' } : null
+    } catch {
+      // Fall through to source/title matching.
+    }
+  }
+
   const primarySource = message.sources?.[0]
   const attempts = [
     primarySource?.title,
@@ -166,14 +188,14 @@ async function findBestKnowledgeArticle(message: AIMessage, fallbackKeyword: str
       ? list.find((article) => article.sourceUrl && article.sourceUrl === primarySource.url)
       : undefined
     if (sourceUrlMatch) {
-      return sourceUrlMatch
+      return { article: sourceUrlMatch, reason: 'source_url' }
     }
 
     const exactTitleMatch = normalizedSourceTitle
       ? list.find((article) => normalizeSearchText(article.title) === normalizedSourceTitle)
       : undefined
     if (exactTitleMatch) {
-      return exactTitleMatch
+      return { article: exactTitleMatch, reason: 'source_title' }
     }
 
     const fuzzyTitleMatch = normalizedSourceTitle
@@ -183,10 +205,10 @@ async function findBestKnowledgeArticle(message: AIMessage, fallbackKeyword: str
         })
       : undefined
     if (fuzzyTitleMatch) {
-      return fuzzyTitleMatch
+      return { article: fuzzyTitleMatch, reason: 'source_title' }
     }
 
-    return list[0] as Article
+    return { article: list[0] as Article, reason: 'source_keyword' }
   }
 
   return null
@@ -196,13 +218,56 @@ function MessageBubbleInner({ item, onCopied, onActionNotice }: MessageBubblePro
   const isUser = item.role === 'user'
   const navigation = useNavigation<any>()
   const user = useAppStore((state) => state.user)
+  const conversationId = useChatStore((state) => state.conversationId)
+  const sendMessage = useChatStore((state) => state.sendMessage)
   const stage = getStageSummary(user)
+  const hasServerActionCards = (item.actionCards?.length || 0) > 0
   const canShowActionBar = !isUser
+  const [feedbackValue, setFeedbackValue] = useState<FeedbackValue | null>(null)
+  const [feedbackSubmitting, setFeedbackSubmitting] = useState(false)
+  const [knowledgeHit, setKnowledgeHit] = useState<KnowledgeArticleMatch | null>(null)
   const calendarPrefill = useMemo(
     () => buildSmartCalendarPrefill(item, stage.lifecycleKey),
     [item, stage.lifecycleKey],
   )
   const knowledgeKeyword = useMemo(() => buildKnowledgeKeyword(item), [item])
+  const entryMetaProps = useMemo(() => ({
+    entrySource: item.entryMeta?.entrySource,
+    articleSlug: item.entryMeta?.articleSlug,
+    reportId: item.entryMeta?.reportId,
+  }), [item.entryMeta?.articleSlug, item.entryMeta?.entrySource, item.entryMeta?.reportId])
+  const knowledgeHitArticle = knowledgeHit?.article || null
+
+  useEffect(() => {
+    if (isUser) {
+      setKnowledgeHit(null)
+      return
+    }
+
+    if (!item.entryMeta?.articleSlug && !item.sources?.length) {
+      setKnowledgeHit(null)
+      return
+    }
+
+    let cancelled = false
+    const loadKnowledgeHit = async () => {
+      try {
+        const nextHit = await resolveKnowledgeArticleMatch(item, knowledgeKeyword)
+        if (!cancelled) {
+          setKnowledgeHit(nextHit)
+        }
+      } catch {
+        if (!cancelled) {
+          setKnowledgeHit(null)
+        }
+      }
+    }
+
+    void loadKnowledgeHit()
+    return () => {
+      cancelled = true
+    }
+  }, [isUser, item, knowledgeKeyword])
 
   const handleLongPress = useCallback(() => {
     Clipboard.setString(item.content)
@@ -214,22 +279,62 @@ function MessageBubbleInner({ item, onCopied, onActionNotice }: MessageBubblePro
     onCopied?.()
   }, [item.content, onCopied])
 
-  const handleOpenCalendar = useCallback(() => {
+  const handleOpenCalendar = useCallback((card?: AIActionCard) => {
+    const payload = card?.payload
+    void trackAppEvent('app_chat_add_calendar_click', {
+      page: 'ChatScreen',
+      properties: {
+        stage: stage.lifecycleKey,
+        qaId: item.id,
+        actionCardId: card?.id,
+        riskLevel: item.riskLevel,
+        sourceReliability: item.sourceReliability,
+        route: item.route,
+        provider: item.provider,
+        model: item.model,
+        ...entryMetaProps,
+      },
+    })
     navigation.navigate('Calendar', {
-      prefillTitle: calendarPrefill.title,
-      prefillDescription: calendarPrefill.description,
-      prefillEventType: calendarPrefill.eventType,
-      targetDate: calendarPrefill.targetDate,
+      prefillTitle: payload?.eventTitle || calendarPrefill.title,
+      prefillDescription: payload?.eventDescription || calendarPrefill.description,
+      prefillEventType: payload?.eventType || calendarPrefill.eventType,
+      targetDate: payload?.targetDate || calendarPrefill.targetDate,
       source: 'chat',
     })
-    onActionNotice?.('已按建议生成日历草稿')
-  }, [calendarPrefill.description, calendarPrefill.eventType, calendarPrefill.targetDate, calendarPrefill.title, navigation, onActionNotice])
+    onActionNotice?.(card?.title ? `已按“${card.title}”生成日历草稿` : '已按建议生成日历草稿')
+  }, [calendarPrefill.description, calendarPrefill.eventType, calendarPrefill.targetDate, calendarPrefill.title, item.id, item.model, item.provider, item.riskLevel, item.route, item.sourceReliability, navigation, onActionNotice, stage.lifecycleKey])
 
-  const handleOpenKnowledge = useCallback(async () => {
+  const handleOpenKnowledge = useCallback(async (card?: AIActionCard) => {
+    const payload = card?.payload
+    void trackAppEvent('app_chat_open_knowledge_click', {
+      page: 'ChatScreen',
+      properties: {
+        stage: stage.lifecycleKey,
+        qaId: item.id,
+        actionCardId: card?.id,
+        riskLevel: item.riskLevel,
+        sourceReliability: item.sourceReliability,
+        route: item.route,
+        provider: item.provider,
+        model: item.model,
+        ...entryMetaProps,
+      },
+    })
     try {
-      const matchedArticle = await findBestKnowledgeArticle(item, knowledgeKeyword)
-      if (matchedArticle?.slug) {
-        navigation.navigate('KnowledgeDetail', { slug: matchedArticle.slug })
+      const matchedArticle = knowledgeHit || await resolveKnowledgeArticleMatch(item, payload?.knowledgeKeyword || knowledgeKeyword)
+      if (matchedArticle?.article.slug) {
+        navigation.navigate('KnowledgeDetail', {
+          slug: matchedArticle.article.slug,
+          source: 'chat_hit',
+          aiContext: {
+            qaId: item.id,
+            trigger: 'knowledge_action',
+            matchReason: matchedArticle.reason,
+            originEntrySource: item.entryMeta?.entrySource,
+            originReportId: item.entryMeta?.reportId,
+          },
+        })
         onActionNotice?.('已打开本轮相关权威文章')
         return
       }
@@ -238,21 +343,165 @@ function MessageBubbleInner({ item, onCopied, onActionNotice }: MessageBubblePro
     }
 
     useKnowledgeStore.getState().initializeFilters()
-    void useKnowledgeStore.getState().search(knowledgeKeyword)
+    void useKnowledgeStore.getState().search(payload?.knowledgeKeyword || knowledgeKeyword)
     navigation.navigate('Main', { screen: 'Knowledge' })
-    onActionNotice?.(`已打开“${knowledgeKeyword}”相关知识`)
-  }, [item, knowledgeKeyword, navigation, onActionNotice])
+    onActionNotice?.(`已打开“${payload?.knowledgeKeyword || knowledgeKeyword}”相关知识`)
+  }, [entryMetaProps, item, knowledgeHit, knowledgeKeyword, navigation, onActionNotice, stage.lifecycleKey])
 
-  const handleOpenArchive = useCallback(() => {
+  const handleOpenKnowledgeHit = useCallback((match: KnowledgeArticleMatch) => {
+    void trackAppEvent('app_chat_open_hit_article_click', {
+      page: 'ChatScreen',
+      properties: {
+        stage: stage.lifecycleKey,
+        qaId: item.id,
+        matchedArticleSlug: match.article.slug,
+        matchedArticleId: match.article.id,
+        matchedSourceOrg: match.article.sourceOrg || match.article.source || null,
+        matchedTopic: match.article.topic || null,
+        matchReason: match.reason,
+        riskLevel: item.riskLevel,
+        sourceReliability: item.sourceReliability,
+        route: item.route,
+        provider: item.provider,
+        model: item.model,
+        ...entryMetaProps,
+      },
+    })
+    navigation.navigate('KnowledgeDetail', {
+      slug: match.article.slug,
+      source: 'chat_hit',
+      aiContext: {
+        qaId: item.id,
+        trigger: 'hit_card',
+        matchReason: match.reason,
+        originEntrySource: item.entryMeta?.entrySource,
+        originReportId: item.entryMeta?.reportId,
+      },
+    })
+    onActionNotice?.('已打开本轮命中的权威文章')
+  }, [entryMetaProps, item.id, item.model, item.provider, item.riskLevel, item.route, item.sourceReliability, navigation, onActionNotice, stage.lifecycleKey])
+
+  const handleOpenArchive = useCallback((card?: AIActionCard) => {
+    void trackAppEvent('app_chat_open_archive_click', {
+      page: 'ChatScreen',
+      properties: {
+        stage: stage.lifecycleKey,
+        qaId: item.id,
+        actionCardId: card?.id,
+        riskLevel: item.riskLevel,
+        sourceReliability: item.sourceReliability,
+        route: item.route,
+        provider: item.provider,
+        model: item.model,
+        ...entryMetaProps,
+      },
+    })
     if (stage.kind === 'pregnant') {
       navigation.navigate('PregnancyProfile')
       onActionNotice?.('已打开孕期档案')
       return
     }
 
-    navigation.navigate('GrowthArchive')
+    const focus = card?.payload?.archiveFocus
+    navigation.navigate('GrowthArchive', focus ? { source: 'chat', focus } : { source: 'chat' })
     onActionNotice?.('已打开成长档案')
-  }, [navigation, onActionNotice, stage.kind])
+  }, [item.id, item.model, item.provider, item.riskLevel, item.route, item.sourceReliability, navigation, onActionNotice, stage.kind, stage.lifecycleKey])
+
+  const handleFollowUp = useCallback(async (card?: AIActionCard) => {
+    const question = card?.payload?.prefillQuestion?.trim()
+    if (!question) {
+      return
+    }
+
+    void trackAppEvent('app_chat_message_send', {
+      page: 'ChatScreen',
+      properties: {
+        source: 'action_card',
+        trigger: 'action_card_follow_up',
+        stage: stage.lifecycleKey,
+        questionLength: question.length,
+        qaId: item.id,
+        actionCardId: card?.id,
+        ...entryMetaProps,
+      },
+    })
+
+    await sendMessage(question)
+    onActionNotice?.('已按建议继续追问')
+  }, [item.id, onActionNotice, sendMessage, stage.lifecycleKey])
+
+  const handleFollowUpQuestion = useCallback(async (question: string, index: number) => {
+    const trimmed = question.trim()
+    if (!trimmed) {
+      return
+    }
+
+    void trackAppEvent('app_chat_message_send', {
+      page: 'ChatScreen',
+      properties: {
+        source: 'follow_up_question',
+        trigger: 'follow_up_chip',
+        stage: stage.lifecycleKey,
+        questionLength: trimmed.length,
+        qaId: item.id,
+        followUpIndex: index + 1,
+        ...entryMetaProps,
+      },
+    })
+
+    await sendMessage(trimmed)
+    onActionNotice?.('已按建议继续追问')
+  }, [item.id, onActionNotice, sendMessage, stage.lifecycleKey])
+
+  const handleActionCardPress = useCallback((card: AIActionCard) => {
+    if (card.type === 'calendar') {
+      handleOpenCalendar(card)
+      return
+    }
+    if (card.type === 'knowledge') {
+      void handleOpenKnowledge(card)
+      return
+    }
+    if (card.type === 'archive') {
+      handleOpenArchive(card)
+      return
+    }
+    if (card.type === 'follow_up') {
+      void handleFollowUp(card)
+    }
+  }, [handleFollowUp, handleOpenArchive, handleOpenCalendar, handleOpenKnowledge])
+
+  const handleFeedback = useCallback(async (value: FeedbackValue) => {
+    if (feedbackSubmitting || feedbackValue === value) {
+      return
+    }
+
+    setFeedbackSubmitting(true)
+    try {
+      await aiApi.submitFeedback({
+        qaId: item.id,
+        messageId: item.id,
+        conversationId: conversationId || undefined,
+        feedback: value,
+        reason: value === 'not_helpful' ? (item.sources?.length ? 'too_generic' : 'missing_sources') : undefined,
+        triageCategory: item.triageCategory,
+        riskLevel: item.riskLevel,
+        sourceReliability: item.sourceReliability,
+        route: item.route,
+        provider: item.provider,
+        model: item.model,
+        entrySource: item.entryMeta?.entrySource,
+        articleSlug: item.entryMeta?.articleSlug,
+        reportId: item.entryMeta?.reportId,
+      })
+      setFeedbackValue(value)
+      onActionNotice?.(value === 'helpful' ? '已记录这条回答对你有帮助' : '已记录这条回答还不够好')
+    } catch {
+      onActionNotice?.('反馈提交失败，请稍后再试')
+    } finally {
+      setFeedbackSubmitting(false)
+    }
+  }, [conversationId, entryMetaProps, feedbackSubmitting, feedbackValue, item.entryMeta?.articleSlug, item.entryMeta?.entrySource, item.entryMeta?.reportId, item.id, item.model, item.provider, item.riskLevel, item.route, item.sourceReliability, item.sources, item.triageCategory, onActionNotice])
 
   return (
     <View
@@ -287,6 +536,23 @@ function MessageBubbleInner({ item, onCopied, onActionNotice }: MessageBubblePro
         )}
 
         {!isUser ? <TrustPanel message={item} /> : null}
+        {!isUser && knowledgeHitArticle ? (
+          <TouchableOpacity
+            activeOpacity={0.88}
+            onPress={() => knowledgeHit ? handleOpenKnowledgeHit(knowledgeHit) : undefined}
+            style={styles.knowledgeHitCard}
+          >
+            <View style={styles.knowledgeHitHeader}>
+              <Text style={styles.knowledgeHitEyebrow}>命中的权威文章</Text>
+              <Text style={styles.knowledgeHitLink}>打开全文</Text>
+            </View>
+            <Text style={styles.knowledgeHitTitle}>{knowledgeHitArticle.title}</Text>
+            <Text style={styles.knowledgeHitMeta}>
+              {knowledgeHitArticle.sourceOrg || knowledgeHitArticle.source || '权威机构'}
+              {knowledgeHitArticle.topic ? ` · ${knowledgeHitArticle.topic}` : ''}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
         {!isUser && item.sources?.length ? (
           <SourcesList messageId={item.id} sources={item.sources} />
         ) : null}
@@ -295,16 +561,55 @@ function MessageBubbleInner({ item, onCopied, onActionNotice }: MessageBubblePro
           <View style={styles.jumpActionWrap}>
             <Text style={styles.jumpActionTitle}>继续处理</Text>
             <View style={styles.jumpActionRow}>
-              <TouchableOpacity activeOpacity={0.88} onPress={handleOpenCalendar} style={styles.jumpActionChip}>
-                <Text style={styles.jumpActionChipText}>加入日历</Text>
-              </TouchableOpacity>
-              <TouchableOpacity activeOpacity={0.88} onPress={handleOpenKnowledge} style={styles.jumpActionChip}>
-                <Text style={styles.jumpActionChipText}>相关知识</Text>
-              </TouchableOpacity>
-              <TouchableOpacity activeOpacity={0.88} onPress={handleOpenArchive} style={styles.jumpActionChip}>
-                <Text style={styles.jumpActionChipText}>{stage.kind === 'pregnant' ? '查看档案' : '成长档案'}</Text>
-              </TouchableOpacity>
+              {hasServerActionCards ? item.actionCards!.map((card) => (
+                <TouchableOpacity
+                  key={card.id}
+                  activeOpacity={0.88}
+                  onPress={() => handleActionCardPress(card)}
+                  style={[styles.jumpActionChip, card.priority === 'primary' ? styles.jumpActionChipPrimary : null]}
+                >
+                  <Text style={[styles.jumpActionChipText, card.priority === 'primary' ? styles.jumpActionChipTextPrimary : null]}>
+                    {card.label}
+                  </Text>
+                  <Text style={[styles.jumpActionChipTitle, card.priority === 'primary' ? styles.jumpActionChipTitlePrimary : null]}>
+                    {card.title}
+                  </Text>
+                  {card.description ? (
+                    <Text style={[styles.jumpActionChipDesc, card.priority === 'primary' ? styles.jumpActionChipDescPrimary : null]}>
+                      {card.description}
+                    </Text>
+                  ) : null}
+                </TouchableOpacity>
+              )) : (
+                <>
+                  <TouchableOpacity activeOpacity={0.88} onPress={() => handleOpenCalendar()} style={styles.jumpActionChip}>
+                    <Text style={styles.jumpActionChipText}>加入日历</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity activeOpacity={0.88} onPress={() => void handleOpenKnowledge()} style={styles.jumpActionChip}>
+                    <Text style={styles.jumpActionChipText}>相关知识</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity activeOpacity={0.88} onPress={() => handleOpenArchive()} style={styles.jumpActionChip}>
+                    <Text style={styles.jumpActionChipText}>{stage.kind === 'pregnant' ? '查看档案' : '成长档案'}</Text>
+                  </TouchableOpacity>
+                </>
+              )}
             </View>
+          </View>
+        ) : null}
+
+        {!isUser && item.followUpQuestions?.length ? (
+          <View style={styles.followUpWrap}>
+            <Text style={styles.followUpTitle}>还可以继续问</Text>
+            {item.followUpQuestions.slice(0, 3).map((question, index) => (
+              <TouchableOpacity
+                key={`${item.id}-follow-up-${index}`}
+                activeOpacity={0.86}
+                onPress={() => void handleFollowUpQuestion(question, index)}
+                style={styles.followUpChip}
+              >
+                <Text style={styles.followUpChipText}>{question}</Text>
+              </TouchableOpacity>
+            ))}
           </View>
         ) : null}
 
@@ -320,9 +625,18 @@ function MessageBubbleInner({ item, onCopied, onActionNotice }: MessageBubblePro
             <IconButton
               icon="thumb-up-outline"
               size={16}
-              iconColor={colors.textLight}
+              iconColor={feedbackValue === 'helpful' ? colors.techDark : colors.textLight}
               style={styles.actionButton}
-              onPress={() => {}}
+              disabled={feedbackSubmitting}
+              onPress={() => void handleFeedback('helpful')}
+            />
+            <IconButton
+              icon="thumb-down-outline"
+              size={16}
+              iconColor={feedbackValue === 'not_helpful' ? colors.techDark : colors.textLight}
+              style={styles.actionButton}
+              disabled={feedbackSubmitting}
+              onPress={() => void handleFeedback('not_helpful')}
             />
           </View>
         ) : null}
@@ -449,17 +763,102 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(220,236,238,0.74)',
     borderWidth: 1,
     borderColor: 'rgba(94,126,134,0.12)',
+    minWidth: 120,
+    maxWidth: 220,
+    gap: 2,
+  },
+  jumpActionChipPrimary: {
+    backgroundColor: colors.techDark,
+    borderColor: colors.techDark,
   },
   jumpActionChipText: {
     color: colors.techDark,
     fontSize: fontSize.sm,
     fontWeight: '700',
   },
+  jumpActionChipTextPrimary: {
+    color: '#F7FAFB',
+  },
+  jumpActionChipTitle: {
+    color: colors.ink,
+    fontSize: fontSize.sm,
+    fontWeight: '700',
+    lineHeight: 18,
+  },
+  jumpActionChipTitlePrimary: {
+    color: '#FFFFFF',
+  },
+  jumpActionChipDesc: {
+    color: colors.textSecondary,
+    fontSize: fontSize.xs,
+    lineHeight: 16,
+  },
+  jumpActionChipDescPrimary: {
+    color: 'rgba(255,255,255,0.82)',
+  },
+  followUpWrap: {
+    marginTop: spacing.md,
+    gap: spacing.xs,
+  },
+  followUpTitle: {
+    color: colors.textSecondary,
+    fontSize: fontSize.sm,
+    fontWeight: '700',
+  },
+  followUpChip: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 10,
+    borderRadius: borderRadius.lg,
+    backgroundColor: 'rgba(248, 244, 238, 0.96)',
+    borderWidth: 1,
+    borderColor: 'rgba(208, 188, 170, 0.22)',
+  },
+  followUpChipText: {
+    color: colors.ink,
+    fontSize: fontSize.sm,
+    lineHeight: 18,
+  },
   referenceNotice: {
     marginTop: spacing.sm,
     color: colors.textSecondary,
     fontSize: fontSize.sm,
     lineHeight: 20,
+  },
+  knowledgeHitCard: {
+    marginTop: spacing.md,
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    backgroundColor: 'rgba(255, 249, 240, 0.96)',
+    borderWidth: 1,
+    borderColor: 'rgba(184,138,72,0.18)',
+    gap: spacing.xs,
+  },
+  knowledgeHitHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  knowledgeHitEyebrow: {
+    color: colors.gold,
+    fontSize: fontSize.xs,
+    fontWeight: '800',
+  },
+  knowledgeHitLink: {
+    color: colors.techDark,
+    fontSize: fontSize.xs,
+    fontWeight: '800',
+  },
+  knowledgeHitTitle: {
+    color: colors.ink,
+    fontSize: fontSize.sm,
+    fontWeight: '800',
+    lineHeight: 20,
+  },
+  knowledgeHitMeta: {
+    color: colors.textSecondary,
+    fontSize: fontSize.xs,
+    lineHeight: 16,
   },
   actionButton: {
     margin: 0,

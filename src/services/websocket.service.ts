@@ -13,6 +13,7 @@ import { appendConversationAssistantAnswer, saveConversationExchange } from './a
 import { consumeAiQuota } from './subscription.service';
 import { chunkTrustedAnswer, generateTrustedAIResponse } from './trusted-ai.service';
 import { isResumeContinuationContext } from './ai-context.service';
+import { buildAIActionCards } from './ai-action-card.service';
 // WebSocket 消息协议类型（与 shared/types/ai.ts 保持一致）
 interface WsClientMessage {
   type: 'ask_stream' | 'chat_stream' | 'ping' | 'cancel'
@@ -36,6 +37,24 @@ interface WsServerMessage {
     code?: number | string
     status?: number
     sources?: SourceReference[]
+    actionCards?: Array<{
+      id: string
+      type: 'calendar' | 'knowledge' | 'archive' | 'follow_up'
+      label: string
+      title: string
+      description?: string
+      priority: 'primary' | 'secondary'
+      payload?: {
+        eventTitle?: string
+        eventDescription?: string
+        eventType?: 'checkup' | 'vaccine' | 'reminder' | 'exercise' | 'diet' | 'other'
+        targetDate?: string
+        knowledgeKeyword?: string
+        sourceUrl?: string
+        prefillQuestion?: string
+        archiveFocus?: 'timeline' | 'report' | 'export'
+      }
+    }>
     disclaimer?: string
     conversationId?: string
     triageCategory?: 'normal' | 'caution' | 'emergency' | 'out_of_scope'
@@ -230,6 +249,7 @@ function sendTrustedResult(
   result: Awaited<ReturnType<typeof generateTrustedAIResponse>>,
   conversationId?: string,
 ) {
+  const actionCards = buildAIActionCards(result);
   for (const chunk of chunkTrustedAnswer(result.answer)) {
     sendMessage(ws, {
       type: 'chunk',
@@ -257,6 +277,7 @@ function sendTrustedResult(
       sourceReliability: result.sourceReliability,
       followUpQuestions: result.followUpQuestions,
       degraded: result.degraded,
+      actionCards,
       model: result.model,
       provider: result.provider,
       route: result.route,

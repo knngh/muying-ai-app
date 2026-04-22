@@ -9,6 +9,8 @@ import { useMembershipStore } from '../stores/membershipStore'
 import { useAppStore } from '../stores/appStore'
 import type { WeeklyReport } from '../stores/membershipStore'
 import { trackAppEvent } from '../services/analytics'
+import { buildWeeklyReportChatContext } from '../utils/aiEntryContext'
+import { buildWeeklyReportQuestion } from '../utils/aiEntryPrompts'
 import { ScreenContainer, StandardCard } from '../components/layout'
 import { getStageSummary } from '../utils/stage'
 import { markWeeklyReportSeen } from '../utils/weeklyReportRead'
@@ -49,11 +51,6 @@ function buildWeeklyReportCalendarPrefill(report: WeeklyReport, highlight: strin
     eventType: 'reminder' as const,
     targetDate: dayjs().format('YYYY-MM-DD'),
   }
-}
-
-function buildWeeklyReportQuestion(report: WeeklyReport, highlight: string) {
-  const normalizedHighlight = highlight.replace(/\s+/g, ' ').trim()
-  return `我在${report.stageLabel}的周报里看到这条提醒：“${normalizedHighlight}”。请结合当前阶段帮我详细解释这句话是什么意思，我应该重点观察什么、怎么安排接下来几天？`
 }
 
 export default function WeeklyReportScreen() {
@@ -126,11 +123,18 @@ export default function WeeklyReportScreen() {
       screen: 'Chat',
       params: {
         prefillQuestion: question,
+        prefillContext: buildWeeklyReportChatContext({
+          reportId: report.id,
+          stageLabel: report.stageLabel,
+          highlight,
+          highlightIndex: index,
+          stageKey: stage.lifecycleKey,
+        }),
         autoSend: true,
         source: 'weekly_report',
       },
     })
-  }, [navigation, status])
+  }, [navigation, stage.lifecycleKey, status])
 
   return (
     <ScreenContainer style={styles.container}>

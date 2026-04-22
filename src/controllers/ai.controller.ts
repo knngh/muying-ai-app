@@ -24,6 +24,7 @@ import {
   shouldUseProfileHints,
   isResumeContinuationContext,
 } from '../services/ai-context.service';
+import { buildAIActionCards } from '../services/ai-action-card.service';
 import { logger, genRequestId } from '../utils/logger';
 
 const EMERGENCY_DISCLAIMER = '🚨 重要提示：如遇紧急情况，请立即就医！';
@@ -70,6 +71,7 @@ function buildTrustedResponsePayload(
   model?: string,
   conversationId?: string,
 ) {
+  const actionCards = buildAIActionCards(result);
   return {
     answer: result.answer,
     message: {
@@ -88,6 +90,7 @@ function buildTrustedResponsePayload(
     uncertainty: result.uncertainty,
     sourceReliability: result.sourceReliability,
     degraded: result.degraded,
+    actionCards,
     model: result.model || model || DEFAULT_MODEL_ID,
     provider: result.provider,
     route: result.route,
@@ -108,6 +111,7 @@ function streamTrustedResult(
   model: string | undefined,
   conversationId: string | undefined,
 ) {
+  const actionCards = buildAIActionCards(result);
   setSseHeaders(res);
 
   for (const chunk of chunkTrustedAnswer(result.answer)) {
@@ -125,6 +129,7 @@ function streamTrustedResult(
     uncertainty: result.uncertainty,
     sourceReliability: result.sourceReliability,
     degraded: result.degraded,
+    actionCards,
     model: result.model || model || DEFAULT_MODEL_ID,
     provider: result.provider,
     route: result.route,
@@ -480,7 +485,24 @@ export const searchKnowledge = async (req: Request, res: Response, next: NextFun
 // 用户反馈
 export const submitFeedback = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { qaId, feedback, comment } = req.body;
+    const {
+      qaId,
+      feedback,
+      comment,
+      messageId,
+      conversationId,
+      reason,
+      actionTaken,
+      triageCategory,
+      riskLevel,
+      sourceReliability,
+      route,
+      provider,
+      model,
+      entrySource,
+      articleSlug,
+      reportId,
+    } = req.body;
     const userId = req.userId;
 
     if (!qaId || !feedback) {
@@ -498,6 +520,19 @@ export const submitFeedback = async (req: Request, res: Response, next: NextFunc
             qaId: String(qaId),
             feedback: String(feedback),
             comment: comment ? String(comment).slice(0, 500) : null,
+            messageId: messageId ? String(messageId) : null,
+            conversationId: conversationId ? String(conversationId) : null,
+            reason: reason ? String(reason) : null,
+            actionTaken: actionTaken ? String(actionTaken) : null,
+            triageCategory: triageCategory ? String(triageCategory) : null,
+            riskLevel: riskLevel ? String(riskLevel) : null,
+            sourceReliability: sourceReliability ? String(sourceReliability) : null,
+            route: route ? String(route) : null,
+            provider: provider ? String(provider) : null,
+            model: model ? String(model) : null,
+            entrySource: entrySource ? String(entrySource) : null,
+            articleSlug: articleSlug ? String(articleSlug) : null,
+            reportId: reportId ? String(reportId) : null,
           },
         },
       });

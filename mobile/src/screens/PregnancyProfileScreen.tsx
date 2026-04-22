@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react'
+import React, { useCallback, useMemo, useState } from 'react'
 import { ScrollView, StyleSheet, View } from 'react-native'
 import { useFocusEffect, useNavigation } from '@react-navigation/native'
 import LinearGradient from 'react-native-linear-gradient'
@@ -6,6 +6,7 @@ import { ActivityIndicator, Button, Chip, Text } from 'react-native-paper'
 import { userApi, type PregnancyProfile } from '../api/modules'
 import { ScreenContainer, StandardCard } from '../components/layout'
 import { borderRadius, colors, fontSize, spacing } from '../theme'
+import { analyzeDiaryEntry } from '../utils/aiAssist'
 
 const fallbackPhase = {
   label: '孕期未完善',
@@ -61,6 +62,10 @@ export default function PregnancyProfileScreen() {
   const [loading, setLoading] = useState(true)
   const [profile, setProfile] = useState<PregnancyProfile | null>(null)
   const [error, setError] = useState('')
+  const diaryAiAnalysis = useMemo(
+    () => analyzeDiaryEntry(profile?.snapshot.weeklyDiaryPreview || ''),
+    [profile?.snapshot.weeklyDiaryPreview],
+  )
 
   const loadProfile = useCallback(async () => {
     setLoading(true)
@@ -269,10 +274,41 @@ export default function PregnancyProfileScreen() {
           </View>
 
           {profile.snapshot.hasWeeklyDiary ? (
-            <View style={styles.diaryCard}>
-              <Text style={styles.diaryDate}>{profile.snapshot.weeklyDiaryDate}</Text>
-              <Text style={styles.diaryText}>{profile.snapshot.weeklyDiaryPreview}</Text>
-            </View>
+            <>
+              <View style={styles.diaryCard}>
+                <Text style={styles.diaryDate}>{profile.snapshot.weeklyDiaryDate}</Text>
+                <Text style={styles.diaryText}>{profile.snapshot.weeklyDiaryPreview}</Text>
+              </View>
+
+              <View style={styles.diaryAiCard}>
+                <View style={styles.diaryAiHeader}>
+                  <View style={styles.diaryAiHeaderCopy}>
+                    <Text style={styles.diaryAiEyebrow}>AI 自动打标签</Text>
+                    <Text style={styles.diaryAiTitle}>这条记录已整理成重点</Text>
+                  </View>
+                  <Chip compact style={styles.diaryAiCountChip} textStyle={styles.diaryAiCountText}>
+                    {diaryAiAnalysis.tags.length} 个标签
+                  </Chip>
+                </View>
+
+                <View style={styles.diaryAiTagRow}>
+                  {diaryAiAnalysis.tags.map((tag) => (
+                    <Chip key={tag} compact style={styles.diaryAiTagChip} textStyle={styles.diaryAiTagText}>
+                      {tag}
+                    </Chip>
+                  ))}
+                </View>
+
+                <Text style={styles.diaryAiSummary}>{diaryAiAnalysis.summary}</Text>
+                {diaryAiAnalysis.highlights.map((item) => (
+                  <View key={item} style={styles.diaryAiHighlightRow}>
+                    <View style={styles.diaryAiHighlightDot} />
+                    <Text style={styles.diaryAiHighlightText}>{item}</Text>
+                  </View>
+                ))}
+                <Text style={styles.diaryAiPrompt}>{diaryAiAnalysis.prompt}</Text>
+              </View>
+            </>
           ) : (
             <View style={styles.diaryCard}>
               <Text style={styles.diaryTitle}>这周还没有留下记录</Text>
@@ -577,6 +613,84 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     color: colors.inkSoft,
     lineHeight: 22,
+  },
+  diaryAiCard: {
+    marginTop: spacing.sm,
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    backgroundColor: colors.successSoft,
+  },
+  diaryAiHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+  },
+  diaryAiHeaderCopy: {
+    flex: 1,
+  },
+  diaryAiEyebrow: {
+    color: colors.green,
+    fontSize: fontSize.xs,
+    fontWeight: '700',
+    letterSpacing: 1,
+  },
+  diaryAiTitle: {
+    marginTop: spacing.xs,
+    color: colors.ink,
+    fontSize: fontSize.lg,
+    fontWeight: '700',
+  },
+  diaryAiCountChip: {
+    backgroundColor: 'rgba(255,255,255,0.78)',
+  },
+  diaryAiCountText: {
+    color: colors.green,
+    fontSize: fontSize.xs,
+    fontWeight: '700',
+  },
+  diaryAiTagRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+  },
+  diaryAiTagChip: {
+    backgroundColor: colors.white,
+  },
+  diaryAiTagText: {
+    color: colors.techDark,
+    fontSize: fontSize.xs,
+    fontWeight: '700',
+  },
+  diaryAiSummary: {
+    marginTop: spacing.md,
+    color: colors.inkSoft,
+    lineHeight: 22,
+  },
+  diaryAiHighlightRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  diaryAiHighlightDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginTop: 8,
+    backgroundColor: colors.green,
+  },
+  diaryAiHighlightText: {
+    flex: 1,
+    color: colors.inkSoft,
+    lineHeight: 22,
+  },
+  diaryAiPrompt: {
+    marginTop: spacing.md,
+    color: colors.textSecondary,
+    fontSize: fontSize.xs,
+    lineHeight: 18,
   },
   actionRow: {
     flexDirection: 'row',

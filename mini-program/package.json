@@ -11,7 +11,8 @@
     "build:mp-weixin": "uni build -p mp-weixin",
     "build:mp-alipay": "uni build -p mp-alipay",
     "build:h5": "uni build",
-    "type-check": "vue-tsc --noEmit"
+    "type-check": "vue-tsc --noEmit",
+    "smoke:mp-weixin": "bash scripts/smoke-mp-weixin.sh"
   },
   "dependencies": {
     "@dcloudio/uni-app": "3.0.0-5000420260318001",

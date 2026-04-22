@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { normalizeApiError } from '../api'
 import { v4 as uuidv4 } from '../utils'
-import type { AIMessage } from '../api/ai'
+import type { AIEntryMeta, AIMessage } from '../api/ai'
 import { aiApi, getEmergencyWarning } from '../api/ai'
 import { wsManager } from '../utils/websocket'
 import { sessionStorage } from '../utils/storage'
@@ -10,6 +10,7 @@ import { useMembershipStore } from './membershipStore'
 interface ChatState {
   messages: AIMessage[]
   conversationId: string | null
+  activeEntryMeta: AIEntryMeta | null
   loading: boolean
   loadingHistory: boolean
   initialized: boolean
@@ -20,9 +21,32 @@ interface ChatState {
   streamingContent: string
   initialize: () => Promise<void>
   startFreshSession: () => void
-  sendMessage: (content: string) => Promise<void>
+  sendMessage: (content: string, context?: string | Record<string, string | number | boolean | null>) => Promise<void>
   resetState: () => void
   clearMessages: () => void
+}
+
+function buildEntryMeta(context?: string | Record<string, string | number | boolean | null>): AIEntryMeta | null {
+  if (!context || typeof context === 'string') {
+    return null
+  }
+
+  const record = context as Record<string, string | number | boolean | null>
+  const entryMeta: AIEntryMeta = {
+    entrySource: typeof record.entrySource === 'string' ? record.entrySource : undefined,
+    stage: typeof record.stage === 'string' ? record.stage : undefined,
+    articleSlug: typeof record.articleSlug === 'string' ? record.articleSlug : undefined,
+    articleTitle: typeof record.articleTitle === 'string' ? record.articleTitle : undefined,
+    articleSourceOrg: typeof record.articleSourceOrg === 'string' ? record.articleSourceOrg : null,
+    articleTopic: typeof record.articleTopic === 'string' ? record.articleTopic : null,
+    reportId: typeof record.reportId === 'string' ? record.reportId : undefined,
+    reportStageLabel: typeof record.reportStageLabel === 'string' ? record.reportStageLabel : undefined,
+    reportHighlightIndex: typeof record.reportHighlightIndex === 'number' ? record.reportHighlightIndex : undefined,
+  }
+
+  return Object.values(entryMeta).some((value) => value !== undefined && value !== null)
+    ? entryMeta
+    : null
 }
 
 function isQuotaExceededError(input: {
@@ -37,6 +61,7 @@ function isQuotaExceededError(input: {
 export const useChatStore = create<ChatState>((set, get) => ({
   messages: [],
   conversationId: null,
+  activeEntryMeta: null,
   loading: false,
   loadingHistory: false,
   initialized: false,
@@ -51,6 +76,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({
       messages: [],
       conversationId: null,
+      activeEntryMeta: null,
       loading: false,
       loadingHistory: false,
       initialized: false,
@@ -70,6 +96,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({
       messages: [],
       conversationId: null,
+      activeEntryMeta: null,
       initialized: true,
       loadingHistory: false,
       error: null,
@@ -85,6 +112,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({
       messages: [],
       conversationId: null,
+      activeEntryMeta: null,
       loading: false,
       loadingHistory: false,
       initialized: true,
@@ -96,16 +124,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
     })
   },
 
-  sendMessage: async (content: string) => {
+  sendMessage: async (content: string, context?: string | Record<string, string | number | boolean | null>) => {
+    const entryMeta = buildEntryMeta(context) || get().activeEntryMeta
     const userMessage: AIMessage = {
       id: uuidv4(),
       role: 'user',
       content,
+      entryMeta: entryMeta || undefined,
       createdAt: new Date().toISOString(),
     }
 
     set(state => ({
       messages: [...state.messages, userMessage],
+      activeEntryMeta: entryMeta || state.activeEntryMeta,
       loading: true,
       error: null,
       errorCode: null,
@@ -125,6 +156,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       wsManager.send('chat_stream', requestId, {
         messages: history,
         conversationId: get().conversationId || undefined,
+        context,
       }, (msg) => {
         if (httpFallbackFired) return
         if (msg.type === 'chunk' && msg.data.content) {
@@ -135,7 +167,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
             id: uuidv4(),
             role: 'assistant',
             content: get().streamingContent,
+            entryMeta: entryMeta || undefined,
             sources: msg.data.sources,
+            actionCards: msg.data.actionCards,
+            followUpQuestions: msg.data.followUpQuestions,
             triageCategory: msg.data.triageCategory,
             riskLevel: msg.data.riskLevel,
             structuredAnswer: msg.data.structuredAnswer,
@@ -165,6 +200,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
             role: 'assistant',
             content: msg.data.content || getEmergencyWarning(),
             isEmergency: true,
+            entryMeta: entryMeta || undefined,
+            actionCards: msg.data.actionCards,
+            followUpQuestions: msg.data.followUpQuestions,
             triageCategory: msg.data.triageCategory,
             riskLevel: msg.data.riskLevel,
             structuredAnswer: msg.data.structuredAnswer,
@@ -217,13 +255,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
             const response = await aiApi.chat({
               messages: get().messages.map(m => ({ role: m.role, content: m.content })),
               conversationId: get().conversationId || undefined,
+              context,
               clientRequestId: requestId,
             }) as any
             const assistantMessage: AIMessage = {
               id: uuidv4(),
               role: 'assistant',
               content: response.message?.content || response.response || '',
+              entryMeta: entryMeta || undefined,
               sources: response.sources,
+              actionCards: response.actionCards,
+              followUpQuestions: response.followUpQuestions,
               isEmergency: response.isEmergency,
               triageCategory: response.triageCategory,
               riskLevel: response.riskLevel,
@@ -279,6 +321,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({
       messages: [],
       conversationId: null,
+      activeEntryMeta: null,
       loading: false,
       loadingHistory: false,
       initialized: true,

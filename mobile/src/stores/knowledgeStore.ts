@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { ApiError } from '../api'
 import { articleApi, categoryApi, tagApi } from '../api/modules'
 import type { Article, Category, Tag, PaginatedResponse } from '../api/modules'
+import { storage } from '../utils/storage'
 import {
   getKnowledgeFallbackKeyword,
   getKnowledgeStagePriorityMap,
@@ -20,6 +21,32 @@ const CHINESE_AUTHORITY_PATTERNS = [
   /chinacdc/i,
 ]
 const MOBILE_KNOWLEDGE_PAGE_SIZE = 6
+const RECENT_AI_HIT_ARTICLES_KEY = 'knowledge_recent_ai_hit_articles'
+const RECENT_AI_HIT_ARTICLE_LIMIT = 6
+const RECENT_AI_HIT_RETENTION_DAYS = 14
+const RECENT_AI_HIT_MAX_FUTURE_SKEW_MS = 6 * 60 * 60 * 1000
+
+export type RecentAIHitArticle = {
+  slug: string
+  articleId: number
+  title: string
+  summary: string
+  source?: string
+  sourceOrg?: string
+  sourceLanguage?: 'zh' | 'en'
+  sourceLocale?: string
+  topic?: string
+  stage?: string
+  publishedAt?: string
+  sourceUpdatedAt?: string
+  createdAt: string
+  lastHitAt: string
+  qaId?: string
+  trigger?: 'hit_card' | 'knowledge_action'
+  matchReason?: 'entry_meta' | 'source_url' | 'source_title' | 'source_keyword'
+  originEntrySource?: string
+  originReportId?: string
+}
 
 function getArticleTimestamp(article: Article): number {
   const value = article.publishedAt || article.createdAt
@@ -167,11 +194,113 @@ async function getKnowledgeArticlesWithFallback(params: {
   }
 }
 
+function toRecentAIHitArticle(
+  article: Article,
+  input?: {
+    qaId?: string
+    trigger?: 'hit_card' | 'knowledge_action'
+    matchReason?: 'entry_meta' | 'source_url' | 'source_title' | 'source_keyword'
+    originEntrySource?: string
+    originReportId?: string
+  },
+): RecentAIHitArticle {
+  return {
+    slug: article.slug,
+    articleId: article.id,
+    title: article.title,
+    summary: article.summary,
+    source: article.source,
+    sourceOrg: article.sourceOrg,
+    sourceLanguage: article.sourceLanguage,
+    sourceLocale: article.sourceLocale,
+    topic: article.topic,
+    stage: article.stage,
+    publishedAt: article.publishedAt,
+    sourceUpdatedAt: article.sourceUpdatedAt,
+    createdAt: article.createdAt,
+    lastHitAt: new Date().toISOString(),
+    qaId: input?.qaId,
+    trigger: input?.trigger,
+    matchReason: input?.matchReason,
+    originEntrySource: input?.originEntrySource,
+    originReportId: input?.originReportId,
+  }
+}
+
+function mergeRecentAIHitArticles(
+  existing: RecentAIHitArticle[],
+  next: RecentAIHitArticle,
+): RecentAIHitArticle[] {
+  return sanitizeRecentAIHitArticles([next, ...existing.filter((item) => item.slug !== next.slug)])
+}
+
+function isValidRecentAIHitTimestamp(value?: string, now = Date.now()) {
+  if (!value) {
+    return false
+  }
+
+  const timestamp = new Date(value).getTime()
+  if (Number.isNaN(timestamp)) {
+    return false
+  }
+
+  const maxAgeMs = RECENT_AI_HIT_RETENTION_DAYS * 24 * 60 * 60 * 1000
+  if (timestamp < now - maxAgeMs) {
+    return false
+  }
+
+  if (timestamp > now + RECENT_AI_HIT_MAX_FUTURE_SKEW_MS) {
+    return false
+  }
+
+  return true
+}
+
+function sanitizeRecentAIHitArticles(
+  items: RecentAIHitArticle[],
+  now = Date.now(),
+) {
+  const deduped = new Map<string, RecentAIHitArticle>()
+
+  for (const item of items) {
+    const slug = item.slug?.trim()
+    const title = item.title?.replace(/\s+/g, ' ').trim()
+    if (!slug || !title || title.length < 4 || !Number.isFinite(item.articleId) || item.articleId <= 0) {
+      continue
+    }
+
+    if (!isValidRecentAIHitTimestamp(item.lastHitAt, now)) {
+      continue
+    }
+
+    const nextItem: RecentAIHitArticle = {
+      ...item,
+      slug,
+      title,
+      summary: item.summary?.replace(/\s+/g, ' ').trim() || '',
+      source: item.source?.replace(/\s+/g, ' ').trim() || undefined,
+      sourceOrg: item.sourceOrg?.replace(/\s+/g, ' ').trim() || undefined,
+      topic: item.topic?.replace(/\s+/g, ' ').trim() || undefined,
+    }
+
+    const existing = deduped.get(slug)
+    if (!existing || nextItem.lastHitAt > existing.lastHitAt) {
+      deduped.set(slug, nextItem)
+    }
+  }
+
+  return Array.from(deduped.values())
+    .sort((left, right) => right.lastHitAt.localeCompare(left.lastHitAt))
+    .slice(0, RECENT_AI_HIT_ARTICLE_LIMIT)
+}
+
 interface KnowledgeState {
   articles: Article[]
   categories: Category[]
   tags: Tag[]
   currentArticle: Article | null
+  recentAiHitArticles: RecentAIHitArticle[]
+  recentAiHitArticlesLoaded: boolean
   total: number
   page: number
   pageSize: number
@@ -186,6 +315,14 @@ interface KnowledgeState {
   fetchCategories: () => Promise<void>
   fetchTags: () => Promise<void>
   fetchArticleDetail: (slug: string) => Promise<void>
+  hydrateRecentAiHitArticles: () => Promise<void>
+  recordAiHitArticle: (article: Article, input?: {
+    qaId?: string
+    trigger?: 'hit_card' | 'knowledge_action'
+    matchReason?: 'entry_meta' | 'source_url' | 'source_title' | 'source_keyword'
+    originEntrySource?: string
+    originReportId?: string
+  }) => Promise<void>
   setCategory: (slug: string | null) => void
   setTag: (slug: string | null) => void
   setStage: (stage: string | null) => void
@@ -202,6 +339,8 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
   categories: [],
   tags: [],
   currentArticle: null,
+  recentAiHitArticles: [],
+  recentAiHitArticlesLoaded: false,
   total: 0,
   page: 1,
   pageSize: MOBILE_KNOWLEDGE_PAGE_SIZE,
@@ -276,6 +415,39 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
     } catch (error: unknown) {
       const err = error as ApiError
       set({ error: err.message || '获取文章详情失败', errorDetail: err, loading: false })
+    }
+  },
+
+  hydrateRecentAiHitArticles: async () => {
+    if (get().recentAiHitArticlesLoaded) {
+      return
+    }
+
+    try {
+      const cached = await storage.get<RecentAIHitArticle[]>(RECENT_AI_HIT_ARTICLES_KEY)
+      const nextList = sanitizeRecentAIHitArticles(Array.isArray(cached) ? cached : [])
+      set({
+        recentAiHitArticles: nextList,
+        recentAiHitArticlesLoaded: true,
+      })
+      await storage.set(RECENT_AI_HIT_ARTICLES_KEY, nextList)
+    } catch {
+      set({ recentAiHitArticles: [], recentAiHitArticlesLoaded: true })
+    }
+  },
+
+  recordAiHitArticle: async (article, input) => {
+    const nextHit = toRecentAIHitArticle(article, input)
+    const nextList = mergeRecentAIHitArticles(get().recentAiHitArticles, nextHit)
+    set({
+      recentAiHitArticles: nextList,
+      recentAiHitArticlesLoaded: true,
+    })
+
+    try {
+      await storage.set(RECENT_AI_HIT_ARTICLES_KEY, nextList)
+    } catch {
+      // Ignore persistence failure.
     }
   },
 

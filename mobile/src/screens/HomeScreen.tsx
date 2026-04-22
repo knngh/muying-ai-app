@@ -22,6 +22,7 @@ import {
 } from '../components/home'
 import { useHomeData } from '../hooks/useHomeData'
 import { trackAppEvent } from '../services/analytics'
+import { buildHomeChatContext } from '../utils/aiEntryContext'
 import { colors, fontSize, spacing, borderRadius } from '../theme'
 
 type HomeNavProp = CompositeNavigationProp<
@@ -364,6 +365,7 @@ export default function HomeScreen() {
       screen: 'Chat',
       params: {
         prefillQuestion: suggestedQuestion,
+        prefillContext: buildHomeChatContext(stage.lifecycleKey),
         autoSend: true,
         source: 'home_suggested_question',
       },
@@ -450,6 +452,7 @@ export default function HomeScreen() {
       screen: 'Chat',
       params: {
         prefillQuestion: suggestedQuestion,
+        prefillContext: buildHomeChatContext(stage.lifecycleKey),
         autoSend: true,
         source: 'home_suggested_question',
       },

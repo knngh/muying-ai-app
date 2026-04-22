@@ -136,12 +136,40 @@
         <view class="section-card">
           <view class="section-header">
             <text class="section-title">我的记录</text>
-            <text class="section-meta">来自孕育时间轴</text>
+            <text class="section-meta">来自孕周日历</text>
           </view>
 
           <view v-if="hasWeeklyDiary" class="diary-card">
             <text class="diary-date">{{ weeklyDiaryDate }}</text>
             <text class="diary-content">{{ weeklyDiaryPreview }}</text>
+          </view>
+          <view v-if="hasWeeklyDiary" class="ai-record-card">
+            <view class="ai-record-head">
+              <view>
+                <text class="ai-record-kicker">记录自动整理</text>
+                <text class="ai-record-title">这条记录已整理成重点</text>
+              </view>
+              <text class="ai-record-count">{{ diaryAiAnalysis.tags.length }} 个标签</text>
+            </view>
+            <view class="ai-record-tags">
+              <text
+                v-for="tag in diaryAiAnalysis.tags"
+                :key="tag"
+                class="ai-record-tag"
+              >
+                {{ tag }}
+              </text>
+            </view>
+            <text class="ai-record-summary">{{ diaryAiAnalysis.summary }}</text>
+            <view
+              v-for="item in diaryAiAnalysis.highlights"
+              :key="item"
+              class="ai-record-highlight"
+            >
+              <text class="ai-record-dot"></text>
+              <text class="ai-record-highlight-text">{{ item }}</text>
+            </view>
+            <text class="ai-record-prompt">{{ diaryAiAnalysis.prompt }}</text>
           </view>
           <view v-else class="diary-empty">
             <text class="diary-empty-title">这周还没有留下记录</text>
@@ -168,6 +196,7 @@ import { onShareAppMessage, onShareTimeline, onShow } from '@dcloudio/uni-app'
 import weekGuideData from '../calendar/mockData.json'
 import { userApi, type PregnancyProfile } from '@/api/modules'
 import { useAppStore } from '@/stores/app'
+import { analyzeDiaryEntry } from '@/utils/ai-assist'
 
 const PROFILE_AUTO_OPEN_EDIT_KEY = 'profileAutoOpenEdit'
 const PROFILE_CACHE_VERSION = 1
@@ -289,6 +318,7 @@ const totalTodoCount = computed(() => (currentWeekGuide.value?.content?.todo?.le
 const hasWeeklyDiary = computed(() => snapshot.value.hasWeeklyDiary ?? false)
 const weeklyDiaryDate = computed(() => snapshot.value.weeklyDiaryDate || '')
 const weeklyDiaryPreview = computed(() => snapshot.value.weeklyDiaryPreview || '')
+const diaryAiAnalysis = computed(() => analyzeDiaryEntry(weeklyDiaryPreview.value))
 const milestoneList = computed(() => profileData.value?.milestones || [])
 const nextMilestoneText = computed(() => profileData.value?.nextMilestoneText || fallbackNextMilestoneText)
 
@@ -342,7 +372,7 @@ function openProfile() {
 }
 
 function openCalendar() {
-  uni.navigateTo({ url: '/pages/calendar/index' })
+  uni.switchTab({ url: '/pages/calendar/index' })
 }
 
 function buildSharePayload() {
@@ -782,6 +812,98 @@ onShareTimeline(() => {
   font-size: 28rpx;
   font-weight: 700;
   color: #364150;
+}
+
+.ai-record-card {
+  margin-top: 18rpx;
+  padding: 26rpx;
+  border-radius: 24rpx;
+  background: linear-gradient(135deg, #eef8f5 0%, #fbfffd 100%);
+}
+
+.ai-record-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18rpx;
+}
+
+.ai-record-kicker {
+  display: block;
+  font-size: 21rpx;
+  font-weight: 700;
+  letter-spacing: 2rpx;
+  color: #1f8f74;
+}
+
+.ai-record-title {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 28rpx;
+  font-weight: 800;
+  color: #2c3945;
+}
+
+.ai-record-count {
+  flex-shrink: 0;
+  padding: 8rpx 16rpx;
+  border-radius: 999rpx;
+  background: rgba(31, 143, 116, 0.12);
+  font-size: 21rpx;
+  font-weight: 700;
+  color: #1f8f74;
+}
+
+.ai-record-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin-top: 20rpx;
+}
+
+.ai-record-tag {
+  padding: 8rpx 16rpx;
+  border-radius: 999rpx;
+  background: #fff;
+  font-size: 22rpx;
+  font-weight: 700;
+  color: #267a66;
+}
+
+.ai-record-summary,
+.ai-record-prompt {
+  display: block;
+  margin-top: 18rpx;
+  font-size: 24rpx;
+  line-height: 1.7;
+  color: #526878;
+}
+
+.ai-record-highlight {
+  display: flex;
+  align-items: flex-start;
+  gap: 12rpx;
+  margin-top: 14rpx;
+}
+
+.ai-record-dot {
+  width: 10rpx;
+  height: 10rpx;
+  margin-top: 13rpx;
+  border-radius: 50%;
+  background: #1f8f74;
+  flex-shrink: 0;
+}
+
+.ai-record-highlight-text {
+  flex: 1;
+  font-size: 24rpx;
+  line-height: 1.7;
+  color: #61707f;
+}
+
+.ai-record-prompt {
+  color: #7d8b96;
 }
 
 .action-row {

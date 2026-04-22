@@ -5,6 +5,8 @@ export interface AIMessage {
   role: 'user' | 'assistant'
   content: string
   sources?: SourceReference[]
+  actionCards?: AIActionCard[]
+  entryMeta?: AIEntryMeta
   isEmergency?: boolean
   triageCategory?: TriageCategory
   riskLevel?: RiskLevel
@@ -23,6 +25,39 @@ export interface AIMessage {
 export type RiskLevel = 'green' | 'yellow' | 'red'
 export type TriageCategory = 'normal' | 'caution' | 'emergency' | 'out_of_scope'
 export type SourceReliability = 'authoritative' | 'mixed' | 'medical_platform_only' | 'dataset_only' | 'none'
+export type AIActionCardType = 'calendar' | 'knowledge' | 'archive' | 'follow_up'
+export type AIActionCardPriority = 'primary' | 'secondary'
+
+export interface AIEntryMeta {
+  entrySource?: string
+  stage?: string
+  articleSlug?: string
+  articleTitle?: string
+  articleSourceOrg?: string | null
+  articleTopic?: string | null
+  reportId?: string
+  reportStageLabel?: string
+  reportHighlightIndex?: number
+}
+
+export interface AIActionCard {
+  id: string
+  type: AIActionCardType
+  label: string
+  title: string
+  description?: string
+  priority: AIActionCardPriority
+  payload?: {
+    eventTitle?: string
+    eventDescription?: string
+    eventType?: 'checkup' | 'vaccine' | 'reminder' | 'exercise' | 'diet' | 'other'
+    targetDate?: string
+    knowledgeKeyword?: string
+    sourceUrl?: string
+    prefillQuestion?: string
+    archiveFocus?: 'timeline' | 'report' | 'export'
+  }
+}
 
 export interface StructuredAnswer {
   conclusion: string
@@ -76,6 +111,7 @@ export interface AskRequest {
 export interface AskResponse {
   answer: string
   sources: SourceReference[]
+  actionCards?: AIActionCard[]
   isEmergency: boolean
   conversationId?: string
   disclaimer: string
@@ -102,6 +138,7 @@ export interface ChatRequest {
 export interface ChatResponse {
   response: string
   sources: SourceReference[]
+  actionCards?: AIActionCard[]
   isEmergency: boolean
   conversationId?: string
   disclaimer: string
@@ -139,6 +176,7 @@ export interface WsServerMessage {
     isEmergency?: boolean
     error?: string
     sources?: SourceReference[]
+    actionCards?: AIActionCard[]
     disclaimer?: string
     conversationId?: string
     triageCategory?: TriageCategory

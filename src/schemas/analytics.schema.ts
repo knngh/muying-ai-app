@@ -1,15 +1,8 @@
 import { z } from 'zod';
+import { ANALYTICS_CLIENT_SOURCES, ANALYTICS_EVENT_NAMES } from '../config/analytics-events';
 
-export const analyticsEventNames = [
-  'mini_program_app_download_click',
-  'app_membership_exposure',
-  'app_order_created',
-  'app_payment_success',
-  'app_weekly_report_open',
-  'app_growth_archive_share',
-] as const;
-
-export const analyticsSources = ['app', 'mini_program'] as const;
+export const analyticsEventNames = ANALYTICS_EVENT_NAMES;
+export const analyticsSources = ANALYTICS_CLIENT_SOURCES;
 
 export const createAnalyticsEventBody = z.object({
   eventName: z.enum(analyticsEventNames),

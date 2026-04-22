@@ -11,6 +11,21 @@
           <text class="hero-pill-text">国际原文支持中文辅助阅读</text>
         </view>
       </view>
+
+      <view class="reading-path">
+        <view class="reading-path-item">
+          <text class="reading-path-index">01</text>
+          <text class="reading-path-text">先选当前阶段</text>
+        </view>
+        <view class="reading-path-item">
+          <text class="reading-path-index">02</text>
+          <text class="reading-path-text">再按场景缩小范围</text>
+        </view>
+        <view class="reading-path-item">
+          <text class="reading-path-index">03</text>
+          <text class="reading-path-text">最后查看原文来源</text>
+        </view>
+      </view>
     </view>
 
     <view class="search-bar">
@@ -24,6 +39,111 @@
       <view class="search-btn" @tap="handleSearch">
         <text class="search-btn-text">搜索</text>
       </view>
+    </view>
+
+    <view class="assistant-offline-card">
+      <text class="assistant-offline-title">当前能力范围</text>
+      <text class="assistant-offline-desc">当前小程序优先提供权威知识检索、阶段筛选和中文辅助阅读。咨询式连续追问能力将在后续版本开放。</text>
+    </view>
+
+    <view class="stage-guide-panel">
+      <view class="section-head">
+        <view>
+          <text class="section-title">{{ stageGuide.title }}</text>
+          <text class="section-caption section-caption--block">{{ stageGuide.caption }}</text>
+        </view>
+        <text class="stage-guide-badge">{{ stageGuide.badge }}</text>
+      </view>
+      <view class="stage-guide-grid">
+        <view
+          v-for="item in stageGuide.items"
+          :key="item.key"
+          class="stage-guide-card"
+          @tap="applyStageGuide(item)"
+        >
+          <text class="stage-guide-title">{{ item.title }}</text>
+          <text class="stage-guide-desc">{{ item.desc }}</text>
+          <text class="stage-guide-action">筛选这个方向</text>
+        </view>
+      </view>
+    </view>
+
+    <view v-if="!recentAiHitArticles.length" class="cold-start-card">
+      <text class="cold-start-title">还没有最近权威线索</text>
+      <text class="cold-start-desc">可以先从上面的阶段常查或下面的场景卡片进入。看过文章后，首页和知识库会保留继续阅读入口。</text>
+    </view>
+
+    <view v-if="recentAiHitArticles.length" class="recent-ai-section">
+      <view class="section-head">
+        <view>
+          <text class="section-title">最近权威线索</text>
+          <text class="section-caption section-caption--block">从最近命中的权威内容继续看</text>
+        </view>
+        <text class="recent-ai-count">{{ recentAiHitArticles.length }} 条</text>
+      </view>
+
+      <scroll-view class="recent-ai-scroll" scroll-x>
+        <view class="recent-ai-row">
+          <view
+            v-for="item in recentAiHitArticles"
+            :key="item.slug"
+            class="recent-ai-card"
+            @tap="handleOpenRecentAiHit(item)"
+          >
+            <text class="recent-ai-card-kicker">{{ formatRecentHitTime(item.lastHitAt) }}</text>
+            <text class="recent-ai-card-title">{{ item.title }}</text>
+            <text class="recent-ai-card-meta">{{ formatSourceLabel(item.sourceOrg || item.source || '权威来源') }}</text>
+            <text v-if="item.topic" class="recent-ai-card-topic">{{ item.topic }}</text>
+          </view>
+        </view>
+      </scroll-view>
+
+      <view v-if="recentAiHitTopics.length || recentAiHitSources.length" class="recent-ai-chip-panel">
+        <view v-if="recentAiHitTopics.length" class="recent-ai-chip-row">
+          <text class="recent-ai-chip-label">按主题继续</text>
+          <view
+            v-for="item in recentAiHitTopics"
+            :key="`topic-${item.displayName}`"
+            class="recent-ai-topic-chip"
+            @tap="handleOpenRecentAiTopic(item)"
+          >
+            <text class="recent-ai-chip-name">{{ item.displayName }}</text>
+            <text class="recent-ai-chip-count">{{ item.count }} 次</text>
+          </view>
+        </view>
+        <view v-if="recentAiHitSources.length" class="recent-ai-chip-row">
+          <text class="recent-ai-chip-label">按机构继续</text>
+          <view
+            v-for="item in recentAiHitSources"
+            :key="`source-${item.displayName}`"
+            class="recent-ai-source-chip"
+            @tap="handleOpenRecentAiSource(item)"
+          >
+            <text class="recent-ai-chip-name">{{ item.displayName }}</text>
+            <text class="recent-ai-chip-count">{{ item.count }} 次</text>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <view class="scenario-panel">
+      <view class="section-head">
+        <text class="section-title">按场景快速查</text>
+        <text class="section-caption">替代泛搜，更容易读到可用内容</text>
+      </view>
+      <scroll-view class="scenario-scroll" scroll-x>
+        <view class="scenario-row">
+          <view
+            v-for="option in scenarioOptions"
+            :key="option.key"
+            :class="['scenario-card', activeScenarioKey === option.key ? 'scenario-card--active' : '']"
+            @tap="applyScenario(option)"
+          >
+            <text :class="['scenario-title', activeScenarioKey === option.key ? 'scenario-title--active' : '']">{{ option.label }}</text>
+            <text :class="['scenario-desc', activeScenarioKey === option.key ? 'scenario-desc--active' : '']">{{ option.hint }}</text>
+          </view>
+        </view>
+      </scroll-view>
     </view>
 
     <view class="filter-block">
@@ -54,6 +174,14 @@
 
       <view class="result-pill">
         <text class="result-pill-text">共 {{ total }} 篇 · 中文源优先</text>
+      </view>
+    </view>
+
+    <view v-if="activeFilterText" class="active-filter-card">
+      <text class="active-filter-label">当前范围</text>
+      <text class="active-filter-text">{{ activeFilterText }}</text>
+      <view class="active-filter-clear" @tap="resetFilters">
+        <text class="active-filter-clear-text">清空</text>
       </view>
     </view>
 
@@ -119,15 +247,40 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { onShareAppMessage, onShareTimeline, onShow } from '@dcloudio/uni-app'
-import { useKnowledgeStore } from '@/stores/knowledge'
+import { onReachBottom, onShareAppMessage, onShareTimeline, onShow } from '@dcloudio/uni-app'
+import { useKnowledgeStore, type RecentAIHitArticle } from '@/stores/knowledge'
 import type { Article } from '@/api/modules'
 import { getAuthorityRegionLabel, getAuthorityRegionTag } from '@/utils/authority-source'
+import { formatDate, formatSourceLabel } from '@/utils/knowledge-format'
+import { trackMiniEvent } from '@/utils/analytics'
 
 const knowledgeStore = useKnowledgeStore()
 
+interface RecentAIHitTopic {
+  topic: string
+  displayName: string
+  count: number
+  sample: RecentAIHitArticle
+}
+
+interface RecentAIHitSource {
+  source: string
+  displayName: string
+  count: number
+  sample: RecentAIHitArticle
+}
+
+interface StageGuideItem {
+  key: string
+  title: string
+  desc: string
+  keyword: string
+  stage: string | null
+}
+
 const searchText = ref('')
 const selectedStageIndex = ref(0)
+const activeScenarioKey = ref('')
 
 const sourceOptions = [
   { label: '全部', value: 'all' },
@@ -137,8 +290,8 @@ const sourceOptions = [
   { label: '国家疾控局', value: '国家疾病预防控制局' },
   { label: 'WHO', value: 'who' },
   { label: 'CDC', value: 'cdc' },
-  { label: 'AAP', value: 'aap' },
-  { label: 'ACOG', value: 'acog' },
+  { label: '美国儿科学会', value: 'aap' },
+  { label: '美国妇产科医师学会', value: 'acog' },
   { label: 'NHS', value: 'nhs' },
   { label: 'Mayo Clinic', value: 'mayo' },
   { label: 'MSD', value: 'msd' },
@@ -150,16 +303,136 @@ const stageOptions = [
   { label: '孕早期', value: 'first-trimester' },
   { label: '孕中期', value: 'second-trimester' },
   { label: '孕晚期', value: 'third-trimester' },
+  { label: '产后恢复', value: 'postpartum' },
+  { label: '月子/新生儿', value: 'newborn' },
   { label: '0-6月', value: '0-6-months' },
   { label: '6-12月', value: '6-12-months' },
   { label: '1-3岁', value: '1-3-years' },
+  { label: '3岁+', value: '3-years-plus' },
 ]
+
+const scenarioOptions = [
+  {
+    key: 'early-risk',
+    label: '孕早期风险',
+    hint: '出血、孕吐、叶酸、初次产检',
+    keyword: '孕早期 出血 孕吐 叶酸 产检',
+    stage: 'first-trimester',
+  },
+  {
+    key: 'checkup-nutrition',
+    label: '产检与营养',
+    hint: '孕中晚期产检、体重、饮食',
+    keyword: '产检 营养 体重 孕期',
+    stage: 'second-trimester',
+  },
+  {
+    key: 'feeding',
+    label: '母乳与喂养',
+    hint: '母乳、配方奶、辅食开始',
+    keyword: '母乳 喂养 辅食',
+    stage: '0-6-months',
+  },
+  {
+    key: 'vaccine',
+    label: '疫苗与发热',
+    hint: '接种、发热、黄疸、就医判断',
+    keyword: '疫苗 发热 黄疸 新生儿',
+    stage: '0-6-months',
+  },
+  {
+    key: 'development',
+    label: '发育与安全',
+    hint: '睡眠、发育、意外预防',
+    keyword: '发育 睡眠 安全 婴幼儿',
+    stage: '6-12-months',
+  },
+] as const
 
 const articles = computed(() => knowledgeStore.articles)
 const loading = computed(() => knowledgeStore.loading)
 const total = computed(() => knowledgeStore.total)
 const selectedSource = computed(() => knowledgeStore.selectedSource)
+const recentAiHitArticles = computed(() => knowledgeStore.recentAiHitArticles.slice(0, 3))
+const recentAiHitTopics = computed(() => buildRecentAIHitTopics(knowledgeStore.recentAiHitArticles))
+const recentAiHitSources = computed(() => buildRecentAIHitSources(knowledgeStore.recentAiHitArticles))
 const selectedStageLabel = computed(() => stageOptions[selectedStageIndex.value]?.label || '全部阶段')
+const activeFilterText = computed(() => {
+  const parts: string[] = []
+  const keyword = searchText.value.trim()
+  const stage = stageOptions[selectedStageIndex.value]
+  const source = sourceOptions.find(option => option.value === selectedSource.value)
+
+  if (keyword) parts.push(`关键词：${keyword}`)
+  if (stage?.value) parts.push(`阶段：${stage.label}`)
+  if (source && source.value !== 'all') parts.push(`来源：${source.label}`)
+
+  return parts.join(' · ')
+})
+
+function resolveStoredStage(): string | null {
+  const storedWeek = Number.parseInt(String(uni.getStorageSync('userPregnancyWeek') || ''), 10)
+  if (Number.isNaN(storedWeek) || storedWeek < 1 || storedWeek > 40) {
+    return null
+  }
+
+  if (storedWeek <= 12) return 'first-trimester'
+  if (storedWeek <= 27) return 'second-trimester'
+  return 'third-trimester'
+}
+
+function buildStageGuideItems(stage: string | null): StageGuideItem[] {
+  if (stage === 'first-trimester') {
+    return [
+      { key: 'early-risk', title: '孕早期风险信号', desc: '先看出血、腹痛、孕吐和何时需要尽快线下就医。', keyword: '孕早期 出血 腹痛 孕吐 就医', stage },
+      { key: 'early-checkup', title: '叶酸与首次产检', desc: '把叶酸补充、建档和初次产检节点看清楚。', keyword: '叶酸 建档 初次产检 早孕', stage },
+      { key: 'early-diet', title: '饮食与生活方式', desc: '集中看补剂、忌口和早孕期的日常注意事项。', keyword: '孕早期 饮食 补剂 注意事项', stage },
+    ]
+  }
+
+  if (stage === 'second-trimester') {
+    return [
+      { key: 'mid-checkup', title: '产检节点', desc: '先理顺糖耐、B 超、常见指标和复查时机。', keyword: '孕中期 糖耐 B超 产检 报告', stage },
+      { key: 'mid-nutrition', title: '营养与体重管理', desc: '优先看体重变化、营养补充和运动安排。', keyword: '孕中期 营养 体重 运动', stage },
+      { key: 'mid-fetal-movement', title: '胎动与异常信号', desc: '先把胎动观察、宫缩区别和异常信号看明白。', keyword: '胎动 宫缩 异常信号', stage },
+    ]
+  }
+
+  if (stage === 'third-trimester') {
+    return [
+      { key: 'late-delivery', title: '临近分娩准备', desc: '优先看入院信号、待产包和分娩前准备。', keyword: '孕晚期 入院信号 待产包 分娩准备', stage },
+      { key: 'late-breastfeeding', title: '哺乳与新生儿护理', desc: '先读产后喂养、皮肤接触和新生儿护理的基础内容。', keyword: '哺乳 新生儿护理 产后 喂养', stage },
+      { key: 'late-warning', title: '胎动与破水', desc: '重点区分规律宫缩、破水和需要尽快处理的异常情况。', keyword: '孕晚期 宫缩 破水 胎动', stage },
+    ]
+  }
+
+  if (stage === 'newborn' || stage === '0-6-months') {
+    return [
+      { key: 'newborn-feeding', title: '喂养与黄疸', desc: '先看母乳、黄疸和体重变化的基础判断。', keyword: '新生儿 喂养 黄疸 体重', stage },
+      { key: 'newborn-vaccine', title: '疫苗与发热', desc: '把接种安排和发热处理的权威口径看准。', keyword: '新生儿 疫苗 发热 接种', stage },
+      { key: 'newborn-sleep', title: '睡眠与护理', desc: '先熟悉睡眠、安全睡姿和日常护理。', keyword: '新生儿 睡眠 护理 安全', stage },
+    ]
+  }
+
+  return [
+    { key: 'authority-start', title: '中国权威来源', desc: '优先看中国政府网、国家卫健委和中国疾控的公开内容。', keyword: '国家卫健委 中国疾控 孕产 指南', stage: null },
+    { key: 'pregnancy-start', title: '孕期常见主题', desc: '从产检、营养、风险信号这些高频主题进入。', keyword: '产检 营养 风险信号 孕期', stage: null },
+    { key: 'newborn-start', title: '新生儿高频问题', desc: '提前熟悉喂养、黄疸、疫苗和睡眠主题。', keyword: '新生儿 喂养 黄疸 疫苗 睡眠', stage: 'newborn' },
+  ]
+}
+
+const resolvedStage = computed(() => stageOptions[selectedStageIndex.value]?.value || resolveStoredStage())
+const stageGuide = computed(() => {
+  const stage = resolvedStage.value
+  const label = stageOptions.find(item => item.value === stage)?.label || '当前阶段'
+
+  return {
+    title: stage ? `${label}建议先看这些` : '第一次来建议先看这些',
+    caption: stage ? '先从高频主题切入，再用机构和关键词继续缩小范围。' : '先从高频入口熟悉知识库，再决定接下来补什么信息。',
+    badge: stage ? label : '冷启动',
+    items: buildStageGuideItems(stage || null),
+  }
+})
 const duplicateArticleKeyCounts = computed(() => {
   const counts = new Map<string, number>()
   articles.value.forEach((article) => {
@@ -177,18 +450,28 @@ watch(articles, (list) => {
     return
   }
 
-  void knowledgeStore.prefetchTranslations(list, 6)
+  void knowledgeStore.prefetchTranslations(list, 1)
 }, { immediate: true })
+
+function syncLocalFiltersFromStore() {
+  searchText.value = knowledgeStore.keyword
+  syncStageIndex(knowledgeStore.selectedStage)
+  activeScenarioKey.value = ''
+}
 
 async function loadArticles(reset = true) {
   await knowledgeStore.fetchArticles({ reset, page: reset ? 1 : knowledgeStore.page + 1 })
 }
 
 onMounted(async () => {
+  knowledgeStore.hydrateRecentAiHitArticles()
+  syncLocalFiltersFromStore()
   await loadArticles(true)
 })
 
 onShow(async () => {
+  knowledgeStore.hydrateRecentAiHitArticles()
+  syncLocalFiltersFromStore()
   if (articles.value.length === 0) {
     await loadArticles(true)
   }
@@ -196,22 +479,52 @@ onShow(async () => {
 
 function handleSearch() {
   const keyword = searchText.value.trim()
-  knowledgeStore.setKeyword(keyword)
-  void knowledgeStore.fetchArticles({ reset: true, page: 1 })
+  activeScenarioKey.value = ''
+  void knowledgeStore.applyFilters({
+    keyword,
+    source: selectedSource.value,
+    stage: stageOptions[selectedStageIndex.value]?.value || null,
+  })
 }
 
 function handleSourceChange(source: string) {
   if (selectedSource.value === source) {
     return
   }
-  knowledgeStore.setSource(source)
+  activeScenarioKey.value = ''
+  void knowledgeStore.applyFilters({
+    keyword: searchText.value,
+    source,
+    stage: stageOptions[selectedStageIndex.value]?.value || null,
+  })
 }
 
 function onStageChange(e: { detail: { value: number } }) {
   const idx = e.detail.value
   selectedStageIndex.value = idx
   const stage = stageOptions[idx]
-  knowledgeStore.setStage(stage.value || null)
+  activeScenarioKey.value = ''
+  void knowledgeStore.applyFilters({
+    keyword: searchText.value,
+    source: selectedSource.value,
+    stage: stage.value || null,
+  })
+}
+
+function syncStageIndex(stageValue?: string | null) {
+  const nextIndex = stageOptions.findIndex(option => option.value === (stageValue || ''))
+  selectedStageIndex.value = nextIndex >= 0 ? nextIndex : 0
+}
+
+function applyScenario(option: typeof scenarioOptions[number]) {
+  activeScenarioKey.value = option.key
+  searchText.value = option.keyword
+  syncStageIndex(option.stage)
+  void knowledgeStore.applyFilters({
+    keyword: option.keyword,
+    source: 'all',
+    stage: option.stage,
+  })
 }
 
 function handleLoadMore() {
@@ -221,11 +534,171 @@ function handleLoadMore() {
   void loadArticles(false)
 }
 
+onReachBottom(() => {
+  handleLoadMore()
+})
+
 function resetFilters() {
   selectedStageIndex.value = 0
   searchText.value = ''
+  activeScenarioKey.value = ''
   knowledgeStore.reset()
   void knowledgeStore.fetchArticles({ reset: true, page: 1 })
+}
+
+function formatRecentHitTime(value?: string) {
+  if (!value) return '刚刚命中'
+
+  const diffMs = Date.now() - new Date(value).getTime()
+  if (Number.isNaN(diffMs) || diffMs < 0) return '刚刚命中'
+
+  const diffMinutes = Math.floor(diffMs / 60000)
+  if (diffMinutes < 1) return '刚刚命中'
+  if (diffMinutes < 60) return `${diffMinutes} 分钟前命中`
+
+  const diffHours = Math.floor(diffMinutes / 60)
+  if (diffHours < 24) return `${diffHours} 小时前命中`
+
+  const diffDays = Math.floor(diffHours / 24)
+  return `${diffDays} 天前命中`
+}
+
+function buildRecentAIHitTopics(items: RecentAIHitArticle[]): RecentAIHitTopic[] {
+  const topicMap = new Map<string, RecentAIHitTopic>()
+  items.forEach((item) => {
+    const displayName = (item.topic || '').trim()
+    if (!displayName) return
+
+    const key = displayName.toLowerCase()
+    const existing = topicMap.get(key)
+    if (existing) {
+      existing.count += 1
+      return
+    }
+
+    topicMap.set(key, {
+      topic: item.topic || displayName,
+      displayName,
+      count: 1,
+      sample: item,
+    })
+  })
+
+  return Array.from(topicMap.values())
+    .sort((left, right) => right.count - left.count || left.displayName.localeCompare(right.displayName, 'zh-CN'))
+    .slice(0, 4)
+}
+
+function buildRecentAIHitSources(items: RecentAIHitArticle[]): RecentAIHitSource[] {
+  const sourceMap = new Map<string, RecentAIHitSource>()
+  items.forEach((item) => {
+    const rawSource = (item.sourceOrg || item.source || '').trim()
+    const displayName = formatSourceLabel(rawSource)
+    if (!displayName) return
+
+    const key = displayName.toLowerCase()
+    const existing = sourceMap.get(key)
+    if (existing) {
+      existing.count += 1
+      return
+    }
+
+    sourceMap.set(key, {
+      source: rawSource || displayName,
+      displayName,
+      count: 1,
+      sample: item,
+    })
+  })
+
+  return Array.from(sourceMap.values())
+    .sort((left, right) => right.count - left.count || left.displayName.localeCompare(right.displayName, 'zh-CN'))
+    .slice(0, 4)
+}
+
+function handleOpenRecentAiHit(item: RecentAIHitArticle) {
+  trackMiniEvent('app_knowledge_recent_ai_hit_click', {
+    page: 'KnowledgePage',
+    properties: {
+      entrySource: item.originEntrySource || null,
+      articleSlug: item.slug,
+      articleId: item.articleId,
+      qaId: item.qaId || null,
+      trigger: item.trigger || null,
+      matchReason: item.matchReason || null,
+      reportId: item.originReportId || null,
+    },
+  })
+
+  const shouldWarmTranslation = item.sourceLanguage !== 'zh' && item.sourceLocale !== 'zh-CN' ? '1' : '0'
+  const params = [
+    `slug=${encodeURIComponent(item.slug)}`,
+    `translation=${shouldWarmTranslation}`,
+    'source=chat_hit',
+    `trigger=${encodeURIComponent(item.trigger || '')}`,
+    `matchReason=${encodeURIComponent(item.matchReason || '')}`,
+    `originEntrySource=${encodeURIComponent(item.originEntrySource || '')}`,
+    `originReportId=${encodeURIComponent(item.originReportId || '')}`,
+    `qaId=${encodeURIComponent(item.qaId || '')}`,
+  ].join('&')
+  uni.navigateTo({ url: `/pages/knowledge-detail/index?${params}` })
+}
+
+function handleOpenRecentAiTopic(item: RecentAIHitTopic) {
+  trackMiniEvent('app_knowledge_recent_ai_topic_click', {
+    page: 'KnowledgePage',
+    properties: {
+      topic: item.topic,
+      displayName: item.displayName,
+      hitCount: item.count,
+      entrySource: item.sample.originEntrySource || null,
+      articleSlug: item.sample.slug,
+      reportId: item.sample.originReportId || null,
+      qaId: item.sample.qaId || null,
+    },
+  })
+
+  activeScenarioKey.value = ''
+  searchText.value = item.displayName
+  void knowledgeStore.applyFilters({
+    keyword: item.displayName,
+    source: selectedSource.value,
+    stage: stageOptions[selectedStageIndex.value]?.value || null,
+  })
+}
+
+function handleOpenRecentAiSource(item: RecentAIHitSource) {
+  trackMiniEvent('app_knowledge_recent_ai_source_click', {
+    page: 'KnowledgePage',
+    properties: {
+      sourceOrg: item.source,
+      displayName: item.displayName,
+      hitCount: item.count,
+      entrySource: item.sample.originEntrySource || null,
+      articleSlug: item.sample.slug,
+      reportId: item.sample.originReportId || null,
+      qaId: item.sample.qaId || null,
+    },
+  })
+
+  activeScenarioKey.value = ''
+  searchText.value = item.source
+  void knowledgeStore.applyFilters({
+    keyword: item.source,
+    source: 'all',
+    stage: stageOptions[selectedStageIndex.value]?.value || null,
+  })
+}
+
+function applyStageGuide(item: StageGuideItem) {
+  activeScenarioKey.value = ''
+  searchText.value = item.keyword
+  syncStageIndex(item.stage)
+  void knowledgeStore.applyFilters({
+    keyword: item.keyword,
+    source: 'all',
+    stage: item.stage,
+  })
 }
 
 function goToDetail(article: Article) {
@@ -243,30 +716,6 @@ function getReadingHint(article: Article): string {
   }
 
   return '进入详情后会自动准备中文辅助阅读，适合先看摘要再决定是否打开机构原文。'
-}
-
-function formatDate(dateStr?: string): string {
-  if (!dateStr) return ''
-  const date = new Date(dateStr)
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
-}
-
-function formatSourceLabel(label?: string): string {
-  const value = (label || '').trim()
-  if (!value) return '权威来源'
-
-  const lower = value.toLowerCase()
-  if (/american academy of pediatrics|healthychildren\.org|\baap\b/.test(lower)) return 'AAP'
-  if (/mayo clinic|mayoclinic\.org/.test(lower)) return 'Mayo Clinic'
-  if (/msd manuals?|msdmanuals\.cn|merck manual/.test(lower)) return 'MSD Manuals'
-  if (/national health service|\bnhs\b|nhs\.uk/.test(lower)) return 'NHS'
-  if (/world health organization|\bwho\b|who\.int/.test(lower)) return 'WHO'
-  if (/centers? for disease control|\bcdc\b|cdc\.gov/.test(lower)) return 'CDC'
-  if (/american college of obstetricians and gynecologists|\bacog\b|acog\.org/.test(lower)) return 'ACOG'
-  return value
 }
 
 function normalizeArticleKeyPart(value?: string) {
@@ -365,6 +814,36 @@ onShareTimeline(() => {
   margin-top: 20rpx;
 }
 
+.reading-path {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12rpx;
+  margin-top: 22rpx;
+}
+
+.reading-path-item {
+  padding: 16rpx 14rpx;
+  border-radius: 22rpx;
+  background: rgba(255, 255, 255, 0.74);
+  box-shadow: 0 8rpx 24rpx rgba(31, 42, 55, 0.05);
+}
+
+.reading-path-index {
+  display: block;
+  font-size: 20rpx;
+  font-weight: 800;
+  color: #f36f45;
+}
+
+.reading-path-text {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 22rpx;
+  line-height: 1.45;
+  color: #3d4a58;
+  font-weight: 700;
+}
+
 .hero-pill {
   padding: 10rpx 18rpx;
   border-radius: 999rpx;
@@ -381,6 +860,83 @@ onShareTimeline(() => {
   display: flex;
   align-items: center;
   padding: 0 28rpx 24rpx;
+}
+
+.assistant-offline-card,
+.cold-start-card {
+  margin: 0 28rpx 24rpx;
+  padding: 24rpx;
+  border-radius: 24rpx;
+  background: rgba(255, 248, 240, 0.95);
+  border: 1rpx solid rgba(243, 111, 69, 0.12);
+}
+
+.assistant-offline-title,
+.cold-start-title {
+  display: block;
+  font-size: 28rpx;
+  line-height: 1.45;
+  font-weight: 800;
+  color: #24303d;
+}
+
+.assistant-offline-desc,
+.cold-start-desc {
+  display: block;
+  margin-top: 12rpx;
+  font-size: 23rpx;
+  line-height: 1.7;
+  color: #6d7887;
+}
+
+.stage-guide-panel {
+  padding: 0 28rpx 24rpx;
+}
+
+.stage-guide-badge {
+  flex-shrink: 0;
+  padding: 10rpx 18rpx;
+  border-radius: 999rpx;
+  background: rgba(47, 124, 246, 0.12);
+  font-size: 22rpx;
+  font-weight: 700;
+  color: #326ac8;
+}
+
+.stage-guide-grid {
+  display: grid;
+  gap: 16rpx;
+}
+
+.stage-guide-card {
+  padding: 22rpx;
+  border-radius: 24rpx;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 10rpx 28rpx rgba(31, 42, 55, 0.05);
+}
+
+.stage-guide-title {
+  display: block;
+  font-size: 27rpx;
+  font-weight: 800;
+  line-height: 1.45;
+  color: #24303d;
+}
+
+.stage-guide-desc {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 22rpx;
+  line-height: 1.65;
+  color: #6d7887;
+}
+
+.stage-guide-action {
+  display: block;
+  margin-top: 12rpx;
+  font-size: 22rpx;
+  font-weight: 700;
+  color: #1f8f74;
 }
 
 .search-input {
@@ -404,6 +960,191 @@ onShareTimeline(() => {
   font-size: 26rpx;
   color: #fff;
   font-weight: 600;
+}
+
+.recent-ai-section {
+  padding: 0 28rpx 24rpx;
+}
+
+.section-caption--block {
+  display: block;
+  margin-top: 6rpx;
+}
+
+.recent-ai-count {
+  flex-shrink: 0;
+  padding: 10rpx 18rpx;
+  border-radius: 999rpx;
+  background: rgba(31, 143, 116, 0.12);
+  font-size: 22rpx;
+  font-weight: 700;
+  color: #1c7a63;
+}
+
+.recent-ai-scroll {
+  white-space: nowrap;
+}
+
+.recent-ai-row {
+  display: inline-flex;
+  gap: 16rpx;
+  padding-right: 28rpx;
+}
+
+.recent-ai-card {
+  width: 252rpx;
+  min-height: 164rpx;
+  padding: 20rpx;
+  border-radius: 26rpx;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 10rpx 28rpx rgba(31, 42, 55, 0.05);
+  box-sizing: border-box;
+}
+
+.recent-ai-card-kicker {
+  display: block;
+  font-size: 21rpx;
+  font-weight: 700;
+  color: #1c7a63;
+}
+
+.recent-ai-card-title {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 26rpx;
+  line-height: 1.5;
+  font-weight: 700;
+  color: #24303d;
+}
+
+.recent-ai-card-meta,
+.recent-ai-card-topic {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 22rpx;
+  line-height: 1.45;
+  color: #6f7d8d;
+}
+
+.recent-ai-chip-panel {
+  margin-top: 18rpx;
+  padding: 18rpx;
+  border-radius: 24rpx;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.recent-ai-chip-row + .recent-ai-chip-row {
+  margin-top: 16rpx;
+}
+
+.recent-ai-chip-label {
+  display: block;
+  margin-bottom: 12rpx;
+  font-size: 22rpx;
+  font-weight: 700;
+  color: #7a8697;
+}
+
+.recent-ai-topic-chip,
+.recent-ai-source-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 10rpx;
+  margin-right: 12rpx;
+  margin-bottom: 12rpx;
+  padding: 12rpx 18rpx;
+  border-radius: 999rpx;
+}
+
+.recent-ai-topic-chip {
+  background: rgba(31, 143, 116, 0.1);
+}
+
+.recent-ai-source-chip {
+  background: rgba(243, 111, 69, 0.1);
+}
+
+.recent-ai-chip-name {
+  font-size: 23rpx;
+  font-weight: 700;
+  color: #324255;
+}
+
+.recent-ai-chip-count {
+  font-size: 21rpx;
+  color: #7a8697;
+}
+
+.scenario-panel {
+  padding: 0 28rpx 24rpx;
+}
+
+.section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 18rpx;
+  margin-bottom: 16rpx;
+}
+
+.section-title {
+  font-size: 28rpx;
+  font-weight: 800;
+  color: #24303d;
+}
+
+.section-caption {
+  flex-shrink: 0;
+  font-size: 22rpx;
+  color: #8a96a3;
+}
+
+.scenario-scroll {
+  white-space: nowrap;
+}
+
+.scenario-row {
+  display: inline-flex;
+  gap: 16rpx;
+  padding-right: 28rpx;
+}
+
+.scenario-card {
+  width: 220rpx;
+  min-height: 126rpx;
+  padding: 20rpx;
+  border-radius: 26rpx;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 10rpx 28rpx rgba(31, 42, 55, 0.05);
+  box-sizing: border-box;
+}
+
+.scenario-card--active {
+  background: linear-gradient(135deg, #1f8f74 0%, #15725d 100%);
+}
+
+.scenario-title {
+  display: block;
+  font-size: 27rpx;
+  font-weight: 800;
+  color: #263342;
+}
+
+.scenario-title--active {
+  color: #ffffff;
+}
+
+.scenario-desc {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 22rpx;
+  line-height: 1.45;
+  color: #687588;
+  white-space: normal;
+}
+
+.scenario-desc--active {
+  color: rgba(255, 255, 255, 0.82);
 }
 
 .filter-block {
@@ -452,6 +1193,43 @@ onShareTimeline(() => {
   align-items: center;
   justify-content: space-between;
   padding: 0 28rpx 20rpx;
+}
+
+.active-filter-card {
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+  margin: 0 28rpx 22rpx;
+  padding: 18rpx 20rpx;
+  border-radius: 24rpx;
+  background: rgba(47, 124, 246, 0.08);
+}
+
+.active-filter-label {
+  flex-shrink: 0;
+  font-size: 22rpx;
+  font-weight: 800;
+  color: #326ac8;
+}
+
+.active-filter-text {
+  flex: 1;
+  font-size: 23rpx;
+  line-height: 1.45;
+  color: #405269;
+}
+
+.active-filter-clear {
+  flex-shrink: 0;
+  padding: 8rpx 14rpx;
+  border-radius: 999rpx;
+  background: rgba(47, 124, 246, 0.12);
+}
+
+.active-filter-clear-text {
+  font-size: 22rpx;
+  font-weight: 700;
+  color: #326ac8;
 }
 
 .filter-picker {
@@ -535,14 +1313,14 @@ onShareTimeline(() => {
 }
 
 .source-badge {
-  display: block;
-  width: 100%;
+  display: inline-flex;
+  width: auto;
   box-sizing: border-box;
   white-space: normal;
   word-break: break-all;
   overflow-wrap: anywhere;
   line-height: 1.45;
-  border-radius: 20rpx;
+  border-radius: 999rpx;
   background: rgba(31, 143, 116, 0.12);
   color: #18755f;
 }

@@ -139,7 +139,8 @@ export const articleApi = {
       }
 
       if (attempt < maxAttempts - 1) {
-        await sleep(Math.max(1000, response.retryAfterMs || 2000))
+        const baseDelay = response.retryAfterMs || 2000
+        await sleep(Math.min(baseDelay * Math.pow(1.5, attempt), 10000))
       }
     }
 

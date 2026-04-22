@@ -65,21 +65,21 @@ export function useChatLogic() {
   }, [consumeAiQuota])
 
   const handleSend = useCallback(
-    (text: string) => {
+    (text: string, context?: string | Record<string, string | number | boolean | null>) => {
       const trimmed = text.trim()
       if (!trimmed || loading) return false
       if (!checkQuota()) return false
-      sendMessage(trimmed)
+      sendMessage(trimmed, context)
       return true
     },
     [checkQuota, loading, sendMessage],
   )
 
   const handleQuickQuestion = useCallback(
-    (question: string) => {
+    (question: string, context?: string | Record<string, string | number | boolean | null>) => {
       if (loading) return false
       if (!checkQuota()) return false
-      sendMessage(question)
+      sendMessage(question, context)
       return true
     },
     [checkQuota, loading, sendMessage],

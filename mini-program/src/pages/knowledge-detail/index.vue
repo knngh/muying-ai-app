@@ -37,6 +37,77 @@
         <text class="authority-callout-text">{{ authorityCalloutText }}</text>
       </view>
 
+      <view class="context-board">
+        <view class="context-card">
+          <text class="context-card-label">适用对象</text>
+          <text class="context-card-value">{{ article.audience || '母婴家庭通用参考' }}</text>
+        </view>
+        <view class="context-card">
+          <text class="context-card-label">当前重点</text>
+          <text class="context-card-value">{{ topicFocusLabel }}</text>
+        </view>
+      </view>
+
+      <view class="ai-assist-box">
+        <view class="ai-assist-head">
+          <view>
+            <text class="ai-assist-kicker">阅读助手</text>
+            <text class="ai-assist-title">先抓住这 3 个重点</text>
+          </view>
+          <text class="ai-assist-badge">{{ aiAssist.focusLabel }}</text>
+        </view>
+
+        <view class="ai-assist-grid">
+          <view class="ai-assist-chip">
+            <text class="ai-assist-chip-label">适合谁看</text>
+            <text class="ai-assist-chip-value">{{ aiAssist.audienceLabel }}</text>
+          </view>
+          <view class="ai-assist-chip">
+            <text class="ai-assist-chip-label">主题焦点</text>
+            <text class="ai-assist-chip-value">{{ aiAssist.focusLabel }}</text>
+          </view>
+        </view>
+
+        <view class="ai-assist-points">
+          <view
+            v-for="item in aiAssist.points"
+            :key="item"
+            class="ai-assist-point"
+          >
+            <text class="ai-assist-point-dot"></text>
+            <text class="ai-assist-point-text">{{ item }}</text>
+          </view>
+        </view>
+
+        <view v-if="aiAssist.terms.length" class="ai-terms-box">
+          <text class="ai-terms-title">术语解释</text>
+          <view
+            v-for="term in aiAssist.terms"
+            :key="term.term"
+            class="ai-term-item"
+          >
+            <text class="ai-term-name">{{ term.term }}</text>
+            <text class="ai-term-desc">{{ term.explanation }}</text>
+          </view>
+        </view>
+
+        <text class="ai-assist-note">{{ aiAssist.safetyNote }}</text>
+      </view>
+
+      <view class="pathway-box">
+        <text class="pathway-title">继续这样读更高效</text>
+        <view class="pathway-actions">
+          <view class="pathway-action" @tap="openTopicFeed">
+            <text class="pathway-action-title">看同主题资料</text>
+            <text class="pathway-action-desc">{{ topicFeedDescription }}</text>
+          </view>
+          <view class="pathway-action" @tap="openStageFeed">
+            <text class="pathway-action-title">按当前阶段继续筛</text>
+            <text class="pathway-action-desc">{{ stageFeedDescription }}</text>
+          </view>
+        </view>
+      </view>
+
       <view class="read-guide-box">
         <text class="read-guide-title">建议这样阅读</text>
         <text
@@ -86,6 +157,9 @@
 
       <view class="article-content">
         <text v-if="translationError" class="translation-error">{{ translationError }}</text>
+        <view v-if="isBodyFallback" class="body-fallback-notice">
+          <text class="body-fallback-notice-text">当前正文暂未同步，以下为摘要内容。</text>
+        </view>
         <rich-text :nodes="displayedContent" class="content-text" />
       </view>
 
@@ -128,9 +202,21 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { onLoad, onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app'
+import { articleApi, isTranslationPendingError } from '@/api/modules'
 import type { AuthorityArticleTranslation } from '@/api/modules'
+import type { Article } from '@/api/modules'
 import { useKnowledgeStore } from '@/stores/knowledge'
 import { getAuthorityRegionLabel, getAuthorityRegionTag, isChineseAuthoritySource } from '@/utils/authority-source'
+import { buildKnowledgeAiAssist } from '@/utils/ai-assist'
+import { trackMiniEvent } from '@/utils/analytics'
+import {
+  formatDate,
+  formatSourceLabel,
+  hasLeakedPrompt,
+  isGenericForeignTitle,
+  getLocalizedFallbackTitle,
+  isMostlyChineseText,
+} from '@/utils/knowledge-format'
 
 const knowledgeStore = useKnowledgeStore()
 let currentSlug = ''
@@ -160,29 +246,67 @@ const showingTranslation = ref(false)
 const shouldWarmTranslation = ref(false)
 const autoShowTranslation = ref(false)
 const continueReadingItems = ref<ContinueReadingItem[]>([])
+const relatedArticles = ref<Article[]>([])
+let openSourceType: '' | 'chat_hit' = ''
+let openAiHitContext: {
+  qaId?: string
+  trigger?: string
+  matchReason?: string
+  originEntrySource?: string
+  originReportId?: string
+} | null = null
 
-const displayedTitle = computed(() => (
-  showingTranslation.value && translation.value?.translatedTitle
-    ? translation.value.translatedTitle
-    : (article.value?.title || '')
-))
+const displayedTitle = computed(() => {
+  if (showingTranslation.value && translation.value?.translatedTitle) {
+    if (hasLeakedPrompt(translation.value.translatedTitle)) {
+      return article.value?.title || ''
+    }
+    return translation.value.translatedTitle
+  }
 
-const displayedSummary = computed(() => (
-  showingTranslation.value && translation.value?.translatedSummary
-    ? translation.value.translatedSummary
-    : (article.value?.summary || '')
-))
+  const rawTitle = article.value?.title || ''
+  if (isGenericForeignTitle(rawTitle)) {
+    return getLocalizedFallbackTitle(article.value?.topic, normalizedStageValue.value)
+  }
+  return rawTitle
+})
+
+const displayedSummary = computed(() => {
+  if (showingTranslation.value && translation.value?.translatedSummary) {
+    if (hasLeakedPrompt(translation.value.translatedSummary)) {
+      return article.value?.summary || ''
+    }
+    return translation.value.translatedSummary
+  }
+  return article.value?.summary || ''
+})
 
 const displayedSourceUrl = computed(() => sanitizeAuthoritySourceUrl(
   article.value?.sourceUrl,
   article.value?.sourceOrg || article.value?.source || '',
 ))
 
-const displayedContent = computed(() => (
-  showingTranslation.value && translation.value?.translatedContent
-    ? formatRichArticleContent(translation.value.translatedContent)
-    : formatRichArticleContent(article.value?.content || '')
-))
+const isBodyFallback = computed(() => {
+  const body = showingTranslation.value && translation.value?.translatedContent
+    ? translation.value.translatedContent
+    : (article.value?.content || '')
+  return !body.trim() && Boolean(article.value?.summary)
+})
+
+const displayedContent = computed(() => {
+  if (showingTranslation.value && translation.value?.translatedContent) {
+    if (hasLeakedPrompt(translation.value.translatedContent)) {
+      return formatRichArticleContent(article.value?.content || '')
+    }
+    return formatRichArticleContent(translation.value.translatedContent)
+  }
+
+  const body = article.value?.content || ''
+  if (!body.trim() && article.value?.summary) {
+    return formatRichArticleContent(article.value.summary)
+  }
+  return formatRichArticleContent(body)
+})
 
 const translationNoticeText = computed(() => (
   translation.value?.translationNotice || '以下内容由系统基于权威机构原文辅助翻译，仅用于阅读理解，不替代医疗建议。请以原始来源和线下医生意见为准。'
@@ -222,6 +346,7 @@ const translationDescriptionText = computed(() => {
 
 const authorityRegionLabel = computed(() => getAuthorityRegionLabel(article.value))
 const authorityRegionTag = computed(() => getAuthorityRegionTag(article.value))
+const aiAssist = computed(() => buildKnowledgeAiAssist(article.value))
 const authorityCalloutText = computed(() => {
   if (isChineseAuthoritySource(article.value)) {
     return '这篇内容来自中国权威机构公开资料，默认展示中文原文与同步时间。'
@@ -229,6 +354,48 @@ const authorityCalloutText = computed(() => {
 
   return '这篇内容来自国际权威机构公开资料，可切换中文辅助阅读并查看原文链接。'
 })
+
+const topicLabelMap: Record<string, string> = {
+  pregnancy: '孕期与产检',
+  postpartum: '产后恢复',
+  newborn: '新生儿护理',
+  feeding: '喂养与辅食',
+  vaccination: '疫苗与预防',
+  'common-symptoms': '常见症状判断',
+  development: '发育与日常照护',
+  policy: '政策与官方通知',
+  general: '综合资料',
+}
+
+const stageLabelMap: Record<string, string> = {
+  preparation: '备孕期',
+  'first-trimester': '孕早期',
+  'second-trimester': '孕中期',
+  'third-trimester': '孕晚期',
+  postpartum: '产后恢复',
+  newborn: '月子/新生儿',
+  '0-6-months': '0-6月',
+  '6-12-months': '6-12月',
+  '1-3-years': '1-3岁',
+  '3-years-plus': '3岁+',
+}
+
+const topicFocusLabel = computed(() => (
+  topicLabelMap[article.value?.topic || ''] || article.value?.topic || '当前条目重点'
+))
+
+const normalizedStageValue = computed(() => normalizeArticleStage(article.value))
+const stageLabel = computed(() => stageLabelMap[normalizedStageValue.value] || '')
+const topicFeedDescription = computed(() => (
+  article.value?.topic
+    ? `围绕${topicFocusLabel.value}继续连着读`
+    : '回到知识库看相近主题'
+))
+const stageFeedDescription = computed(() => (
+  stageLabel.value
+    ? `直接回到${stageLabel.value}的文章列表`
+    : '回到知识库按阶段缩小范围'
+))
 
 const detailHighlights = computed(() => {
   const highlights: string[] = []
@@ -262,33 +429,19 @@ onLoad((options) => {
     currentSlug = options.slug
     shouldWarmTranslation.value = options?.translation === '1'
     autoShowTranslation.value = options?.translation === '1'
+    openSourceType = options?.source === 'chat_hit' ? 'chat_hit' : ''
+    openAiHitContext = openSourceType === 'chat_hit'
+      ? {
+          qaId: typeof options?.qaId === 'string' ? options.qaId : undefined,
+          trigger: typeof options?.trigger === 'string' ? options.trigger : undefined,
+          matchReason: typeof options?.matchReason === 'string' ? options.matchReason : undefined,
+          originEntrySource: typeof options?.originEntrySource === 'string' ? options.originEntrySource : undefined,
+          originReportId: typeof options?.originReportId === 'string' ? options.originReportId : undefined,
+        }
+      : null
     void loadArticleDetail(options.slug)
   }
 })
-
-function formatDate(dateStr?: string): string {
-  if (!dateStr) return ''
-  const date = new Date(dateStr)
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
-}
-
-function formatSourceLabel(label?: string): string {
-  const value = (label || '').trim()
-  if (!value) return ''
-
-  const lower = value.toLowerCase()
-  if (/american academy of pediatrics|healthychildren\.org|\baap\b/.test(lower)) return 'AAP'
-  if (/mayo clinic|mayoclinic\.org/.test(lower)) return 'Mayo Clinic'
-  if (/msd manuals?|msdmanuals\.cn|merck manual/.test(lower)) return 'MSD Manuals'
-  if (/national health service|\bnhs\b|nhs\.uk/.test(lower)) return 'NHS'
-  if (/world health organization|\bwho\b|who\.int/.test(lower)) return 'WHO'
-  if (/centers? for disease control|\bcdc\b|cdc\.gov/.test(lower)) return 'CDC'
-  if (/american college of obstetricians and gynecologists|\bacog\b|acog\.org/.test(lower)) return 'ACOG'
-  return value
-}
 
 function retryLoad() {
   if (currentSlug) {
@@ -298,23 +451,6 @@ function retryLoad() {
 
 function stripHtmlTags(input: string): string {
   return input.replace(/<[^>]*>/g, ' ')
-}
-
-function isMostlyChineseText(input: string): boolean {
-  const text = input.replace(/\s+/g, '')
-  if (!text) return false
-
-  const chineseCount = (text.match(/[\u3400-\u4dbf\u4e00-\u9fff]/g) || []).length
-  const latinCount = (text.match(/[A-Za-z]/g) || []).length
-
-  if (chineseCount >= 24 && chineseCount >= latinCount) {
-    return true
-  }
-
-  const letterCount = chineseCount + latinCount
-  if (!letterCount) return false
-
-  return chineseCount / letterCount >= 0.45
 }
 
 function escapeHtml(input: string): string {
@@ -497,6 +633,10 @@ function openSource(url?: string) {
 }
 
 function normalizeTranslationError(err: unknown): string {
+  if (isTranslationPendingError(err)) {
+    return '中文辅助阅读正在准备中，请稍后自动刷新或再点一次'
+  }
+
   const message = err instanceof Error ? err.message : '翻译失败，请稍后重试'
   if (/timeout|超时|timed out/i.test(message)) {
     return '译文生成时间较长，请稍后再试'
@@ -539,6 +679,7 @@ async function loadArticleDetail(slug: string) {
   translating.value = false
   translationError.value = ''
   showingTranslation.value = Boolean(translation.value && !translation.value.isSourceChinese && autoShowTranslation.value)
+  relatedArticles.value = []
 
   const articleDetailTask = knowledgeStore.fetchArticleDetail(slug)
   if (shouldWarmTranslation.value && !translation.value) {
@@ -546,11 +687,40 @@ async function loadArticleDetail(slug: string) {
   }
 
   await articleDetailTask
+  await syncRelatedArticles()
   persistRecentKnowledge()
   syncContinueReading()
 
+  if (openSourceType === 'chat_hit' && article.value?.slug === slug) {
+    trackMiniEvent('app_knowledge_detail_ai_hit_open', {
+      page: 'KnowledgeDetailPage',
+      properties: {
+        entrySource: openAiHitContext?.originEntrySource || null,
+        articleSlug: article.value.slug,
+        reportId: openAiHitContext?.originReportId || null,
+        qaId: openAiHitContext?.qaId || null,
+        trigger: openAiHitContext?.trigger || null,
+        matchReason: openAiHitContext?.matchReason || null,
+      },
+    })
+    openSourceType = ''
+  }
+
   if (!translation.value && !isLikelyChineseSource.value) {
     void prefetchTranslation()
+  }
+}
+
+async function syncRelatedArticles() {
+  if (!article.value?.id) {
+    relatedArticles.value = []
+    return
+  }
+
+  try {
+    relatedArticles.value = await articleApi.getRelated(article.value.id, 4)
+  } catch {
+    relatedArticles.value = []
   }
 }
 
@@ -563,21 +733,38 @@ async function ensureTranslationLoaded(slug: string): Promise<AuthorityArticleTr
 }
 
 async function prefetchTranslation() {
+  const shouldWaitForReady = autoShowTranslation.value || shouldWarmTranslation.value
   if (
     !currentSlug
     || translation.value
-    || isLikelyChineseSource.value
+    || (isLikelyChineseSource.value && !shouldWaitForReady)
   ) {
     return
   }
 
+  if (shouldWaitForReady) {
+    translating.value = true
+    translationError.value = ''
+  }
+
   try {
-    const result = await ensureTranslationLoaded(currentSlug)
-    if (currentSlug === result.slug && autoShowTranslation.value && !result.isSourceChinese) {
+    const result = shouldWaitForReady
+      ? await knowledgeStore.fetchTranslation(currentSlug)
+      : await knowledgeStore.warmupTranslation(currentSlug)
+
+    if (result && currentSlug === result.slug && autoShowTranslation.value && !result.isSourceChinese) {
+      translation.value = result
       showingTranslation.value = true
     }
-  } catch {
+  } catch (err) {
+    if (!isTranslationPendingError(err)) {
+      translationError.value = normalizeTranslationError(err)
+    }
     return
+  } finally {
+    if (shouldWaitForReady) {
+      translating.value = false
+    }
   }
 }
 
@@ -612,6 +799,20 @@ function buildContinueReadingMeta(input: {
   ].filter(Boolean).join(' · ')
 }
 
+function normalizeArticleStage(target?: Article | null): string {
+  const stage = target?.stage || ''
+  if (stageLabelMap[stage]) {
+    return stage
+  }
+
+  const source = `${target?.audience || ''} ${target?.topic || ''}`.toLowerCase()
+  if (/备孕/.test(source)) return 'preparation'
+  if (/孕妇|孕期/.test(source)) return 'second-trimester'
+  if (/新生儿/.test(source)) return '0-6-months'
+  if (/婴幼儿|幼儿/.test(source)) return '1-3-years'
+  return ''
+}
+
 function syncContinueReading() {
   const currentArticle = article.value
   if (!currentArticle?.slug) {
@@ -620,6 +821,12 @@ function syncContinueReading() {
   }
 
   const currentRegionTag = getAuthorityRegionTag(currentArticle)
+  const relatedFromApi = relatedArticles.value.map(item => ({
+    slug: item.slug,
+    title: item.title,
+    meta: item.publishedAt ? `相关文章 · ${formatDate(item.publishedAt)}` : '相关文章',
+    shouldWarmTranslation: false,
+  }))
   const relatedFromStore = knowledgeStore.articles
     .filter(item => item.slug !== currentArticle.slug)
     .map((item) => {
@@ -656,7 +863,7 @@ function syncContinueReading() {
       shouldWarmTranslation: false,
     }))
 
-  const merged = [...relatedFromStore, ...fallbackRecent]
+  const merged = [...relatedFromStore, ...relatedFromApi, ...fallbackRecent]
   const uniqueItems: ContinueReadingItem[] = []
   merged.forEach((item) => {
     if (!item.slug || uniqueItems.some(existing => existing.slug === item.slug)) {
@@ -666,6 +873,28 @@ function syncContinueReading() {
   })
 
   continueReadingItems.value = uniqueItems.slice(0, 3)
+}
+
+function openTopicFeed() {
+  const keyword = article.value?.topic
+    ? topicFocusLabel.value
+    : article.value?.title || ''
+
+  void knowledgeStore.applyFilters({
+    keyword,
+    source: 'all',
+    stage: normalizedStageValue.value || null,
+  })
+  uni.switchTab({ url: '/pages/knowledge/index' })
+}
+
+function openStageFeed() {
+  void knowledgeStore.applyFilters({
+    keyword: '',
+    source: 'all',
+    stage: normalizedStageValue.value || null,
+  })
+  uni.switchTab({ url: '/pages/knowledge/index' })
 }
 
 function openContinueReading(slug: string) {
@@ -750,6 +979,8 @@ onShareTimeline(() => {
 
 .article-header,
 .authority-callout,
+.context-board,
+.pathway-box,
 .read-guide-box,
 .summary-box,
 .source-box,
@@ -777,14 +1008,14 @@ onShareTimeline(() => {
 }
 
 .badge-source {
-  display: block;
-  width: 100%;
+  display: inline-flex;
+  width: auto;
   box-sizing: border-box;
   white-space: normal;
   word-break: break-all;
   overflow-wrap: anywhere;
   line-height: 1.45;
-  border-radius: 20rpx;
+  border-radius: 999rpx;
   background: rgba(31, 143, 116, 0.12);
   color: #18755f;
 }
@@ -858,6 +1089,69 @@ onShareTimeline(() => {
   color: #526072;
 }
 
+.context-board {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16rpx;
+}
+
+.context-card {
+  padding: 22rpx 24rpx;
+  border-radius: 24rpx;
+  background: #f7f9fc;
+}
+
+.context-card-label {
+  display: block;
+  font-size: 22rpx;
+  color: #7a8697;
+}
+
+.context-card-value {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 27rpx;
+  line-height: 1.5;
+  font-weight: 700;
+  color: #24303d;
+}
+
+.pathway-title {
+  display: block;
+  font-size: 28rpx;
+  font-weight: 700;
+  color: #24303d;
+}
+
+.pathway-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16rpx;
+  margin-top: 18rpx;
+}
+
+.pathway-action {
+  min-height: 148rpx;
+  padding: 22rpx;
+  border-radius: 24rpx;
+  background: linear-gradient(145deg, #f8fbff 0%, #eef5ff 100%);
+}
+
+.pathway-action-title {
+  display: block;
+  font-size: 26rpx;
+  font-weight: 800;
+  color: #26415c;
+}
+
+.pathway-action-desc {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 22rpx;
+  line-height: 1.55;
+  color: #61758a;
+}
+
 .read-guide-title {
   display: block;
   font-size: 24rpx;
@@ -871,6 +1165,152 @@ onShareTimeline(() => {
   font-size: 25rpx;
   line-height: 1.7;
   color: #5d6b7b;
+}
+
+.ai-assist-box {
+  margin-bottom: 24rpx;
+  padding: 28rpx;
+  border-radius: 28rpx;
+  background: linear-gradient(135deg, #fff7f2 0%, #fffdf9 100%);
+  box-shadow: 0 14rpx 32rpx rgba(214, 130, 76, 0.1);
+}
+
+.ai-assist-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18rpx;
+}
+
+.ai-assist-kicker {
+  display: block;
+  font-size: 22rpx;
+  font-weight: 700;
+  letter-spacing: 2rpx;
+  color: #c56e46;
+}
+
+.ai-assist-title {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 32rpx;
+  font-weight: 800;
+  color: #24303d;
+}
+
+.ai-assist-badge {
+  flex-shrink: 0;
+  padding: 12rpx 18rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.88);
+  font-size: 22rpx;
+  font-weight: 700;
+  color: #b25d35;
+}
+
+.ai-assist-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14rpx;
+  margin-top: 22rpx;
+}
+
+.ai-assist-chip {
+  padding: 18rpx 20rpx;
+  border-radius: 20rpx;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.ai-assist-chip-label {
+  display: block;
+  font-size: 22rpx;
+  color: #8b7f77;
+}
+
+.ai-assist-chip-value {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 25rpx;
+  line-height: 1.5;
+  font-weight: 700;
+  color: #33404d;
+}
+
+.ai-assist-points {
+  margin-top: 22rpx;
+}
+
+.ai-assist-point {
+  display: flex;
+  align-items: flex-start;
+  gap: 14rpx;
+}
+
+.ai-assist-point + .ai-assist-point {
+  margin-top: 14rpx;
+}
+
+.ai-assist-point-dot {
+  width: 12rpx;
+  height: 12rpx;
+  margin-top: 12rpx;
+  border-radius: 50%;
+  background: #ef7a54;
+  flex-shrink: 0;
+}
+
+.ai-assist-point-text {
+  flex: 1;
+  font-size: 25rpx;
+  line-height: 1.72;
+  color: #4b5968;
+}
+
+.ai-terms-box {
+  margin-top: 24rpx;
+  padding-top: 22rpx;
+  border-top: 2rpx solid rgba(232, 206, 189, 0.6);
+}
+
+.ai-terms-title {
+  display: block;
+  font-size: 24rpx;
+  font-weight: 700;
+  color: #24303d;
+}
+
+.ai-term-item + .ai-term-item {
+  margin-top: 14rpx;
+}
+
+.ai-term-item {
+  margin-top: 16rpx;
+  padding: 18rpx 20rpx;
+  border-radius: 20rpx;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.ai-term-name {
+  display: block;
+  font-size: 24rpx;
+  font-weight: 700;
+  color: #d36d43;
+}
+
+.ai-term-desc {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 24rpx;
+  line-height: 1.7;
+  color: #617181;
+}
+
+.ai-assist-note {
+  display: block;
+  margin-top: 22rpx;
+  font-size: 22rpx;
+  line-height: 1.7;
+  color: #7d6c61;
 }
 
 .summary-label,
@@ -1046,6 +1486,19 @@ onShareTimeline(() => {
   margin-bottom: 16rpx;
   color: #d84b4b;
   font-size: 24rpx;
+}
+
+.body-fallback-notice {
+  margin-bottom: 20rpx;
+  padding: 18rpx 22rpx;
+  border-radius: 20rpx;
+  background: rgba(47, 124, 246, 0.08);
+}
+
+.body-fallback-notice-text {
+  font-size: 24rpx;
+  line-height: 1.6;
+  color: #326ac8;
 }
 
 .share-bar {

@@ -1,10 +1,15 @@
 import { defineStore } from 'pinia'
 import { articleApi } from '@/api/modules'
+import { isTranslationPendingError } from '@/api/modules'
 import type { Article, AuthorityArticleTranslation, PaginatedResponse } from '@/api/modules'
 import { getAuthorityRegionPriority } from '@/utils/authority-source'
 
 const TRANSLATION_CACHE_STORAGE_KEY = 'knowledgeTranslationCache'
+const RECENT_AI_HIT_ARTICLES_KEY = 'knowledgeRecentAiHitArticles'
 const MAX_PERSISTED_TRANSLATIONS = 12
+const RECENT_AI_HIT_ARTICLE_LIMIT = 6
+const RECENT_AI_HIT_RETENTION_DAYS = 14
+const RECENT_AI_HIT_MAX_FUTURE_SKEW_MS = 6 * 60 * 60 * 1000
 const translationInFlight = new Map<string, Promise<AuthorityArticleTranslation>>()
 
 function loadPersistedTranslations() {
@@ -30,6 +35,28 @@ function loadPersistedTranslations() {
 }
 
 const persistedTranslations = loadPersistedTranslations()
+
+export interface RecentAIHitArticle {
+  slug: string
+  articleId: number
+  title: string
+  summary: string
+  source?: string
+  sourceOrg?: string
+  sourceLanguage?: 'zh' | 'en'
+  sourceLocale?: string
+  topic?: string
+  stage?: string
+  publishedAt?: string
+  sourceUpdatedAt?: string
+  createdAt: string
+  lastHitAt: string
+  qaId?: string
+  trigger?: 'hit_card' | 'knowledge_action'
+  matchReason?: 'entry_meta' | 'source_url' | 'source_title' | 'source_keyword'
+  originEntrySource?: string
+  originReportId?: string
+}
 
 function getArticleTimestamp(article: Article): number {
   const value = article.publishedAt || article.createdAt
@@ -100,11 +127,16 @@ function normalizeKnowledgeTitleKey(article: Article): string {
 }
 
 function buildKnowledgeDedupeKeys(article: Article): string[] {
-  const keys = [article.slug].filter(Boolean)
-  const sourceKey = normalizeKnowledgeSourceKey(article)
-  const titleKey = normalizeKnowledgeTitleKey(article)
+  const keys = [
+    article.slug,
+    article.sourceUrl,
+    article.originalId ? String(article.originalId) : '',
+  ].filter(Boolean) as string[]
 
-  if (sourceKey && titleKey && titleKey.length >= 8) {
+  // Title + source dedup for non-generic titles (matches backend logic)
+  const titleKey = normalizeKnowledgeTitleKey(article)
+  const sourceKey = normalizeKnowledgeSourceKey(article)
+  if (titleKey && sourceKey && !isGenericKnowledgeTitleKey(titleKey)) {
     keys.push(`title:${sourceKey}:${titleKey}`)
   }
 
@@ -201,14 +233,14 @@ function dedupeKnowledgeArticles(list: Article[]): Article[] {
 
 function sortKnowledgeArticles(list: Article[]): Article[] {
   return [...dedupeKnowledgeArticles(list)].sort((left, right) => {
-    const qualityDiff = getKnowledgeArticleQualityScore(right) - getKnowledgeArticleQualityScore(left)
-    if (qualityDiff !== 0) {
-      return qualityDiff
-    }
-
     const sourceDiff = getSourcePriority(left) - getSourcePriority(right)
     if (sourceDiff !== 0) {
       return sourceDiff
+    }
+
+    const qualityDiff = getKnowledgeArticleQualityScore(right) - getKnowledgeArticleQualityScore(left)
+    if (qualityDiff !== 0) {
+      return qualityDiff
     }
 
     const dateBucketDiff = getArticleDateBucket(right).localeCompare(getArticleDateBucket(left))
@@ -220,6 +252,86 @@ function sortKnowledgeArticles(list: Article[]): Article[] {
   })
 }
 
+function toRecentAIHitArticle(
+  article: Article | RecentAIHitArticle,
+  input?: {
+    qaId?: string
+    trigger?: 'hit_card' | 'knowledge_action'
+    matchReason?: 'entry_meta' | 'source_url' | 'source_title' | 'source_keyword'
+    originEntrySource?: string
+    originReportId?: string
+  },
+): RecentAIHitArticle {
+  return {
+    slug: article.slug,
+    articleId: 'articleId' in article ? article.articleId : article.id,
+    title: article.title,
+    summary: article.summary,
+    source: article.source,
+    sourceOrg: article.sourceOrg,
+    sourceLanguage: article.sourceLanguage,
+    sourceLocale: article.sourceLocale,
+    topic: article.topic,
+    stage: article.stage,
+    publishedAt: article.publishedAt,
+    sourceUpdatedAt: article.sourceUpdatedAt,
+    createdAt: article.createdAt,
+    lastHitAt: new Date().toISOString(),
+    qaId: input?.qaId,
+    trigger: input?.trigger,
+    matchReason: input?.matchReason,
+    originEntrySource: input?.originEntrySource,
+    originReportId: input?.originReportId,
+  }
+}
+
+function isValidRecentAIHitTimestamp(value?: string, now = Date.now()) {
+  if (!value) return false
+
+  const timestamp = new Date(value).getTime()
+  if (Number.isNaN(timestamp)) return false
+
+  const maxAgeMs = RECENT_AI_HIT_RETENTION_DAYS * 24 * 60 * 60 * 1000
+  if (timestamp < now - maxAgeMs) return false
+  if (timestamp > now + RECENT_AI_HIT_MAX_FUTURE_SKEW_MS) return false
+  return true
+}
+
+function sanitizeRecentAIHitArticles(items: RecentAIHitArticle[], now = Date.now()) {
+  const deduped = new Map<string, RecentAIHitArticle>()
+
+  items.forEach((item) => {
+    const slug = item.slug?.trim()
+    const title = item.title?.replace(/\s+/g, ' ').trim()
+    if (!slug || !title || title.length < 4 || !Number.isFinite(item.articleId) || item.articleId <= 0) {
+      return
+    }
+
+    if (!isValidRecentAIHitTimestamp(item.lastHitAt, now)) {
+      return
+    }
+
+    const nextItem: RecentAIHitArticle = {
+      ...item,
+      slug,
+      title,
+      summary: item.summary?.replace(/\s+/g, ' ').trim() || '',
+      source: item.source?.replace(/\s+/g, ' ').trim() || undefined,
+      sourceOrg: item.sourceOrg?.replace(/\s+/g, ' ').trim() || undefined,
+      topic: item.topic?.replace(/\s+/g, ' ').trim() || undefined,
+    }
+
+    const existing = deduped.get(slug)
+    if (!existing || nextItem.lastHitAt > existing.lastHitAt) {
+      deduped.set(slug, nextItem)
+    }
+  })
+
+  return Array.from(deduped.values())
+    .sort((left, right) => right.lastHitAt.localeCompare(left.lastHitAt))
+    .slice(0, RECENT_AI_HIT_ARTICLE_LIMIT)
+}
+
 export const useKnowledgeStore = defineStore('knowledge', {
   state: () => ({
     articles: [] as Article[],
@@ -227,6 +339,8 @@ export const useKnowledgeStore = defineStore('knowledge', {
     translationCache: persistedTranslations.cache,
     translationCacheOrder: persistedTranslations.order,
     translationFailed: {} as Record<string, boolean>,
+    recentAiHitArticles: [] as RecentAIHitArticle[],
+    recentAiHitArticlesLoaded: false,
     total: 0,
     page: 1,
     pageSize: 10,
@@ -266,8 +380,14 @@ export const useKnowledgeStore = defineStore('knowledge', {
           keyword: this.keyword || undefined,
         }) as PaginatedResponse<Article>
 
-        const nextArticles = params?.reset ? response.list : [...this.articles, ...response.list]
-        this.articles = sortKnowledgeArticles(nextArticles)
+        if (params?.reset) {
+          this.articles = sortKnowledgeArticles(response.list)
+        } else {
+          // Append pages: only dedupe by slug, skip full re-sort
+          const existingSlugs = new Set(this.articles.map((a) => a.slug))
+          const newItems = response.list.filter((a) => !existingSlugs.has(a.slug))
+          this.articles = [...this.articles, ...newItems]
+        }
         this.total = response.pagination.total
         this.page = response.pagination.page
       } catch (error: unknown) {
@@ -310,7 +430,9 @@ export const useKnowledgeStore = defineStore('knowledge', {
         this.cacheTranslation(slug, translation)
         return translation
       } catch (error) {
-        this.markTranslationFailed(slug)
+        if (!isTranslationPendingError(error)) {
+          this.markTranslationFailed(slug)
+        }
         throw error
       } finally {
         if (translationInFlight.get(slug) === request) {
@@ -319,7 +441,27 @@ export const useKnowledgeStore = defineStore('knowledge', {
       }
     },
 
-    async prefetchTranslations(candidates: Article[], limit = 6) {
+    async warmupTranslation(slug: string) {
+      if (this.translationCache[slug]) {
+        return this.translationCache[slug]
+      }
+
+      try {
+        const translation = await articleApi.kickoffTranslation(slug)
+        if (translation) {
+          this.cacheTranslation(slug, translation)
+          return translation
+        }
+      } catch (error) {
+        if (!isTranslationPendingError(error)) {
+          this.markTranslationFailed(slug)
+        }
+      }
+
+      return null
+    },
+
+    async prefetchTranslations(candidates: Article[], limit = 3) {
       const queue = candidates
         .filter((item) => item.contentType === 'authority')
         .filter((item) => item.sourceLanguage !== 'zh' && item.sourceLocale !== 'zh-CN')
@@ -332,11 +474,7 @@ export const useKnowledgeStore = defineStore('knowledge', {
       }
 
       await Promise.all(queue.map(async (item) => {
-        try {
-          await this.fetchTranslation(item.slug)
-        } catch (_error) {
-          return
-        }
+        await this.warmupTranslation(item.slug)
       }))
     },
 
@@ -366,6 +504,46 @@ export const useKnowledgeStore = defineStore('knowledge', {
       }
     },
 
+    hydrateRecentAiHitArticles() {
+      if (this.recentAiHitArticlesLoaded) {
+        return
+      }
+
+      try {
+        const stored = uni.getStorageSync(RECENT_AI_HIT_ARTICLES_KEY) as RecentAIHitArticle[] | null
+        const nextList = sanitizeRecentAIHitArticles(Array.isArray(stored) ? stored : [])
+        this.recentAiHitArticles = nextList
+        this.recentAiHitArticlesLoaded = true
+        uni.setStorageSync(RECENT_AI_HIT_ARTICLES_KEY, nextList)
+      } catch {
+        this.recentAiHitArticles = []
+        this.recentAiHitArticlesLoaded = true
+      }
+    },
+
+    recordAiHitArticle(article: Article | RecentAIHitArticle, input?: {
+      qaId?: string
+      trigger?: 'hit_card' | 'knowledge_action'
+      matchReason?: 'entry_meta' | 'source_url' | 'source_title' | 'source_keyword'
+      originEntrySource?: string
+      originReportId?: string
+    }) {
+      const nextHit = toRecentAIHitArticle(article, input)
+      const nextList = sanitizeRecentAIHitArticles([
+        nextHit,
+        ...this.recentAiHitArticles.filter(item => item.slug !== nextHit.slug),
+      ])
+
+      this.recentAiHitArticles = nextList
+      this.recentAiHitArticlesLoaded = true
+
+      try {
+        uni.setStorageSync(RECENT_AI_HIT_ARTICLES_KEY, nextList)
+      } catch {
+        // 本地缓存失败不影响主流程。
+      }
+    },
+
     setSource(source: string) {
       this.selectedSource = source
       this.page = 1
@@ -380,6 +558,18 @@ export const useKnowledgeStore = defineStore('knowledge', {
 
     setKeyword(keyword: string) {
       this.keyword = keyword
+    },
+
+    async applyFilters(filters: {
+      keyword?: string
+      source?: string
+      stage?: string | null
+    }) {
+      this.keyword = filters.keyword?.trim() || ''
+      this.selectedSource = filters.source || 'all'
+      this.selectedStage = filters.stage || null
+      this.page = 1
+      await this.fetchArticles({ page: 1, reset: true })
     },
 
     async search(keyword: string) {

@@ -22,14 +22,42 @@ import type { StackNavigationProp } from '@react-navigation/stack'
 import type { RootStackParamList } from '../navigation/AppNavigator'
 import { ScreenContainer } from '../components/layout'
 import type { ApiError } from '../api'
+import { trackAppEvent } from '../services/analytics'
 import { useAppStore } from '../stores/appStore'
-import { useKnowledgeStore } from '../stores/knowledgeStore'
+import { useKnowledgeStore, type RecentAIHitArticle } from '../stores/knowledgeStore'
+import { buildKnowledgeDetailChatContext } from '../utils/aiEntryContext'
+import { buildKnowledgeDetailQuestion } from '../utils/aiEntryPrompts'
 import { getStageSummary, type LifecycleStageKey } from '../utils/stage'
 import { KNOWLEDGE_STAGE_OPTIONS } from '../utils/knowledgeStage'
 import { colors, spacing, fontSize, categoryColors, borderRadius } from '../theme'
 import { articleApi, type Article, type AuthorityArticleTranslation } from '../api/modules'
 
 type KnowledgeNavProp = StackNavigationProp<RootStackParamList>
+
+type RecentAIHitTopic = {
+  topic: string
+  displayName: string
+  count: number
+  latestHitAt: string
+  sampleSlug: string
+  sampleQaId?: string
+  originEntrySource?: string
+  originReportId?: string
+}
+
+type RecentAIHitSource = {
+  source: string
+  displayName: string
+  query: string
+  count: number
+  latestHitAt: string
+  sampleSlug: string
+  sampleQaId?: string
+  originEntrySource?: string
+  originReportId?: string
+}
+
+const RECENT_AI_HIT_SIGNAL_WINDOW_HOURS = 48
 
 const stageOptions = KNOWLEDGE_STAGE_OPTIONS
 
@@ -88,13 +116,13 @@ function normalizeKnowledgeLabel(label?: string) {
   if (!value) return ''
 
   const lower = value.toLowerCase()
-  if (/american academy of pediatrics|healthychildren\.org|\baap\b/.test(lower)) return 'AAP'
-  if (/mayo clinic|mayoclinic\.org/.test(lower)) return 'Mayo Clinic'
-  if (/msd manuals?|msdmanuals\.cn|merck manual/.test(lower)) return 'MSD Manuals'
-  if (/national health service|\bnhs\b|nhs\.uk/.test(lower)) return 'NHS'
-  if (/world health organization|\bwho\b|who\.int/.test(lower)) return 'WHO'
-  if (/centers? for disease control|\bcdc\b|cdc\.gov/.test(lower)) return 'CDC'
-  if (/american college of obstetricians and gynecologists|\bacog\b|acog\.org/.test(lower)) return 'ACOG'
+  if (/american academy of pediatrics|healthychildren\.org|\baap\b/.test(lower)) return '美国儿科学会'
+  if (/mayo clinic|mayoclinic\.org/.test(lower)) return '梅奥诊所'
+  if (/msd manuals?|msdmanuals\.cn|merck manual/.test(lower)) return 'MSD 诊疗手册'
+  if (/national health service|\bnhs\b|nhs\.uk/.test(lower)) return '英国国民保健署'
+  if (/world health organization|\bwho\b|who\.int/.test(lower)) return '世界卫生组织'
+  if (/centers? for disease control|\bcdc\b|cdc\.gov/.test(lower)) return '美国疾控中心'
+  if (/american college of obstetricians and gynecologists|\bacog\b|acog\.org/.test(lower)) return '美国妇产科医师学会'
   const mapped = {
     pregnancy: '孕期',
     policy: '指南/政策',
@@ -111,12 +139,18 @@ function normalizeKnowledgeLabel(label?: string) {
 }
 
 function isSourceLikeKnowledgeTag(label: string) {
-  const normalized = normalizeKnowledgeLabel(label).toLowerCase()
+  const normalized = normalizeKnowledgeLabel(label)
   if (!normalized) return false
 
-  return /^(aap|acog|cdc|who|nhs|mayo clinic|msd manuals)$/i.test(normalized)
-    || /healthychildren|mayoclinic|msdmanuals|who\.int|cdc\.gov|nhs\.uk|acog\.org/i.test(normalized)
-    || /american academy of pediatrics|american college of obstetricians and gynecologists|world health organization|national health service|centers? for disease control/i.test(normalized)
+  const knownOrgs = new Set([
+    '美国儿科学会', '梅奥诊所', 'MSD 诊疗手册', '英国国民保健署',
+    '世界卫生组织', '美国疾控中心', '美国妇产科医师学会',
+  ])
+  if (knownOrgs.has(normalized)) return true
+
+  const lower = normalized.toLowerCase()
+  return /healthychildren|mayoclinic|msdmanuals|who\.int|cdc\.gov|nhs\.uk|acog\.org/i.test(lower)
+    || /american academy of pediatrics|american college of obstetricians and gynecologists|world health organization|national health service|centers? for disease control/i.test(lower)
 }
 
 function shouldHideAuthorityCategoryChip(article: Article) {
@@ -190,6 +224,136 @@ function getLocalizedFallbackTitle(article: Article) {
   return `${primary}参考`
 }
 
+function formatRecentHitTime(value?: string) {
+  if (!value) return '刚刚命中'
+
+  const diffMs = Date.now() - new Date(value).getTime()
+  if (Number.isNaN(diffMs) || diffMs < 0) return '刚刚命中'
+
+  const diffMinutes = Math.floor(diffMs / 60000)
+  if (diffMinutes < 1) return '刚刚命中'
+  if (diffMinutes < 60) return `${diffMinutes} 分钟前命中`
+
+  const diffHours = Math.floor(diffMinutes / 60)
+  if (diffHours < 24) return `${diffHours} 小时前命中`
+
+  const diffDays = Math.floor(diffHours / 24)
+  return `${diffDays} 天前命中`
+}
+
+function formatRecentHitReason(hit: RecentAIHitArticle) {
+  if (hit.matchReason === 'entry_meta') return '沿用会话上下文'
+  if (hit.matchReason === 'source_url') return '按来源链接命中'
+  if (hit.matchReason === 'source_title') return '按来源标题命中'
+  return '按主题关键词命中'
+}
+
+function shouldKeepRecentHitSignal(count: number, latestHitAt: string) {
+  if (count >= 2) {
+    return true
+  }
+
+  const timestamp = new Date(latestHitAt).getTime()
+  if (Number.isNaN(timestamp)) {
+    return false
+  }
+
+  const maxAgeMs = RECENT_AI_HIT_SIGNAL_WINDOW_HOURS * 60 * 60 * 1000
+  return Date.now() - timestamp <= maxAgeMs
+}
+
+function buildRecentAIHitTopics(items: RecentAIHitArticle[]): RecentAIHitTopic[] {
+  const topicMap = new Map<string, RecentAIHitTopic>()
+
+  for (const item of items) {
+    const displayName = normalizeKnowledgeLabel(item.topic)
+    if (!displayName) {
+      continue
+    }
+
+    const key = displayName.toLowerCase()
+    const existing = topicMap.get(key)
+    if (!existing) {
+      topicMap.set(key, {
+        topic: item.topic || displayName,
+        displayName,
+        count: 1,
+        latestHitAt: item.lastHitAt,
+        sampleSlug: item.slug,
+        sampleQaId: item.qaId,
+        originEntrySource: item.originEntrySource,
+        originReportId: item.originReportId,
+      })
+      continue
+    }
+
+    existing.count += 1
+    if (item.lastHitAt > existing.latestHitAt) {
+      existing.latestHitAt = item.lastHitAt
+      existing.sampleSlug = item.slug
+      existing.sampleQaId = item.qaId
+      existing.originEntrySource = item.originEntrySource
+      existing.originReportId = item.originReportId
+    }
+  }
+
+  return Array.from(topicMap.values())
+    .filter((item) => shouldKeepRecentHitSignal(item.count, item.latestHitAt))
+    .sort((left, right) => right.count - left.count || right.latestHitAt.localeCompare(left.latestHitAt))
+    .slice(0, 5)
+}
+
+function buildRecentAIHitSources(items: RecentAIHitArticle[]): RecentAIHitSource[] {
+  const sourceMap = new Map<string, RecentAIHitSource>()
+
+  for (const item of items) {
+    const rawSource = (item.sourceOrg || item.source || '').trim()
+    const displayName = normalizeKnowledgeLabel(rawSource)
+    if (!displayName) {
+      continue
+    }
+
+    const key = displayName.toLowerCase()
+    const existing = sourceMap.get(key)
+    if (!existing) {
+      sourceMap.set(key, {
+        source: rawSource,
+        displayName,
+        query: rawSource || displayName,
+        count: 1,
+        latestHitAt: item.lastHitAt,
+        sampleSlug: item.slug,
+        sampleQaId: item.qaId,
+        originEntrySource: item.originEntrySource,
+        originReportId: item.originReportId,
+      })
+      continue
+    }
+
+    existing.count += 1
+    if (item.lastHitAt > existing.latestHitAt) {
+      existing.latestHitAt = item.lastHitAt
+      existing.sampleSlug = item.slug
+      existing.sampleQaId = item.qaId
+      existing.originEntrySource = item.originEntrySource
+      existing.originReportId = item.originReportId
+    }
+  }
+
+  return Array.from(sourceMap.values())
+    .filter((item) => shouldKeepRecentHitSignal(item.count, item.latestHitAt))
+    .sort((left, right) => right.count - left.count || right.latestHitAt.localeCompare(left.latestHitAt))
+    .slice(0, 5)
+}
+
+function buildRecentTopicQuestion(topic: string, stageLabel: string) {
+  return `最近问题助手多次命中“${topic}”这个主题。请结合我当前的${stageLabel}阶段，帮我梳理这个主题最值得关注的点，以及接下来可以怎么安排？`
+}
+
+function buildRecentSourceQuestion(source: string, stageLabel: string) {
+  return `最近问题助手多次引用${source}相关的权威内容。请结合我当前的${stageLabel}阶段，帮我总结这个来源下最值得优先看的主题，以及我接下来该关注什么？`
+}
+
 export default function KnowledgeScreen() {
   const navigation = useNavigation<KnowledgeNavProp>()
   const user = useAppStore((state) => state.user)
@@ -208,6 +372,8 @@ export default function KnowledgeScreen() {
     articles,
     categories,
     tags,
+    recentAiHitArticles,
+    hydrateRecentAiHitArticles,
     total,
     page,
     pageSize,
@@ -233,7 +399,8 @@ export default function KnowledgeScreen() {
   useEffect(() => {
     void fetchCategories()
     void fetchTags()
-  }, [fetchCategories, fetchTags])
+    void hydrateRecentAiHitArticles()
+  }, [fetchCategories, fetchTags, hydrateRecentAiHitArticles])
 
   useEffect(() => {
     const initialStage = lifecycleStageMap[stageSummary.lifecycleKey] || null
@@ -303,6 +470,14 @@ export default function KnowledgeScreen() {
     : hasHttpError
       ? `服务已响应，但返回了 ${resolvedErrorDetail?.status || '--'} 状态。${error || ''}`
       : error || ''
+  const recentAiHitTopics = useMemo(
+    () => buildRecentAIHitTopics(recentAiHitArticles),
+    [recentAiHitArticles],
+  )
+  const recentAiHitSources = useMemo(
+    () => buildRecentAIHitSources(recentAiHitArticles),
+    [recentAiHitArticles],
+  )
 
   const handleSearch = useCallback(() => {
     if (keyword.trim()) {
@@ -327,6 +502,182 @@ export default function KnowledgeScreen() {
     setKeyword(value)
     void search(value)
   }, [search, setKeyword])
+
+  const handleOpenRecentAiHit = useCallback((item: RecentAIHitArticle) => {
+    void trackAppEvent('app_knowledge_recent_ai_hit_click', {
+      page: 'KnowledgeScreen',
+      properties: {
+        slug: item.slug,
+        articleId: item.articleId,
+        qaId: item.qaId || null,
+        trigger: item.trigger || null,
+        matchReason: item.matchReason || null,
+        entrySource: item.originEntrySource || null,
+        articleSlug: item.slug,
+        reportId: item.originReportId || null,
+      },
+    })
+
+    navigation.navigate('KnowledgeDetail', {
+      slug: item.slug,
+      source: 'chat_hit',
+      aiContext: {
+        qaId: item.qaId,
+        trigger: item.trigger,
+        matchReason: item.matchReason,
+        originEntrySource: item.originEntrySource,
+        originReportId: item.originReportId,
+      },
+    })
+  }, [navigation])
+
+  const handleOpenRecentAiTopic = useCallback((item: RecentAIHitTopic) => {
+    void trackAppEvent('app_knowledge_recent_ai_topic_click', {
+      page: 'KnowledgeScreen',
+      properties: {
+        topic: item.topic,
+        displayName: item.displayName,
+        hitCount: item.count,
+        sampleSlug: item.sampleSlug,
+        qaId: item.sampleQaId || null,
+        entrySource: item.originEntrySource || null,
+        reportId: item.originReportId || null,
+      },
+    })
+
+    setKeyword(item.displayName)
+    void search(item.displayName)
+  }, [search, setKeyword])
+
+  const handleOpenRecentAiSource = useCallback((item: RecentAIHitSource) => {
+    void trackAppEvent('app_knowledge_recent_ai_source_click', {
+      page: 'KnowledgeScreen',
+      properties: {
+        sourceOrg: item.source,
+        displayName: item.displayName,
+        query: item.query,
+        hitCount: item.count,
+        sampleSlug: item.sampleSlug,
+        qaId: item.sampleQaId || null,
+        entrySource: item.originEntrySource || null,
+        reportId: item.originReportId || null,
+      },
+    })
+
+    setKeyword(item.query)
+    void search(item.query)
+  }, [search, setKeyword])
+
+  const handleAskRecentAiArticle = useCallback((item: RecentAIHitArticle) => {
+    const title = item.title || '这篇权威内容'
+    const sourceOrg = item.sourceOrg || item.source || ''
+    const summary = item.summary || ''
+    const question = buildKnowledgeDetailQuestion({
+      title,
+      summary,
+      sourceOrg,
+      topic: item.topic,
+    })
+
+    void trackAppEvent('app_knowledge_recent_ai_ask_click', {
+      page: 'KnowledgeScreen',
+      properties: {
+        targetType: 'article',
+        slug: item.slug,
+        articleId: item.articleId,
+        qaId: item.qaId || null,
+        entrySource: item.originEntrySource || null,
+        articleSlug: item.slug,
+        reportId: item.originReportId || null,
+      },
+    })
+
+    navigation.navigate('Main', {
+      screen: 'Chat',
+      params: {
+        prefillQuestion: question,
+        prefillContext: {
+          ...buildKnowledgeDetailChatContext({
+            slug: item.slug,
+            title,
+            summary,
+            sourceOrg,
+            topic: item.topic,
+            stageKey: stageSummary.lifecycleKey,
+          }),
+          entrySource: 'knowledge_recent_ai',
+        },
+        autoSend: true,
+        source: 'knowledge_recent_ai',
+      },
+    })
+  }, [navigation, stageSummary.lifecycleKey])
+
+  const handleAskRecentAiTopic = useCallback((item: RecentAIHitTopic) => {
+    const question = buildRecentTopicQuestion(item.displayName, stageSummary.lifecycleLabel)
+
+    void trackAppEvent('app_knowledge_recent_ai_ask_click', {
+      page: 'KnowledgeScreen',
+      properties: {
+        targetType: 'topic',
+        topic: item.topic,
+        displayName: item.displayName,
+        qaId: item.sampleQaId || null,
+        entrySource: item.originEntrySource || null,
+        articleSlug: item.sampleSlug,
+        reportId: item.originReportId || null,
+      },
+    })
+
+    navigation.navigate('Main', {
+      screen: 'Chat',
+      params: {
+        prefillQuestion: question,
+        prefillContext: {
+          entrySource: 'knowledge_recent_ai',
+          stage: stageSummary.lifecycleKey,
+          articleSlug: item.sampleSlug,
+          articleTopic: item.displayName,
+          reportId: item.originReportId || null,
+        },
+        autoSend: true,
+        source: 'knowledge_recent_ai',
+      },
+    })
+  }, [navigation, stageSummary.lifecycleKey, stageSummary.lifecycleLabel])
+
+  const handleAskRecentAiSource = useCallback((item: RecentAIHitSource) => {
+    const question = buildRecentSourceQuestion(item.displayName, stageSummary.lifecycleLabel)
+
+    void trackAppEvent('app_knowledge_recent_ai_ask_click', {
+      page: 'KnowledgeScreen',
+      properties: {
+        targetType: 'source',
+        sourceOrg: item.source,
+        displayName: item.displayName,
+        qaId: item.sampleQaId || null,
+        entrySource: item.originEntrySource || null,
+        articleSlug: item.sampleSlug,
+        reportId: item.originReportId || null,
+      },
+    })
+
+    navigation.navigate('Main', {
+      screen: 'Chat',
+      params: {
+        prefillQuestion: question,
+        prefillContext: {
+          entrySource: 'knowledge_recent_ai',
+          stage: stageSummary.lifecycleKey,
+          articleSlug: item.sampleSlug,
+          articleSourceOrg: item.displayName,
+          reportId: item.originReportId || null,
+        },
+        autoSend: true,
+        source: 'knowledge_recent_ai',
+      },
+    })
+  }, [navigation, stageSummary.lifecycleKey, stageSummary.lifecycleLabel])
 
   const renderArticleItem = ({ item }: { item: Article }) => {
     const catColor = item.category
@@ -435,6 +786,121 @@ export default function KnowledgeScreen() {
 
   const renderHeader = () => (
     <View>
+      {recentAiHitArticles.length > 0 ? (
+        <View style={styles.recentAiHitSection}>
+          <View style={styles.recentAiHitHeader}>
+            <View>
+              <Text style={styles.recentAiHitEyebrow}>AI 命中回看</Text>
+              <Text style={styles.recentAiHitTitle}>最近由问题助手命中的权威文章</Text>
+            </View>
+            <Chip compact style={styles.recentAiHitBadge} textStyle={styles.recentAiHitBadgeText}>
+              {recentAiHitArticles.length} 篇
+            </Chip>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.recentAiHitRow}>
+            {recentAiHitArticles.slice(0, 5).map((item) => (
+              <TouchableOpacity
+                key={`recent-ai-hit-${item.slug}`}
+                activeOpacity={0.88}
+                style={styles.recentAiHitCard}
+                onPress={() => handleOpenRecentAiHit(item)}
+              >
+                <Text style={styles.recentAiHitCardEyebrow}>{formatRecentHitTime(item.lastHitAt)}</Text>
+                <Text style={styles.recentAiHitCardTitle} numberOfLines={2}>{item.title}</Text>
+                <Text style={styles.recentAiHitCardMeta} numberOfLines={1}>
+                  {normalizeKnowledgeLabel(item.sourceOrg || item.source) || '权威机构'}
+                </Text>
+                <View style={styles.recentAiHitCardFooter}>
+                  <Chip compact style={styles.recentAiHitReasonChip} textStyle={styles.recentAiHitReasonChipText}>
+                    {formatRecentHitReason(item)}
+                  </Chip>
+                  {item.topic ? (
+                    <Text style={styles.recentAiHitTopic} numberOfLines={1}>{normalizeKnowledgeLabel(item.topic)}</Text>
+                  ) : null}
+                </View>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+          <View style={styles.recentAiAskRow}>
+            {recentAiHitArticles[0] ? (
+              <Button
+                mode="contained-tonal"
+                compact
+                icon="message-question-outline"
+                buttonColor="rgba(54,92,104,0.14)"
+                textColor={colors.techDark}
+                style={styles.recentAiAskButton}
+                onPress={() => handleAskRecentAiArticle(recentAiHitArticles[0])}
+              >
+                围绕最近文章问 AI
+              </Button>
+            ) : null}
+            {recentAiHitTopics[0] ? (
+              <Button
+                mode="contained-tonal"
+                compact
+                icon="message-question-outline"
+                buttonColor="rgba(197,108,71,0.12)"
+                textColor={colors.primaryDark}
+                style={styles.recentAiAskButton}
+                onPress={() => handleAskRecentAiTopic(recentAiHitTopics[0])}
+              >
+                围绕最近主题问 AI
+              </Button>
+            ) : null}
+            {recentAiHitSources[0] ? (
+              <Button
+                mode="contained-tonal"
+                compact
+                icon="message-question-outline"
+                buttonColor="rgba(184,138,72,0.14)"
+                textColor={colors.gold}
+                style={styles.recentAiAskButton}
+                onPress={() => handleAskRecentAiSource(recentAiHitSources[0])}
+              >
+                围绕最近机构问 AI
+              </Button>
+            ) : null}
+          </View>
+          {recentAiHitTopics.length > 0 ? (
+            <View style={styles.recentAiTopicBox}>
+              <Text style={styles.recentAiTopicTitle}>按命中主题继续看</Text>
+              <View style={styles.recentAiTopicRow}>
+                {recentAiHitTopics.map((item) => (
+                  <TouchableOpacity
+                    key={`recent-ai-topic-${item.displayName}`}
+                    activeOpacity={0.88}
+                    style={styles.recentAiTopicChip}
+                    onPress={() => handleOpenRecentAiTopic(item)}
+                  >
+                    <Text style={styles.recentAiTopicName}>{item.displayName}</Text>
+                    <Text style={styles.recentAiTopicCount}>{item.count} 次命中</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          ) : null}
+          {recentAiHitSources.length > 0 ? (
+            <View style={styles.recentAiSourceBox}>
+              <Text style={styles.recentAiTopicTitle}>按权威机构继续看</Text>
+              <View style={styles.recentAiTopicRow}>
+                {recentAiHitSources.map((item) => (
+                  <TouchableOpacity
+                    key={`recent-ai-source-${item.displayName}`}
+                    activeOpacity={0.88}
+                    style={styles.recentAiSourceChip}
+                    onPress={() => handleOpenRecentAiSource(item)}
+                  >
+                    <Text style={styles.recentAiSourceName}>{item.displayName}</Text>
+                    <Text style={styles.recentAiTopicCount}>{item.count} 次引用</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
+
       <LinearGradient
         colors={['rgba(248,227,214,0.96)', 'rgba(241,209,191,0.92)', 'rgba(250,244,238,0.98)']}
         start={{ x: 0, y: 0 }}
@@ -790,10 +1256,163 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   filterPanel: {
+    marginTop: spacing.xs,
     marginBottom: spacing.md,
     borderRadius: borderRadius.xl,
     padding: spacing.md,
     overflow: 'hidden',
+  },
+  recentAiHitSection: {
+    marginBottom: spacing.md,
+  },
+  recentAiHitHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  recentAiHitEyebrow: {
+    color: colors.techDark,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+  },
+  recentAiHitTitle: {
+    marginTop: 2,
+    color: colors.text,
+    fontSize: fontSize.lg,
+    fontWeight: '700',
+  },
+  recentAiHitBadge: {
+    backgroundColor: 'rgba(220,236,238,0.82)',
+  },
+  recentAiHitBadgeText: {
+    color: colors.techDark,
+    fontSize: fontSize.xs,
+    fontWeight: '700',
+  },
+  recentAiHitRow: {
+    gap: spacing.sm,
+    paddingRight: spacing.sm,
+  },
+  recentAiAskRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  recentAiAskButton: {
+    borderRadius: borderRadius.pill,
+  },
+  recentAiHitCard: {
+    width: 248,
+    padding: spacing.md,
+    borderRadius: borderRadius.xl,
+    backgroundColor: 'rgba(247, 251, 251, 0.94)',
+    borderWidth: 1,
+    borderColor: 'rgba(94,126,134,0.16)',
+    shadowColor: colors.inkSoft,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    gap: spacing.xs,
+  },
+  recentAiHitCardEyebrow: {
+    color: colors.techDark,
+    fontSize: fontSize.xs,
+    fontWeight: '700',
+  },
+  recentAiHitCardTitle: {
+    color: colors.ink,
+    fontSize: fontSize.md,
+    fontWeight: '700',
+    lineHeight: 22,
+    minHeight: 44,
+  },
+  recentAiHitCardMeta: {
+    color: colors.textSecondary,
+    fontSize: fontSize.sm,
+  },
+  recentAiHitCardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  recentAiHitReasonChip: {
+    backgroundColor: 'rgba(255, 249, 243, 0.94)',
+  },
+  recentAiHitReasonChipText: {
+    color: colors.primaryDark,
+    fontSize: fontSize.xs,
+    fontWeight: '700',
+  },
+  recentAiHitTopic: {
+    flex: 1,
+    minWidth: 0,
+    textAlign: 'right',
+    color: colors.textLight,
+    fontSize: fontSize.xs,
+  },
+  recentAiTopicBox: {
+    marginTop: spacing.sm,
+    padding: spacing.sm,
+    borderRadius: borderRadius.lg,
+    backgroundColor: 'rgba(255, 249, 243, 0.86)',
+    borderWidth: 1,
+    borderColor: 'rgba(184,138,72,0.12)',
+  },
+  recentAiSourceBox: {
+    marginTop: spacing.sm,
+    padding: spacing.sm,
+    borderRadius: borderRadius.lg,
+    backgroundColor: 'rgba(247, 251, 251, 0.9)',
+    borderWidth: 1,
+    borderColor: 'rgba(94,126,134,0.14)',
+  },
+  recentAiTopicTitle: {
+    color: colors.textSecondary,
+    fontSize: fontSize.sm,
+    fontWeight: '700',
+    marginBottom: spacing.xs,
+  },
+  recentAiTopicRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+  },
+  recentAiTopicChip: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 8,
+    borderRadius: borderRadius.pill,
+    backgroundColor: 'rgba(220,236,238,0.78)',
+    borderWidth: 1,
+    borderColor: 'rgba(94,126,134,0.14)',
+  },
+  recentAiSourceChip: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 8,
+    borderRadius: borderRadius.pill,
+    backgroundColor: 'rgba(255, 249, 243, 0.94)',
+    borderWidth: 1,
+    borderColor: 'rgba(184,138,72,0.14)',
+  },
+  recentAiTopicName: {
+    color: colors.techDark,
+    fontSize: fontSize.sm,
+    fontWeight: '800',
+  },
+  recentAiSourceName: {
+    color: colors.primaryDark,
+    fontSize: fontSize.sm,
+    fontWeight: '800',
+  },
+  recentAiTopicCount: {
+    color: colors.textSecondary,
+    fontSize: 10,
+    marginTop: 2,
   },
   filterGlow: {
     position: 'absolute',

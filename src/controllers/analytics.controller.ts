@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from 'express';
 import { successResponse } from '../middlewares/error.middleware';
-import { getAnalyticsFunnel, recordAnalyticsEvent } from '../services/analytics.service';
+import { getAIOverview, getAnalyticsFunnel, recordAnalyticsEvent } from '../services/analytics.service';
 
 export async function createAnalyticsEvent(req: Request, res: Response, next: NextFunction) {
   try {
@@ -23,6 +23,15 @@ export async function createAnalyticsEvent(req: Request, res: Response, next: Ne
 export async function getAnalyticsFunnelController(req: Request, res: Response, next: NextFunction) {
   try {
     const data = await getAnalyticsFunnel(req.query.rangeDays as unknown as number);
+    res.json(successResponse(data));
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function getAIOverviewController(req: Request, res: Response, next: NextFunction) {
+  try {
+    const data = await getAIOverview(req.query.rangeDays as unknown as number);
     res.json(successResponse(data));
   } catch (error) {
     next(error);

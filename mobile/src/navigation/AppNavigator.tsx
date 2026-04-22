@@ -58,7 +58,17 @@ export type GrowthArchiveEntrySource =
 export type RootStackParamList = {
   Login: undefined;
   Main: NavigatorScreenParams<TabParamList> | undefined;
-  KnowledgeDetail: { slug: string };
+  KnowledgeDetail: {
+    slug: string;
+    source?: "chat_hit";
+    aiContext?: {
+      qaId?: string;
+      trigger?: "hit_card" | "knowledge_action";
+      matchReason?: "entry_meta" | "source_url" | "source_title" | "source_keyword";
+      originEntrySource?: string;
+      originReportId?: string;
+    };
+  };
   PostDetail: { id: number };
   Calendar:
     | {
@@ -92,8 +102,9 @@ export type TabParamList = {
   Chat:
     | {
         prefillQuestion?: string;
+        prefillContext?: Record<string, string | number | boolean | null>;
         autoSend?: boolean;
-        source?: "weekly_report" | "home_suggested_question";
+        source?: "weekly_report" | "home_suggested_question" | "knowledge_detail" | "knowledge_recent_ai";
       }
     | undefined;
   Knowledge: undefined;

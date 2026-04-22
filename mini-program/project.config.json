@@ -1,4 +1,9 @@
 {
+  "description": "uni-app 微信小程序源码目录，DevTools 实际读取编译产物。",
+  "appid": "wx77c66576e02a48dc",
+  "projectname": "贝护妈妈",
+  "miniprogramRoot": "dist/build/mp-weixin",
+  "srcMiniprogramRoot": "",
   "setting": {
     "es6": true,
     "postcss": true,
@@ -20,6 +25,5 @@
     "ignore": [],
     "include": []
   },
-  "appid": "wx77c66576e02a48dc",
   "editorSetting": {}
 }

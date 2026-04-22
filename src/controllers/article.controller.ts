@@ -228,6 +228,12 @@ function isAuthorityRecordLowValue(record: Pick<AuthorityCacheRecord, 'question'
   const title = normalizeAuthorityText(record.question || '');
   const rawSummary = normalizeAuthorityText(record.summary || '');
   const rawAnswer = normalizeAuthorityText(record.answer || '');
+
+  // Completely empty records have no value
+  if (!rawAnswer && !rawSummary) {
+    return true;
+  }
+
   if (!rawAnswer) {
     return false;
   }
@@ -238,6 +244,13 @@ function isAuthorityRecordLowValue(record: Pick<AuthorityCacheRecord, 'question'
   const cleanedWithoutTitle = title
     ? cleanedAnswer.replace(title, '').trim()
     : cleanedAnswer;
+  const cleanedSummary = stripAuthorityPageChrome(rawSummary);
+
+  // Too short content + summary → low value
+  if (cleanedWithoutTitle.length < 80 && cleanedSummary.length < 20) {
+    return true;
+  }
+
   const looksLikeAttachmentNotice = /附件[:：]|\.(?:zip|pdf|docx?|xlsx?)(?:\s|$)|海报\d+/iu.test(cleanedAnswer);
   const sentenceCount = countMatches(cleanedWithoutTitle, /[。！？.!?]/g);
 
@@ -403,6 +416,14 @@ function normalizeAuthorityCacheRecord(record: AuthorityCacheRecord): AuthorityC
     normalizedSummary = cleanedSummary;
   }
 
+  // Auto-generate summary from content when missing or too short
+  if ((!normalizedSummary || normalizedSummary.length < 20) && normalizedAnswer) {
+    const sentenceMatch = normalizedAnswer.match(/^(.{20,180}?[。！？.!?])/u);
+    if (sentenceMatch) {
+      normalizedSummary = sentenceMatch[1];
+    }
+  }
+
   return {
     ...record,
     question: normalizedQuestion || record.question,
@@ -514,11 +535,31 @@ function getCachedAuthorityTranslation(
   return null;
 }
 
+function isInvalidAuthoritySourceUrl(record: Pick<AuthorityCacheRecord, 'source_url'>): boolean {
+  const url = (record.source_url || '').trim();
+  if (!url) {
+    return false;
+  }
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return true;
+    }
+    if (!parsed.hostname.includes('.')) {
+      return true;
+    }
+    return false;
+  } catch {
+    return true;
+  }
+}
+
 async function getAuthorityRecords(): Promise<AuthorityCacheRecord[]> {
   const cacheRecords = loadAuthorityCacheRecords();
   if (cacheRecords.length > 0) {
     return cacheRecords
       .filter((record) => !shouldFilterAuthoritySourceUrl(record))
+      .filter((record) => !isInvalidAuthoritySourceUrl(record))
       .filter((record) => !isAuthorityRecordLowValue(record));
   }
 
@@ -560,6 +601,7 @@ async function getAuthorityRecords(): Promise<AuthorityCacheRecord[]> {
   return rows
     .map((row) => mapAuthorityDbRowToRecord(row))
     .filter((record) => !shouldFilterAuthoritySourceUrl(record))
+    .filter((record) => !isInvalidAuthoritySourceUrl(record))
     .filter((record) => !isAuthorityRecordLowValue(record));
 }
 
@@ -726,10 +768,18 @@ function extractTranslationPayload(
     };
   }
 
+  // Strip common AI preamble / prompt residue before using raw content
+  const strippedRaw = normalizedAnswer
+    .replace(/^(?:好的[，,]?|以下是|这是|下面是)[^\n]{0,40}(?:翻译|译文|中文版)[：:。.]?\s*/u, '')
+    .replace(/^translated_title:.*\n?/im, '')
+    .replace(/^translated_summary:.*\n?/im, '')
+    .replace(/^translated_content:?\s*/im, '')
+    .trim();
+
   return {
     translatedTitle: sourceTitle,
     translatedSummary: sourceSummary,
-    translatedContent: normalizedAnswer,
+    translatedContent: strippedRaw || normalizedAnswer,
     parseMode: 'raw',
   };
 }
@@ -792,8 +842,11 @@ async function translateAuthorityRecord(slug: string, record: AuthorityCacheReco
     },
   ];
 
+  const leakedPromptPattern = /<translated_(title|summary|content)>|Be accurate and faithful to the original|不要输出任何额外说明|输出必须严格使用以下标签/i;
+
   let lastError: unknown;
   let result: Awaited<ReturnType<typeof callTaskModelDetailed>> | null = null;
+  let parsedTranslation: ReturnType<typeof extractTranslationPayload> | null = null;
 
   for (const taskRole of AUTHORITY_TRANSLATION_TASK_ROLES) {
     try {
@@ -801,32 +854,40 @@ async function translateAuthorityRecord(slug: string, record: AuthorityCacheReco
         temperature: 0.2,
         maxTokens: AUTHORITY_TRANSLATION_MAX_TOKENS,
       });
-      break;
     } catch (error) {
       lastError = error;
       console.error(`[Authority Translation] Task failed for ${slug} via ${taskRole}:`, error);
+      continue;
     }
+
+    const parsed = extractTranslationPayload(result.answer, sourceTitle, sourceSummary);
+    const title = parsed.translatedTitle || sourceTitle;
+    const summary = parsed.translatedSummary || sourceSummary;
+    const content = parsed.translatedContent;
+
+    if (!content) {
+      lastError = new Error('翻译结果解析失败');
+      console.error(`[Authority Translation] Empty translation for ${slug} via ${taskRole}`);
+      continue;
+    }
+
+    if (leakedPromptPattern.test(title) || leakedPromptPattern.test(summary) || leakedPromptPattern.test(content)) {
+      lastError = new Error('翻译结果包含提示词模板，已丢弃');
+      console.error(`[Authority Translation] Prompt leak detected for ${slug} via ${taskRole}, trying next model`);
+      continue;
+    }
+
+    parsedTranslation = parsed;
+    break;
   }
 
-  if (!result) {
+  if (!result || !parsedTranslation) {
     throw lastError instanceof Error ? lastError : new Error('翻译服务暂时不可用');
   }
 
-  const parsedTranslation = extractTranslationPayload(result.answer, sourceTitle, sourceSummary);
   const translatedTitle = parsedTranslation.translatedTitle || sourceTitle;
   const translatedSummary = parsedTranslation.translatedSummary || sourceSummary;
   const translatedContent = parsedTranslation.translatedContent;
-
-  if (!translatedContent) {
-    throw new Error('翻译结果解析失败');
-  }
-
-  // Guard: detect leaked prompt template fragments in translation output
-  const leakedPromptPattern = /<translated_(title|summary|content)>|Be accurate and faithful to the original|不要输出任何额外说明|输出必须严格使用以下标签/i;
-  if (leakedPromptPattern.test(translatedTitle) || leakedPromptPattern.test(translatedSummary) || leakedPromptPattern.test(translatedContent)) {
-    console.error(`[Authority Translation] Prompt leak detected for ${slug}, discarding result`);
-    throw new Error('翻译结果包含提示词模板，已丢弃');
-  }
 
   const payload: AuthorityTranslationCacheRecord = {
     slug,
@@ -1487,12 +1548,23 @@ export const getArticles = async (req: Request, res: Response, next: NextFunctio
       const currentPageSize = Number(pageSize);
       const skip = (currentPage - 1) * currentPageSize;
 
-      // Cache unfiltered first page of authority articles
+      // Cache authority articles — unfiltered first page uses MEDIUM TTL, filtered uses SHORT TTL
       const isAuthorityFirstPage = currentPage === 1 && !category && !tag && !stage && !difficulty && !keyword && !source;
+      const filterParamsKey = [category, tag, stage, difficulty, keyword, source, sort, page, pageSize]
+        .map((v) => String(v ?? ''))
+        .join(':');
+      const filteredCacheKey = CacheKeys.ARTICLES_AUTHORITY_FILTERED(filterParamsKey);
+
       if (isAuthorityFirstPage) {
         const cached = cache.get<any>(CacheKeys.ARTICLES_AUTHORITY);
         if (cached) {
           console.log(`[Cache] Hit: ${CacheKeys.ARTICLES_AUTHORITY}`);
+          return res.json(cached);
+        }
+      } else {
+        const cached = cache.get<any>(filteredCacheKey);
+        if (cached) {
+          console.log(`[Cache] Hit: ${filteredCacheKey}`);
           return res.json(cached);
         }
       }
@@ -1550,6 +1622,8 @@ export const getArticles = async (req: Request, res: Response, next: NextFunctio
 
       if (isAuthorityFirstPage) {
         cache.set(CacheKeys.ARTICLES_AUTHORITY, authorityResponse, CacheTTL.MEDIUM);
+      } else {
+        cache.set(filteredCacheKey, authorityResponse, CacheTTL.SHORT);
       }
 
       return res.json(authorityResponse);
@@ -1828,8 +1902,9 @@ export const getAuthorityArticleTranslation = async (req: Request, res: Response
     }
 
     prewarmAuthorityTranslation(slug, authorityRecord);
+    const retryAfterMs = authorityTranslationInFlight.has(slug) ? 3000 : 5000;
     res.json(successResponse(buildAuthorityTranslationResponse('processing', {
-      retryAfterMs: 1500,
+      retryAfterMs,
     })));
   } catch (error) {
     next(error);

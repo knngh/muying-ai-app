@@ -1,19 +1,23 @@
 import api from './index'
-import type { AIMessage, AskResponse, ChatResponse, ChatSession, SourceReference } from '../../../shared/types'
+import type { AIActionCard, AIEntryMeta, AIMessage, AskResponse, ChatResponse, ChatSession, SourceReference } from '../../../shared/types'
 
-export type { AIMessage, AskResponse, ChatResponse, ChatSession, SourceReference }
+export type { AIActionCard, AIEntryMeta, AIMessage, AskResponse, ChatResponse, ChatSession, SourceReference }
+
+type ChatContext = string | Record<string, string | number | boolean | null>
 
 export const aiApi = {
-  ask: async (data: { question: string; context?: string; model?: string; clientRequestId?: string }) => {
+  ask: async (data: { question: string; context?: ChatContext; model?: string; clientRequestId?: string }) => {
     const res = await api.post<{
       answer: string
       sources?: AskResponse['sources']
+      actionCards?: AskResponse['actionCards']
       isEmergency: boolean
       disclaimer: string
       conversationId?: string
       triageCategory?: AskResponse['triageCategory']
       riskLevel?: AskResponse['riskLevel']
       structuredAnswer?: AskResponse['structuredAnswer']
+      followUpQuestions?: AskResponse['followUpQuestions']
       uncertainty?: AskResponse['uncertainty']
       sourceReliability?: AskResponse['sourceReliability']
       degraded?: AskResponse['degraded']
@@ -30,12 +34,14 @@ export const aiApi = {
     return {
       answer: res.answer,
       sources: res.sources || [],
+      actionCards: res.actionCards || [],
       isEmergency: res.isEmergency,
       conversationId: res.conversationId,
       disclaimer: res.disclaimer,
       triageCategory: res.triageCategory,
       riskLevel: res.riskLevel,
       structuredAnswer: res.structuredAnswer,
+      followUpQuestions: res.followUpQuestions || [],
       uncertainty: res.uncertainty,
       sourceReliability: res.sourceReliability,
       degraded: res.degraded,
@@ -47,19 +53,21 @@ export const aiApi = {
   chat: async (data: {
     messages: Array<{ role: string; content: string }>
     conversationId?: string
-    context?: string
+    context?: ChatContext
     model?: string
     clientRequestId?: string
   }) => {
     const res = await api.post<{
       message?: { content?: string }
       sources?: ChatResponse['sources']
+      actionCards?: ChatResponse['actionCards']
       isEmergency: boolean
       disclaimer: string
       conversationId?: string
       triageCategory?: ChatResponse['triageCategory']
       riskLevel?: ChatResponse['riskLevel']
       structuredAnswer?: ChatResponse['structuredAnswer']
+      followUpQuestions?: ChatResponse['followUpQuestions']
       uncertainty?: ChatResponse['uncertainty']
       sourceReliability?: ChatResponse['sourceReliability']
       degraded?: ChatResponse['degraded']
@@ -71,12 +79,14 @@ export const aiApi = {
     return {
       response: res.message?.content || '',
       sources: res.sources || [],
+      actionCards: res.actionCards || [],
       isEmergency: res.isEmergency,
       conversationId: res.conversationId,
       disclaimer: res.disclaimer,
       triageCategory: res.triageCategory,
       riskLevel: res.riskLevel,
       structuredAnswer: res.structuredAnswer,
+      followUpQuestions: res.followUpQuestions || [],
       uncertainty: res.uncertainty,
       sourceReliability: res.sourceReliability,
       degraded: res.degraded,
@@ -94,6 +104,26 @@ export const aiApi = {
   },
   deleteConversation: async (conversationId: string) => {
     await api.delete(`/ai/conversations/${conversationId}`)
+  },
+  submitFeedback: async (data: {
+    qaId: string
+    feedback: 'helpful' | 'not_helpful' | 'wrong'
+    comment?: string
+    messageId?: string
+    conversationId?: string
+    reason?: 'missing_sources' | 'too_generic' | 'incorrect' | 'unsafe' | 'not_actionable' | 'other'
+    actionTaken?: 'none' | 'added_to_calendar' | 'opened_knowledge' | 'opened_archive' | 'went_to_hospital'
+    triageCategory?: AskResponse['triageCategory']
+    riskLevel?: AskResponse['riskLevel']
+    sourceReliability?: AskResponse['sourceReliability']
+    route?: string
+    provider?: string
+    model?: string
+    entrySource?: string
+    articleSlug?: string
+    reportId?: string
+  }) => {
+    return api.post<{ received: boolean }>('/ai/feedback', data)
   },
 }
 
