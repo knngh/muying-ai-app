@@ -190,6 +190,10 @@ export default function KnowledgeDetailScreen() {
   const displayedSummary = showingTranslation && translatedSummaryText
     ? translatedSummaryText
     : localizedFallbackSummary || article?.summary || ''
+  const displayedSummaryText = useMemo(
+    () => normalizePlainText(displayedSummary),
+    [displayedSummary],
+  )
   const displayedSourceUrl = useMemo(() => sanitizeAuthoritySourceUrl(
     article?.sourceUrl,
     article?.sourceOrg || article?.source || '',
@@ -283,7 +287,7 @@ export default function KnowledgeDetailScreen() {
       const sourceLine = displayedSourceUrl ? `\n\n原文来源：${displayedSourceUrl}` : ''
       await Share.share({
         title: displayedTitle || article.title,
-        message: `${displayedTitle || article.title}\n\n${displayedSummary || ''}${sourceLine}`,
+        message: `${displayedTitle || article.title}\n\n${displayedSummaryText || ''}${sourceLine}`,
       })
     } catch {
       // ignore
@@ -322,7 +326,7 @@ export default function KnowledgeDetailScreen() {
 
     const question = buildKnowledgeDetailQuestion({
       title: displayedTitle || article.title,
-      summary: displayedSummary || article.summary,
+      summary: displayedSummaryText || normalizePlainText(article.summary),
       sourceOrg: article.sourceOrg || article.source,
       topic: article.topic,
     })
@@ -350,7 +354,7 @@ export default function KnowledgeDetailScreen() {
         prefillContext: buildKnowledgeDetailChatContext({
           slug,
           title: displayedTitle || article.title,
-          summary: displayedSummary || article.summary,
+          summary: displayedSummaryText || normalizePlainText(article.summary),
           sourceOrg: article.sourceOrg || article.source,
           topic: article.topic,
           stageKey: stage.lifecycleKey,
@@ -556,7 +560,7 @@ export default function KnowledgeDetailScreen() {
           />
         ) : null}
 
-        {displayedSummary ? (
+        {displayedSummaryText ? (
           <View style={styles.summaryContainer}>
             <View style={styles.panelHeader}>
               <View style={[styles.panelIconShell, styles.summaryIconShell]}>
@@ -567,7 +571,7 @@ export default function KnowledgeDetailScreen() {
                 <Text style={styles.panelTitle}>{showingTranslation ? '辅助阅读摘要' : '正文前快速了解重点'}</Text>
               </View>
             </View>
-            <Text style={styles.summaryText}>{displayedSummary}</Text>
+            <Text style={styles.summaryText}>{displayedSummaryText}</Text>
           </View>
         ) : null}
 
@@ -1483,6 +1487,12 @@ function stripHtmlTags(input: string): string {
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<\/(?:p|li|h[1-6]|section|article|div)>/gi, '\n')
     .replace(/<[^>]*>/g, ' ')
+}
+
+function normalizePlainText(input?: string | null): string {
+  return stripHtmlTags(input || '')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 function stripCodeFence(text: string): string {

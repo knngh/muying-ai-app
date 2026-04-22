@@ -205,6 +205,19 @@ function hasLeakedPrompt(text?: string) {
     || /Be accurate and faithful to the original/i.test(text)
 }
 
+function stripHtmlTags(input: string) {
+  return input
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(?:p|li|h[1-6]|section|article|div)>/gi, '\n')
+    .replace(/<[^>]*>/g, ' ')
+}
+
+function normalizePlainText(input?: string | null) {
+  return stripHtmlTags(input || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 function stripCodeFence(text: string) {
   const matched = text.trim().match(/^```(?:xml|json|markdown|md|text)?\s*([\s\S]*?)\s*```$/i)
   return matched?.[1]?.trim() || text.trim()
@@ -740,7 +753,7 @@ export default function KnowledgeScreen() {
       || (isGenericForeignTitle(item.title)
         ? (translatedHeadline || getLocalizedFallbackTitle(item))
         : item.title)
-    const displayedSummary = translatedSummary || item.summary
+    const displayedSummary = normalizePlainText(translatedSummary || item.summary)
 
     return (
       <Card
