@@ -218,7 +218,7 @@ import { onShareAppMessage, onShareTimeline, onShow } from '@dcloudio/uni-app'
 import { useAppStore } from '@/stores/app'
 import { useKnowledgeStore, type RecentAIHitArticle } from '@/stores/knowledge'
 import { calculatePregnancyWeekFromDueDate } from '@/utils'
-import { formatSourceLabel } from '@/utils/knowledge-format'
+import { formatSourceLabel, getLocalizedFallbackTitle, isGenericForeignTitle } from '@/utils/knowledge-format'
 import { trackMiniEvent } from '@/utils/analytics'
 
 const appStore = useAppStore()
@@ -362,7 +362,12 @@ const syncHomeState = () => {
   const rawWeek = Number.parseInt(String(uni.getStorageSync('userPregnancyWeek') || ''), 10)
   storedWeek.value = !Number.isNaN(rawWeek) && rawWeek >= 1 && rawWeek <= 40 ? rawWeek : null
   const storedRecent = uni.getStorageSync(RECENT_KNOWLEDGE_STORAGE_KEY) as RecentKnowledgeItem[] | null
-  recentKnowledge.value = Array.isArray(storedRecent) ? storedRecent.slice(0, 3) : []
+  recentKnowledge.value = Array.isArray(storedRecent)
+    ? storedRecent.slice(0, 3).map(item => ({
+        ...item,
+        title: isGenericForeignTitle(item.title) ? getLocalizedFallbackTitle() : item.title,
+      }))
+    : []
   const storedAiHits = uni.getStorageSync(RECENT_AI_HIT_ARTICLES_KEY) as Array<{
     articleId?: number
     slug?: string
@@ -391,7 +396,7 @@ const syncHomeState = () => {
       .map(item => ({
         articleId: Number(item.articleId),
         slug: item.slug || '',
-        title: item.title || '',
+        title: isGenericForeignTitle(item.title) ? getLocalizedFallbackTitle() : (item.title || ''),
         summary: item.summary || '',
         source: item.source,
         sourceOrg: item.sourceOrg,

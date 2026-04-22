@@ -733,7 +733,7 @@ function persistRecentKnowledge() {
 
   const currentItem = {
     slug: article.value.slug,
-    title: article.value.title,
+    title: displayedTitle.value || article.value.title,
     sourceLabel: formatSourceLabel(article.value.sourceOrg || article.value.source || '权威来源'),
     updatedAtLabel: formatDate(article.value.sourceUpdatedAt || article.value.publishedAt || article.value.createdAt) || '最近同步',
   }
@@ -755,6 +755,14 @@ function buildContinueReadingMeta(input: {
     input.audience || undefined,
     input.updatedAtLabel,
   ].filter(Boolean).join(' · ')
+}
+
+function getArticleCardTitle(target: Pick<Article, 'title' | 'topic' | 'stage'> | RecentKnowledgeItem): string {
+  if (!isGenericForeignTitle(target.title)) {
+    return target.title || '权威参考'
+  }
+
+  return getLocalizedFallbackTitle('topic' in target ? target.topic : undefined, 'stage' in target ? target.stage : undefined)
 }
 
 function normalizeArticleStage(target?: Article | null): string {
@@ -781,7 +789,7 @@ function syncContinueReading() {
   const currentRegionTag = getAuthorityRegionTag(currentArticle)
   const relatedFromApi = relatedArticles.value.map(item => ({
     slug: item.slug,
-    title: item.title,
+    title: getArticleCardTitle(item),
     meta: item.publishedAt ? `相关文章 · ${formatDate(item.publishedAt)}` : '相关文章',
     shouldWarmTranslation: false,
   }))
@@ -798,7 +806,7 @@ function syncContinueReading() {
     .sort((left, right) => right.score - left.score)
     .map(({ item }) => ({
       slug: item.slug,
-      title: item.title,
+      title: getArticleCardTitle(item),
       meta: buildContinueReadingMeta({
         sourceLabel: formatSourceLabel(item.sourceOrg || item.source || '权威来源'),
         updatedAtLabel: formatDate(item.sourceUpdatedAt || item.publishedAt || item.createdAt) || '最近同步',
@@ -813,7 +821,7 @@ function syncContinueReading() {
     .filter(item => item.slug !== currentArticle.slug)
     .map(item => ({
       slug: item.slug,
-      title: item.title,
+      title: getArticleCardTitle(item),
       meta: buildContinueReadingMeta({
         sourceLabel: item.sourceLabel,
         updatedAtLabel: item.updatedAtLabel,
