@@ -283,7 +283,7 @@ export function buildWeekPriorityPlan(params: {
   }))
 
   return {
-    title: `第 ${params.week} 周 AI 重点`,
+    title: `第 ${params.week} 周阅读重点`,
     subtitle: params.summary ? truncateText(params.summary, 54) : '先处理最影响本周节奏的事项。',
     items,
     reminder: params.hasDiary

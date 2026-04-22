@@ -93,7 +93,7 @@
 
       <view class="assistant-status-card">
         <text class="assistant-status-title">当前能力范围</text>
-        <text class="assistant-status-desc">当前小程序先聚焦权威知识库、孕周日历和基础档案。咨询式连续追问能力将在后续版本开放。</text>
+        <text class="assistant-status-desc">当前小程序先聚焦权威知识库、孕周日历和基础档案。阅读问答能力暂不在小程序上线，后续会在安全提示和来源能力更稳定后再开放。</text>
       </view>
 
       <view v-if="recentAiHitArticles.length" class="recent-ai-card">

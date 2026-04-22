@@ -289,7 +289,7 @@ export function useHomeData() {
     if (hasUnreadWeeklyReport) {
       return {
         title: '本周新周报已生成',
-        description: '先看本周重点提醒，再决定日历和问题助手要补哪一块。',
+        description: '先看本周重点提醒，再决定日历和阅读问答要补哪一块。',
         actionLabel: '查看周报',
         action: 'weekly_report',
       }
@@ -316,7 +316,7 @@ export function useHomeData() {
     return {
       title: '补一个本周关键问题',
       description: '把你现在最关心的一件事问清楚，后续周报和档案会更有价值。',
-      actionLabel: '去问 AI',
+      actionLabel: '继续提问',
       action: 'chat',
     }
   }, [hasCheckedInToday, hasUnreadWeeklyReport, pendingTodayEvent, todoStats.completed, todoStats.total, upcomingEvents])

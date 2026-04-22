@@ -37,6 +37,15 @@
         <text class="authority-callout-text">{{ authorityCalloutText }}</text>
       </view>
 
+      <view v-if="riskAlert" class="risk-alert-box">
+        <text class="risk-alert-label">高风险提示</text>
+        <text class="risk-alert-title">{{ riskAlert.title }}</text>
+        <text class="risk-alert-desc">{{ riskAlert.desc }}</text>
+        <view class="risk-alert-link" @tap="openTrustCenter">
+          <text class="risk-alert-link-text">查看内容可信说明</text>
+        </view>
+      </view>
+
       <view class="context-board">
         <view class="context-card">
           <text class="context-card-label">适用对象</text>
@@ -211,11 +220,13 @@ import { buildKnowledgeAiAssist } from '@/utils/ai-assist'
 import { trackMiniEvent } from '@/utils/analytics'
 import {
   formatDate,
+  formatRichArticleContent,
   formatSourceLabel,
-  hasLeakedPrompt,
   isGenericForeignTitle,
   getLocalizedFallbackTitle,
   isMostlyChineseText,
+  sanitizeTranslationText,
+  stripHtmlTags,
 } from '@/utils/knowledge-format'
 
 const knowledgeStore = useKnowledgeStore()
@@ -256,12 +267,13 @@ let openAiHitContext: {
   originReportId?: string
 } | null = null
 
+const translatedTitleText = computed(() => sanitizeTranslationText(translation.value?.translatedTitle, 'title'))
+const translatedSummaryText = computed(() => sanitizeTranslationText(translation.value?.translatedSummary, 'summary'))
+const translatedContentText = computed(() => sanitizeTranslationText(translation.value?.translatedContent, 'content'))
+
 const displayedTitle = computed(() => {
-  if (showingTranslation.value && translation.value?.translatedTitle) {
-    if (hasLeakedPrompt(translation.value.translatedTitle)) {
-      return article.value?.title || ''
-    }
-    return translation.value.translatedTitle
+  if (showingTranslation.value && translatedTitleText.value) {
+    return translatedTitleText.value
   }
 
   const rawTitle = article.value?.title || ''
@@ -272,11 +284,8 @@ const displayedTitle = computed(() => {
 })
 
 const displayedSummary = computed(() => {
-  if (showingTranslation.value && translation.value?.translatedSummary) {
-    if (hasLeakedPrompt(translation.value.translatedSummary)) {
-      return article.value?.summary || ''
-    }
-    return translation.value.translatedSummary
+  if (showingTranslation.value && translatedSummaryText.value) {
+    return translatedSummaryText.value
   }
   return article.value?.summary || ''
 })
@@ -287,18 +296,15 @@ const displayedSourceUrl = computed(() => sanitizeAuthoritySourceUrl(
 ))
 
 const isBodyFallback = computed(() => {
-  const body = showingTranslation.value && translation.value?.translatedContent
-    ? translation.value.translatedContent
+  const body = showingTranslation.value && translatedContentText.value
+    ? translatedContentText.value
     : (article.value?.content || '')
-  return !body.trim() && Boolean(article.value?.summary)
+  return !stripHtmlTags(body).replace(/\s+/g, '').trim() && Boolean(article.value?.summary)
 })
 
 const displayedContent = computed(() => {
-  if (showingTranslation.value && translation.value?.translatedContent) {
-    if (hasLeakedPrompt(translation.value.translatedContent)) {
-      return formatRichArticleContent(article.value?.content || '')
-    }
-    return formatRichArticleContent(translation.value.translatedContent)
+  if (showingTranslation.value && translatedContentText.value) {
+    return formatRichArticleContent(translatedContentText.value)
   }
 
   const body = article.value?.content || ''
@@ -353,6 +359,48 @@ const authorityCalloutText = computed(() => {
   }
 
   return '这篇内容来自国际权威机构公开资料，可切换中文辅助阅读并查看原文链接。'
+})
+
+const riskAlert = computed(() => {
+  const plainText = stripHtmlTags([
+    article.value?.title || '',
+    article.value?.summary || '',
+    article.value?.content || '',
+  ].join(' ')).replace(/\s+/g, ' ').trim()
+
+  if (!plainText) {
+    return null
+  }
+
+  if (/出血|腹痛|规律宫缩|破水|胎动(明显)?减少|胎动异常/u.test(plainText)) {
+    return {
+      title: '出现孕期急性信号时优先线下就医',
+      desc: '如果当前内容涉及出血、腹痛、规律宫缩、破水或胎动明显变化，请不要只依赖页面信息，优先联系医生或尽快线下就医。',
+    }
+  }
+
+  if (/高热|发热|呼吸困难|抽搐|精神差|严重呕吐|脱水/u.test(plainText)) {
+    return {
+      title: '发热和全身症状不建议只靠经验判断',
+      desc: '孕期和婴幼儿出现高热、呼吸困难、抽搐、精神差、严重呕吐或脱水时，应尽快线下评估，不建议仅凭网上内容自行处理。',
+    }
+  }
+
+  if (/黄疸|吃奶差|嗜睡|反应差/u.test(plainText)) {
+    return {
+      title: '新生儿异常表现应优先线下评估',
+      desc: '如果涉及黄疸加重、吃奶明显变差、嗜睡或反应异常，应优先到医院评估，再结合权威资料理解原因和处理方式。',
+    }
+  }
+
+  if (/用药|药物|剂量|处方|治疗方案/u.test(plainText)) {
+    return {
+      title: '用药与治疗方案请以医生判断为准',
+      desc: '权威资料和中文辅助阅读只用于帮助理解背景信息；涉及药物选择、剂量调整或治疗方案时，请优先咨询医生。',
+    }
+  }
+
+  return null
 })
 
 const topicLabelMap: Record<string, string> = {
@@ -449,51 +497,6 @@ function retryLoad() {
   }
 }
 
-function stripHtmlTags(input: string): string {
-  return input.replace(/<[^>]*>/g, ' ')
-}
-
-function escapeHtml(input: string): string {
-  return input
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-}
-
-function appendInlineStyle(attrs: string | undefined, inlineStyle: string): string {
-  const normalizedAttrs = attrs || ''
-  const styleMatch = normalizedAttrs.match(/\sstyle=(['"])(.*?)\1/i)
-
-  if (!styleMatch) {
-    return `${normalizedAttrs} style="${inlineStyle}"`
-  }
-
-  const quote = styleMatch[1]
-  const existing = styleMatch[2]?.trim() || ''
-  const merged = existing.endsWith(';') ? `${existing}${inlineStyle}` : `${existing};${inlineStyle}`
-  return normalizedAttrs.replace(/\sstyle=(['"])(.*?)\1/i, ` style=${quote}${merged}${quote}`)
-}
-
-function addBlockSpacingToHtml(html: string): string {
-  const blockStyles: Array<{ tag: string; style: string }> = [
-    { tag: 'p', style: 'margin:0 0 1.1em;line-height:1.9;display:block;' },
-    { tag: 'li', style: 'margin:0 0 0.7em;line-height:1.9;' },
-    { tag: 'ul', style: 'margin:0 0 1em 1.2em;padding:0;' },
-    { tag: 'ol', style: 'margin:0 0 1em 1.2em;padding:0;' },
-    { tag: 'h1', style: 'margin:0 0 0.9em;line-height:1.5;font-weight:700;' },
-    { tag: 'h2', style: 'margin:0 0 0.9em;line-height:1.55;font-weight:700;' },
-    { tag: 'h3', style: 'margin:0 0 0.8em;line-height:1.6;font-weight:700;' },
-  ]
-
-  return blockStyles.reduce((result, item) => (
-    result.replace(new RegExp(`<${item.tag}(\\s[^>]*)?>`, 'gi'), (_match, attrs?: string) => (
-      `<${item.tag}${appendInlineStyle(attrs, item.style)}>`
-    ))
-  ), html)
-}
-
 function sanitizeAuthoritySourceUrl(url?: string, sourceText = ''): string {
   if (!url) {
     return ''
@@ -567,69 +570,16 @@ function sanitizeAuthoritySourceUrl(url?: string, sourceText = ''): string {
   return url
 }
 
-function convertTextToRichHtml(text: string): string {
-  const normalized = text
-    .replace(/\r\n/g, '\n')
-    .replace(/\r/g, '\n')
-    .replace(/\u00a0/g, ' ')
-    .replace(/([。！？!?；;])(?=(第[一二三四五六七八九十百千万0-9]+[章节部分篇条]|[一二三四五六七八九十]+[、.．]|[0-9]+[、.．]|（[一二三四五六七八九十0-9]+）|附件|附：|提示|建议|结论|原因|措施|何时就医))/gu, '$1\n')
-    .trim()
-
-  const blocks = normalized.split(/\n+/).map(line => line.trim()).filter(Boolean)
-  const paragraphs: string[] = []
-  let current = ''
-
-  const pushCurrent = () => {
-    if (current.trim()) {
-      paragraphs.push(current.trim())
-      current = ''
-    }
-  }
-
-  blocks.forEach((line) => {
-    const isHeading = /^(第[一二三四五六七八九十百千万0-9]+[章节部分篇条]|[一二三四五六七八九十]+[、.．]|[0-9]+[、.．]|（[一二三四五六七八九十0-9]+）|附件|附：|提示|建议|结论|原因|措施|何时就医)/u.test(line) && !/[。！？!?；;]$/.test(line)
-    if (isHeading) {
-      pushCurrent()
-      paragraphs.push(line)
-      return
-    }
-
-    const candidate = `${current} ${line}`.trim()
-    if (current && candidate.length > 120) {
-      pushCurrent()
-      current = line
-      return
-    }
-
-    current = candidate
-  })
-
-  pushCurrent()
-
-  return paragraphs
-    .map((line) => `<p style="margin:0 0 1.1em;line-height:1.9;display:block;">${escapeHtml(line)}</p>`)
-    .join('')
-}
-
-function formatRichArticleContent(content: string): string {
-  const trimmed = content.trim()
-  if (!trimmed) {
-    return ''
-  }
-
-  if (/<[a-z][\s\S]*>/i.test(trimmed)) {
-    return addBlockSpacingToHtml(trimmed)
-  }
-
-  return convertTextToRichHtml(trimmed)
-}
-
 function openSource(url?: string) {
   if (!url) {
     uni.showToast({ title: '来源链接不可用', icon: 'none' })
     return
   }
   uni.navigateTo({ url: `/pages/webview/index?url=${encodeURIComponent(url)}` })
+}
+
+function openTrustCenter() {
+  uni.navigateTo({ url: '/pages/trust-center/index' })
 }
 
 function normalizeTranslationError(err: unknown): string {
@@ -1087,6 +1037,54 @@ onShareTimeline(() => {
   font-size: 25rpx;
   line-height: 1.7;
   color: #526072;
+}
+
+.risk-alert-box {
+  margin-bottom: 24rpx;
+  padding: 24rpx;
+  border-radius: 24rpx;
+  background: linear-gradient(180deg, #fff6f3 0%, #fffdfb 100%);
+  border: 1rpx solid rgba(224, 112, 83, 0.22);
+}
+
+.risk-alert-label {
+  display: block;
+  color: #b94b35;
+  font-size: 22rpx;
+  font-weight: 800;
+  letter-spacing: 1rpx;
+}
+
+.risk-alert-title {
+  display: block;
+  margin-top: 10rpx;
+  color: #2c3e47;
+  font-size: 30rpx;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.risk-alert-desc {
+  display: block;
+  margin-top: 10rpx;
+  color: #6e5b56;
+  font-size: 24rpx;
+  line-height: 1.72;
+}
+
+.risk-alert-link {
+  margin-top: 14rpx;
+  align-self: flex-start;
+  display: inline-flex;
+  padding: 10rpx 18rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.risk-alert-link-text {
+  color: #b05a3c;
+  font-size: 23rpx;
+  font-weight: 700;
 }
 
 .context-board {

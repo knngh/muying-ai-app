@@ -32,7 +32,7 @@ type HomeNavProp = CompositeNavigationProp<
 
 const featureEntries: FeatureEntry[] = [
   { title: '知识库', subtitle: '权威内容与中文阅读', icon: 'book-open-page-variant-outline', route: 'Knowledge', type: 'tab' },
-  { title: '问题助手', subtitle: '母婴常见问题参考', icon: 'message-question-outline', route: 'Chat', type: 'tab' },
+  { title: '阅读问答', subtitle: '围绕阶段问题继续提问', icon: 'message-question-outline', route: 'Chat', type: 'tab' },
   { title: '孕期档案', subtitle: '集中查看孕周与关键节点', icon: 'file-document-outline', route: 'PregnancyProfile', type: 'stack' },
   { title: '周度报告', subtitle: '每周阶段重点总结', icon: 'chart-box-outline', route: 'WeeklyReport', type: 'stack' },
 ]
@@ -170,7 +170,7 @@ export default function HomeScreen() {
         title: hasUnreadWeeklyReport ? '还有新周报没看' : '本周周报已跟进',
         description: hasUnreadWeeklyReport
           ? `${weeklyReport.stageLabel} 的阶段提醒已经生成，现在看最容易接着安排本周重点。`
-          : '本周重点已经同步过，后续可以继续补待办或问题助手。',
+          : '本周重点已经同步过，后续可以继续补待办或阅读问答。',
         done: !hasUnreadWeeklyReport,
         actionLabel: hasUnreadWeeklyReport ? '查看周报' : '再去回顾',
         action: 'weekly_report',
@@ -279,7 +279,7 @@ export default function HomeScreen() {
 
     return {
       title: '本周节奏已经跟上，继续把陪伴沉淀下来',
-      description: '签到、周报、待办和问题助手都已经接起来了，后面更适合做长期积累。',
+      description: '签到、周报、待办和阅读问答都已经接起来了，后面更适合做长期积累。',
       badge: `${weeklyCompletionRate}%`,
       actionLabel: '看看成长档案',
       action: 'growth_archive',
@@ -312,7 +312,7 @@ export default function HomeScreen() {
     if (!hasCheckedInToday) {
       return {
         title: '把签到、周报和问答串成连续陪伴',
-        description: `现在还是基础模式，问题助手今日还剩 ${remainingAiText}。开通后，今天的签到和后续周报会接成一条完整时间线。`,
+        description: `现在还是基础模式，阅读问答今日还剩 ${remainingAiText}。开通后，今天的签到和后续周报会接成一条完整时间线。`,
         highlights,
       }
     }

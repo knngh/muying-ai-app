@@ -74,7 +74,7 @@ export default function QuotaCard({
       <Card.Content>
         <View style={styles.quotaHeader}>
           <View>
-            <Text style={styles.quotaEyebrow}>问题助手额度</Text>
+            <Text style={styles.quotaEyebrow}>阅读问答额度</Text>
             <Text style={styles.quotaTitle}>
               {status === 'active' ? planName || '贝护会员' : '今日可用次数'}
             </Text>

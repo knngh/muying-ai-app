@@ -42,6 +42,9 @@
         <view class="edit-btn" @tap="openEditModal">
           <text class="edit-btn-text">编辑资料</text>
         </view>
+        <view class="trust-btn" @tap="openTrustCenter">
+          <text class="trust-btn-text">内容可信说明</text>
+        </view>
         <view class="logout-btn" @tap="onLogout">
           <text class="logout-btn-text">退出登录</text>
         </view>
@@ -191,6 +194,10 @@ const formatDate = (date: string) => dayjs(date).format('YYYY-MM-DD')
 
 const goLogin = () => {
   uni.navigateTo({ url: '/pages/login/index' })
+}
+
+const openTrustCenter = () => {
+  uni.navigateTo({ url: '/pages/trust-center/index' })
 }
 
 const closeEditModal = () => {
@@ -429,6 +436,20 @@ onShow(() => {
   border-radius: 12rpx;
   padding: 24rpx 0;
   text-align: center;
+}
+
+.trust-btn {
+  background-color: #ffffff;
+  border: 1rpx solid #d9e6ec;
+  border-radius: 12rpx;
+  padding: 24rpx 0;
+  text-align: center;
+}
+
+.trust-btn-text {
+  color: #365c68;
+  font-size: 30rpx;
+  font-weight: 500;
 }
 
 .logout-btn-text {

@@ -45,7 +45,7 @@ const fallbackPlans: MembershipPlan[] = [
     originalPrice: 29.9,
     durationDays: 30,
     monthlyPriceLabel: '¥19.9 / 月',
-    description: '适合先体验问题助手不限次和生命周期周报。',
+    description: '适合先体验阅读问答不限次和生命周期周报。',
     features: ['ai_unlimited', 'continuous_chat', 'weekly_report'],
   },
   {

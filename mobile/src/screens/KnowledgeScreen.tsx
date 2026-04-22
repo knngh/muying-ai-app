@@ -205,6 +205,42 @@ function hasLeakedPrompt(text?: string) {
     || /Be accurate and faithful to the original/i.test(text)
 }
 
+function stripCodeFence(text: string) {
+  const matched = text.trim().match(/^```(?:xml|json|markdown|md|text)?\s*([\s\S]*?)\s*```$/i)
+  return matched?.[1]?.trim() || text.trim()
+}
+
+function sanitizeTranslationText(
+  input: string | null | undefined,
+  type: 'title' | 'summary' | 'content',
+) {
+  if (!input) return ''
+
+  const labelPattern = type === 'title'
+    ? /^(?:[-*•·]\s*)?(?:translated_title|title|标题)\s*[:：]\s*/i
+    : type === 'summary'
+      ? /^(?:[-*•·]\s*)?(?:translated_summary|summary|摘要)\s*[:：]\s*/i
+      : /^(?:[-*•·]\s*)?(?:translated_content|content|正文|内容)\s*[:：]\s*/i
+
+  let normalized = stripCodeFence(input)
+    .replace(/<\/?translated_(title|summary|content)>/gi, '')
+    .replace(/^\s*#{1,6}\s*/g, '')
+    .replace(/^[`"'“”‘’]+|[`"'“”‘’]+$/g, '')
+    .trim()
+
+  if (hasLeakedPrompt(normalized)) {
+    return ''
+  }
+
+  normalized = normalized
+    .replace(/^(?:好的[，,]?\s*)/u, '')
+    .replace(/^(?:以下(?:是|为)|下面(?:是|为)|这是)(?:本篇|这篇|当前)?(?:文章|原文|内容)?(?:的)?(?:中文)?(?:辅助)?(?:翻译|译文|中文版)?\s*[：:。.]?\s*/u, '')
+    .replace(labelPattern, '')
+    .trim()
+
+  return normalized
+}
+
 function getTranslatedHeadline(summary?: string) {
   const value = (summary || '').trim()
   if (!value) return ''
@@ -347,11 +383,11 @@ function buildRecentAIHitSources(items: RecentAIHitArticle[]): RecentAIHitSource
 }
 
 function buildRecentTopicQuestion(topic: string, stageLabel: string) {
-  return `最近问题助手多次命中“${topic}”这个主题。请结合我当前的${stageLabel}阶段，帮我梳理这个主题最值得关注的点，以及接下来可以怎么安排？`
+  return `最近阅读问答多次命中“${topic}”这个主题。请结合我当前的${stageLabel}阶段，帮我梳理这个主题最值得关注的点，以及接下来可以怎么安排？`
 }
 
 function buildRecentSourceQuestion(source: string, stageLabel: string) {
-  return `最近问题助手多次引用${source}相关的权威内容。请结合我当前的${stageLabel}阶段，帮我总结这个来源下最值得优先看的主题，以及我接下来该关注什么？`
+  return `最近阅读问答多次引用${source}相关的权威内容。请结合我当前的${stageLabel}阶段，帮我总结这个来源下最值得优先看的主题，以及我接下来该关注什么？`
 }
 
 export default function KnowledgeScreen() {
@@ -464,7 +500,7 @@ export default function KnowledgeScreen() {
   const emptyTitle = hasNetworkError ? '知识库暂时连不上服务' : '当前筛选下还没有文章'
   const emptyText = hasNetworkError
     ? '当前设备到接口服务的连接异常或超时，不是内容为空。请优先检查当前网络、DNS、证书链路，再重新进入知识库。'
-    : '可以先放宽筛选范围，或直接去问题助手提问；新同步的权威内容也会继续补入这里。'
+    : '可以先放宽筛选范围，或直接继续提问；新同步的权威内容也会继续补入这里。'
   const errorBannerText = hasNetworkError
     ? `当前设备访问 ${resolvedErrorDetail?.requestUrl || '/articles'} 失败。请优先检查 beihu.me 域名解析、移动网络连通性与 HTTPS 证书配置。`
     : hasHttpError
@@ -690,15 +726,21 @@ export default function KnowledgeScreen() {
     const dateLabel = formatArticleDate(item)
     const previewTags = getArticleDisplayTags(item).slice(0, 2)
     const rawTranslation = translations[item.slug]
-    const articleTranslation = rawTranslation && !hasLeakedPrompt(rawTranslation.translatedTitle) && !hasLeakedPrompt(rawTranslation.translatedSummary)
-      ? rawTranslation
+    const translatedTitle = sanitizeTranslationText(rawTranslation?.translatedTitle, 'title')
+    const translatedSummary = sanitizeTranslationText(rawTranslation?.translatedSummary, 'summary')
+    const articleTranslation = rawTranslation && (translatedTitle || translatedSummary)
+      ? {
+          ...rawTranslation,
+          translatedTitle,
+          translatedSummary,
+        }
       : undefined
-    const translatedHeadline = getTranslatedHeadline(articleTranslation?.translatedSummary)
-    const displayedTitle = articleTranslation?.translatedTitle
+    const translatedHeadline = getTranslatedHeadline(translatedSummary)
+    const displayedTitle = translatedTitle
       || (isGenericForeignTitle(item.title)
         ? (translatedHeadline || getLocalizedFallbackTitle(item))
         : item.title)
-    const displayedSummary = articleTranslation?.translatedSummary || item.summary
+    const displayedSummary = translatedSummary || item.summary
 
     return (
       <Card
@@ -790,8 +832,8 @@ export default function KnowledgeScreen() {
         <View style={styles.recentAiHitSection}>
           <View style={styles.recentAiHitHeader}>
             <View>
-              <Text style={styles.recentAiHitEyebrow}>AI 命中回看</Text>
-              <Text style={styles.recentAiHitTitle}>最近由问题助手命中的权威文章</Text>
+              <Text style={styles.recentAiHitEyebrow}>最近阅读线索</Text>
+              <Text style={styles.recentAiHitTitle}>最近由阅读问答命中的权威文章</Text>
             </View>
             <Chip compact style={styles.recentAiHitBadge} textStyle={styles.recentAiHitBadgeText}>
               {recentAiHitArticles.length} 篇
@@ -832,7 +874,7 @@ export default function KnowledgeScreen() {
                 style={styles.recentAiAskButton}
                 onPress={() => handleAskRecentAiArticle(recentAiHitArticles[0])}
               >
-                围绕最近文章问 AI
+                围绕最近文章继续提问
               </Button>
             ) : null}
             {recentAiHitTopics[0] ? (
@@ -845,7 +887,7 @@ export default function KnowledgeScreen() {
                 style={styles.recentAiAskButton}
                 onPress={() => handleAskRecentAiTopic(recentAiHitTopics[0])}
               >
-                围绕最近主题问 AI
+                围绕最近主题继续提问
               </Button>
             ) : null}
             {recentAiHitSources[0] ? (
@@ -858,7 +900,7 @@ export default function KnowledgeScreen() {
                 style={styles.recentAiAskButton}
                 onPress={() => handleAskRecentAiSource(recentAiHitSources[0])}
               >
-                围绕最近机构问 AI
+                围绕最近机构继续提问
               </Button>
             ) : null}
           </View>
@@ -1192,7 +1234,7 @@ export default function KnowledgeScreen() {
                   onPress={() => (navigation as any).navigate('Main', { screen: 'Chat' })}
                   style={styles.emptySecondaryButton}
                 >
-                  去问题助手
+                  继续提问
                 </Button>
               </View>
             </View>

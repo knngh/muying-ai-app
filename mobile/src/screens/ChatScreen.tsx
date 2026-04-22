@@ -65,7 +65,7 @@ const CHAT_SOURCE_LABEL: Record<ChatEntrySource, { title: string; subtitle: stri
     subtitle: '这条问题由当前阅读内容带入，继续追问会保留文章主题和来源线索。',
   },
   knowledge_recent_ai: {
-    title: '来自 AI 命中回看',
+    title: '来自最近阅读线索',
     subtitle: '这条问题由最近命中的文章、主题或机构带入，方便直接沿着上次线索继续问。',
   },
 }

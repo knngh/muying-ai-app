@@ -43,7 +43,10 @@
 
     <view class="assistant-offline-card">
       <text class="assistant-offline-title">当前能力范围</text>
-      <text class="assistant-offline-desc">当前小程序优先提供权威知识检索、阶段筛选和中文辅助阅读。咨询式连续追问能力将在后续版本开放。</text>
+      <text class="assistant-offline-desc">当前小程序优先提供权威知识检索、阶段筛选和中文辅助阅读。阅读问答能力暂不在小程序上线，后续会在安全提示和来源能力更稳定后再开放。</text>
+      <view class="assistant-offline-link" @tap="openTrustCenter">
+        <text class="assistant-offline-link-text">查看内容可信说明</text>
+      </view>
     </view>
 
     <view class="stage-guide-panel">
@@ -209,14 +212,14 @@
             <text :class="['tier-badge', `tier-badge--${getAuthorityRegionTag(article)}`]">{{ getAuthorityRegionLabel(article) }}</text>
             <text v-if="article.topic" class="topic-badge">{{ article.topic }}</text>
           </view>
-          <text class="article-title">{{ article.title }}</text>
+          <text class="article-title">{{ getListDisplayTitle(article) }}</text>
         </view>
 
         <view v-if="getArticleContextLabel(article)" class="article-context-row">
           <text class="article-context-chip">{{ getArticleContextLabel(article) }}</text>
         </view>
 
-        <text v-if="article.summary" class="article-summary">{{ article.summary }}</text>
+        <text class="article-summary">{{ getListDisplaySummary(article) }}</text>
 
         <view class="article-meta">
           <text v-if="article.audience" class="meta-item">{{ article.audience }}</text>
@@ -251,7 +254,14 @@ import { onReachBottom, onShareAppMessage, onShareTimeline, onShow } from '@dclo
 import { useKnowledgeStore, type RecentAIHitArticle } from '@/stores/knowledge'
 import type { Article } from '@/api/modules'
 import { getAuthorityRegionLabel, getAuthorityRegionTag } from '@/utils/authority-source'
-import { formatDate, formatSourceLabel } from '@/utils/knowledge-format'
+import {
+  formatDate,
+  formatSourceLabel,
+  getLocalizedFallbackTitle,
+  isGenericForeignTitle,
+  isMostlyChineseText,
+  stripHtmlTags,
+} from '@/utils/knowledge-format'
 import { trackMiniEvent } from '@/utils/analytics'
 
 const knowledgeStore = useKnowledgeStore()
@@ -487,6 +497,10 @@ function handleSearch() {
   })
 }
 
+function openTrustCenter() {
+  uni.navigateTo({ url: '/pages/trust-center/index' })
+}
+
 function handleSourceChange(source: string) {
   if (selectedSource.value === source) {
     return
@@ -718,6 +732,35 @@ function getReadingHint(article: Article): string {
   return '进入详情后会自动准备中文辅助阅读，适合先看摘要再决定是否打开机构原文。'
 }
 
+function getStageLabel(stage?: string | null): string {
+  return stageOptions.find(item => item.value === (stage || ''))?.label || '当前阶段'
+}
+
+function getListDisplayTitle(article: Article): string {
+  if (isGenericForeignTitle(article.title)) {
+    return getLocalizedFallbackTitle(article.topic, article.stage)
+  }
+
+  return article.title
+}
+
+function getListDisplaySummary(article: Article): string {
+  const summary = stripHtmlTags(article.summary || '').replace(/\s+/g, ' ').trim()
+  if (summary && isMostlyChineseText(summary)) {
+    return summary
+  }
+
+  const source = formatSourceLabel(article.sourceOrg || article.source || '权威来源')
+  const topic = article.topic || '当前主题'
+  const stage = getStageLabel(article.stage)
+
+  if (article.sourceLanguage === 'zh' || article.sourceLocale === 'zh-CN') {
+    return `${source}公开资料，重点围绕${topic}整理，建议结合来源更新时间继续阅读。`
+  }
+
+  return `${source}这篇内容聚焦${stage}的${topic}，进入详情后可查看中文辅助阅读和机构原文。`
+}
+
 function normalizeArticleKeyPart(value?: string) {
   return (value || '')
     .toLowerCase()
@@ -887,6 +930,21 @@ onShareTimeline(() => {
   font-size: 23rpx;
   line-height: 1.7;
   color: #6d7887;
+}
+
+.assistant-offline-link {
+  margin-top: 18rpx;
+  align-self: flex-start;
+  display: inline-flex;
+  padding: 12rpx 20rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.assistant-offline-link-text {
+  color: #b05a3c;
+  font-size: 24rpx;
+  font-weight: 700;
 }
 
 .stage-guide-panel {

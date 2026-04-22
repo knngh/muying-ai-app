@@ -145,7 +145,7 @@ function buildBootSteps(activeIndex: number, doneCount: number): LaunchStep[] {
 const DEFAULT_BOOT_SCREEN: BootScreenState = {
   chipLabel: "移动端唤起中",
   title: "正在恢复连续陪伴链路",
-  subtitle: "会先恢复当前阶段，再同步问题助手、周报与成长档案入口。",
+  subtitle: "会先恢复当前阶段，再同步阅读问答、周报与成长档案入口。",
   statusTitle: "准备恢复你的移动端上下文",
   statusText: "贝护妈妈不会把你扔回通用首页，而是尽量接上上次看到的阶段与任务。",
   progress: 0.18,
@@ -195,7 +195,7 @@ const TAB_VISUALS: Record<keyof TabParamList, {
     gradient: ["rgba(247, 238, 220, 0.98)", "rgba(255, 246, 234, 0.98)"],
   },
   Chat: {
-    label: "问题助手",
+    label: "阅读问答",
     icon: "message-processing-outline",
     activeIcon: "message-processing",
     accent: colors.techDark,
@@ -476,7 +476,7 @@ export default function AppNavigator() {
       ...current,
       statusTitle: token ? "已检测到本机会话" : "未检测到登录态",
       statusText: token
-        ? "接下来会继续恢复当前阶段、问题助手额度和周报入口。"
+        ? "接下来会继续恢复当前阶段、阅读问答额度和周报入口。"
         : "将进入移动端入口页，你可以登录后继续之前的陪伴链路。",
       progress: token ? 0.28 : 0.74,
       steps: buildBootSteps(token ? 1 : 3, 1),
@@ -534,8 +534,8 @@ export default function AppNavigator() {
     await ensureFreshQuota();
     const membershipState = useMembershipStore.getState();
     const quotaSummary = membershipState.status === "active"
-      ? "会员状态已恢复，问题助手连续追问和完整周报入口可直接使用。"
-      : `基础状态已恢复，问题助手今日还剩 ${membershipState.remainingToday} 次，可继续从首页任务链路进入。`;
+      ? "会员状态已恢复，连续问答和完整周报入口可直接使用。"
+      : `基础状态已恢复，阅读问答今日还剩 ${membershipState.remainingToday} 次，可继续从首页任务链路进入。`;
 
     setBootScreen((current) => ({
       ...current,

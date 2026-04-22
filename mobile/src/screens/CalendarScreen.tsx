@@ -744,7 +744,7 @@ export default function CalendarScreen() {
     setModalVisible(true)
     setSnackMessage(
       params.source === 'chat'
-        ? '已带入问题助手建议，可直接保存到日历'
+        ? '已带入阅读问答建议，可直接保存到日历'
         : params.source === 'weekly_report'
           ? '已带入周报重点，可直接保存到日历'
           : '已生成新的安排草稿',

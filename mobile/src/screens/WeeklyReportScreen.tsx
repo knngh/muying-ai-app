@@ -29,7 +29,7 @@ const workflowSteps = [
   },
   {
     icon: 'message-question-outline',
-    title: '复杂点继续问 AI',
+    title: '复杂点继续提问',
     description: '把看不懂或拿不准的提醒继续追问，接住后续几天的安排。',
   },
   {
@@ -160,7 +160,7 @@ export default function WeeklyReportScreen() {
               <Text style={styles.heroEyebrow}>周报中心</Text>
               <Text style={styles.heroTitle}>{stage.lifecycleLabel}周报与阶段回顾</Text>
               <Text style={styles.heroSubtitle}>
-                这里不是单独一篇内容，而是把当前阶段最重要的提醒收进来，再继续分发到日历、问题助手和成长档案。
+                这里不是单独一篇内容，而是把当前阶段最重要的提醒收进来，再继续分发到日历、阅读问答和成长档案。
               </Text>
 
               <View style={styles.heroSignalPanel}>
@@ -185,7 +185,7 @@ export default function WeeklyReportScreen() {
                   周报负责收重点，日历负责接执行
                 </Chip>
                 <Chip compact style={styles.heroSignalChip} textStyle={styles.heroSignalChipText}>
-                  问 AI 与成长档案负责延续上下文
+                  阅读问答与成长档案负责延续上下文
                 </Chip>
               </View>
             </View>
@@ -231,7 +231,7 @@ export default function WeeklyReportScreen() {
             <Text style={styles.reportEyebrow}>周报预览</Text>
             <Text style={styles.reportTitle}>当前还没有周报</Text>
             <Text style={styles.reportItem}>
-              持续使用成长日历、问题助手和阶段记录后，这里会逐步形成更完整的阶段周报，并反过来推动后续安排。
+              持续使用成长日历、阅读问答和阶段记录后，这里会逐步形成更完整的阶段周报，并反过来推动后续安排。
             </Text>
             <Text style={styles.emptyHint}>
               先把日历安排和关键问题记录连续起来，周报的价值会明显提升。

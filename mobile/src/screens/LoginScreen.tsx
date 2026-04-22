@@ -75,7 +75,7 @@ const lifecycleScenes = [
   },
   {
     label: '孕期',
-    description: '围绕孕周组织知识、日历、周报和问题助手',
+    description: '围绕孕周组织知识、日历、周报和阅读问答',
   },
   {
     label: '产后恢复',
@@ -192,7 +192,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
               title="你的项目核心不是登录，而是把连续陪伴接上"
               subtitle="贝护妈妈移动端会围绕当前阶段，把知识库、成长日历、周报和成长档案接成一条可持续使用的链路。"
               statusTitle="登录后会优先恢复什么"
-              statusText="先拿到当前阶段，再恢复首页推荐、问题助手配额和后续周报入口，让用户一进来就知道今天下一步是什么。"
+              statusText="先拿到当前阶段，再恢复首页推荐、阅读问答配额和后续周报入口，让用户一进来就知道今天下一步是什么。"
               spotlight={{
                 eyebrow: '项目核心链路',
                 title: '阶段知识 -> 今天安排 -> 周报回顾 -> 成长档案',

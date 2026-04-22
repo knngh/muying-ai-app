@@ -172,11 +172,23 @@ export default function KnowledgeDetailScreen() {
       ? ''
       : getLocalizedFallbackSummary(article)
   }, [article, isLikelyChineseSource, translation?.translatedSummary])
-  const displayedTitle = showingTranslation && translation?.translatedTitle
-    ? translation.translatedTitle
+  const translatedTitleText = useMemo(
+    () => sanitizeTranslationText(translation?.translatedTitle, 'title'),
+    [translation?.translatedTitle],
+  )
+  const translatedSummaryText = useMemo(
+    () => sanitizeTranslationText(translation?.translatedSummary, 'summary'),
+    [translation?.translatedSummary],
+  )
+  const translatedContentText = useMemo(
+    () => sanitizeTranslationText(translation?.translatedContent, 'content'),
+    [translation?.translatedContent],
+  )
+  const displayedTitle = showingTranslation && translatedTitleText
+    ? translatedTitleText
     : localizedFallbackTitle || article?.title || ''
-  const displayedSummary = showingTranslation && translation?.translatedSummary
-    ? translation.translatedSummary
+  const displayedSummary = showingTranslation && translatedSummaryText
+    ? translatedSummaryText
     : localizedFallbackSummary || article?.summary || ''
   const displayedSourceUrl = useMemo(() => sanitizeAuthoritySourceUrl(
     article?.sourceUrl,
@@ -185,8 +197,8 @@ export default function KnowledgeDetailScreen() {
   const displayTags = useMemo(() => getDisplayTags(article), [article])
   const displayTopic = useMemo(() => normalizeKnowledgeLabel(article?.topic), [article?.topic])
   const aiAssist = useMemo(() => buildKnowledgeAiAssist(article), [article])
-  const displayedBodyContent = showingTranslation && translation?.translatedContent
-    ? translation.translatedContent
+  const displayedBodyContent = showingTranslation && translatedContentText
+    ? translatedContentText
     : article?.content || ''
   const isBodyFallback = !stripHtmlTags(displayedBodyContent).replace(/\s+/g, '').trim()
   const displayedContentHtml = useMemo(() => {
@@ -197,6 +209,47 @@ export default function KnowledgeDetailScreen() {
       : formatRichArticleContent(displayedBodyContent)
     return buildSafeArticleHtml(rawContent)
   }, [displayedBodyContent, displayedSummary, isBodyFallback])
+  const riskAlert = useMemo(() => {
+    const plainText = stripHtmlTags([
+      article?.title || '',
+      article?.summary || '',
+      article?.content || '',
+    ].join(' ')).replace(/\s+/g, ' ').trim()
+
+    if (!plainText) {
+      return null
+    }
+
+    if (/出血|腹痛|规律宫缩|破水|胎动(明显)?减少|胎动异常/u.test(plainText)) {
+      return {
+        title: '出现孕期急性信号时优先线下就医',
+        desc: '如果当前内容涉及出血、腹痛、规律宫缩、破水或胎动明显变化，请不要只依赖页面信息，优先联系医生或尽快线下就医。',
+      }
+    }
+
+    if (/高热|发热|呼吸困难|抽搐|精神差|严重呕吐|脱水/u.test(plainText)) {
+      return {
+        title: '发热和全身症状不建议只靠经验判断',
+        desc: '孕期和婴幼儿出现高热、呼吸困难、抽搐、精神差、严重呕吐或脱水时，应尽快线下评估，不建议仅凭网上内容自行处理。',
+      }
+    }
+
+    if (/黄疸|吃奶差|嗜睡|反应差/u.test(plainText)) {
+      return {
+        title: '新生儿异常表现应优先线下评估',
+        desc: '如果涉及黄疸加重、吃奶明显变差、嗜睡或反应异常，应优先到医院评估，再结合权威资料理解原因和处理方式。',
+      }
+    }
+
+    if (/用药|药物|剂量|处方|治疗方案/u.test(plainText)) {
+      return {
+        title: '用药与治疗方案请以医生判断为准',
+        desc: '权威资料和中文辅助阅读只用于帮助理解背景信息；涉及药物选择、剂量调整或治疗方案时，请优先咨询医生。',
+      }
+    }
+
+    return null
+  }, [article?.content, article?.summary, article?.title])
   useEffect(() => {
     if (!article || isLikelyChineseSource || translation || translating) return
 
@@ -518,6 +571,21 @@ export default function KnowledgeDetailScreen() {
           </View>
         ) : null}
 
+        {riskAlert ? (
+          <View style={styles.riskAlertCard}>
+            <View style={styles.panelHeader}>
+              <View style={[styles.panelIconShell, styles.riskAlertIconShell]}>
+                <MaterialCommunityIcons name="alert-circle-outline" size={18} color={colors.red} />
+              </View>
+              <View style={styles.panelHeaderBody}>
+                <Text style={styles.cardEyebrow}>高风险提示</Text>
+                <Text style={styles.panelTitle}>{riskAlert.title}</Text>
+              </View>
+            </View>
+            <Text style={styles.riskAlertText}>{riskAlert.desc}</Text>
+          </View>
+        ) : null}
+
         {source === 'chat_hit' ? (
           <View style={styles.aiHitContextCard}>
             <View style={styles.panelHeader}>
@@ -525,8 +593,8 @@ export default function KnowledgeDetailScreen() {
                 <MaterialCommunityIcons name="message-badge-outline" size={18} color={colors.techDark} />
               </View>
               <View style={styles.panelHeaderBody}>
-                <Text style={styles.cardEyebrow}>来自问题助手</Text>
-                <Text style={styles.panelTitle}>这篇文章命中了刚才的 AI 回答</Text>
+                <Text style={styles.cardEyebrow}>来自阅读问答</Text>
+                <Text style={styles.panelTitle}>这篇文章命中了刚才的回答</Text>
               </View>
             </View>
             <Text style={styles.aiHitContextText}>
@@ -552,7 +620,7 @@ export default function KnowledgeDetailScreen() {
               <MaterialCommunityIcons name="lightbulb-on-outline" size={18} color={colors.primaryDark} />
             </View>
             <View style={styles.panelHeaderBody}>
-              <Text style={styles.cardEyebrow}>AI 阅读助手</Text>
+              <Text style={styles.cardEyebrow}>阅读整理</Text>
               <Text style={styles.panelTitle}>先抓住这 3 个重点</Text>
             </View>
             <Chip compact style={styles.aiAssistBadge} textStyle={styles.aiAssistBadgeText}>
@@ -605,7 +673,7 @@ export default function KnowledgeDetailScreen() {
             buttonColor="rgba(54,92,104,0.14)"
             textColor={colors.techDark}
           >
-            去问题助手
+            继续提问
           </Button>
           {displayedSourceUrl ? (
             <Button
@@ -704,7 +772,7 @@ export default function KnowledgeDetailScreen() {
               </Button>
             </View>
             <Text style={styles.translationDesc}>
-              {showingTranslation ? '中文辅助翻译仅用于帮助阅读理解，医疗判断请以机构原文和医生建议为准。' : '进入详情后会优先准备中文阅读版；翻译未完成前，首屏会先给出中文导读，避免直接看到外文原文。'}
+              {showingTranslation ? '中文辅助阅读仅用于帮助理解，医疗判断请以机构原文和医生建议为准。' : '进入详情后会优先准备中文阅读版；翻译未完成前，首屏会先给出中文导读，避免直接看到外文原文。'}
             </Text>
           </View>
         ) : null}
@@ -1023,6 +1091,21 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.06,
     shadowRadius: 18,
+  },
+  riskAlertCard: {
+    backgroundColor: 'rgba(255, 246, 243, 0.98)',
+    borderRadius: borderRadius.xl,
+    borderWidth: 1,
+    borderColor: 'rgba(224,112,83,0.18)',
+    padding: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  riskAlertIconShell: {
+    backgroundColor: 'rgba(224,112,83,0.12)',
+  },
+  riskAlertText: {
+    color: colors.inkSoft,
+    lineHeight: 22,
   },
   quickActionRow: {
     flexDirection: 'row',
@@ -1396,7 +1479,46 @@ const styles = StyleSheet.create({
 })
 
 function stripHtmlTags(input: string): string {
-  return input.replace(/<[^>]*>/g, ' ')
+  return input
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(?:p|li|h[1-6]|section|article|div)>/gi, '\n')
+    .replace(/<[^>]*>/g, ' ')
+}
+
+function stripCodeFence(text: string): string {
+  const matched = text.trim().match(/^```(?:xml|json|markdown|md|text)?\s*([\s\S]*?)\s*```$/i)
+  return matched?.[1]?.trim() || text.trim()
+}
+
+function sanitizeTranslationText(
+  input: string | null | undefined,
+  type: 'title' | 'summary' | 'content',
+): string {
+  if (!input) return ''
+
+  const labelPattern = type === 'title'
+    ? /^(?:[-*•·]\s*)?(?:translated_title|title|标题)\s*[:：]\s*/i
+    : type === 'summary'
+      ? /^(?:[-*•·]\s*)?(?:translated_summary|summary|摘要)\s*[:：]\s*/i
+      : /^(?:[-*•·]\s*)?(?:translated_content|content|正文|内容)\s*[:：]\s*/i
+
+  let normalized = stripCodeFence(input)
+    .replace(/<\/?translated_(title|summary|content)>/gi, '')
+    .replace(/^\s*#{1,6}\s*/g, '')
+    .replace(/^[`"'“”‘’]+|[`"'“”‘’]+$/g, '')
+    .trim()
+
+  if (/<translated_(title|summary|content)>/i.test(normalized) || /Be accurate and faithful to the original/i.test(normalized)) {
+    return ''
+  }
+
+  normalized = normalized
+    .replace(/^(?:好的[，,]?\s*)/u, '')
+    .replace(/^(?:以下(?:是|为)|下面(?:是|为)|这是)(?:本篇|这篇|当前)?(?:文章|原文|内容)?(?:的)?(?:中文)?(?:辅助)?(?:翻译|译文|中文版)?\s*[：:。.]?\s*/u, '')
+    .replace(labelPattern, '')
+    .trim()
+
+  return normalized
 }
 
 function formatArticleStage(stage?: string) {
@@ -1587,12 +1709,16 @@ function appendInlineStyle(attrs: string | undefined, inlineStyle: string): stri
 function addBlockSpacingToHtml(html: string): string {
   const blockStyles: Array<{ tag: string; style: string }> = [
     { tag: 'p', style: 'margin:0 0 1.1em;line-height:1.9;display:block;' },
+    { tag: 'div', style: 'margin:0 0 1.1em;line-height:1.9;display:block;' },
+    { tag: 'section', style: 'margin:0 0 1.1em;line-height:1.9;display:block;' },
+    { tag: 'article', style: 'margin:0 0 1.1em;line-height:1.9;display:block;' },
     { tag: 'li', style: 'margin:0 0 0.7em;line-height:1.9;' },
     { tag: 'ul', style: 'margin:0 0 1em 1.2em;padding:0;' },
     { tag: 'ol', style: 'margin:0 0 1em 1.2em;padding:0;' },
     { tag: 'h1', style: 'margin:0 0 0.9em;line-height:1.5;font-weight:700;' },
     { tag: 'h2', style: 'margin:0 0 0.9em;line-height:1.55;font-weight:700;' },
     { tag: 'h3', style: 'margin:0 0 0.8em;line-height:1.6;font-weight:700;' },
+    { tag: 'blockquote', style: 'margin:0 0 1em;padding-left:0.9em;border-left:4px solid #f4c7d7;color:#6b7785;' },
   ]
 
   return blockStyles.reduce((result, item) => (
@@ -1600,6 +1726,104 @@ function addBlockSpacingToHtml(html: string): string {
       `<${item.tag}${appendInlineStyle(attrs, item.style)}>`
     ))
   ), html)
+}
+
+function normalizeBlock(input: string): string {
+  return input
+    .replace(/\u00a0/g, ' ')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+function isLikelyHeading(line: string): boolean {
+  const trimmed = line.trim()
+  if (!trimmed) return false
+
+  if (trimmed.length <= 24 && !/[。！？!?；;]$/.test(trimmed)) {
+    return /^(第[一二三四五六七八九十百千万0-9]+[章节部分篇条]|[一二三四五六七八九十]+[、.．]|[0-9]+[、.．]|（[一二三四五六七八九十0-9]+）|附件|附：|提示|建议|结论|原因|措施|何时就医|不确定性说明|参考来源)/u.test(trimmed)
+  }
+
+  return false
+}
+
+function splitHeadingPrefix(line: string): { heading?: string; remainder?: string } {
+  const trimmed = line.trim()
+  const match = trimmed.match(/^(第[一二三四五六七八九十百千万0-9]+[章节部分篇条]|[一二三四五六七八九十]+[、.．]|[0-9]+[、.．]|（[一二三四五六七八九十0-9]+）|附件|附：|提示|建议|结论|原因|措施|何时就医|不确定性说明|参考来源)(.*)$/u)
+  if (!match) return {}
+
+  const heading = match[1]?.trim()
+  const remainder = match[2]?.trim()
+  if (!heading) return {}
+  if (!remainder) return { heading }
+
+  const headingTextMatch = remainder.match(/^([\u4e00-\u9fa5A-Za-z0-9]{2,12}?)(?=(如果|请|应|需|可|先|要|做|保持|观察|出现|及时|立即|继续|尽快|按照|根据|对于|将|建议|注意))/u)
+  if (headingTextMatch?.[1]) {
+    const headingText = headingTextMatch[1].trim()
+    return {
+      heading: `${heading}${headingText}`,
+      remainder: remainder.slice(headingText.length).trim(),
+    }
+  }
+
+  if (remainder.length <= 12 && !/[。！？!?；;]$/.test(remainder)) {
+    return { heading: `${heading}${remainder}` }
+  }
+
+  return {
+    heading: `${heading}${remainder.replace(/[。！？!?；;].*$/u, '').trim()}`.trim(),
+    remainder,
+  }
+}
+
+function splitIntoSentences(text: string): string[] {
+  const normalized = text.trim()
+  if (!normalized) return []
+
+  const matched = normalized.match(/[^。！？!?；;]+[。！？!?；;]?/gu)
+  if (!matched) return [normalized]
+  return matched.map((item) => item.trim()).filter(Boolean)
+}
+
+function chunkSentences(sentences: string[], maxChars = 88, maxSentences = 2): string[] {
+  const chunks: string[] = []
+  let current = ''
+  let currentCount = 0
+
+  for (const sentence of sentences) {
+    const candidate = `${current}${sentence}`.trim()
+    if (current && (candidate.length > maxChars || currentCount >= maxSentences)) {
+      chunks.push(current.trim())
+      current = sentence
+      currentCount = 1
+      continue
+    }
+
+    current = candidate
+    currentCount += 1
+  }
+
+  if (current.trim()) {
+    chunks.push(current.trim())
+  }
+
+  return chunks
+}
+
+function expandDenseParagraph(paragraph: string): string[] {
+  const trimmed = paragraph.trim()
+  if (!trimmed) return []
+
+  if (trimmed.length <= 80 && splitIntoSentences(trimmed).length <= 2) {
+    return [trimmed]
+  }
+
+  const sentences = splitIntoSentences(trimmed)
+  if (sentences.length <= 2) {
+    return [trimmed]
+  }
+
+  return chunkSentences(sentences)
 }
 
 function sanitizeAuthoritySourceUrl(url?: string, sourceText = ''): string {
@@ -1699,43 +1923,53 @@ function toReadableUrl(url: string): string {
 }
 
 function convertTextToRichHtml(text: string): string {
-  const normalized = text
-    .replace(/\r\n/g, '\n')
-    .replace(/\r/g, '\n')
-    .replace(/\u00a0/g, ' ')
-    .replace(/([。！？!?；;])(?=(第[一二三四五六七八九十百千万0-9]+[章节部分篇条]|[一二三四五六七八九十]+[、.．]|[0-9]+[、.．]|（[一二三四五六七八九十0-9]+）|附件|附：|提示|建议|结论|原因|措施|何时就医))/gu, '$1\n')
-    .trim()
+  const normalized = normalizeBlock(
+    text
+      .replace(/\r\n/g, '\n')
+      .replace(/\r/g, '\n')
+      .replace(/([。！？!?；;])(?=(第[一二三四五六七八九十百千万0-9]+[章节部分篇条]|[一二三四五六七八九十]+[、.．]|[0-9]+[、.．]|（[一二三四五六七八九十0-9]+）|附件|附：|提示|建议|结论|原因|措施|何时就医|不确定性说明|参考来源))/gu, '$1\n')
+      .replace(/([^\n])(第[一二三四五六七八九十百千万0-9]+[章节部分篇条])/gu, '$1\n$2')
+      .replace(/([^\n])([一二三四五六七八九十]+[、.．])/gu, '$1\n$2')
+      .replace(/([^\n])(（[一二三四五六七八九十0-9]+）)/gu, '$1\n$2'),
+  )
 
-  const blocks = normalized.split(/\n+/).map(line => line.trim()).filter(Boolean)
+  const rawBlocks = normalized.split(/\n{2,}/).map(line => line.trim()).filter(Boolean)
   const paragraphs: string[] = []
-  let current = ''
 
-  const pushCurrent = () => {
-    if (current.trim()) {
-      paragraphs.push(current.trim())
-      current = ''
+  rawBlocks.forEach((block) => {
+    const lines = block.split(/\n+/).map(line => line.trim()).filter(Boolean)
+    let buffer = ''
+
+    lines.forEach((line) => {
+      const splitHeading = splitHeadingPrefix(line)
+      if (splitHeading.heading) {
+        if (buffer.trim()) {
+          paragraphs.push(...expandDenseParagraph(buffer))
+          buffer = ''
+        }
+        paragraphs.push(splitHeading.heading)
+        if (splitHeading.remainder) {
+          buffer = splitHeading.remainder
+        }
+        return
+      }
+
+      if (/^[-*•·]\s+/.test(line) || isLikelyHeading(line)) {
+        if (buffer.trim()) {
+          paragraphs.push(...expandDenseParagraph(buffer))
+          buffer = ''
+        }
+        paragraphs.push(line)
+        return
+      }
+
+      buffer = buffer ? `${buffer} ${line}` : line
+    })
+
+    if (buffer.trim()) {
+      paragraphs.push(...expandDenseParagraph(buffer))
     }
-  }
-
-  blocks.forEach((line) => {
-    const isHeading = /^(第[一二三四五六七八九十百千万0-9]+[章节部分篇条]|[一二三四五六七八九十]+[、.．]|[0-9]+[、.．]|（[一二三四五六七八九十0-9]+）|附件|附：|提示|建议|结论|原因|措施|何时就医)/u.test(line) && !/[。！？!?；;]$/.test(line)
-    if (isHeading) {
-      pushCurrent()
-      paragraphs.push(line)
-      return
-    }
-
-    const candidate = `${current} ${line}`.trim()
-    if (current && candidate.length > 88) {
-      pushCurrent()
-      current = line
-      return
-    }
-
-    current = candidate
   })
-
-  pushCurrent()
 
   return paragraphs
     .map((line) => `<p style="margin:0 0 1.1em;line-height:1.9;display:block;">${escapeHtml(line)}</p>`)
@@ -1749,11 +1983,18 @@ function formatRichArticleContent(content: string): string {
   }
 
   if (/<[a-z][\s\S]*>/i.test(trimmed)) {
-    return addBlockSpacingToHtml(
-      trimmed
-        .replace(/<(?:nav|footer|header|aside)[\s\S]*?<\/(?:nav|footer|header|aside)>/gi, '')
-        .replace(/<(?:p|div|section|article)[^>]*>(?:\s|&nbsp;|&#160;|<br\s*\/?>)*<\/(?:p|div|section|article)>/gi, ''),
-    )
+    const sanitizedHtml = trimmed
+      .replace(/<script[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[\s\S]*?<\/style>/gi, '')
+      .replace(/<(?:nav|footer|header|aside)[\s\S]*?<\/(?:nav|footer|header|aside)>/gi, '')
+      .replace(/<(?:p|div|section|article)[^>]*>(?:\s|&nbsp;|&#160;|<br\s*\/?>)*<\/(?:p|div|section|article)>/gi, '')
+      .trim()
+
+    if (/<(?:p|div|section|article|li|ul|ol|h[1-6]|blockquote)\b/i.test(sanitizedHtml)) {
+      return addBlockSpacingToHtml(sanitizedHtml)
+    }
+
+    return convertTextToRichHtml(stripHtmlTags(sanitizedHtml))
   }
 
   return convertTextToRichHtml(trimmed)

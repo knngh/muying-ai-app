@@ -42,7 +42,7 @@ const variantCopy: Record<NonNullable<LaunchScreenProps['variant']>, {
   boot: {
     chip: '移动端唤起中',
     title: '正在恢复连续陪伴链路',
-    subtitle: '会先恢复当前阶段，再同步问题助手、周报与成长档案入口。',
+    subtitle: '会先恢复当前阶段，再同步阅读问答、周报与成长档案入口。',
     caption: '正在恢复你的陪伴节奏',
     spotlight: {
       eyebrow: '恢复内容',

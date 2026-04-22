@@ -15,7 +15,7 @@ import { colors, fontSize, spacing, borderRadius } from '../theme'
 import type { RootStackParamList } from '../navigation/AppNavigator'
 
 const comparisonRows = [
-  { label: '问题助手', free: '每天 3 次', member: '连续追问' },
+  { label: '阅读问答', free: '每天 3 次', member: '连续追问' },
   { label: '阶段建议', free: '基础参考', member: '按当前阶段细分' },
   { label: '周度报告', free: '预览查看', member: '持续生成回顾' },
   { label: '成长档案', free: '基础记录', member: '长期沉淀 + 导出' },
@@ -23,7 +23,7 @@ const comparisonRows = [
 ]
 
 const featureLabelMap = {
-  ai_unlimited: '问题助手不限次',
+  ai_unlimited: '阅读问答不限次',
   continuous_chat: '连续追问',
   weekly_report: '周报生成',
   growth_export: '成长档案导出',
@@ -79,7 +79,7 @@ export default function MembershipScreen() {
 
   const heroSubtitle = useMemo(() => {
     if (status === 'active') {
-      return '这里不是单次问答升级，而是把问题助手、成长日历、阶段周报和成长档案放进同一套陪伴流程。'
+      return '这里不是单次问答升级，而是把阅读问答、成长日历、阶段周报和成长档案放进同一套陪伴流程。'
     }
 
     if (source === 'growth_archive') {
@@ -87,10 +87,10 @@ export default function MembershipScreen() {
     }
 
     if (source === 'home_retention' || source === 'home_upgrade') {
-      return '你刚从首页任务链路进来，开通后签到、周报、问题助手和成长档案会形成连续反馈，而不是一次性使用。'
+      return '你刚从首页任务链路进来，开通后签到、周报、阅读问答和成长档案会形成连续反馈，而不是一次性使用。'
     }
 
-    return '这里不是单次问答升级，而是把问题助手、成长日历、阶段周报和成长档案放进同一套陪伴流程。'
+    return '这里不是单次问答升级，而是把阅读问答、成长日历、阶段周报和成长档案放进同一套陪伴流程。'
   }, [source, status])
 
   useFocusEffect(

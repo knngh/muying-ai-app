@@ -99,6 +99,8 @@ interface AuthorityArticleTranslationApiResponse {
   translation?: AuthorityTranslationCacheRecord;
 }
 
+const AUTHORITY_TRANSLATION_PROMPT_LEAK_PATTERN = /<translated_(title|summary|content)>|Be accurate and faithful to the original|不要输出任何额外说明|输出必须严格使用以下标签/i;
+
 function hashStringToPositiveInt(input: string): number {
   let hash = 0;
   for (let index = 0; index < input.length; index += 1) {
@@ -530,7 +532,21 @@ function getCachedAuthorityTranslation(
   const translationCache = loadAuthorityTranslationCache();
   const cached = translationCache[slug];
   if (cached && cached.sourceUpdatedAt === sourceUpdatedAt) {
-    return cached;
+    const normalized = normalizeAuthorityTranslationRecord(cached);
+    if (!normalized) {
+      return null;
+    }
+
+    if (
+      normalized.translatedTitle !== cached.translatedTitle
+      || normalized.translatedSummary !== cached.translatedSummary
+      || normalized.translatedContent !== cached.translatedContent
+    ) {
+      translationCache[slug] = normalized;
+      saveAuthorityTranslationCache(translationCache);
+    }
+
+    return normalized;
   }
   return null;
 }
@@ -626,6 +642,56 @@ function normalizeWhitespace(input: string): string {
     .replace(/\r/g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
+}
+
+function sanitizeTranslationText(
+  input: string,
+  type: 'title' | 'summary' | 'content',
+): string {
+  if (!input) {
+    return '';
+  }
+
+  const labelPattern = type === 'title'
+    ? /^(?:[-*•·]\s*)?(?:translated_title|title|标题)\s*[:：]\s*/i
+    : type === 'summary'
+      ? /^(?:[-*•·]\s*)?(?:translated_summary|summary|摘要)\s*[:：]\s*/i
+      : /^(?:[-*•·]\s*)?(?:translated_content|content|正文|内容)\s*[:：]\s*/i;
+
+  let normalized = normalizeWhitespace(stripCodeFence(input))
+    .replace(/<\/?translated_(title|summary|content)>/gi, '')
+    .replace(/^\s*#{1,6}\s*/g, '')
+    .replace(/^[`"'“”‘’]+|[`"'“”‘’]+$/g, '')
+    .trim();
+
+  if (AUTHORITY_TRANSLATION_PROMPT_LEAK_PATTERN.test(normalized)) {
+    return '';
+  }
+
+  normalized = normalized
+    .replace(/^(?:好的[，,]?\s*)/u, '')
+    .replace(/^(?:以下(?:是|为)|下面(?:是|为)|这是)(?:本篇|这篇|当前)?(?:文章|原文|内容)?(?:的)?(?:中文)?(?:辅助)?(?:翻译|译文|中文版)?\s*[：:。.]?\s*/u, '')
+    .replace(labelPattern, '')
+    .trim();
+
+  return normalized;
+}
+
+function normalizeAuthorityTranslationRecord(
+  translation: AuthorityTranslationCacheRecord,
+): AuthorityTranslationCacheRecord | null {
+  const normalized: AuthorityTranslationCacheRecord = {
+    ...translation,
+    translatedTitle: sanitizeTranslationText(translation.translatedTitle || '', 'title'),
+    translatedSummary: sanitizeTranslationText(translation.translatedSummary || '', 'summary'),
+    translatedContent: sanitizeTranslationText(translation.translatedContent || '', 'content'),
+  };
+
+  if (!normalized.translatedContent) {
+    return null;
+  }
+
+  return normalized;
 }
 
 function buildAuthorityTranslationSourceContent(input: string): { content: string; truncated: boolean } {
@@ -842,8 +908,6 @@ async function translateAuthorityRecord(slug: string, record: AuthorityCacheReco
     },
   ];
 
-  const leakedPromptPattern = /<translated_(title|summary|content)>|Be accurate and faithful to the original|不要输出任何额外说明|输出必须严格使用以下标签/i;
-
   let lastError: unknown;
   let result: Awaited<ReturnType<typeof callTaskModelDetailed>> | null = null;
   let parsedTranslation: ReturnType<typeof extractTranslationPayload> | null = null;
@@ -861,9 +925,9 @@ async function translateAuthorityRecord(slug: string, record: AuthorityCacheReco
     }
 
     const parsed = extractTranslationPayload(result.answer, sourceTitle, sourceSummary);
-    const title = parsed.translatedTitle || sourceTitle;
-    const summary = parsed.translatedSummary || sourceSummary;
-    const content = parsed.translatedContent;
+    const title = sanitizeTranslationText(parsed.translatedTitle || sourceTitle, 'title');
+    const summary = sanitizeTranslationText(parsed.translatedSummary || sourceSummary, 'summary');
+    const content = sanitizeTranslationText(parsed.translatedContent, 'content');
 
     if (!content) {
       lastError = new Error('翻译结果解析失败');
@@ -871,7 +935,11 @@ async function translateAuthorityRecord(slug: string, record: AuthorityCacheReco
       continue;
     }
 
-    if (leakedPromptPattern.test(title) || leakedPromptPattern.test(summary) || leakedPromptPattern.test(content)) {
+    if (
+      AUTHORITY_TRANSLATION_PROMPT_LEAK_PATTERN.test(title)
+      || AUTHORITY_TRANSLATION_PROMPT_LEAK_PATTERN.test(summary)
+      || AUTHORITY_TRANSLATION_PROMPT_LEAK_PATTERN.test(content)
+    ) {
       lastError = new Error('翻译结果包含提示词模板，已丢弃');
       console.error(`[Authority Translation] Prompt leak detected for ${slug} via ${taskRole}, trying next model`);
       continue;
@@ -885,9 +953,9 @@ async function translateAuthorityRecord(slug: string, record: AuthorityCacheReco
     throw lastError instanceof Error ? lastError : new Error('翻译服务暂时不可用');
   }
 
-  const translatedTitle = parsedTranslation.translatedTitle || sourceTitle;
-  const translatedSummary = parsedTranslation.translatedSummary || sourceSummary;
-  const translatedContent = parsedTranslation.translatedContent;
+  const translatedTitle = sanitizeTranslationText(parsedTranslation.translatedTitle || sourceTitle, 'title') || sourceTitle;
+  const translatedSummary = sanitizeTranslationText(parsedTranslation.translatedSummary || sourceSummary, 'summary') || sourceSummary;
+  const translatedContent = sanitizeTranslationText(parsedTranslation.translatedContent, 'content');
 
   const payload: AuthorityTranslationCacheRecord = {
     slug,

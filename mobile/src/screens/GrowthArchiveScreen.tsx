@@ -223,7 +223,7 @@ export default function GrowthArchiveScreen() {
     return {
       title: '先看到了档案，再决定要不要把它做完整',
       description: '你是从首页的回访链路进入的。只要档案还停在预览，后面很多“为什么明天还要回来”都接不住。',
-      highlights: ['连续记录不会断在首页', '周报和档案会形成时间线', '问题助手内容能沉淀成复盘材料'],
+      highlights: ['连续记录不会断在首页', '周报和档案会形成时间线', '阅读问答内容能沉淀成复盘材料'],
     }
   }, [isVip, source])
 
@@ -272,7 +272,7 @@ export default function GrowthArchiveScreen() {
     {
       label: '今日使用',
       value: isVip ? `${aiUsedToday} 次` : `${aiUsedToday} / ${aiLimit} 次`,
-      hint: isVip ? '会员已解锁更完整的问题助手服务。' : '升级后可不限次使用问题助手。',
+      hint: isVip ? '会员已解锁更完整的阅读问答服务。' : '升级后可不限次使用阅读问答。',
     },
     {
       label: '周报沉淀',
@@ -307,7 +307,7 @@ export default function GrowthArchiveScreen() {
         helper: '周报越完整，越适合做阶段交接与分享。',
       },
       {
-        label: '问题助手使用度',
+        label: '阅读问答使用度',
         value: isVip ? `${aiUsedToday} 次` : `${aiUsedToday}/${aiLimit}`,
         progress: Math.min(aiUsedToday / quotaBase, 1),
         tone: 'pink',
