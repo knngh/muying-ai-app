@@ -376,9 +376,16 @@ export async function appendConversationAssistantAnswer(params: {
   });
 }
 
-export async function listUserChatSessions(userId: string, limit = 20): Promise<StoredChatSession[]> {
+export async function listUserChatSessions(userId: string, limit = 20, offset = 0): Promise<{ rows: StoredChatSession[]; total: number }> {
   await ensureTables();
   const safeLimit = Math.min(Math.max(limit, 1), 50);
+  const safeOffset = Math.max(offset, 0);
+
+  const countResult = await prisma.$queryRawUnsafe<{ cnt: number | bigint }[]>(
+    `SELECT COUNT(*) AS cnt FROM ai_chat_conversations WHERE user_id = ? AND deleted_at IS NULL`,
+    userId
+  );
+  const total = Number(countResult[0]?.cnt ?? 0);
 
   const rows = await prisma.$queryRawUnsafe<ConversationRow[]>(
     `SELECT c.id, c.title, c.summary, c.created_at AS createdAt, c.updated_at AS updatedAt, COUNT(m.id) AS messageCount
@@ -387,21 +394,25 @@ export async function listUserChatSessions(userId: string, limit = 20): Promise<
      WHERE c.user_id = ? AND c.deleted_at IS NULL
      GROUP BY c.id, c.title, c.summary, c.created_at, c.updated_at
      ORDER BY c.updated_at DESC
-     LIMIT ?`,
+     LIMIT ? OFFSET ?`,
     userId,
-    safeLimit
+    safeLimit,
+    safeOffset
   );
 
-  return rows.map((row) => ({
-    id: row.id.toString(),
-    title: row.title || '新的对话',
-    summary: normalizeStoredSummary(row.summary),
-    lastMessagePreview: normalizeStoredSummary(row.summary),
-    messageCount: Number(row.messageCount),
-    messages: [],
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
-  }));
+  return {
+    total,
+    rows: rows.map((row) => ({
+      id: row.id.toString(),
+      title: row.title || '新的对话',
+      summary: normalizeStoredSummary(row.summary),
+      lastMessagePreview: normalizeStoredSummary(row.summary),
+      messageCount: Number(row.messageCount),
+      messages: [],
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+    })),
+  };
 }
 
 export async function getUserChatSession(userId: string, conversationId: string): Promise<StoredChatSession | null> {

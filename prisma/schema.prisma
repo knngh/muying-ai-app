@@ -78,6 +78,7 @@ model User {
   @@index([email])
   @@index([status])
   @@index([pregnancyStatus, dueDate])
+  @@index([deletedAt])
   @@map("users")
 }
 
@@ -221,7 +222,6 @@ model Article {
   author          Author?      @relation(fields: [authorId], references: [id])
   tags            ArticleTag[]
   readHistory     UserReadHistory[]
-  favorites       UserFavorite[]
 
   @@index([categoryId])
   @@index([authorId])
@@ -232,6 +232,7 @@ model Article {
   @@index([isFeatured])
   @@index([contentType])
   @@index([difficulty])
+  @@index([deletedAt])
   @@fulltext([title, content])
   @@map("articles")
 }
@@ -300,6 +301,7 @@ model CalendarEvent {
   @@index([eventType])
   @@index([status])
   @@index([userId, eventDate])
+  @@index([deletedAt])
   @@map("calendar_events")
 }
 
@@ -404,7 +406,6 @@ model UserFavorite {
   createdAt       DateTime @default(now())
   
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  article         Article? @relation(fields: [favId], references: [id], onDelete: Cascade)
 
   @@unique([userId, favType, favId])
   @@index([userId])
@@ -510,6 +511,8 @@ model CommunityPost {
   @@index([status])
   @@index([createdAt])
   @@index([isPinned])
+  @@index([deletedAt])
+  @@index([authorId, status])
   @@fulltext([title, content])
   @@map("community_posts")
 }
@@ -668,7 +671,6 @@ model GrowthProfile {
   user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   records         GrowthRecord[]
 
-  @@index([userId])
   @@index([birthday])
   @@map("growth_profiles")
 }
@@ -895,6 +897,7 @@ model AuthorityNormalizedDocument {
   @@index([publishStatus])
   @@index([updatedAt])
   @@index([topic, publishStatus])
+  @@index([sourceOrg])
   @@map("authority_normalized_documents")
 }
 

@@ -735,19 +735,33 @@ async function fetchText(url: string, headers?: Record<string, string>): Promise
         method: 'GET',
         signal: AbortSignal.timeout(AUTHORITY_FETCH_TIMEOUT_MS),
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36 muying-ai-app-authority-sync/1.0',
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
           Accept: 'text/html,application/xhtml+xml,application/xml,text/xml;q=0.9,*/*;q=0.8',
           'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
           ...headers,
         },
       });
     } catch (error) {
-      if ((error as { name?: string }).name === 'TimeoutError' || (error as { name?: string }).name === 'AbortError') {
+      const errName = (error as { name?: string }).name;
+      const errCode = (error as { code?: string }).code;
+      const isTransient = errName === 'TimeoutError' || errName === 'AbortError'
+        || errCode === 'ECONNRESET' || errCode === 'ETIMEDOUT' || errCode === 'ECONNREFUSED'
+        || errCode === 'UND_ERR_CONNECT_TIMEOUT';
+      if (isTransient && attempt < 2) {
+        await sleep(AUTHORITY_RETRY_429_DELAY_MS * (attempt + 1));
+        continue;
+      }
+      if (errName === 'TimeoutError' || errName === 'AbortError') {
         throw new Error(`Authority fetch timed out after ${AUTHORITY_FETCH_TIMEOUT_MS}ms: ${url}`);
       }
       throw error;
     }
     lastAuthorityFetchAt = Date.now();
+
+    if (response.status >= 500 && attempt < 2) {
+      await sleep(AUTHORITY_RETRY_429_DELAY_MS * (attempt + 1));
+      continue;
+    }
 
     if (response.status !== 429 || attempt >= AUTHORITY_RETRY_429_LIMIT) {
       return response;
@@ -803,6 +817,17 @@ function detectResponseCharset(response: Response, buffer: Buffer): string {
   const hasUtf16NullPattern = sample.some((byte, index) => index % 2 === 1 && byte === 0);
   if (hasUtf16NullPattern) {
     return 'utf-16le';
+  }
+
+  // Sniff HTML <meta charset> / <meta http-equiv="Content-Type"> for Chinese sites
+  // that declare encoding only in the document body (common with GBK/GB2312 pages).
+  const headSnippet = buffer.subarray(0, Math.min(buffer.length, 2048)).toString('latin1');
+  const metaCharsetMatch = headSnippet.match(/<meta[^>]+charset=["']?([^"';\s>]+)/i);
+  if (metaCharsetMatch) {
+    const meta = metaCharsetMatch[1].toLowerCase();
+    // Normalize gb2312 → gbk since Node TextDecoder supports gbk but treats gb2312 identically
+    if (meta === 'gb2312') return 'gbk';
+    return meta;
   }
 
   return 'utf-8';

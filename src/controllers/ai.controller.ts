@@ -345,9 +345,10 @@ export const getConversations = async (req: Request, res: Response, next: NextFu
     const userId = req.userId;
     const page = Math.max(1, Number(req.query.page || 1));
     const pageSize = Math.min(Number(req.query.pageSize || 20), 50);
+    const offset = (page - 1) * pageSize;
 
-    const sessions = await listUserChatSessions(userId!, pageSize);
-    res.json(paginatedResponse(sessions, page, pageSize, sessions.length));
+    const { rows, total } = await listUserChatSessions(userId!, pageSize, offset);
+    res.json(paginatedResponse(rows, page, pageSize, total));
   } catch (error) {
     next(error);
   }

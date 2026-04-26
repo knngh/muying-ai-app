@@ -1,23 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
+import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import axios from 'axios';
-import jwt, { type SignOptions } from 'jsonwebtoken';
 import prisma from '../config/database';
 import { successResponse, AppError, ErrorCodes } from '../middlewares/error.middleware';
 import { calculateDueDateFromPregnancyWeek } from '../utils/pregnancy';
-import { env } from '../config/env';
-
-const generateToken = (userId: string): string => {
-  const signOptions: SignOptions = {
-    expiresIn: env.JWT_EXPIRES_IN as SignOptions['expiresIn'],
-  };
-
-  return jwt.sign(
-    { userId },
-    env.JWT_SECRET,
-    signOptions
-  );
-};
+import { generateToken } from '../utils/jwt';
 
 export const wechatLogin = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -32,6 +20,9 @@ export const wechatLogin = async (req: Request, res: Response, next: NextFunctio
     const appSecret = process.env.WECHAT_APPSECRET;
 
     if (!appId || !appSecret) {
+      if (process.env.NODE_ENV === 'production') {
+        throw new AppError('微信登录服务暂不可用', ErrorCodes.THIRD_PARTY_ERROR, 503);
+      }
       console.warn('⚠️ 未配置 WECHAT_APPID 或 WECHAT_APPSECRET，使用模拟登录');
       // 开发阶段模拟登录逻辑
       const mockOpenid = 'mock_openid_' + code.substring(0, 10);
@@ -51,9 +42,9 @@ export const wechatLogin = async (req: Request, res: Response, next: NextFunctio
           }
         });
       } else {
-        const randomPassword = Math.random().toString(36).slice(-8);
+        const randomPassword = crypto.randomBytes(12).toString('base64url');
         const passwordHash = await bcrypt.hash(randomPassword, 10);
-        const randomUsername = `wxuser_${Math.random().toString(36).slice(2, 8)}`;
+        const randomUsername = `wxuser_${crypto.randomBytes(4).toString('hex')}`;
 
         user = await prisma.user.create({
           data: {
@@ -115,9 +106,9 @@ export const wechatLogin = async (req: Request, res: Response, next: NextFunctio
         }
       });
     } else {
-      const randomPassword = Math.random().toString(36).slice(-8);
+      const randomPassword = crypto.randomBytes(12).toString('base64url');
       const passwordHash = await bcrypt.hash(randomPassword, 10);
-      const randomUsername = `wxuser_${Math.random().toString(36).slice(2, 8)}`;
+      const randomUsername = `wxuser_${crypto.randomBytes(4).toString('hex')}`;
 
       user = await prisma.user.create({
         data: {

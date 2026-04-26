@@ -18,6 +18,7 @@ import {
 } from '../utils/authority-metadata';
 import { inferAuthorityStages } from '../utils/authority-stage';
 import { matchesAuthorityStageFilters } from '../utils/authority-stage-filter';
+import { logger } from '../utils/logger';
 import { shouldFilterAuthoritySourceUrl } from '../utils/authority-source-url';
 import { matchesExpandedSearch } from '../utils/search-query-expansion';
 import { rewriteSearchQueries } from '../services/knowledge.service';
@@ -1688,7 +1689,7 @@ export const getArticles = async (req: Request, res: Response, next: NextFunctio
       if (cacheKey) {
         const cached = cache.get<unknown>(cacheKey);
         if (cached) {
-          console.log(`[Cache] Hit: ${cacheKey}`);
+          logger.debug(`Cache hit: ${cacheKey}`, { component: 'article', event: 'cache_hit' });
           return res.json(cached);
         }
       }
@@ -1778,7 +1779,7 @@ export const getArticles = async (req: Request, res: Response, next: NextFunctio
     // 缓存结果
     if (cacheKey && shouldCache) {
       cache.set(cacheKey, response, CacheTTL.MEDIUM);
-      console.log(`[Cache] Set: ${cacheKey}`);
+      logger.debug(`Cache set: ${cacheKey}`, { component: 'article', event: 'cache_set' });
     }
 
     res.json(response);
@@ -1841,7 +1842,7 @@ export const getArticleBySlug = async (req: Request, res: Response, next: NextFu
     let article = cache.get<ArticleDetailCacheRecord>(cacheKey);
 
     if (article) {
-      console.log(`[Cache] Hit: ${cacheKey}`);
+      logger.debug(`Cache hit: ${cacheKey}`, { component: 'article', event: 'cache_hit' });
     } else {
       article = await prisma.article.findUnique({
         where: { slug },
@@ -1854,7 +1855,7 @@ export const getArticleBySlug = async (req: Request, res: Response, next: NextFu
 
       // 缓存文章详情
       cache.set(cacheKey, article, CacheTTL.MEDIUM);
-      console.log(`[Cache] Set: ${cacheKey}`);
+      logger.debug(`Cache set: ${cacheKey}`, { component: 'article', event: 'cache_set' });
     }
 
     // 增加浏览量（异步执行，不阻塞响应）
@@ -1959,7 +1960,7 @@ export const getRelatedArticles = async (req: Request, res: Response, next: Next
     const cacheKey = CacheKeys.ARTICLE_RELATED(id, limit);
     const cached = cache.get<unknown>(cacheKey);
     if (cached) {
-      console.log(`[Cache] Hit: ${cacheKey}`);
+      logger.debug(`Cache hit: ${cacheKey}`, { component: 'article', event: 'cache_hit' });
       return res.json(cached);
     }
 
@@ -2005,7 +2006,7 @@ export const getRelatedArticles = async (req: Request, res: Response, next: Next
     
     // 缓存结果
     cache.set(cacheKey, response, CacheTTL.MEDIUM);
-    console.log(`[Cache] Set: ${cacheKey}`);
+    logger.debug(`Cache set: ${cacheKey}`, { component: 'article', event: 'cache_set' });
 
     res.json(response);
   } catch (error) {
@@ -2141,25 +2142,25 @@ export const likeArticle = async (req: Request, res: Response, next: NextFunctio
       return;
     }
 
-    // 检查是否已点赞
-    const existingLike = await prisma.userLike.findFirst({
-      where: { userId: BigInt(userId), likeType: 'article', likeId: BigInt(id) }
-    });
+    // 使用事务确保点赞的原子性
+    const updatedArticle = await prisma.$transaction(async (tx) => {
+      const existingLike = await tx.userLike.findFirst({
+        where: { userId: BigInt(userId), likeType: 'article', likeId: BigInt(id) }
+      });
 
-    if (existingLike) {
-      throw new AppError('已点赞', ErrorCodes.PARAM_ERROR, 400);
-    }
+      if (existingLike) {
+        throw new AppError('已点赞', ErrorCodes.PARAM_ERROR, 400);
+      }
 
-    // 创建点赞记录并更新计数
-    const [, updatedArticle] = await Promise.all([
-      prisma.userLike.create({
+      await tx.userLike.create({
         data: { userId: BigInt(userId), likeType: 'article', likeId: BigInt(id) }
-      }),
-      prisma.article.update({
+      });
+
+      return tx.article.update({
         where: { id: BigInt(id) },
         data: { likeCount: { increment: 1 } }
-      })
-    ]);
+      });
+    });
 
     // 清除热门文章缓存
     cache.delete(CacheKeys.ARTICLES_POPULAR);

@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcryptjs';
-import jwt, { type JwtPayload, type SignOptions } from 'jsonwebtoken';
+import jwt, { type JwtPayload } from 'jsonwebtoken';
 import prisma from '../config/database';
 import { successResponse, AppError, ErrorCodes } from '../middlewares/error.middleware';
 import {
@@ -13,6 +13,7 @@ import {
   resolveLifecycleStage,
 } from '../utils/pregnancy';
 import { env } from '../config/env';
+import { generateToken } from '../utils/jwt';
 
 function isUniqueConstraintError(error: unknown): error is { code: 'P2002'; meta?: { target?: unknown } } {
   return typeof error === 'object'
@@ -20,19 +21,6 @@ function isUniqueConstraintError(error: unknown): error is { code: 'P2002'; meta
     && 'code' in error
     && (error as { code?: unknown }).code === 'P2002';
 }
-
-// 生成 JWT Token
-const generateToken = (userId: string): string => {
-  const signOptions: SignOptions = {
-    expiresIn: env.JWT_EXPIRES_IN as SignOptions['expiresIn'],
-  };
-
-  return jwt.sign(
-    { userId },
-    env.JWT_SECRET,
-    signOptions
-  );
-};
 
 // 用户注册
 export const register = async (req: Request, res: Response, next: NextFunction) => {
@@ -140,13 +128,13 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
     }
 
     if (!user) {
-      throw new AppError('用户不存在', ErrorCodes.USER_NOT_FOUND, 401);
+      throw new AppError('用户名或密码错误', ErrorCodes.PASSWORD_ERROR, 401);
     }
 
     // 验证密码
     const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
     if (!isPasswordValid) {
-      throw new AppError('密码错误', ErrorCodes.PASSWORD_ERROR, 401);
+      throw new AppError('用户名或密码错误', ErrorCodes.PASSWORD_ERROR, 401);
     }
 
     // 更新最后登录信息

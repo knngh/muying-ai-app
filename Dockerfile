@@ -33,9 +33,12 @@ ENV PORT=3000
 
 # 复制必要文件
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/data ./data
+
+# 仅安装生产依赖 + 重新生成 Prisma client
+RUN npm ci --omit=dev && npx prisma generate
 
 # 创建非root用户
 RUN addgroup -g 1001 -S nodejs
