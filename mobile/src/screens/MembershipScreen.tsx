@@ -133,6 +133,10 @@ export default function MembershipScreen() {
 
     return '这里不是单次问答升级，而是把阅读问答、成长日历、阶段周报和成长档案放进同一套陪伴流程。'
   }, [source, status])
+  const heroTitle = status === 'active' ? `${stage.lifecycleLabel} 陪伴已联动` : `升级 ${stage.lifecycleLabel} 陪伴方案`
+  const heroStatusText = status === 'active' ? activePlan?.name || '已开通' : `今日已用 ${aiUsedToday} / 3 次`
+  const heroArchiveText = status === 'active' ? '周报与档案已联动' : '开通后持续沉淀'
+  const heroExpireText = status === 'active' && expireAt ? `有效期至 ${dayjs(expireAt).format('YYYY-MM-DD')}` : '日历 + 问答 + 周报'
 
   useFocusEffect(
     useCallback(() => {
@@ -207,58 +211,40 @@ export default function MembershipScreen() {
             end={{ x: 1, y: 1 }}
             style={styles.heroGradient}
           >
-          <View style={styles.heroGlow} />
-          <View style={styles.heroRing} />
-          <Card.Content>
-            <Text style={styles.heroEyebrow}>陪伴方案</Text>
-            <View style={styles.heroTop}>
-              <Chip style={styles.heroChip} textStyle={styles.heroChipText}>
+            <View style={styles.heroGlow} />
+            <View style={styles.heroRing} />
+            <Card.Content>
+              <View style={styles.heroHeaderRow}>
+                <Text style={styles.heroEyebrow}>陪伴方案</Text>
+                <Chip compact style={styles.heroChip} textStyle={styles.heroChipText}>
                 {status === 'active' ? '已开通' : '当前可开通'}
-              </Chip>
-              <Text style={styles.heroTitle}>把 {stage.lifecycleLabel} 的记录、问答和周报串成一条连续时间线</Text>
-              <Text style={styles.heroSubtitle}>{heroSubtitle}</Text>
-            </View>
-
-            <View style={styles.heroStats}>
-              <View style={styles.heroStatCard}>
-                <Text style={styles.heroStatLabel}>当前阶段</Text>
-                <Text style={styles.heroStatValue}>
-                  {stage.lifecycleLabel}
-                </Text>
+                </Chip>
               </View>
-              <View style={styles.heroStatCard}>
-                <Text style={styles.heroStatLabel}>会员状态</Text>
-                <Text style={styles.heroStatValue}>
-                  {status === 'active' ? activePlan?.name || '已开通' : `今日已用 ${aiUsedToday} / 3 次`}
-                </Text>
-              </View>
-              <View style={styles.heroStatCard}>
-                <Text style={styles.heroStatLabel}>档案状态</Text>
-                <Text style={styles.heroStatValue}>{status === 'active' ? '周报与档案已联动' : '开通后可持续沉淀记录'}</Text>
-              </View>
-            </View>
-
-            <View style={styles.heroSignalRow}>
-              <Chip compact style={styles.heroSignalChip} textStyle={styles.heroSignalChipText}>
-                备孕到 3 岁以上全生命周期
-              </Chip>
-              <Chip compact style={styles.heroSignalChip} textStyle={styles.heroSignalChipText}>
-                日历 + 问答 + 周报统一沉淀
-              </Chip>
-            </View>
-
-            {status === 'active' && expireAt ? (
-              <Text style={styles.expireText}>
-                有效期至 {dayjs(expireAt).format('YYYY-MM-DD')}
+              <Text style={styles.heroTitle}>{heroTitle}</Text>
+              <Text numberOfLines={1} style={styles.heroSubtitle}>
+                {heroSubtitle}
               </Text>
-            ) : null}
 
-            {status === 'active' ? (
-              <Button mode="contained" buttonColor={colors.ink} textColor={colors.white} onPress={() => navigation.navigate('WeeklyReport')} style={styles.heroButton}>
-                查看本周阶段周报
-              </Button>
-            ) : null}
-          </Card.Content>
+              <View style={styles.heroSummaryGrid}>
+                <View style={styles.heroSummaryItem}>
+                  <Text style={styles.heroSummaryLabel}>当前阶段</Text>
+                  <Text style={styles.heroSummaryValue}>{stage.lifecycleLabel}</Text>
+                </View>
+                <View style={styles.heroSummaryItem}>
+                  <Text style={styles.heroSummaryLabel}>会员状态</Text>
+                  <Text style={styles.heroSummaryValue}>{heroStatusText}</Text>
+                </View>
+                <View style={styles.heroSummaryItem}>
+                  <Text style={styles.heroSummaryLabel}>档案状态</Text>
+                  <Text style={styles.heroSummaryValue}>{heroArchiveText}</Text>
+                </View>
+                <View style={styles.heroSummaryItem}>
+                  <Text style={styles.heroSummaryLabel}>有效信息</Text>
+                  <Text style={styles.heroSummaryValue}>{heroExpireText}</Text>
+                </View>
+              </View>
+
+            </Card.Content>
           </LinearGradient>
         </Card>
 
@@ -441,13 +427,15 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 1.2,
+  },
+  heroHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
     marginBottom: spacing.sm,
   },
-  heroTop: {
-    gap: spacing.sm,
-  },
   heroChip: {
-    alignSelf: 'flex-start',
     backgroundColor: 'rgba(255, 253, 249, 0.9)',
     borderRadius: borderRadius.pill,
   },
@@ -456,63 +444,42 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   heroTitle: {
-    fontSize: fontSize.title,
+    fontSize: fontSize.xl,
     fontWeight: '700',
     color: colors.ink,
-    lineHeight: 32,
+    lineHeight: 28,
   },
   heroSubtitle: {
-    fontSize: fontSize.md,
-    lineHeight: 22,
+    marginTop: spacing.xs,
+    fontSize: fontSize.sm,
+    lineHeight: 20,
     color: colors.inkSoft,
   },
-  heroStats: {
-    flexDirection: 'column',
-    gap: spacing.sm,
-    marginTop: spacing.lg,
-  },
-  heroStatCard: {
-    flex: 1,
-    borderRadius: borderRadius.xl,
-    padding: spacing.md,
-    backgroundColor: 'rgba(255, 253, 249, 0.72)',
-    borderWidth: 1,
-    borderColor: 'rgba(184,138,72,0.1)',
-  },
-  heroStatLabel: {
-    color: colors.textSecondary,
-    fontSize: fontSize.sm,
-    marginBottom: spacing.xs,
-  },
-  heroStatValue: {
-    color: colors.ink,
-    fontSize: fontSize.md,
-    fontWeight: '700',
-    lineHeight: 22,
-  },
-  heroSignalRow: {
+  heroSummaryGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.sm,
     marginTop: spacing.md,
   },
-  heroSignalChip: {
-    backgroundColor: 'rgba(255, 249, 243, 0.92)',
-    borderColor: 'rgba(184,138,72,0.14)',
+  heroSummaryItem: {
+    width: '48%',
+    borderRadius: borderRadius.lg,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    backgroundColor: 'rgba(255, 253, 249, 0.72)',
+    borderWidth: 1,
+    borderColor: 'rgba(184,138,72,0.1)',
   },
-  heroSignalChipText: {
-    color: colors.primaryDark,
-    fontSize: fontSize.xs,
-    fontWeight: '700',
-  },
-  expireText: {
-    marginTop: spacing.md,
+  heroSummaryLabel: {
     color: colors.textSecondary,
+    fontSize: fontSize.xs,
+    marginBottom: 2,
   },
-  heroButton: {
-    marginTop: spacing.md,
-    alignSelf: 'flex-start',
-    borderRadius: borderRadius.pill,
+  heroSummaryValue: {
+    color: colors.ink,
+    fontSize: fontSize.sm,
+    fontWeight: '700',
+    lineHeight: 19,
   },
   contextCard: {
     marginTop: spacing.lg,
