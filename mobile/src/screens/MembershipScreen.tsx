@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo } from 'react'
 import { Alert, ScrollView, StyleSheet, View } from 'react-native'
-import { Button, Card, Chip, Divider, Text } from 'react-native-paper'
+import { Button, Card, Chip, Text } from 'react-native-paper'
 import LinearGradient from 'react-native-linear-gradient'
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native'
 import type { RouteProp } from '@react-navigation/native'
@@ -16,11 +16,51 @@ import { colors, fontSize, spacing, borderRadius } from '../theme'
 import type { RootStackParamList } from '../navigation/AppNavigator'
 
 const comparisonRows = [
-  { label: '阅读问答', free: '每天 3 次', member: '连续追问' },
-  { label: '阶段建议', free: '基础参考', member: '按当前阶段细分' },
-  { label: '周度报告', free: '预览查看', member: '持续生成回顾' },
-  { label: '成长档案', free: '基础记录', member: '长期沉淀 + 导出' },
-  { label: '陪伴范围', free: '单点使用', member: '备孕到儿童阶段联动' },
+  {
+    label: '阅读问答',
+    freeTitle: '每天 3 次',
+    freeDetail: '适合偶尔查一个问题，用完当天就要等刷新。',
+    memberTitle: '不限次连续追问',
+    memberDetail: '可以围绕同一个症状、检查或喂养问题继续追问细节。',
+    impactLabel: '一次问透',
+    impactText: '适合把一次咨询问清楚，而不是拆成几天问。',
+  },
+  {
+    label: '阶段建议',
+    freeTitle: '通用阶段提示',
+    freeDetail: '能看到当前阶段的基础提醒，但不会把问答、日历和档案串起来。',
+    memberTitle: '按当前阶段细分',
+    memberDetail: '结合孕周/宝宝月龄，把产检、胎动、喂养、睡眠等重点拆成下一步。',
+    impactLabel: '下一步明确',
+    impactText: '更容易知道今天先做什么、后面要跟什么。',
+  },
+  {
+    label: '周度报告',
+    freeTitle: '只看预览',
+    freeDetail: '能看到部分亮点，但完整回顾和建议不会持续沉淀。',
+    memberTitle: '完整周报持续生成',
+    memberDetail: '把本周问答、签到、日历完成度和阶段重点整理成回顾。',
+    impactLabel: '每周复盘',
+    impactText: '适合每周复盘，也方便和家人同步重点。',
+  },
+  {
+    label: '成长档案',
+    freeTitle: '基础记录',
+    freeDetail: '可以查看阶段资料，但长期趋势和摘要能力有限。',
+    memberTitle: '长期沉淀 + 导出',
+    memberDetail: '把关键变化、阶段记录、周报结论沉淀成可回看的时间线。',
+    impactLabel: '方便回看',
+    impactText: '产检、喂养、发育变化不容易散落在聊天记录里。',
+  },
+  {
+    label: '陪伴范围',
+    freeTitle: '单点使用',
+    freeDetail: '每次打开解决一个点，离开后上下文容易断。',
+    memberTitle: '备孕到儿童阶段联动',
+    memberDetail: '同一套日历、问答、周报和档案持续覆盖不同阶段。',
+    impactLabel: '持续陪伴',
+    impactText: '从孕期到育儿，信息不需要反复重新整理。',
+  },
 ]
 
 const featureLabelMap = {
@@ -316,30 +356,43 @@ export default function MembershipScreen() {
 
         <View style={styles.section}>
           <Text style={styles.sectionEyebrow}>权益对比</Text>
-          <Text style={styles.sectionTitle}>开通前后，能力会如何变化</Text>
-          <Card style={styles.compareCard}>
-            <Card.Content>
-              <View style={styles.compareHeader}>
-                <Text style={styles.compareHeaderLabel}>能力项</Text>
-                <View style={styles.compareHeaderValues}>
-                  <Text style={styles.compareHeaderFree}>基础</Text>
-                  <Text style={styles.compareHeaderMember}>陪伴方案</Text>
+          <Text style={styles.sectionTitle}>开通后具体多了什么</Text>
+          <Text style={styles.sectionDescription}>不是简单把次数变多，而是把问答、日历、周报和档案连成可持续使用的流程。</Text>
+          <View style={styles.compareSummaryRow}>
+            <View style={styles.compareSummaryCard}>
+              <Text style={styles.compareSummaryNumber}>3 次</Text>
+              <Text style={styles.compareSummaryLabel}>基础版每日问答</Text>
+            </View>
+            <View style={[styles.compareSummaryCard, styles.compareSummaryCardMember]}>
+              <Text style={styles.compareSummaryNumber}>不限次</Text>
+              <Text style={styles.compareSummaryLabel}>会员连续追问</Text>
+            </View>
+          </View>
+          {comparisonRows.map((row) => (
+            <Card key={row.label} style={styles.compareCard}>
+              <Card.Content>
+                <View style={styles.compareRowHeader}>
+                  <Text style={styles.compareLabel}>{row.label}</Text>
+                  <Chip compact style={styles.compareImpactChip} textStyle={styles.compareImpactChipText}>
+                    {row.impactLabel}
+                  </Chip>
                 </View>
-              </View>
-              {comparisonRows.map((row, index) => (
-                <View key={row.label}>
-                  <View style={styles.compareRow}>
-                    <Text style={styles.compareLabel}>{row.label}</Text>
-                    <View style={styles.compareValues}>
-                      <Text style={styles.compareFree}>{row.free}</Text>
-                      <Text style={styles.compareMember}>{row.member}</Text>
-                    </View>
+                <View style={styles.compareColumnWrap}>
+                  <View style={styles.compareColumn}>
+                    <Text style={styles.compareColumnEyebrow}>基础版</Text>
+                    <Text style={styles.compareFreeTitle}>{row.freeTitle}</Text>
+                    <Text style={styles.compareDetail}>{row.freeDetail}</Text>
                   </View>
-                  {index < comparisonRows.length - 1 ? <Divider /> : null}
+                  <View style={[styles.compareColumn, styles.compareColumnMember]}>
+                    <Text style={styles.compareColumnEyebrowMember}>开通后</Text>
+                    <Text style={styles.compareMemberTitle}>{row.memberTitle}</Text>
+                    <Text style={styles.compareMemberDetail}>{row.memberDetail}</Text>
+                  </View>
                 </View>
-              ))}
-            </Card.Content>
-          </Card>
+                <Text style={styles.compareImpactText}>{row.impactText}</Text>
+              </Card.Content>
+            </Card>
+          ))}
         </View>
       </ScrollView>
     </ScreenContainer>
@@ -521,6 +574,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.text,
   },
+  sectionDescription: {
+    marginTop: -spacing.xs,
+    marginBottom: spacing.md,
+    color: colors.textSecondary,
+    fontSize: fontSize.sm,
+    lineHeight: 20,
+  },
   planCard: {
     marginBottom: spacing.md,
     borderRadius: borderRadius.xl,
@@ -611,62 +671,112 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   compareCard: {
+    marginBottom: spacing.md,
     borderRadius: borderRadius.xl,
     backgroundColor: colors.surfaceRaised,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  compareHeader: {
-    paddingBottom: spacing.md,
+  compareSummaryRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
   },
-  compareHeaderLabel: {
+  compareSummaryCard: {
+    flex: 1,
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    backgroundColor: '#F7F4EE',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  compareSummaryCardMember: {
+    backgroundColor: colors.accentLight,
+    borderColor: 'rgba(184,138,72,0.22)',
+  },
+  compareSummaryNumber: {
+    color: colors.ink,
+    fontSize: fontSize.xl,
+    fontWeight: '800',
+    marginBottom: spacing.xs,
+  },
+  compareSummaryLabel: {
     color: colors.textSecondary,
     fontSize: fontSize.sm,
     fontWeight: '700',
   },
-  compareHeaderValues: {
-    flexDirection: 'row',
-    gap: spacing.md,
-  },
-  compareHeaderFree: {
-    width: 72,
-    textAlign: 'right',
-    color: colors.textLight,
-    fontSize: fontSize.sm,
-    fontWeight: '700',
-  },
-  compareHeaderMember: {
-    width: 96,
-    textAlign: 'right',
-    color: colors.primaryDark,
-    fontSize: fontSize.sm,
-    fontWeight: '700',
-  },
-  compareRow: {
-    paddingVertical: spacing.md,
+  compareRowHeader: {
+    gap: spacing.sm,
+    marginBottom: spacing.md,
   },
   compareLabel: {
-    marginBottom: spacing.sm,
-    fontSize: fontSize.md,
-    fontWeight: '700',
+    fontSize: fontSize.lg,
+    fontWeight: '800',
     color: colors.text,
   },
-  compareValues: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: spacing.md,
+  compareImpactChip: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.goldLight,
   },
-  compareFree: {
-    flex: 1,
-    color: colors.textLight,
-  },
-  compareMember: {
-    flex: 1,
-    color: colors.primaryDark,
+  compareImpactChipText: {
+    color: colors.gold,
+    fontSize: fontSize.xs,
     fontWeight: '700',
-    textAlign: 'right',
+  },
+  compareColumnWrap: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  compareColumn: {
+    flex: 1,
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    backgroundColor: '#F8F6F1',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  compareColumnMember: {
+    backgroundColor: '#FFF7EA',
+    borderColor: 'rgba(184,138,72,0.2)',
+  },
+  compareColumnEyebrow: {
+    color: colors.textLight,
+    fontSize: fontSize.xs,
+    fontWeight: '800',
+    marginBottom: spacing.xs,
+  },
+  compareColumnEyebrowMember: {
+    color: colors.primaryDark,
+    fontSize: fontSize.xs,
+    fontWeight: '800',
+    marginBottom: spacing.xs,
+  },
+  compareFreeTitle: {
+    color: colors.inkSoft,
+    fontSize: fontSize.md,
+    fontWeight: '800',
+    marginBottom: spacing.xs,
+  },
+  compareMemberTitle: {
+    color: colors.primaryDark,
+    fontSize: fontSize.md,
+    fontWeight: '800',
+    marginBottom: spacing.xs,
+  },
+  compareDetail: {
+    color: colors.textSecondary,
+    fontSize: fontSize.sm,
+    lineHeight: 19,
+  },
+  compareMemberDetail: {
+    color: colors.inkSoft,
+    fontSize: fontSize.sm,
+    lineHeight: 19,
+  },
+  compareImpactText: {
+    marginTop: spacing.md,
+    color: colors.textSecondary,
+    fontSize: fontSize.sm,
+    lineHeight: 20,
   },
 })
