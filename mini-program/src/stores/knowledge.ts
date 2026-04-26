@@ -12,6 +12,7 @@ import {
   dedupeKnowledgeArticles,
   getKnowledgeArticlePathname,
   getKnowledgeArticleTimestamp,
+  isChineseKnowledgeVariant,
   isGenericKnowledgeTitleKey,
   isKnowledgeLandingLikePath,
   normalizeKnowledgeSourceKey,
@@ -270,7 +271,7 @@ export const useKnowledgeStore = defineStore('knowledge', {
     async prefetchTranslations(candidates: Article[], limit = 3) {
       const queue = candidates
         .filter((item) => item.contentType === 'authority')
-        .filter((item) => item.sourceLanguage !== 'zh' && item.sourceLocale !== 'zh-CN')
+        .filter((item) => !isChineseKnowledgeVariant(item))
         .filter((item) => !this.translationCache[item.slug] && !this.translationFailed[item.slug])
         .filter((item) => !translationInFlight.has(item.slug))
         .slice(0, limit)

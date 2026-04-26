@@ -7,6 +7,7 @@ import {
   stripHtmlTags,
 } from './knowledge-text';
 import type { KnowledgeVariantSortMode } from './knowledge-dedupe';
+import { isChineseKnowledgeSource } from './knowledge-source';
 
 export type KnowledgeTagLike = {
   id?: number | string;
@@ -141,7 +142,7 @@ export function formatKnowledgeDisplayDate(article: KnowledgeArticleLike, locale
 }
 
 export function isChineseKnowledgeArticle(article: KnowledgeArticleLike): boolean {
-  return article.sourceLanguage === 'zh' || article.sourceLocale === 'zh-CN';
+  return isChineseKnowledgeSource(article);
 }
 
 export function getKnowledgeSourceSignal(article: KnowledgeArticleLike): string {

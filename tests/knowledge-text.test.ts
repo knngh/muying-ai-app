@@ -13,6 +13,8 @@ import {
   buildKnowledgeVariantPreview,
   formatKnowledgeDisplayDate,
   getKnowledgeDisplayTitle,
+  getKnowledgeSourceSignal,
+  isChineseKnowledgeArticle,
   sanitizeAuthoritySourceUrl,
   toReadableUrl,
 } from '../shared/utils/knowledge-presentation';
@@ -102,6 +104,23 @@ describe('shared knowledge text helpers', () => {
     expect(preview.chips).toContain('更新 2026/4/20');
     expect(preview.chips.some((item) => item.includes('约'))).toBe(true);
     expect(preview.chips).toContain('适用 孕期');
+  });
+
+  test('detects chinese authority sources from metadata and urls', () => {
+    expect(isChineseKnowledgeArticle({
+      sourceOrg: '国家卫生健康委员会妇幼健康司',
+      sourceUrl: 'https://www.nhc.gov.cn/fys/new_index.shtml',
+    })).toBe(true);
+
+    expect(isChineseKnowledgeArticle({
+      sourceOrg: 'China CDC',
+      sourceUrl: 'https://www.chinacdc.cn/jkkp/mygh/',
+    })).toBe(true);
+
+    expect(getKnowledgeSourceSignal({
+      sourceOrg: 'MSD Manuals',
+      sourceUrl: 'https://www.msdmanuals.cn/home/children',
+    })).toBe('中文源');
   });
 
   test('builds source digest for visible grouped variants', () => {

@@ -1,4 +1,5 @@
 import type { Article } from '../types'
+import { isChineseKnowledgeSource } from './knowledge-source'
 
 export interface KnowledgeArticleGroup {
   article: Article
@@ -127,8 +128,10 @@ export function getKnowledgeArticleSummaryLength(article: Pick<Article, 'summary
   return (article.summary || '').trim().length
 }
 
-export function isChineseKnowledgeVariant(article: Pick<Article, 'sourceLanguage' | 'sourceLocale'>): boolean {
-  return article.sourceLanguage === 'zh' || article.sourceLocale === 'zh-CN'
+export function isChineseKnowledgeVariant(
+  article: Pick<Article, 'sourceLanguage' | 'sourceLocale' | 'region' | 'sourceOrg' | 'source' | 'sourceUrl'>,
+): boolean {
+  return isChineseKnowledgeSource(article)
 }
 
 function compareKnowledgeArticles(

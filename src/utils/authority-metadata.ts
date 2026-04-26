@@ -76,3 +76,45 @@ export function buildAuthorityDisplayTags(input: {
 
   return output;
 }
+
+export function isChineseAuthorityArticle(input: {
+  sourceLanguage?: string | null;
+  sourceLocale?: string | null;
+  region?: string | null;
+  sourceOrg?: string | null;
+  source?: string | null;
+  sourceUrl?: string | null;
+  url?: string | null;
+}): boolean {
+  const language = String(input.sourceLanguage || '').toLowerCase();
+  const locale = String(input.sourceLocale || '').toLowerCase();
+  const region = String(input.region || '').toUpperCase();
+
+  if (language === 'zh' || language.startsWith('zh-')) return true;
+  if (locale === 'zh' || locale.startsWith('zh-') || locale.startsWith('zh_')) return true;
+  if (region === 'CN') return true;
+
+  const sourceText = [
+    input.sourceOrg || '',
+    input.source || '',
+    input.sourceUrl || '',
+    input.url || '',
+  ].join(' ');
+
+  return [
+    /中国政府网/u,
+    /国家卫生健康委员会/u,
+    /国家卫健委/u,
+    /国家疾病预防控制局/u,
+    /国家疾控局/u,
+    /中国疾病预防控制中心/u,
+    /中国疾控/u,
+    /gov\.cn/i,
+    /nhc\.gov\.cn/i,
+    /chinacdc\.cn/i,
+    /ndcpa\.gov\.cn/i,
+    /msdmanuals\.cn/i,
+    /\/zh(?:[-_/]|$)/i,
+    /chinese/i,
+  ].some((pattern) => pattern.test(sourceText));
+}

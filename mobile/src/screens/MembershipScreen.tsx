@@ -286,7 +286,7 @@ export default function MembershipScreen() {
 
             return (
               <Card key={plan.code} style={[styles.planCard, isActivePlan && styles.planCardActive]}>
-                <Card.Content>
+                <Card.Content style={styles.planCardContent}>
                   <View style={styles.planHeader}>
                     <View>
                       <Text style={styles.planIndex}>{`0${index + 1}`}</Text>
@@ -298,7 +298,7 @@ export default function MembershipScreen() {
                           </Chip>
                         ) : null}
                       </View>
-                      <Text style={styles.planDesc}>{plan.description}</Text>
+                      <Text numberOfLines={2} style={styles.planDesc}>{plan.description}</Text>
                     </View>
                     <View style={styles.planPriceWrap}>
                       <Text style={styles.planPrice}>¥{plan.price}</Text>
@@ -328,6 +328,7 @@ export default function MembershipScreen() {
                       onPress={() => handlePurchase(plan.code)}
                       buttonColor={isActivePlan ? undefined : colors.ink}
                       textColor={isActivePlan ? colors.ink : colors.white}
+                      compact
                       loading={loading}
                       disabled={loading}
                     >
@@ -356,7 +357,7 @@ export default function MembershipScreen() {
           </View>
           {comparisonRows.map((row) => (
             <Card key={row.label} style={styles.compareCard}>
-              <Card.Content>
+              <Card.Content style={styles.compareCardContent}>
                 <View style={styles.compareRowHeader}>
                   <Text style={styles.compareLabel}>{row.label}</Text>
                   <Chip compact style={styles.compareImpactChip} textStyle={styles.compareImpactChipText}>
@@ -367,15 +368,15 @@ export default function MembershipScreen() {
                   <View style={styles.compareColumn}>
                     <Text style={styles.compareColumnEyebrow}>基础版</Text>
                     <Text style={styles.compareFreeTitle}>{row.freeTitle}</Text>
-                    <Text style={styles.compareDetail}>{row.freeDetail}</Text>
+                    <Text numberOfLines={2} style={styles.compareDetail}>{row.freeDetail}</Text>
                   </View>
                   <View style={[styles.compareColumn, styles.compareColumnMember]}>
                     <Text style={styles.compareColumnEyebrowMember}>开通后</Text>
                     <Text style={styles.compareMemberTitle}>{row.memberTitle}</Text>
-                    <Text style={styles.compareMemberDetail}>{row.memberDetail}</Text>
+                    <Text numberOfLines={2} style={styles.compareMemberDetail}>{row.memberDetail}</Text>
                   </View>
                 </View>
-                <Text style={styles.compareImpactText}>{row.impactText}</Text>
+                <Text numberOfLines={1} style={styles.compareImpactText}>{row.impactText}</Text>
               </Card.Content>
             </Card>
           ))}
@@ -549,7 +550,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   planCard: {
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
     borderRadius: borderRadius.xl,
     backgroundColor: colors.surfaceRaised,
     borderWidth: 1,
@@ -560,6 +561,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.04,
     shadowRadius: 12,
   },
+  planCardContent: {
+    paddingVertical: spacing.md,
+  },
   planCardActive: {
     borderWidth: 1.5,
     borderColor: colors.accent,
@@ -568,7 +572,7 @@ const styles = StyleSheet.create({
   planHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: spacing.md,
+    gap: spacing.sm,
   },
   planNameRow: {
     flexDirection: 'row',
@@ -581,10 +585,10 @@ const styles = StyleSheet.create({
     fontSize: fontSize.xs,
     fontWeight: '700',
     letterSpacing: 1.2,
-    marginBottom: spacing.xs,
+    marginBottom: 2,
   },
   planName: {
-    fontSize: fontSize.xl,
+    fontSize: fontSize.lg,
     fontWeight: '700',
     color: colors.text,
   },
@@ -599,22 +603,24 @@ const styles = StyleSheet.create({
   },
   planDesc: {
     color: colors.textSecondary,
-    lineHeight: 20,
+    fontSize: fontSize.sm,
+    lineHeight: 19,
     maxWidth: 190,
   },
   planPriceWrap: {
     alignItems: 'flex-end',
   },
   planPrice: {
-    fontSize: 30,
+    fontSize: 26,
     fontWeight: '700',
     color: colors.ink,
   },
   planMonthlyPrice: {
+    fontSize: fontSize.sm,
     color: colors.textSecondary,
   },
   planFooter: {
-    marginTop: spacing.md,
+    marginTop: spacing.sm,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -622,8 +628,8 @@ const styles = StyleSheet.create({
   planFeatureWrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: spacing.sm,
-    marginTop: spacing.md,
+    gap: spacing.xs,
+    marginTop: spacing.sm,
   },
   planFeatureChip: {
     backgroundColor: 'rgba(255, 249, 243, 0.94)',
@@ -635,14 +641,18 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   planOriginalPrice: {
+    fontSize: fontSize.sm,
     color: colors.textSecondary,
   },
   compareCard: {
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
     borderRadius: borderRadius.xl,
     backgroundColor: colors.surfaceRaised,
     borderWidth: 1,
     borderColor: colors.border,
+  },
+  compareCardContent: {
+    paddingVertical: spacing.md,
   },
   compareSummaryRow: {
     flexDirection: 'row',
@@ -652,7 +662,7 @@ const styles = StyleSheet.create({
   compareSummaryCard: {
     flex: 1,
     borderRadius: borderRadius.lg,
-    padding: spacing.md,
+    padding: spacing.sm,
     backgroundColor: '#F7F4EE',
     borderWidth: 1,
     borderColor: colors.border,
@@ -663,21 +673,21 @@ const styles = StyleSheet.create({
   },
   compareSummaryNumber: {
     color: colors.ink,
-    fontSize: fontSize.xl,
+    fontSize: fontSize.lg,
     fontWeight: '800',
     marginBottom: spacing.xs,
   },
   compareSummaryLabel: {
     color: colors.textSecondary,
-    fontSize: fontSize.sm,
+    fontSize: fontSize.xs,
     fontWeight: '700',
   },
   compareRowHeader: {
-    gap: spacing.sm,
-    marginBottom: spacing.md,
+    gap: spacing.xs,
+    marginBottom: spacing.sm,
   },
   compareLabel: {
-    fontSize: fontSize.lg,
+    fontSize: fontSize.md,
     fontWeight: '800',
     color: colors.text,
   },
@@ -697,7 +707,7 @@ const styles = StyleSheet.create({
   compareColumn: {
     flex: 1,
     borderRadius: borderRadius.lg,
-    padding: spacing.md,
+    padding: spacing.sm,
     backgroundColor: '#F8F6F1',
     borderWidth: 1,
     borderColor: colors.border,
@@ -720,30 +730,30 @@ const styles = StyleSheet.create({
   },
   compareFreeTitle: {
     color: colors.inkSoft,
-    fontSize: fontSize.md,
+    fontSize: fontSize.sm,
     fontWeight: '800',
     marginBottom: spacing.xs,
   },
   compareMemberTitle: {
     color: colors.primaryDark,
-    fontSize: fontSize.md,
+    fontSize: fontSize.sm,
     fontWeight: '800',
     marginBottom: spacing.xs,
   },
   compareDetail: {
     color: colors.textSecondary,
-    fontSize: fontSize.sm,
-    lineHeight: 19,
+    fontSize: fontSize.xs,
+    lineHeight: 17,
   },
   compareMemberDetail: {
     color: colors.inkSoft,
-    fontSize: fontSize.sm,
-    lineHeight: 19,
+    fontSize: fontSize.xs,
+    lineHeight: 17,
   },
   compareImpactText: {
-    marginTop: spacing.md,
+    marginTop: spacing.sm,
     color: colors.textSecondary,
-    fontSize: fontSize.sm,
-    lineHeight: 20,
+    fontSize: fontSize.xs,
+    lineHeight: 17,
   },
 })

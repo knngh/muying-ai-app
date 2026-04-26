@@ -12,6 +12,7 @@ import { textToRichParagraphHtml } from '../utils/article-format';
 import { awardBehaviorPoints } from '../services/checkin.service';
 import {
   buildAuthorityDisplayTags,
+  isChineseAuthorityArticle,
   normalizeAuthorityAudienceLabel,
   normalizeAuthorityTopicLabel,
 } from '../utils/authority-metadata';
@@ -1380,7 +1381,7 @@ async function prewarmAuthorityTranslationsForArticles(
   limit = 5,
 ): Promise<void> {
   const englishArticles = articles
-    .filter((article) => article.sourceLanguage !== 'zh' && article.sourceLocale !== 'zh-CN')
+    .filter((article) => !isChineseAuthorityArticle(article))
     .slice(0, limit);
 
   if (englishArticles.length === 0) {
@@ -1422,7 +1423,7 @@ function getAuthorityArticleDateBucket(article: ReturnType<typeof mapAuthorityRe
 }
 
 function getAuthorityArticleSourcePriority(article: ReturnType<typeof mapAuthorityRecordToArticle>): number {
-  return article.sourceLanguage === 'zh' || article.sourceLocale === 'zh-CN' ? 0 : 1;
+  return isChineseAuthorityArticle(article) ? 0 : 1;
 }
 
 function getAuthorityArticlePathname(article: ReturnType<typeof mapAuthorityRecordToArticle>): string {

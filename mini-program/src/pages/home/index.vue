@@ -115,7 +115,7 @@ import { onShareAppMessage, onShareTimeline, onShow } from '@dcloudio/uni-app'
 import { useAppStore } from '@/stores/app'
 import { useKnowledgeStore } from '@/stores/knowledge'
 import { calculatePregnancyWeekFromDueDate } from '@/utils'
-import { getKnowledgeDisplayTitle } from '@/utils/knowledge-format'
+import { getKnowledgeDisplayTitle, isChineseKnowledgeArticle } from '@/utils/knowledge-format'
 import { trackMiniEvent } from '@/utils/analytics'
 import {
   type RecentKnowledgeItem,
@@ -246,7 +246,7 @@ function openRecentAiHit(item: HomeRecentAiHitItem) {
     page: 'HomePage',
     properties: { entrySource: item.originEntrySource || null, articleSlug: item.slug, qaId: item.qaId || null, trigger: item.trigger || null, matchReason: item.matchReason || null, reportId: item.originReportId || null },
   })
-  const shouldWarmTranslation = item.sourceLanguage !== 'zh' && item.sourceLocale !== 'zh-CN' ? '1' : '0'
+  const shouldWarmTranslation = isChineseKnowledgeArticle(item) ? '0' : '1'
   const params = [
     `slug=${encodeURIComponent(item.slug)}`, `translation=${shouldWarmTranslation}`, 'source=chat_hit',
     `trigger=${encodeURIComponent(item.trigger || '')}`, `matchReason=${encodeURIComponent(item.matchReason || '')}`,

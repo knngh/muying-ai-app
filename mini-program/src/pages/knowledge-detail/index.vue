@@ -291,6 +291,7 @@ import {
   formatRichArticleContent,
   formatSourceLabel,
   getKnowledgeDisplayTitle,
+  isChineseKnowledgeArticle,
   isMostlyChineseText,
   normalizePlainText,
   sanitizeAuthoritySourceUrl,
@@ -415,7 +416,9 @@ const sourceLanguageSample = computed(() => stripHtmlTags([
 ].join(' ')))
 
 const isLikelyChineseSource = computed(() => (
-  Boolean(translation.value?.isSourceChinese) || isMostlyChineseText(sourceLanguageSample.value)
+  Boolean(translation.value?.isSourceChinese)
+    || Boolean(article.value && isChineseKnowledgeArticle(article.value))
+    || isMostlyChineseText(sourceLanguageSample.value)
 ))
 
 const showTranslationEntry = computed(() => !isLikelyChineseSource.value)
@@ -871,7 +874,7 @@ function syncContinueReading() {
         topic: item.topic,
         audience: item.audience,
       }),
-      shouldWarmTranslation: item.sourceLanguage !== 'zh' && item.sourceLocale !== 'zh-CN',
+      shouldWarmTranslation: !isChineseKnowledgeArticle(item),
     }))
 
   const storedRecent = uni.getStorageSync(RECENT_KNOWLEDGE_STORAGE_KEY) as RecentKnowledgeItem[] | null

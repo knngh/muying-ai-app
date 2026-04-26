@@ -23,6 +23,7 @@ import {
 } from '../utils/knowledgeStage'
 import { calculatePregnancyWeekFromDueDate } from '../utils'
 import pregnancyWeekGuide from '../../../shared/data/pregnancy-week-guide.json'
+import { isChineseKnowledgeSource } from '../../../shared/utils/knowledge-source'
 
 type PregnancyWeekGuideItem = {
   week: number
@@ -56,7 +57,7 @@ function getNextCheckinBonus(streak: number) {
 }
 
 function getSourcePriority(article: Article): number {
-  if (article.sourceLanguage === 'zh' || article.sourceLocale === 'zh-CN') {
+  if (isChineseKnowledgeSource(article)) {
     return 0
   }
 

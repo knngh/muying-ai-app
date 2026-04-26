@@ -368,6 +368,7 @@ import {
   getKnowledgeFallbackSummary,
   getKnowledgeStageLabel,
   groupKnowledgeArticles,
+  isChineseKnowledgeArticle,
   sortKnowledgeVariants,
 } from '@/utils/knowledge-format'
 import { trackMiniEvent } from '@/utils/analytics'
@@ -779,7 +780,7 @@ function handleOpenRecentAiHit(item: RecentAIHitArticle) {
     },
   })
 
-  const shouldWarmTranslation = item.sourceLanguage !== 'zh' && item.sourceLocale !== 'zh-CN' ? '1' : '0'
+  const shouldWarmTranslation = isChineseKnowledgeArticle(item) ? '0' : '1'
   const params = [
     `slug=${encodeURIComponent(item.slug)}`,
     `translation=${shouldWarmTranslation}`,
@@ -851,16 +852,16 @@ function applyStageGuide(item: StageGuideItem) {
 }
 
 function goToDetail(article: Article) {
-  if (article.sourceLanguage !== 'zh' && article.sourceLocale !== 'zh-CN') {
+  if (!isChineseKnowledgeArticle(article)) {
     void knowledgeStore.prefetchTranslations([article], 1)
   }
 
-  const shouldWarmTranslation = article.sourceLanguage !== 'zh' && article.sourceLocale !== 'zh-CN' ? '1' : '0'
+  const shouldWarmTranslation = isChineseKnowledgeArticle(article) ? '0' : '1'
   uni.navigateTo({ url: `/pages/knowledge-detail/index?slug=${article.slug}&translation=${shouldWarmTranslation}` })
 }
 
 function getReadingHint(article: Article): string {
-  if (article.sourceLanguage === 'zh' || article.sourceLocale === 'zh-CN') {
+  if (isChineseKnowledgeArticle(article)) {
     return '优先读中文原文与同步时间，适合直接核对政策和指南表述。'
   }
 

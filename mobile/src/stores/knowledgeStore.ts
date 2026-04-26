@@ -12,6 +12,7 @@ import {
   dedupeKnowledgeArticles,
   getKnowledgeArticleTimestamp,
 } from '../../../shared/utils/knowledge-dedupe'
+import { isChineseKnowledgeSource } from '../../../shared/utils/knowledge-source'
 import { storage } from '../utils/storage'
 import {
   getKnowledgeFallbackKeyword,
@@ -20,16 +21,6 @@ import {
 } from '../utils/knowledgeStage'
 
 const KNOWLEDGE_CONTENT_TYPE = 'authority'
-const CHINESE_AUTHORITY_PATTERNS = [
-  /中国政府网/u,
-  /中国政府网政策解读/u,
-  /gov\.cn/i,
-  /国家卫生健康委员会/u,
-  /国家卫健委/u,
-  /中国疾控/u,
-  /中国疾病预防控制中心/u,
-  /chinacdc/i,
-]
 const MOBILE_KNOWLEDGE_PAGE_SIZE = 6
 const RECENT_AI_HIT_ARTICLES_KEY = 'knowledge_recent_ai_hit_articles'
 let knowledgeListRequestId = 0
@@ -52,23 +43,12 @@ function getArticleDateBucket(article: Article): string {
 }
 
 function getSourcePriority(article: Article): number {
-  if (article.sourceLanguage === 'zh' || article.sourceLocale === 'zh-CN') {
+  if (isChineseKnowledgeSource(article)) {
     return 0
   }
 
   if (article.sourceLanguage?.startsWith('en') || article.sourceLocale?.startsWith('en')) {
     return 1
-  }
-
-  const sourceText = [
-    article.sourceOrg || '',
-    article.source || '',
-    article.sourceUrl || '',
-    article.region || '',
-  ].join(' ')
-
-  if (CHINESE_AUTHORITY_PATTERNS.some((pattern) => pattern.test(sourceText))) {
-    return 0
   }
 
   return 2

@@ -237,6 +237,10 @@ describe('knowledge dedupe helpers', () => {
     })
 
     expect(isChineseKnowledgeVariant(zhVariant)).toBe(true)
+    expect(isChineseKnowledgeVariant(createArticle({
+      sourceOrg: '国家疾控局',
+      sourceUrl: 'https://www.ndcpa.gov.cn/',
+    }))).toBe(true)
     expect(filterKnowledgeVariants(representative, [zhVariant, newerVariant], 'zh').map((item) => item.id)).toEqual([1])
     expect(filterKnowledgeVariants(representative, [zhVariant, newerVariant], 'latest').map((item) => item.id)).toEqual([2])
   })
