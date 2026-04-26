@@ -32,12 +32,33 @@ import { KNOWLEDGE_STAGE_OPTIONS } from '../utils/knowledgeStage'
 import { colors, spacing, fontSize, categoryColors, borderRadius } from '../theme'
 import { articleApi, type Article, type AuthorityArticleTranslation } from '../api/modules'
 import {
+  buildKnowledgeSourceDigest as buildKnowledgeSourceDigestShared,
+  buildKnowledgeVariantReadingSuggestion as buildKnowledgeVariantReadingSuggestionShared,
+  buildKnowledgeVariantFilterFeedback as buildKnowledgeVariantFilterFeedbackShared,
+  buildKnowledgeVariantRecommendation as buildKnowledgeVariantRecommendationShared,
+  buildKnowledgeRepresentativeReason as buildKnowledgeRepresentativeReasonShared,
+  buildKnowledgeVariantDifference as buildKnowledgeVariantDifferenceShared,
+  buildKnowledgeVariantPreview as buildKnowledgeVariantPreviewShared,
+  buildKnowledgeReadingMeta as buildKnowledgeReadingMetaShared,
+  filterKnowledgeVariants as filterKnowledgeVariantsShared,
+  formatKnowledgeDisplayDate as formatKnowledgeDisplayDateShared,
+  getKnowledgeDisplayTags as getKnowledgeDisplayTagsShared,
+  getKnowledgeDisplayTitle as getKnowledgeDisplayTitleShared,
+  groupKnowledgeArticles as groupKnowledgeArticlesShared,
+  getKnowledgeSourceLabel as getKnowledgeSourceLabelShared,
+  getKnowledgeSourceSignal as getKnowledgeSourceSignalShared,
+  getKnowledgeStageLabel as getKnowledgeStageLabelShared,
   isGenericForeignTitle,
+  isChineseKnowledgeArticle as isChineseKnowledgeArticleShared,
+  normalizeKnowledgeLabel as normalizeKnowledgeLabelShared,
   normalizePlainText,
   sanitizeTranslationText,
+  sortKnowledgeVariants as sortKnowledgeVariantsShared,
+  shouldHideAuthorityCategoryChip as shouldHideAuthorityCategoryChipShared,
 } from '../utils/knowledgeText'
 
 type KnowledgeNavProp = StackNavigationProp<RootStackParamList>
+type KnowledgeArticleGroup = ReturnType<typeof groupKnowledgeArticlesShared>[number]
 
 type RecentAIHitTopic = {
   topic: string
@@ -63,6 +84,17 @@ type RecentAIHitSource = {
 }
 
 const RECENT_AI_HIT_SIGNAL_WINDOW_HOURS = 48
+const variantFilterOptions = [
+  { label: '全部版本', value: 'all' as const },
+  { label: '仅中文源', value: 'zh' as const },
+  { label: '最近版本', value: 'latest' as const },
+]
+
+const variantSortOptions = [
+  { label: '推荐顺序', value: 'recommended' as const },
+  { label: '最近更新', value: 'recent' as const },
+  { label: '中文优先', value: 'zhFirst' as const },
+]
 
 const stageOptions = KNOWLEDGE_STAGE_OPTIONS
 
@@ -86,106 +118,36 @@ const stageLabelMap = Object.fromEntries(
 ) as Record<string, string>
 
 function formatArticleSource(article: Article) {
-  return article.sourceOrg || article.source || article.region || '权威内容'
+  return getKnowledgeSourceLabelShared(article)
 }
 
 function formatArticleStage(stage?: string) {
   if (!stage) return '全阶段'
-  return stageLabelMap[stage] || stage
+  return getKnowledgeStageLabelShared(stage, stageLabelMap[stage] || '全阶段')
 }
 
 function formatArticleDate(article: Article) {
-  const value = article.publishedAt || article.sourceUpdatedAt || article.createdAt
-  if (!value) return '最近同步'
-
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '最近同步'
-
-  return date.toISOString().slice(0, 10)
+  return formatKnowledgeDisplayDateShared(article, 'iso')
 }
 
 function resolveSourceSignal(article: Article) {
-  if (article.sourceLanguage === 'zh' || article.sourceLocale === 'zh-CN') {
-    return '中文源'
-  }
-
-  return '国际源'
+  return getKnowledgeSourceSignalShared(article)
 }
 
 function isChineseArticle(article: Article) {
-  return article.sourceLanguage === 'zh' || article.sourceLocale === 'zh-CN'
+  return isChineseKnowledgeArticleShared(article)
 }
 
 function normalizeKnowledgeLabel(label?: string) {
-  const value = (label || '').trim()
-  if (!value) return ''
-
-  const lower = value.toLowerCase()
-  if (/american academy of pediatrics|healthychildren\.org|\baap\b/.test(lower)) return '美国儿科学会'
-  if (/mayo clinic|mayoclinic\.org/.test(lower)) return '梅奥诊所'
-  if (/msd manuals?|msdmanuals\.cn|merck manual/.test(lower)) return 'MSD 诊疗手册'
-  if (/national health service|\bnhs\b|nhs\.uk/.test(lower)) return '英国国民保健署'
-  if (/world health organization|\bwho\b|who\.int/.test(lower)) return '世界卫生组织'
-  if (/centers? for disease control|\bcdc\b|cdc\.gov/.test(lower)) return '美国疾控中心'
-  if (/american college of obstetricians and gynecologists|\bacog\b|acog\.org/.test(lower)) return '美国妇产科医师学会'
-  const mapped = {
-    pregnancy: '孕期',
-    policy: '指南/政策',
-    parenting: '养育',
-    nutrition: '营养',
-    vaccine: '疫苗',
-    child: '儿童',
-    toddler: '幼儿',
-    infant: '婴儿',
-    breastfeeding: '喂养',
-  }[lower]
-
-  return mapped || value
-}
-
-function isSourceLikeKnowledgeTag(label: string) {
-  const normalized = normalizeKnowledgeLabel(label)
-  if (!normalized) return false
-
-  const knownOrgs = new Set([
-    '美国儿科学会', '梅奥诊所', 'MSD 诊疗手册', '英国国民保健署',
-    '世界卫生组织', '美国疾控中心', '美国妇产科医师学会',
-  ])
-  if (knownOrgs.has(normalized)) return true
-
-  const lower = normalized.toLowerCase()
-  return /healthychildren|mayoclinic|msdmanuals|who\.int|cdc\.gov|nhs\.uk|acog\.org/i.test(lower)
-    || /american academy of pediatrics|american college of obstetricians and gynecologists|world health organization|national health service|centers? for disease control/i.test(lower)
+  return normalizeKnowledgeLabelShared(label)
 }
 
 function shouldHideAuthorityCategoryChip(article: Article) {
-  if (!article.category) return false
-  if (article.category.slug === 'authority-source') return true
-
-  const categoryKey = normalizeKnowledgeLabel(article.category.name).toLowerCase()
-  const sourceKey = normalizeKnowledgeLabel(article.sourceOrg || article.source).toLowerCase()
-  return Boolean(categoryKey && sourceKey && categoryKey === sourceKey)
+  return shouldHideAuthorityCategoryChipShared(article)
 }
 
 function getArticleDisplayTags(article: Article) {
-  const seen = new Set<string>()
-  const sourceKey = normalizeKnowledgeLabel(article.sourceOrg || article.source).toLowerCase()
-  const topicKey = normalizeKnowledgeLabel(article.topic).toLowerCase()
-
-  return (article.tags || [])
-    .map((tag) => ({
-      ...tag,
-      displayName: normalizeKnowledgeLabel(tag.name),
-    }))
-    .filter((tag) => {
-      const key = tag.displayName.toLowerCase()
-      if (!key) return false
-      if (key === sourceKey || key === topicKey) return false
-      if (isSourceLikeKnowledgeTag(key)) return false
-      if (seen.has(key)) return false
-      seen.add(key)
-      return true
-    })
+  return getKnowledgeDisplayTagsShared(article)
 }
 
 function shouldAutoApplyStageFilter(stage: string | null) {
@@ -204,11 +166,52 @@ function getTranslatedHeadline(summary?: string) {
 }
 
 function getLocalizedFallbackTitle(article: Article) {
-  const topic = normalizeKnowledgeLabel(article.topic)
-  const category = article.category ? normalizeKnowledgeLabel(article.category.name) : ''
-  const stage = formatArticleStage(article.stage)
-  const primary = topic || category || (stage !== '全阶段' ? stage : '权威')
-  return `${primary}参考`
+  return getKnowledgeDisplayTitleShared(article)
+}
+
+function getReadingMeta(article: Article) {
+  return buildKnowledgeReadingMetaShared(article)
+}
+
+function getVariantPreview(article: Article) {
+  return buildKnowledgeVariantPreviewShared(article)
+}
+
+function getRepresentativeReason(article: Article, variants: Article[]) {
+  return buildKnowledgeRepresentativeReasonShared(article, variants)
+}
+
+function getVariantDifference(representative: Article, variant: Article) {
+  return buildKnowledgeVariantDifferenceShared(representative, variant)
+}
+
+function getFilteredVariants(representative: Article, variants: Article[], mode: 'all' | 'zh' | 'latest') {
+  return filterKnowledgeVariantsShared(representative, variants, mode)
+}
+
+function getVisibleVariants(
+  representative: Article,
+  variants: Article[],
+  filterMode: 'all' | 'zh' | 'latest',
+  sortMode: 'recommended' | 'recent' | 'zhFirst',
+) {
+  return sortKnowledgeVariantsShared(getFilteredVariants(representative, variants, filterMode), sortMode)
+}
+
+function getVariantRecommendation(representative: Article, variants: Article[]) {
+  return buildKnowledgeVariantRecommendationShared(representative, variants)
+}
+
+function getVariantFilterFeedback(representative: Article, variants: Article[], mode: 'all' | 'zh' | 'latest') {
+  return buildKnowledgeVariantFilterFeedbackShared(representative, variants, mode)
+}
+
+function getVariantSourceDigest(representative: Article, variants: Article[]) {
+  return buildKnowledgeSourceDigestShared([representative, ...variants])
+}
+
+function getVariantReadingSuggestion(representative: Article, variants: Article[]) {
+  return buildKnowledgeVariantReadingSuggestionShared([representative, ...variants])
 }
 
 function getRecentAiHitDisplayTitle(item: RecentAIHitArticle) {
@@ -362,6 +365,9 @@ export default function KnowledgeScreen() {
     [stageSummary.knowledgeKeywords],
   )
   const [stageDropdownOpen, setStageDropdownOpen] = useState(false)
+  const [expandedVariantGroups, setExpandedVariantGroups] = useState<Record<string, boolean>>({})
+  const [variantFilterModes, setVariantFilterModes] = useState<Record<string, 'all' | 'zh' | 'latest'>>({})
+  const [variantSortModes, setVariantSortModes] = useState<Record<string, 'recommended' | 'recent' | 'zhFirst'>>({})
   const translationInFlightRef = useRef<Set<string>>(new Set())
   const [translations, setTranslations] = useState<Record<string, AuthorityArticleTranslation>>({})
   const [translationFailed, setTranslationFailed] = useState<Record<string, boolean>>({})
@@ -373,7 +379,6 @@ export default function KnowledgeScreen() {
     hydrateRecentAiHitArticles,
     total,
     page,
-    pageSize,
     selectedCategory,
     selectedTag,
     selectedStage,
@@ -392,6 +397,24 @@ export default function KnowledgeScreen() {
     search,
     reset,
   } = useKnowledgeStore()
+  const displayedArticleGroups = useMemo(() => groupKnowledgeArticlesShared(articles), [articles])
+  const mergedArticleCount = useMemo(
+    () => displayedArticleGroups.reduce((count, group) => count + group.mergedCount, 0),
+    [displayedArticleGroups],
+  )
+
+  useEffect(() => {
+    const validSlugs = new Set(displayedArticleGroups.map((group) => group.article.slug))
+    setExpandedVariantGroups((current) => Object.fromEntries(
+      Object.entries(current).filter(([slug, expanded]) => expanded && validSlugs.has(slug)),
+    ))
+    setVariantFilterModes((current) => Object.fromEntries(
+      Object.entries(current).filter(([slug]) => validSlugs.has(slug)),
+    ) as Record<string, 'all' | 'zh' | 'latest'>)
+    setVariantSortModes((current) => Object.fromEntries(
+      Object.entries(current).filter(([slug]) => validSlugs.has(slug)),
+    ) as Record<string, 'recommended' | 'recent' | 'zhFirst'>)
+  }, [displayedArticleGroups])
 
   useEffect(() => {
     void fetchCategories()
@@ -676,16 +699,43 @@ export default function KnowledgeScreen() {
     })
   }, [navigation, stageSummary.lifecycleKey, stageSummary.lifecycleLabel])
 
-  const renderArticleItem = ({ item }: { item: Article }) => {
+  const toggleVariantGroup = useCallback((slug: string) => {
+    setExpandedVariantGroups((current) => ({
+      ...current,
+      [slug]: !current[slug],
+    }))
+  }, [])
+
+  const setVariantFilterMode = useCallback((slug: string, mode: 'all' | 'zh' | 'latest') => {
+    setVariantFilterModes((current) => ({
+      ...current,
+      [slug]: mode,
+    }))
+  }, [])
+
+  const setVariantSortMode = useCallback((slug: string, mode: 'recommended' | 'recent' | 'zhFirst') => {
+    setVariantSortModes((current) => ({
+      ...current,
+      [slug]: mode,
+    }))
+  }, [])
+
+  const renderArticleItem = ({ item: group }: { item: KnowledgeArticleGroup }) => {
+    const item = group.article
     const catColor = item.category
       ? categoryColors[item.category.name] || colors.primary
       : colors.primary
+    const categoryChipStyle = [styles.categoryChip, { backgroundColor: catColor + '20' }]
+    const categoryChipTextStyle = { fontSize: fontSize.xs, color: catColor }
     const showCategoryChip = Boolean(item.category && !shouldHideAuthorityCategoryChip(item))
     const sourceSignal = resolveSourceSignal(item)
     const sourceLabel = formatArticleSource(item)
     const stageLabel = formatArticleStage(item.stage)
     const dateLabel = formatArticleDate(item)
     const previewTags = getArticleDisplayTags(item).slice(0, 2)
+    const readingMeta = getReadingMeta(item)
+    const representativeReason = getRepresentativeReason(item, group.variants)
+    const variantRecommendation = getVariantRecommendation(item, group.variants)
     const rawTranslation = translations[item.slug]
     const translatedTitle = sanitizeTranslationText(rawTranslation?.translatedTitle, 'title')
     const translatedSummary = sanitizeTranslationText(rawTranslation?.translatedSummary, 'summary')
@@ -702,6 +752,14 @@ export default function KnowledgeScreen() {
         ? (translatedHeadline || getLocalizedFallbackTitle(item))
         : item.title)
     const displayedSummary = normalizePlainText(translatedSummary || item.summary)
+    const isExpanded = Boolean(expandedVariantGroups[item.slug])
+    const variantFilterMode = variantFilterModes[item.slug] || 'all'
+    const variantSortMode = variantSortModes[item.slug] || 'recommended'
+    const filteredVariants = getFilteredVariants(item, group.variants, variantFilterMode)
+    const visibleVariants = getVisibleVariants(item, group.variants, variantFilterMode, variantSortMode)
+    const variantFilterFeedback = getVariantFilterFeedback(item, group.variants, variantFilterMode)
+    const variantSourceDigest = getVariantSourceDigest(item, visibleVariants)
+    const variantReadingSuggestion = getVariantReadingSuggestion(item, visibleVariants)
 
     return (
       <Card
@@ -747,8 +805,8 @@ export default function KnowledgeScreen() {
             </Chip>
             {showCategoryChip && item.category && (
               <Chip
-                style={[styles.categoryChip, { backgroundColor: catColor + '20' }]}
-                textStyle={{ fontSize: fontSize.xs, color: catColor }}
+                style={categoryChipStyle}
+                textStyle={categoryChipTextStyle}
                 compact
               >
                 {item.category.name}
@@ -758,12 +816,143 @@ export default function KnowledgeScreen() {
               <Chip key={tag.id} compact style={styles.tagPreviewChip} textStyle={styles.tagPreviewChipText}>
                 {tag.displayName}
               </Chip>
-            ))}
+              ))}
+          </View>
+          <View style={styles.readingMetaRow}>
+            <View style={styles.readingMetaPill}>
+              <Text style={styles.readingMetaText}>{readingMeta.estimatedMinutesLabel}</Text>
+            </View>
+            <View style={styles.readingMetaPill}>
+              <Text style={styles.readingMetaText}>{readingMeta.textLengthLabel}</Text>
+            </View>
+            <View style={styles.readingMetaPill}>
+              <Text style={styles.readingMetaText}>{readingMeta.sectionLabel}</Text>
+            </View>
           </View>
           {displayedSummary ? (
             <Text style={styles.articleSummary} numberOfLines={2}>
               {displayedSummary}
             </Text>
+          ) : null}
+          {representativeReason ? (
+            <View style={styles.representativeReason}>
+              <View style={styles.representativeReasonBadge}>
+                <Text style={styles.representativeReasonBadgeText}>{representativeReason.badge}</Text>
+              </View>
+              <Text style={styles.representativeReasonText}>{representativeReason.description}</Text>
+            </View>
+          ) : null}
+          {group.mergedCount > 0 ? (
+            <View style={styles.variantPanel}>
+              <TouchableOpacity
+                activeOpacity={0.88}
+                style={styles.variantToggle}
+                onPress={() => toggleVariantGroup(item.slug)}
+              >
+                <Text style={styles.variantToggleText}>
+                  {isExpanded ? '收起同源版本' : `还有 ${group.mergedCount} 个同源版本`}
+                </Text>
+              </TouchableOpacity>
+              {isExpanded ? (
+                <View style={styles.variantList}>
+                  {variantRecommendation ? (
+                    <TouchableOpacity
+                      activeOpacity={0.88}
+                      style={styles.variantRecommendation}
+                      onPress={() => navigation.navigate('KnowledgeDetail', { slug: variantRecommendation.article.slug })}
+                    >
+                      <View style={styles.variantRecommendationCopy}>
+                        <Text style={styles.variantRecommendationLabel}>{variantRecommendation.actionLabel}</Text>
+                        <Text style={styles.variantRecommendationText}>{variantRecommendation.description}</Text>
+                      </View>
+                      <Text style={styles.variantRecommendationAction}>直接查看</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                  {group.variants.length > 1 ? (
+                    <View style={styles.variantFilterRow}>
+                      {variantFilterOptions.map((option) => (
+                        <TouchableOpacity
+                          key={`${item.slug}-${option.value}`}
+                          activeOpacity={0.88}
+                          style={variantFilterMode === option.value ? [styles.variantFilterChip, styles.variantFilterChipActive] : styles.variantFilterChip}
+                          onPress={() => setVariantFilterMode(item.slug, option.value)}
+                        >
+                          <Text style={variantFilterMode === option.value ? [styles.variantFilterChipText, styles.variantFilterChipTextActive] : styles.variantFilterChipText}>
+                            {option.label}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  ) : null}
+                  {filteredVariants.length > 1 ? (
+                    <View style={styles.variantSortRow}>
+                      {variantSortOptions.map((option) => (
+                        <TouchableOpacity
+                          key={`${item.slug}-sort-${option.value}`}
+                          activeOpacity={0.88}
+                          style={variantSortMode === option.value ? [styles.variantSortChip, styles.variantSortChipActive] : styles.variantSortChip}
+                          onPress={() => setVariantSortMode(item.slug, option.value)}
+                        >
+                          <Text style={variantSortMode === option.value ? [styles.variantSortChipText, styles.variantSortChipTextActive] : styles.variantSortChipText}>
+                            {option.label}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  ) : null}
+                  {variantFilterFeedback ? (
+                    <View style={styles.variantFilterFeedback}>
+                      <Text style={styles.variantFilterFeedbackLabel}>{variantFilterFeedback.label}</Text>
+                      <Text style={styles.variantFilterFeedbackText}>{variantFilterFeedback.description}</Text>
+                    </View>
+                  ) : null}
+                  <View style={styles.variantSourceDigest}>
+                    <Text style={styles.variantSourceDigestLabel}>{variantSourceDigest.summaryLabel}</Text>
+                    <Text style={styles.variantSourceDigestText}>{variantSourceDigest.description}</Text>
+                  </View>
+                  <View style={styles.variantReadingSuggestion}>
+                    <Text style={styles.variantReadingSuggestionLabel}>{variantReadingSuggestion.label}</Text>
+                    <Text style={styles.variantReadingSuggestionText}>{variantReadingSuggestion.description}</Text>
+                  </View>
+                  {visibleVariants.length > 0 ? visibleVariants.map((variant) => {
+                    const variantDifference = getVariantDifference(item, variant)
+                    const variantPreview = getVariantPreview(variant)
+
+                    return (
+                    <TouchableOpacity
+                      key={variant.slug}
+                      activeOpacity={0.88}
+                      style={styles.variantItem}
+                      onPress={() => navigation.navigate('KnowledgeDetail', { slug: variant.slug })}
+                    >
+                      <Text style={styles.variantTitle} numberOfLines={2}>
+                        {getKnowledgeDisplayTitleShared(variant)}
+                      </Text>
+                      <Text style={styles.variantMeta} numberOfLines={1}>{variantPreview.sourceLabel}</Text>
+                      <View style={styles.variantHintRow}>
+                        {variantDifference.badges.map((badge) => (
+                          <View key={`${variant.slug}-hint-${badge}`} style={styles.variantHintBadge}>
+                            <Text style={styles.variantHintBadgeText}>{badge}</Text>
+                          </View>
+                        ))}
+                      </View>
+                      <View style={styles.variantChipRow}>
+                        {variantPreview.chips.map((chip) => (
+                          <View key={`${variant.slug}-${chip}`} style={styles.variantChip}>
+                            <Text style={styles.variantChipText}>{chip}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    </TouchableOpacity>
+                    )
+                  }) : (
+                    <View style={styles.variantEmpty}>
+                      <Text style={styles.variantEmptyText}>当前同源版本里没有符合筛选条件的结果。</Text>
+                    </View>
+                  )}
+                </View>
+              ) : null}
+            </View>
           ) : null}
           <View style={styles.articleFooter}>
             <View style={styles.articleStats}>
@@ -1143,10 +1332,16 @@ export default function KnowledgeScreen() {
         </View>
       ) : null}
 
+      {mergedArticleCount > 0 ? (
+        <View style={styles.dedupeNotice}>
+          <Text style={styles.dedupeNoticeText}>已合并 {mergedArticleCount} 篇重复来源，当前展示更干净的结果列表。</Text>
+        </View>
+      ) : null}
+
       <FlatList
-        data={articles}
+        data={displayedArticleGroups}
         renderItem={renderArticleItem}
-        keyExtractor={(item) => item.slug}
+        keyExtractor={(item) => item.article.slug}
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={renderHeader}
         ListFooterComponent={renderFooter}
@@ -1192,7 +1387,7 @@ export default function KnowledgeScreen() {
                   mode="outlined"
                   compact
                   textColor={colors.techDark}
-                  onPress={() => (navigation as any).navigate('Main', { screen: 'Chat' })}
+                  onPress={() => navigation.navigate('Main', { screen: 'Chat' })}
                   style={styles.emptySecondaryButton}
                 >
                   继续提问
@@ -1204,7 +1399,7 @@ export default function KnowledgeScreen() {
         onEndReached={handleLoadMore}
         onEndReachedThreshold={0.3}
         onRefresh={() => fetchArticles({ reset: true })}
-        refreshing={loading && articles.length > 0}
+        refreshing={loading && displayedArticleGroups.length > 0}
       />
     </ScreenContainer>
   )
@@ -1556,6 +1751,22 @@ const styles = StyleSheet.create({
     fontSize: fontSize.xs,
     fontWeight: '700',
   },
+  dedupeNotice: {
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.lg,
+    backgroundColor: 'rgba(244,250,250,0.94)',
+    borderWidth: 1,
+    borderColor: 'rgba(94,126,134,0.12)',
+  },
+  dedupeNoticeText: {
+    color: colors.techDark,
+    fontSize: fontSize.xs,
+    fontWeight: '700',
+    lineHeight: 18,
+  },
   loadingFilterChip: {
     backgroundColor: 'rgba(220,236,238,0.76)',
   },
@@ -1757,6 +1968,25 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     gap: spacing.xs,
   },
+  readingMetaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+    marginBottom: spacing.sm,
+  },
+  readingMetaPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: borderRadius.pill,
+    backgroundColor: 'rgba(244,250,250,0.94)',
+    borderWidth: 1,
+    borderColor: 'rgba(94,126,134,0.12)',
+  },
+  readingMetaText: {
+    color: colors.techDark,
+    fontSize: 11,
+    fontWeight: '700',
+  },
   stageChip: {
     backgroundColor: 'rgba(217,144,122,0.18)',
   },
@@ -1781,6 +2011,264 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     lineHeight: 20,
     marginBottom: spacing.sm,
+    textAlign: 'justify',
+  },
+  representativeReason: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+    marginBottom: spacing.sm,
+  },
+  representativeReasonBadge: {
+    paddingHorizontal: spacing.xs,
+    paddingVertical: spacing.xs / 2,
+    borderRadius: borderRadius.pill,
+    backgroundColor: 'rgba(225,120,84,0.14)',
+  },
+  representativeReasonBadgeText: {
+    color: colors.primaryDark,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  representativeReasonText: {
+    flexShrink: 1,
+    color: colors.textSecondary,
+    fontSize: fontSize.xs,
+    lineHeight: 18,
+  },
+  variantPanel: {
+    marginBottom: spacing.sm,
+  },
+  variantToggle: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.lg,
+    backgroundColor: 'rgba(244,250,250,0.94)',
+    borderWidth: 1,
+    borderColor: 'rgba(94,126,134,0.12)',
+  },
+  variantToggleText: {
+    color: colors.techDark,
+    fontSize: fontSize.xs,
+    fontWeight: '700',
+  },
+  variantList: {
+    marginTop: spacing.sm,
+    gap: spacing.sm,
+  },
+  variantRecommendation: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.lg,
+    backgroundColor: 'rgba(255,246,223,0.72)',
+    borderWidth: 1,
+    borderColor: 'rgba(184,138,72,0.16)',
+  },
+  variantRecommendationCopy: {
+    flex: 1,
+  },
+  variantRecommendationLabel: {
+    color: '#8b6723',
+    fontSize: fontSize.xs,
+    fontWeight: '700',
+  },
+  variantRecommendationText: {
+    marginTop: spacing.xs / 2,
+    color: colors.textSecondary,
+    fontSize: fontSize.xs,
+    lineHeight: 18,
+  },
+  variantRecommendationAction: {
+    color: '#7d5f22',
+    fontSize: fontSize.xs,
+    fontWeight: '700',
+  },
+  variantFilterFeedback: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.lg,
+    backgroundColor: 'rgba(244,250,250,0.78)',
+    borderWidth: 1,
+    borderColor: 'rgba(94,126,134,0.1)',
+  },
+  variantFilterFeedbackLabel: {
+    color: colors.techDark,
+    fontSize: fontSize.xs,
+    fontWeight: '700',
+  },
+  variantFilterFeedbackText: {
+    color: colors.textSecondary,
+    fontSize: fontSize.xs,
+    lineHeight: 18,
+  },
+  variantSourceDigest: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.lg,
+    backgroundColor: 'rgba(255,248,240,0.72)',
+    borderWidth: 1,
+    borderColor: 'rgba(184,138,72,0.12)',
+  },
+  variantSourceDigestLabel: {
+    color: '#8b6723',
+    fontSize: fontSize.xs,
+    fontWeight: '700',
+  },
+  variantSourceDigestText: {
+    color: colors.textSecondary,
+    fontSize: fontSize.xs,
+    lineHeight: 18,
+  },
+  variantReadingSuggestion: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.lg,
+    backgroundColor: 'rgba(241,247,255,0.82)',
+    borderWidth: 1,
+    borderColor: 'rgba(84,126,186,0.12)',
+  },
+  variantReadingSuggestionLabel: {
+    color: '#456996',
+    fontSize: fontSize.xs,
+    fontWeight: '700',
+  },
+  variantReadingSuggestionText: {
+    color: colors.textSecondary,
+    fontSize: fontSize.xs,
+    lineHeight: 18,
+  },
+  variantSortRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+  },
+  variantSortChip: {
+    paddingHorizontal: spacing.xs,
+    paddingVertical: spacing.xs / 2,
+    borderRadius: borderRadius.pill,
+    backgroundColor: 'rgba(241,247,255,0.92)',
+    borderWidth: 1,
+    borderColor: 'rgba(84,126,186,0.14)',
+  },
+  variantSortChipActive: {
+    backgroundColor: 'rgba(84,126,186,0.16)',
+  },
+  variantSortChipText: {
+    color: '#55759d',
+    fontSize: fontSize.xs,
+    fontWeight: '700',
+  },
+  variantSortChipTextActive: {
+    color: '#35547a',
+  },
+  variantFilterRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+  },
+  variantFilterChip: {
+    paddingHorizontal: spacing.xs,
+    paddingVertical: spacing.xs / 2,
+    borderRadius: borderRadius.pill,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderWidth: 1,
+    borderColor: 'rgba(94,126,134,0.12)',
+  },
+  variantFilterChipActive: {
+    backgroundColor: 'rgba(77,109,118,0.12)',
+  },
+  variantFilterChipText: {
+    color: colors.techDark,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  variantFilterChipTextActive: {
+    color: '#35535c',
+  },
+  variantItem: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.lg,
+    backgroundColor: 'rgba(250,252,252,0.98)',
+    borderWidth: 1,
+    borderColor: 'rgba(94,126,134,0.1)',
+  },
+  variantTitle: {
+    color: colors.text,
+    fontSize: fontSize.sm,
+    fontWeight: '700',
+    lineHeight: 20,
+  },
+  variantMeta: {
+    marginTop: spacing.xs / 2,
+    color: colors.textSecondary,
+    fontSize: fontSize.xs,
+  },
+  variantChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+    marginTop: spacing.xs,
+  },
+  variantHintRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+    marginTop: spacing.xs,
+  },
+  variantHintBadge: {
+    paddingHorizontal: spacing.xs,
+    paddingVertical: spacing.xs / 2,
+    borderRadius: borderRadius.pill,
+    backgroundColor: 'rgba(225,120,84,0.14)',
+  },
+  variantHintBadgeText: {
+    color: colors.primaryDark,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  variantChip: {
+    paddingHorizontal: spacing.xs,
+    paddingVertical: spacing.xs / 2,
+    borderRadius: borderRadius.pill,
+    backgroundColor: 'rgba(244,250,250,0.94)',
+    borderWidth: 1,
+    borderColor: 'rgba(94,126,134,0.12)',
+  },
+  variantChipText: {
+    color: colors.techDark,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  variantEmpty: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.lg,
+    backgroundColor: 'rgba(250,252,252,0.98)',
+    borderWidth: 1,
+    borderColor: 'rgba(94,126,134,0.1)',
+  },
+  variantEmptyText: {
+    color: colors.textSecondary,
+    fontSize: fontSize.xs,
+    lineHeight: 18,
   },
   articleFooter: {
     flexDirection: 'row',

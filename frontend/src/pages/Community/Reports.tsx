@@ -1,26 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import {
-  Button,
-  Card,
-  Descriptions,
-  Empty,
-  Modal,
-  Select,
-  Space,
-  Spin,
-  Table,
-  Tag,
-  Typography,
-  message,
-} from 'antd'
-import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
 import { authApi } from '@/api/modules'
 import { communityApi, type CommunityReportItem } from '@/api/community'
 import { useAppStore } from '@/stores/appStore'
-
-const { Paragraph, Text, Title } = Typography
+import styles from './Reports.module.css'
 
 const reasonLabelMap: Record<string, string> = {
   spam: '广告引流',
@@ -29,12 +13,6 @@ const reasonLabelMap: Record<string, string> = {
   privacy: '隐私泄露',
   illegal: '违法违规',
   other: '其他问题',
-}
-
-const statusColorMap: Record<string, string> = {
-  pending: 'gold',
-  reviewed: 'green',
-  rejected: 'default',
 }
 
 const statusLabelMap: Record<string, string> = {
@@ -59,20 +37,12 @@ export function CommunityReports() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const [total, setTotal] = useState(0)
-  const [statusFilter, setStatusFilter] = useState<'pending' | 'reviewed' | 'rejected' | undefined>('pending')
-  const [targetTypeFilter, setTargetTypeFilter] = useState<'post' | 'comment' | undefined>()
+  const [statusFilter, setStatusFilter] = useState<'pending' | 'reviewed' | 'rejected' | ''>('pending')
+  const [targetTypeFilter, setTargetTypeFilter] = useState<'post' | 'comment' | ''>('')
   const [isAdmin, setIsAdmin] = useState(false)
+  const [toast, setToast] = useState('')
 
-  useEffect(() => {
-    void ensureAdmin()
-  }, [])
-
-  useEffect(() => {
-    if (!isAdmin) return
-    void fetchReports()
-  }, [isAdmin, page, pageSize, statusFilter, targetTypeFilter])
-
-  const ensureAdmin = async () => {
+  const ensureAdmin = useCallback(async () => {
     try {
       const currentUser = user || await authApi.me()
       if (!user) {
@@ -80,262 +50,294 @@ export function CommunityReports() {
       }
 
       if (currentUser.username !== 'admin') {
-        message.error('仅管理员可访问举报处理页')
+        setToast('仅管理员可访问举报处理页')
         navigate('/community', { replace: true })
         return
       }
 
       setIsAdmin(true)
-    } catch (_error) {
-      message.error('请先登录管理员账号')
+    } catch {
+      setToast('请先登录管理员账号')
       navigate('/login', { replace: true })
     }
-  }
+  }, [navigate, setUser, user])
 
-  const fetchReports = async () => {
+  const fetchReports = useCallback(async () => {
     setLoading(true)
     try {
       const result = await communityApi.getReports({
         page,
         pageSize,
-        status: statusFilter,
-        targetType: targetTypeFilter,
+        status: statusFilter || undefined,
+        targetType: targetTypeFilter || undefined,
       })
       setReports(result.list || [])
       setTotal(result.pagination?.total || 0)
-    } catch (_error) {
-      message.error('获取举报列表失败')
+    } catch {
+      setToast('获取举报列表失败')
     } finally {
       setLoading(false)
     }
-  }
+  }, [page, pageSize, statusFilter, targetTypeFilter])
 
-  const refreshCurrentPage = async () => {
-    await fetchReports()
-  }
+  useEffect(() => {
+    void ensureAdmin()
+  }, [ensureAdmin])
 
-  const handleProcess = (report: CommunityReportItem, nextStatus: 'reviewed' | 'rejected', actionTaken?: 'none' | 'hide_post' | 'delete_comment') => {
+  useEffect(() => {
+    if (!isAdmin) return
+    void fetchReports()
+  }, [fetchReports, isAdmin])
+
+  useEffect(() => {
+    if (!toast) return
+    const timer = window.setTimeout(() => setToast(''), 1800)
+    return () => window.clearTimeout(timer)
+  }, [toast])
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
+
+  const handleProcess = async (
+    report: CommunityReportItem,
+    nextStatus: 'reviewed' | 'rejected',
+    actionTaken?: 'none' | 'hide_post' | 'delete_comment',
+  ) => {
     const isApprove = nextStatus === 'reviewed'
-    const title = isApprove ? '确认处理举报' : '确认驳回举报'
     const content = isApprove
       ? `将把该举报标记为已处理，并执行「${actionLabelMap[actionTaken || 'none']}」。`
       : '将把该举报标记为已驳回。'
 
-    Modal.confirm({
-      title,
-      content,
-      okText: isApprove ? '确认处理' : '确认驳回',
-      cancelText: '取消',
-      okButtonProps: isApprove ? undefined : { danger: true },
-      onOk: async () => {
-        try {
-          setSubmittingId(report.id)
-          await communityApi.handleReport(report.id, {
-            status: nextStatus,
-            actionTaken,
-            decisionReason: isApprove
-              ? `管理员确认执行：${actionLabelMap[actionTaken || 'none']}`
-              : '管理员判定举报不成立',
-          })
-          message.success(isApprove ? '举报已处理' : '举报已驳回')
-          await refreshCurrentPage()
-        } catch (_error) {
-          message.error(isApprove ? '处理失败' : '驳回失败')
-        } finally {
-          setSubmittingId(null)
-        }
-      },
-    })
+    if (!window.confirm(content)) {
+      return
+    }
+
+    try {
+      setSubmittingId(report.id)
+      await communityApi.handleReport(report.id, {
+        status: nextStatus,
+        actionTaken,
+        decisionReason: isApprove
+          ? `管理员确认执行：${actionLabelMap[actionTaken || 'none']}`
+          : '管理员判定举报不成立',
+      })
+      setToast(isApprove ? '举报已处理' : '举报已驳回')
+      await fetchReports()
+    } catch {
+      setToast(isApprove ? '处理失败' : '驳回失败')
+    } finally {
+      setSubmittingId(null)
+    }
   }
-
-  const columns: ColumnsType<CommunityReportItem> = [
-    {
-      title: '举报信息',
-      key: 'report',
-      width: 300,
-      render: (_, record) => (
-        <Space direction="vertical" size={4}>
-          <Space wrap>
-            <Tag color={statusColorMap[record.status]}>{statusLabelMap[record.status] || record.status}</Tag>
-            <Tag>{record.targetType === 'post' ? '帖子' : '评论'}</Tag>
-            <Tag color={record.handledByAI ? 'blue' : 'default'}>
-              {record.handledByAI ? 'AI已处理' : '人工/待处理'}
-            </Tag>
-          </Space>
-          <Text strong>{reasonLabelMap[record.reason] || record.reason}</Text>
-          <Text type="secondary">
-            举报人：{record.reporter?.nickname || record.reporter?.username || '-'}
-          </Text>
-          <Text type="secondary">
-            提交时间：{dayjs(record.createdAt).format('YYYY-MM-DD HH:mm')}
-          </Text>
-        </Space>
-      ),
-    },
-    {
-      title: '被举报内容',
-      key: 'target',
-      render: (_, record) => {
-        const targetTitle = record.targetType === 'post'
-          ? (record.post?.title || '帖子已不可见')
-          : `评论 #${record.comment?.id || '-'}`
-        const targetContent = record.targetType === 'post'
-          ? record.post?.content
-          : record.comment?.content
-        const targetAuthor = record.targetType === 'post'
-          ? (record.post?.author?.nickname || record.post?.author?.username)
-          : (record.comment?.author?.nickname || record.comment?.author?.username)
-
-        return (
-          <Space direction="vertical" size={4} style={{ width: '100%' }}>
-            <Text strong>{targetTitle}</Text>
-            <Text type="secondary">作者：{targetAuthor || '-'}</Text>
-            <Paragraph ellipsis={{ rows: 3, expandable: true, symbol: '展开' }} style={{ marginBottom: 0 }}>
-              {targetContent || '内容已被处理或不存在'}
-            </Paragraph>
-            {record.description && (
-              <Text type="secondary">举报补充：{record.description}</Text>
-            )}
-          </Space>
-        )
-      },
-    },
-    {
-      title: '处理结果',
-      key: 'decision',
-      width: 240,
-      render: (_, record) => (
-        <Space direction="vertical" size={4}>
-          <Text>动作：{actionLabelMap[record.actionTaken] || record.actionTaken}</Text>
-          <Paragraph ellipsis={{ rows: 3, expandable: true, symbol: '展开' }} style={{ marginBottom: 0 }}>
-            {record.decisionReason || '暂无处理说明'}
-          </Paragraph>
-          <Text type="secondary">
-            处理时间：{record.handledAt ? dayjs(record.handledAt).format('YYYY-MM-DD HH:mm') : '未处理'}
-          </Text>
-        </Space>
-      ),
-    },
-    {
-      title: '操作',
-      key: 'actions',
-      width: 240,
-      render: (_, record) => {
-        if (record.status !== 'pending') {
-          return <Text type="secondary">已完成</Text>
-        }
-
-        const defaultAction = record.targetType === 'post' ? 'hide_post' : 'delete_comment'
-
-        return (
-          <Space direction="vertical" size={8}>
-            <Button
-              type="primary"
-              size="small"
-              loading={submittingId === record.id}
-              onClick={() => handleProcess(record, 'reviewed', defaultAction)}
-            >
-              {record.targetType === 'post' ? '通过并隐藏帖子' : '通过并删除评论'}
-            </Button>
-            <Button
-              size="small"
-              loading={submittingId === record.id}
-              onClick={() => handleProcess(record, 'reviewed', 'none')}
-            >
-              仅标记已处理
-            </Button>
-            <Button
-              danger
-              size="small"
-              loading={submittingId === record.id}
-              onClick={() => handleProcess(record, 'rejected', 'none')}
-            >
-              驳回举报
-            </Button>
-          </Space>
-        )
-      },
-    },
-  ]
 
   if (loading && !isAdmin) {
     return (
-      <div style={{ textAlign: 'center', padding: 100 }}>
-        <Spin size="large" />
+      <div className={styles.loadingState}>
+        <span className={styles.loadingDot} />
+        <span>正在校验管理员权限...</span>
       </div>
     )
   }
 
   return (
-    <Space direction="vertical" size={16} style={{ width: '100%' }}>
-      <Card>
-        <Space direction="vertical" size={12} style={{ width: '100%' }}>
-          <Title level={3} style={{ margin: 0 }}>社区举报处理</Title>
-          <Text type="secondary">
-            举报提交后会先经过 AI 自动判断；你可以在这里查看处理结果，并对待处理项做人工覆写。
-          </Text>
-          <Descriptions size="small" column={3} bordered>
-            <Descriptions.Item label="当前页数量">{reports.length}</Descriptions.Item>
-            <Descriptions.Item label="总举报数">{total}</Descriptions.Item>
-            <Descriptions.Item label="默认管理员">admin</Descriptions.Item>
-          </Descriptions>
-          <Space wrap>
-            <Select
-              allowClear
-              style={{ width: 180 }}
-              placeholder="筛选状态"
-              value={statusFilter}
-              onChange={(value) => {
-                setPage(1)
-                setStatusFilter(value)
-              }}
-              options={[
-                { label: '待处理', value: 'pending' },
-                { label: '已处理', value: 'reviewed' },
-                { label: '已驳回', value: 'rejected' },
-              ]}
-            />
-            <Select
-              allowClear
-              style={{ width: 180 }}
-              placeholder="筛选目标类型"
-              value={targetTypeFilter}
-              onChange={(value) => {
-                setPage(1)
-                setTargetTypeFilter(value)
-              }}
-              options={[
-                { label: '帖子', value: 'post' },
-                { label: '评论', value: 'comment' },
-              ]}
-            />
-            <Button onClick={() => void refreshCurrentPage()}>刷新列表</Button>
-          </Space>
-        </Space>
-      </Card>
+    <div className={styles.page}>
+      {toast ? <div className={styles.toast}>{toast}</div> : null}
 
-      <Card bodyStyle={{ padding: 0 }}>
-        {reports.length === 0 && !loading ? (
-          <Empty style={{ padding: 48 }} description="暂无举报记录" />
+      <section className={styles.hero}>
+        <div>
+          <span className={styles.eyebrow}>Moderation</span>
+          <h1>社区举报处理</h1>
+          <p>查看 AI 自动判定结果，并对待处理项进行人工覆写。</p>
+        </div>
+      </section>
+
+      <section className={styles.statsCard}>
+        <div className={styles.statsGrid}>
+          <div>
+            <span>当前页数量</span>
+            <strong>{reports.length}</strong>
+          </div>
+          <div>
+            <span>总举报数</span>
+            <strong>{total}</strong>
+          </div>
+          <div>
+            <span>默认管理员</span>
+            <strong>admin</strong>
+          </div>
+        </div>
+      </section>
+
+      <section className={styles.filterCard}>
+        <div className={styles.filterRow}>
+          <label className={styles.filterField}>
+            <span>筛选状态</span>
+            <select
+              value={statusFilter}
+              onChange={(event) => {
+                setPage(1)
+                setStatusFilter(event.target.value as 'pending' | 'reviewed' | 'rejected' | '')
+              }}
+            >
+              <option value="">全部</option>
+              <option value="pending">待处理</option>
+              <option value="reviewed">已处理</option>
+              <option value="rejected">已驳回</option>
+            </select>
+          </label>
+
+          <label className={styles.filterField}>
+            <span>筛选目标类型</span>
+            <select
+              value={targetTypeFilter}
+              onChange={(event) => {
+                setPage(1)
+                setTargetTypeFilter(event.target.value as 'post' | 'comment' | '')
+              }}
+            >
+              <option value="">全部</option>
+              <option value="post">帖子</option>
+              <option value="comment">评论</option>
+            </select>
+          </label>
+
+          <label className={styles.filterField}>
+            <span>每页条数</span>
+            <select
+              value={String(pageSize)}
+              onChange={(event) => {
+                setPage(1)
+                setPageSize(Number(event.target.value))
+              }}
+            >
+              <option value="10">10</option>
+              <option value="20">20</option>
+              <option value="50">50</option>
+            </select>
+          </label>
+
+          <button type="button" className={styles.primaryButton} onClick={() => void fetchReports()}>
+            刷新列表
+          </button>
+        </div>
+      </section>
+
+      <section className={styles.listSection}>
+        {loading ? (
+          <div className={styles.loadingState}>
+            <span className={styles.loadingDot} />
+            <span>正在加载举报记录...</span>
+          </div>
+        ) : reports.length === 0 ? (
+          <div className={styles.emptyState}>暂无举报记录</div>
         ) : (
-          <Table
-            rowKey="id"
-            loading={loading}
-            columns={columns}
-            dataSource={reports}
-            pagination={{
-              current: page,
-              pageSize,
-              total,
-              onChange: (nextPage, nextPageSize) => {
-                setPage(nextPage)
-                setPageSize(nextPageSize)
-              },
-            }}
-            scroll={{ x: 1100 }}
-          />
+          <div className={styles.reportList}>
+            {reports.map((report) => {
+              const targetTitle = report.targetType === 'post'
+                ? (report.post?.title || '帖子已不可见')
+                : `评论 #${report.comment?.id || '-'}`
+              const targetContent = report.targetType === 'post'
+                ? report.post?.content
+                : report.comment?.content
+              const targetAuthor = report.targetType === 'post'
+                ? (report.post?.author?.nickname || report.post?.author?.username)
+                : (report.comment?.author?.nickname || report.comment?.author?.username)
+              const pending = report.status === 'pending'
+              const defaultAction = report.targetType === 'post' ? 'hide_post' : 'delete_comment'
+
+              return (
+                <article key={report.id} className={styles.reportCard}>
+                  <div className={styles.cardHeader}>
+                    <div className={styles.badgeRow}>
+                      <span className={`${styles.badge} ${styles[`status_${report.status}`] || ''}`}>
+                        {statusLabelMap[report.status] || report.status}
+                      </span>
+                      <span className={styles.badge}>{report.targetType === 'post' ? '帖子' : '评论'}</span>
+                      <span className={styles.badge}>{report.handledByAI ? 'AI已处理' : '人工/待处理'}</span>
+                    </div>
+                    <div className={styles.metaText}>
+                      举报人：{report.reporter?.nickname || report.reporter?.username || '-'}
+                    </div>
+                  </div>
+
+                  <div className={styles.sectionBlock}>
+                    <span className={styles.blockLabel}>举报信息</span>
+                    <strong>{reasonLabelMap[report.reason] || report.reason}</strong>
+                    <p>提交时间：{dayjs(report.createdAt).format('YYYY-MM-DD HH:mm')}</p>
+                    {report.description ? <p>举报补充：{report.description}</p> : null}
+                  </div>
+
+                  <div className={styles.sectionBlock}>
+                    <span className={styles.blockLabel}>被举报内容</span>
+                    <strong>{targetTitle}</strong>
+                    <p>作者：{targetAuthor || '-'}</p>
+                    <p className={styles.contentPreview}>{targetContent || '内容已被处理或不存在'}</p>
+                  </div>
+
+                  <div className={styles.sectionBlock}>
+                    <span className={styles.blockLabel}>处理结果</span>
+                    <p>动作：{actionLabelMap[report.actionTaken] || report.actionTaken}</p>
+                    <p>{report.decisionReason || '暂无处理说明'}</p>
+                    <p>处理时间：{report.handledAt ? dayjs(report.handledAt).format('YYYY-MM-DD HH:mm') : '未处理'}</p>
+                  </div>
+
+                  <div className={styles.actionRow}>
+                    {pending ? (
+                      <>
+                        <button
+                          type="button"
+                          className={styles.primaryButton}
+                          disabled={submittingId === report.id}
+                          onClick={() => handleProcess(report, 'reviewed', defaultAction)}
+                        >
+                          {submittingId === report.id ? '处理中...' : (report.targetType === 'post' ? '通过并隐藏帖子' : '通过并删除评论')}
+                        </button>
+                        <button
+                          type="button"
+                          className={styles.secondaryButton}
+                          disabled={submittingId === report.id}
+                          onClick={() => handleProcess(report, 'reviewed', 'none')}
+                        >
+                          仅标记已处理
+                        </button>
+                        <button
+                          type="button"
+                          className={styles.dangerButton}
+                          disabled={submittingId === report.id}
+                          onClick={() => handleProcess(report, 'rejected', 'none')}
+                        >
+                          驳回举报
+                        </button>
+                      </>
+                    ) : (
+                      <span className={styles.metaText}>已完成</span>
+                    )}
+                  </div>
+                </article>
+              )
+            })}
+          </div>
         )}
-      </Card>
-    </Space>
+
+        <div className={styles.pagination}>
+          <button
+            type="button"
+            className={styles.secondaryButton}
+            disabled={page <= 1}
+            onClick={() => setPage((current) => Math.max(1, current - 1))}
+          >
+            上一页
+          </button>
+          <span>第 {page} / {totalPages} 页</span>
+          <button
+            type="button"
+            className={styles.secondaryButton}
+            disabled={page >= totalPages}
+            onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+          >
+            下一页
+          </button>
+        </div>
+      </section>
+    </div>
   )
 }

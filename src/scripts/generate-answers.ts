@@ -56,9 +56,9 @@ ${isUrgent ? '5. 这是一个紧急问题，强调立即就医的重要性' : ''
     const messages = [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: item.question }
-    ];
+    ] satisfies Parameters<typeof callAIGateway>[0];
     
-    return await callAIGateway(messages as any);
+    return await callAIGateway(messages);
   } catch (error) {
     console.error(`生成答案失败 [${item.id}]:`, error);
     return '抱歉，暂时无法回答这个问题。请咨询专业医生。';

@@ -3,7 +3,7 @@ import { StyleSheet, View } from 'react-native'
 import { Button, Card, Chip, Text } from 'react-native-paper'
 import type { CalendarEvent } from '../../api/modules'
 import { StandardCard } from '../layout'
-import { colors, fontSize, spacing, borderRadius, eventTypeLabels } from '../../theme'
+import { colors, spacing, borderRadius, eventTypeLabels } from '../../theme'
 
 interface UpcomingEventsProps {
   events: CalendarEvent[]

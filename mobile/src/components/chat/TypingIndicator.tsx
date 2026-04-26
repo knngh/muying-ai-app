@@ -30,7 +30,9 @@ function Dot({ delay }: { delay: number }) {
     return () => animation.stop()
   }, [delay, opacity])
 
-  return <Animated.View style={[styles.dot, { opacity }]} />
+  const dotStyle = [styles.dot, { opacity }]
+
+  return <Animated.View style={dotStyle} />
 }
 
 export default function TypingIndicator({ streamingContent }: TypingIndicatorProps) {

@@ -42,10 +42,10 @@ async function generateAnswer(question: string): Promise<string> {
   const messages = [
     { role: 'system', content: systemPrompt },
     { role: 'user', content: question }
-  ];
+  ] satisfies Parameters<typeof callAIGateway>[0];
 
   try {
-    return await callAIGateway(messages as any);
+    return await callAIGateway(messages);
   } catch (error) {
     console.error('生成答案失败:', error);
     return '抱歉，暂时无法回答这个问题。请咨询专业医生。';

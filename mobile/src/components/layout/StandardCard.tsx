@@ -16,12 +16,26 @@ export const StandardCard: React.FC<StandardCardProps> = ({
   onPress,
   elevation = 1,
 }) => {
+  const cardStyle = [styles.card, style]
+
+  if (elevation > 0) {
+    return (
+      <Card
+        style={cardStyle}
+        onPress={onPress}
+        mode="elevated"
+        elevation={elevation === 1 ? 0 : elevation} // Use flat design or reduced shadow for default elevated cards to keep it airy
+      >
+        {children}
+      </Card>
+    )
+  }
+
   return (
     <Card
-      style={[styles.card, style]}
+      style={cardStyle}
       onPress={onPress}
-      mode={(elevation ? "elevated" : "outlined") as any}
-      elevation={elevation === 1 ? 0 : elevation} // Use flat design or reduced shadow for default elevated cards to keep it airy
+      mode="outlined"
     >
       {children}
     </Card>

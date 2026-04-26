@@ -636,7 +636,7 @@ function isPaginationAnchorText(text: string): boolean {
   return /^(?:上一页|下一页|上页|下页|首页|尾页|next|prev(?:ious)?|more|更多|\d{1,3}|(?:\d{1,2}\s*周))$/i.test(normalized);
 }
 
-function isPaginationLikeUrl(url: string, currentPageUrl: string): boolean {
+function isPaginationLikeUrl(url: string, _currentPageUrl?: string): boolean {
   try {
     const candidate = new URL(url);
     const searchKeys = ['page', 'p', 'pn', 'pageNo', 'pageNO', 'pageno', 'currentPage', 'curpage', 'curPage'];

@@ -1,12 +1,26 @@
-import { useEffect } from 'react'
-import { Card, Input, List, Tag, Typography, Spin, Empty, Row, Col, Select, Space, Button } from 'antd'
-import { BookOutlined, HeartOutlined, StarOutlined, EyeOutlined } from '@ant-design/icons'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useKnowledgeStore } from '@/stores/knowledgeStore'
 import type { Article } from '@/api/modules'
-
-const { Title, Paragraph, Text } = Typography
-const { Search } = Input
+import {
+  buildKnowledgeSourceDigest,
+  buildKnowledgeVariantReadingSuggestion,
+  buildKnowledgeVariantFilterFeedback,
+  buildKnowledgeVariantRecommendation,
+  buildKnowledgeRepresentativeReason,
+  buildKnowledgeVariantDifference,
+  buildKnowledgeVariantPreview,
+  buildKnowledgeReadingMeta,
+  filterKnowledgeVariants,
+  formatKnowledgeStageLabel,
+  formatSourceLabel,
+  getLocalizedFallbackTitle,
+  groupKnowledgeArticles,
+  isGenericForeignTitle,
+  normalizePlainText,
+  sortKnowledgeVariants,
+} from '@/utils/knowledgeText'
+import styles from './Knowledge.module.css'
 
 const stageOptions = [
   { label: '全部阶段', value: '' },
@@ -19,13 +33,17 @@ const stageOptions = [
   { label: '1-3岁', value: '1-3-years' },
 ]
 
-const categoryColors: Record<string, string> = {
-  '孕期知识': 'pink',
-  '育儿知识': 'blue',
-  '营养健康': 'green',
-  '疫苗接种': 'orange',
-  '常见问题': 'purple',
-}
+const variantFilterOptions = [
+  { label: '全部版本', value: 'all' },
+  { label: '仅中文源', value: 'zh' },
+  { label: '最近版本', value: 'latest' },
+] as const
+
+const variantSortOptions = [
+  { label: '推荐顺序', value: 'recommended' },
+  { label: '最近更新', value: 'recent' },
+  { label: '中文优先', value: 'zhFirst' },
+] as const
 
 export function Knowledge() {
   const navigate = useNavigate()
@@ -36,198 +54,472 @@ export function Knowledge() {
     total,
     page,
     loading,
+    keyword,
     selectedCategory,
+    selectedTag,
     selectedStage,
     fetchArticles,
     fetchCategories,
     fetchTags,
     setCategory,
+    setTag,
     setStage,
+    setKeyword,
     search,
     likeArticle,
     favoriteArticle,
   } = useKnowledgeStore()
+  const [searchInput, setSearchInput] = useState(keyword)
+  const [expandedVariantGroups, setExpandedVariantGroups] = useState<Record<string, boolean>>({})
+  const [variantFilterModes, setVariantFilterModes] = useState<Record<string, 'all' | 'zh' | 'latest'>>({})
+  const [variantSortModes, setVariantSortModes] = useState<Record<string, 'recommended' | 'recent' | 'zhFirst'>>({})
 
   useEffect(() => {
     fetchArticles({ reset: true })
     fetchCategories()
     fetchTags()
-  }, [])
+  }, [fetchArticles, fetchCategories, fetchTags])
 
-  // 处理搜索
-  const handleSearch = (value: string) => {
-    if (value.trim()) {
-      search(value.trim())
-    } else {
-      fetchArticles({ reset: true })
+  useEffect(() => {
+    setSearchInput(keyword)
+  }, [keyword])
+
+  const handleSearchSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const nextKeyword = searchInput.trim()
+    if (nextKeyword) {
+      await search(nextKeyword)
+      return
     }
+
+    setKeyword('')
+    fetchArticles({ reset: true })
   }
 
-  // 处理分类选择
-  const handleCategoryChange = (categorySlug: string | null) => {
-    setCategory(categorySlug)
+  const handleSearchClear = () => {
+    setSearchInput('')
+    setKeyword('')
+    fetchArticles({ reset: true })
   }
 
-  // 处理阶段选择
-  const handleStageChange = (stage: string) => {
-    setStage(stage || null)
-  }
-
-  // 加载更多
   const loadMore = () => {
     if (!loading && articles.length < total) {
       fetchArticles({ page: page + 1 })
     }
   }
 
-  // 跳转到详情
   const goToDetail = (slug: string) => {
     navigate(`/knowledge/${slug}`)
   }
 
-  // 渲染文章卡片
-  const renderArticle = (article: Article) => (
-    <List.Item>
-      <Card 
-        hoverable 
-        onClick={() => goToDetail(article.slug)}
-        styles={{ body: { padding: 16 } }}
-      >
-        <Row gutter={16}>
-          {article.coverImage && (
-            <Col xs={24} sm={6}>
-              <img 
-                src={article.coverImage} 
-                alt={article.title}
-                style={{ width: '100%', height: 120, objectFit: 'cover', borderRadius: 8 }}
-              />
-            </Col>
-          )}
-          <Col xs={24} sm={article.coverImage ? 18 : 24}>
-            <Title level={4} ellipsis={{ rows: 1 }}>{article.title}</Title>
-            <Space style={{ marginBottom: 8 }} wrap>
-              {article.category && (
-                <Tag color={categoryColors[article.category.name] || 'default'}>
-                  {article.category.name}
-                </Tag>
-              )}
-              {article.stage && <Tag>{article.stage}</Tag>}
-              {article.tags?.slice(0, 3).map(tag => (
-                <Tag key={tag.id} color="blue">{tag.name}</Tag>
-              ))}
-            </Space>
-            <Paragraph ellipsis={{ rows: 2 }} style={{ marginBottom: 8, color: '#666' }}>
-              {article.summary}
-            </Paragraph>
-            <Space split={<Text type="secondary">·</Text>}>
-              <Text type="secondary">
-                <EyeOutlined /> {article.viewCount}
-              </Text>
-              <Text type="secondary">
-                <HeartOutlined onClick={(e) => {
-                  e.stopPropagation()
-                  likeArticle(article.id)
-                }} style={{ cursor: 'pointer' }} /> {article.likeCount}
-              </Text>
-              <Text type="secondary">
-                <StarOutlined onClick={(e) => {
-                  e.stopPropagation()
-                  favoriteArticle(article.id)
-                }} style={{ cursor: 'pointer' }} /> {article.collectCount}
-              </Text>
-            </Space>
-          </Col>
-        </Row>
-      </Card>
-    </List.Item>
+  const getDisplayTitle = (article: Article) => {
+    if (!isGenericForeignTitle(article.title)) {
+      return article.title
+    }
+
+    return getLocalizedFallbackTitle({
+      topic: article.topic,
+      stage: article.stage,
+      categoryName: article.category?.name,
+    })
+  }
+
+  const getDisplaySummary = (article: Article) => (
+    normalizePlainText(article.summary)
+    || '围绕当前阶段整理出的权威知识要点，可进入详情继续阅读来源与正文。'
   )
 
-  return (
-    <div>
-      {/* 头部搜索区域 */}
-      <Card style={{ marginBottom: 24 }}>
-        <Title level={3}>
-          <BookOutlined /> 知识库
-        </Title>
-        <Paragraph>浏览专业的母婴知识，获取科学育儿指导</Paragraph>
-        
-        {/* 搜索框 */}
-        <Search
-          placeholder="搜索知识..."
-          allowClear
-          enterButton="搜索"
-          size="large"
-          onSearch={handleSearch}
-          style={{ marginBottom: 16 }}
-        />
-        
-        {/* 筛选区域 */}
-        <Row gutter={[16, 16]}>
-          <Col xs={24} sm={12}>
-            <Select
-              placeholder="选择分类"
-              allowClear
-              style={{ width: '100%' }}
-              value={selectedCategory}
-              onChange={handleCategoryChange}
-              options={[
-                { value: null, label: '全部分类' },
-                ...categories.map(c => ({ value: c.slug, label: c.name }))
-              ]}
-            />
-          </Col>
-          <Col xs={24} sm={12}>
-            <Select
-              placeholder="选择阶段"
-              allowClear
-              style={{ width: '100%' }}
-              value={selectedStage}
-              onChange={handleStageChange}
-              options={stageOptions}
-            />
-          </Col>
-        </Row>
-      </Card>
+  const getDisplayDate = (article: Article) => {
+    const value = article.sourceUpdatedAt || article.publishedAt || article.createdAt
+    if (!value) return ''
 
-      {/* 热门标签 */}
-      {tags.length > 0 && (
-        <Card style={{ marginBottom: 24 }}>
-          <Text strong>热门标签：</Text>
-          <Space wrap style={{ marginTop: 8 }}>
-            {tags.slice(0, 10).map(tag => (
-              <Tag 
-                key={tag.id} 
-                style={{ cursor: 'pointer' }}
-                color="blue"
+    const parsed = new Date(value)
+    if (Number.isNaN(parsed.getTime())) return ''
+    return parsed.toLocaleDateString('zh-CN')
+  }
+
+  const getReadingMeta = (article: Article) => buildKnowledgeReadingMeta(article)
+  const displayedArticleGroups = useMemo(() => groupKnowledgeArticles(articles), [articles])
+  const mergedArticleCount = useMemo(
+    () => displayedArticleGroups.reduce((count, group) => count + group.mergedCount, 0),
+    [displayedArticleGroups],
+  )
+
+  useEffect(() => {
+    const validSlugs = new Set(displayedArticleGroups.map((group) => group.article.slug))
+    setExpandedVariantGroups((current) => Object.fromEntries(
+      Object.entries(current).filter(([slug, expanded]) => expanded && validSlugs.has(slug)),
+    ))
+    setVariantFilterModes((current) => Object.fromEntries(
+      Object.entries(current).filter(([slug]) => validSlugs.has(slug)),
+    ) as Record<string, 'all' | 'zh' | 'latest'>)
+    setVariantSortModes((current) => Object.fromEntries(
+      Object.entries(current).filter(([slug]) => validSlugs.has(slug)),
+    ) as Record<string, 'recommended' | 'recent' | 'zhFirst'>)
+  }, [displayedArticleGroups])
+
+  const toggleVariantGroup = (slug: string) => {
+    setExpandedVariantGroups((current) => ({
+      ...current,
+      [slug]: !current[slug],
+    }))
+  }
+
+  const setVariantFilterMode = (slug: string, mode: 'all' | 'zh' | 'latest') => {
+    setVariantFilterModes((current) => ({
+      ...current,
+      [slug]: mode,
+    }))
+  }
+
+  const setVariantSortMode = (slug: string, mode: 'recommended' | 'recent' | 'zhFirst') => {
+    setVariantSortModes((current) => ({
+      ...current,
+      [slug]: mode,
+    }))
+  }
+
+  return (
+    <div className={styles.page}>
+      <section className={styles.hero}>
+        <div>
+          <span className={styles.eyebrow}>Knowledge Index</span>
+          <h1>知识库</h1>
+          <p>浏览专业母婴知识，按阶段和主题快速找到更贴近当前处境的内容。</p>
+        </div>
+        <div className={styles.heroMeta}>
+          <strong>{total || articles.length}</strong>
+          <span>当前结果</span>
+        </div>
+      </section>
+
+      <section className={styles.filterPanel}>
+        <form className={styles.searchForm} onSubmit={handleSearchSubmit}>
+          <input
+            value={searchInput}
+            onChange={(event) => setSearchInput(event.target.value)}
+            placeholder="搜索知识..."
+            className={styles.searchInput}
+          />
+          {searchInput ? (
+            <button type="button" className={styles.secondaryButton} onClick={handleSearchClear}>
+              清空
+            </button>
+          ) : null}
+          <button type="submit" className={styles.primaryButton}>
+            搜索
+          </button>
+        </form>
+
+        <div className={styles.filterGrid}>
+          <label className={styles.filterField}>
+            <span>分类</span>
+            <select
+              value={selectedCategory || ''}
+              onChange={(event) => setCategory(event.target.value || null)}
+            >
+              <option value="">全部分类</option>
+              {categories.map((category) => (
+                <option key={category.id} value={category.slug}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className={styles.filterField}>
+            <span>阶段</span>
+            <select
+              value={selectedStage || ''}
+              onChange={(event) => setStage(event.target.value || null)}
+            >
+              {stageOptions.map((option) => (
+                <option key={option.value || 'all'} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      </section>
+
+      {tags.length > 0 ? (
+        <section className={styles.tagPanel}>
+          <div className={styles.sectionHeader}>
+            <div>
+              <span className={styles.eyebrow}>Topics</span>
+              <h2>热门标签</h2>
+            </div>
+            {selectedTag ? (
+              <button type="button" className={styles.textButton} onClick={() => setTag(null)}>
+                清除标签
+              </button>
+            ) : null}
+          </div>
+          <div className={styles.tagList}>
+            {tags.slice(0, 12).map((tag) => (
+              <button
+                key={tag.id}
+                type="button"
+                className={selectedTag === tag.slug ? `${styles.tagChip} ${styles.tagChipActive}` : styles.tagChip}
+                onClick={() => setTag(selectedTag === tag.slug ? null : tag.slug)}
               >
                 {tag.name}
-              </Tag>
+              </button>
             ))}
-          </Space>
-        </Card>
-      )}
+          </div>
+        </section>
+      ) : null}
 
-      {/* 文章列表 */}
-      <Spin spinning={loading}>
-        {articles.length > 0 ? (
+      <section className={styles.listSection}>
+        <div className={styles.sectionHeader}>
+          <div>
+            <span className={styles.eyebrow}>Results</span>
+            <h2>知识内容</h2>
+          </div>
+          <span className={styles.resultMeta}>
+            {displayedArticleGroups.length} / {total || displayedArticleGroups.length}
+            {mergedArticleCount > 0 ? ` · 已合并 ${mergedArticleCount} 篇重复来源` : ''}
+          </span>
+        </div>
+
+        {loading && displayedArticleGroups.length === 0 ? (
+          <div className={styles.loadingState}>
+            <span className={styles.loadingDot} />
+            <span>正在加载知识内容...</span>
+          </div>
+        ) : displayedArticleGroups.length > 0 ? (
           <>
-            <List
-              itemLayout="vertical"
-              dataSource={articles}
-              renderItem={renderArticle}
-            />
-            {articles.length < total && (
-              <div style={{ textAlign: 'center', marginTop: 16 }}>
-                <Button onClick={loadMore} loading={loading}>
-                  加载更多 ({articles.length}/{total})
-                </Button>
+            <div className={styles.articleList}>
+              {displayedArticleGroups.map((group) => {
+                const article = group.article
+                const groupKey = article.slug
+                const isExpanded = Boolean(expandedVariantGroups[groupKey])
+                const variantFilterMode = variantFilterModes[groupKey] || 'all'
+                const variantSortMode = variantSortModes[groupKey] || 'recommended'
+                const filteredVariants = filterKnowledgeVariants(article, group.variants, variantFilterMode)
+                const visibleVariants = sortKnowledgeVariants(filteredVariants, variantSortMode)
+                const variantSourceDigest = buildKnowledgeSourceDigest([article, ...visibleVariants])
+                const variantReadingSuggestion = buildKnowledgeVariantReadingSuggestion([article, ...visibleVariants])
+                const variantFilterFeedback = buildKnowledgeVariantFilterFeedback(article, group.variants, variantFilterMode)
+                const variantRecommendation = buildKnowledgeVariantRecommendation(article, group.variants)
+                const representativeReason = buildKnowledgeRepresentativeReason(article, group.variants)
+
+                return (
+                <article
+                  key={groupKey}
+                  className={styles.articleCard}
+                  onClick={() => goToDetail(article.slug)}
+                >
+                  {article.coverImage ? (
+                    <img
+                      src={article.coverImage}
+                      alt={article.title}
+                      className={styles.articleImage}
+                    />
+                  ) : null}
+                  <div className={styles.articleBody}>
+                    <div className={styles.articleTagRow}>
+                      {(article.sourceOrg || article.source) ? (
+                        <span className={`${styles.metaTag} ${styles.metaTagSource}`}>
+                          {formatSourceLabel(article.sourceOrg || article.source)}
+                        </span>
+                      ) : null}
+                      {article.category ? (
+                        <span className={styles.metaTag}>{article.category.name}</span>
+                      ) : null}
+                      {article.stage ? (
+                        <span className={styles.metaTag}>{formatKnowledgeStageLabel(article.stage)}</span>
+                      ) : null}
+                      {article.tags?.slice(0, 3).map((tag) => (
+                        <span key={tag.id} className={styles.metaTag}>
+                          {tag.name}
+                        </span>
+                      ))}
+                    </div>
+
+                    <h3>{getDisplayTitle(article)}</h3>
+                    <div className={styles.readingMetaRow}>
+                      <span className={styles.readingMetaBadge}>{getReadingMeta(article).estimatedMinutesLabel}</span>
+                      <span className={styles.readingMetaBadge}>{getReadingMeta(article).textLengthLabel}</span>
+                      <span className={styles.readingMetaBadge}>{getReadingMeta(article).sectionLabel}</span>
+                    </div>
+                    <p className={styles.articleSummary}>{getDisplaySummary(article)}</p>
+                    {representativeReason ? (
+                      <div className={styles.representativeReason}>
+                        <span className={styles.representativeReasonBadge}>{representativeReason.badge}</span>
+                        <span className={styles.representativeReasonText}>{representativeReason.description}</span>
+                      </div>
+                    ) : null}
+                    {group.mergedCount > 0 ? (
+                      <div className={styles.variantPanel}>
+                        <button
+                          type="button"
+                          className={styles.variantToggle}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            toggleVariantGroup(groupKey)
+                          }}
+                        >
+                          {isExpanded ? '收起同源版本' : `还有 ${group.mergedCount} 个同源版本`}
+                        </button>
+                        {isExpanded ? (
+                          <div className={styles.variantList}>
+                            {variantRecommendation ? (
+                              <div className={styles.variantRecommendation}>
+                                <div className={styles.variantRecommendationCopy}>
+                                  <span className={styles.variantRecommendationLabel}>{variantRecommendation.actionLabel}</span>
+                                  <span className={styles.variantRecommendationText}>{variantRecommendation.description}</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  className={styles.variantRecommendationButton}
+                                  onClick={(event) => {
+                                    event.stopPropagation()
+                                    goToDetail(variantRecommendation.article.slug)
+                                  }}
+                                >
+                                  直接查看
+                                </button>
+                              </div>
+                            ) : null}
+                            {group.variants.length > 1 ? (
+                              <div className={styles.variantFilterRow}>
+                                {variantFilterOptions.map((option) => (
+                                  <button
+                                    key={`${groupKey}-${option.value}`}
+                                    type="button"
+                                    className={variantFilterMode === option.value ? `${styles.variantFilterChip} ${styles.variantFilterChipActive}` : styles.variantFilterChip}
+                                    onClick={(event) => {
+                                      event.stopPropagation()
+                                      setVariantFilterMode(groupKey, option.value)
+                                    }}
+                                  >
+                                    {option.label}
+                                  </button>
+                                ))}
+                              </div>
+                            ) : null}
+                            {filteredVariants.length > 1 ? (
+                              <div className={styles.variantSortRow}>
+                                {variantSortOptions.map((option) => (
+                                  <button
+                                    key={`${groupKey}-sort-${option.value}`}
+                                    type="button"
+                                    className={variantSortMode === option.value ? `${styles.variantSortChip} ${styles.variantSortChipActive}` : styles.variantSortChip}
+                                    onClick={(event) => {
+                                      event.stopPropagation()
+                                      setVariantSortMode(groupKey, option.value)
+                                    }}
+                                  >
+                                    {option.label}
+                                  </button>
+                                ))}
+                              </div>
+                            ) : null}
+                            {variantFilterFeedback ? (
+                              <div className={styles.variantFilterFeedback}>
+                                <span className={styles.variantFilterFeedbackLabel}>{variantFilterFeedback.label}</span>
+                                <span className={styles.variantFilterFeedbackText}>{variantFilterFeedback.description}</span>
+                              </div>
+                            ) : null}
+                            <div className={styles.variantSourceDigest}>
+                              <span className={styles.variantSourceDigestLabel}>{variantSourceDigest.summaryLabel}</span>
+                              <span className={styles.variantSourceDigestText}>{variantSourceDigest.description}</span>
+                            </div>
+                            <div className={styles.variantReadingSuggestion}>
+                              <span className={styles.variantReadingSuggestionLabel}>{variantReadingSuggestion.label}</span>
+                              <span className={styles.variantReadingSuggestionText}>{variantReadingSuggestion.description}</span>
+                            </div>
+                            {visibleVariants.length > 0 ? visibleVariants.map((variant) => {
+                              const variantDifference = buildKnowledgeVariantDifference(article, variant)
+                              const variantPreview = buildKnowledgeVariantPreview(variant)
+
+                              return (
+                              <button
+                                key={variant.slug}
+                                type="button"
+                                className={styles.variantItem}
+                                onClick={(event) => {
+                                  event.stopPropagation()
+                                  goToDetail(variant.slug)
+                                }}
+                              >
+                                <span className={styles.variantTitle}>{getDisplayTitle(variant)}</span>
+                                <span className={styles.variantMeta}>{variantPreview.sourceLabel}</span>
+                                <span className={styles.variantHintRow}>
+                                  {variantDifference.badges.map((badge) => (
+                                    <span key={`${variant.slug}-hint-${badge}`} className={styles.variantHintBadge}>
+                                      {badge}
+                                    </span>
+                                  ))}
+                                </span>
+                                <span className={styles.variantChipRow}>
+                                  {variantPreview.chips.map((chip) => (
+                                    <span key={`${variant.slug}-${chip}`} className={styles.variantChip}>
+                                      {chip}
+                                    </span>
+                                  ))}
+                                </span>
+                              </button>
+                              )
+                            }) : (
+                              <div className={styles.variantEmpty}>当前同源版本里没有符合筛选条件的结果。</div>
+                            )}
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
+
+                    <div className={styles.articleFooter}>
+                      <div className={styles.articleStats}>
+                        {getDisplayDate(article) ? <span>{getDisplayDate(article)}</span> : null}
+                        <span>阅读 {article.viewCount}</span>
+                        <span>点赞 {article.likeCount}</span>
+                        <span>收藏 {article.collectCount}</span>
+                      </div>
+
+                      <div className={styles.articleActions}>
+                        <button
+                          type="button"
+                          className={article.isLiked ? `${styles.iconButton} ${styles.iconButtonActive}` : styles.iconButton}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            likeArticle(article.id)
+                          }}
+                        >
+                          {article.isLiked ? '已点赞' : '点赞'}
+                        </button>
+                        <button
+                          type="button"
+                          className={article.isFavorited ? `${styles.iconButton} ${styles.iconButtonActive}` : styles.iconButton}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            favoriteArticle(article.id)
+                          }}
+                        >
+                          {article.isFavorited ? '已收藏' : '收藏'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </article>
+                )
+              })}
+            </div>
+
+            {articles.length < total ? (
+              <div className={styles.loadMoreRow}>
+                <button type="button" className={styles.primaryButton} onClick={loadMore} disabled={loading}>
+                  {loading ? '加载中...' : `加载更多 (${articles.length}/${total})`}
+                </button>
               </div>
-            )}
+            ) : null}
           </>
         ) : (
-          <Empty description="暂无相关内容" />
+          <div className={styles.emptyState}>暂无相关内容</div>
         )}
-      </Spin>
+      </section>
     </div>
   )
 }

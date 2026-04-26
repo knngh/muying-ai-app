@@ -2,15 +2,25 @@ import React from 'react'
 import { StyleSheet, TouchableOpacity, View } from 'react-native'
 import { Text } from 'react-native-paper'
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons'
-import { colors, fontSize, spacing, borderRadius } from '../../theme'
+import { colors, spacing, borderRadius } from '../../theme'
 
-export interface FeatureEntry {
+type TabFeatureEntry = {
   title: string
   subtitle: string
   icon: string
-  route: 'Chat' | 'Knowledge' | 'Calendar' | 'Membership' | 'WeeklyReport' | 'PregnancyProfile'
-  type: 'tab' | 'stack'
+  route: 'Chat' | 'Knowledge'
+  type: 'tab'
 }
+
+type StackFeatureEntry = {
+  title: string
+  subtitle: string
+  icon: string
+  route: 'Calendar' | 'Membership' | 'WeeklyReport' | 'PregnancyProfile'
+  type: 'stack'
+}
+
+export type FeatureEntry = TabFeatureEntry | StackFeatureEntry
 
 interface QuickActionsProps {
   entries: FeatureEntry[]

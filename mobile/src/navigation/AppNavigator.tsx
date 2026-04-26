@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import {
   NavigationContainer,
@@ -271,6 +271,12 @@ function TabNavigator() {
           const iconColor = focused
             ? (isChat ? "#F3FBFC" : visual.accent)
             : color;
+          const activeGlowStyle = [
+            styles.tabActiveGlow,
+            { backgroundColor: visual.glow },
+            isChat && styles.tabActiveGlowChat,
+          ];
+          const activeBeamStyle = [styles.tabActiveBeam, { backgroundColor: visual.beam }];
 
           if (focused) {
             return (
@@ -283,20 +289,14 @@ function TabNavigator() {
                   isChat && styles.tabIconShellChatActive,
                 ]}
               >
-                <View
-                  style={[
-                    styles.tabActiveGlow,
-                    { backgroundColor: visual.glow },
-                    isChat && styles.tabActiveGlowChat,
-                  ]}
-                />
+                <View style={activeGlowStyle} />
                 <View
                   style={[
                     styles.tabActiveGrid,
                     isChat && styles.tabActiveGridChat,
                   ]}
                 />
-                <View style={[styles.tabActiveBeam, { backgroundColor: visual.beam }]} />
+                <View style={activeBeamStyle} />
                 <View
                   style={[
                     styles.tabActiveBottomLine,
@@ -457,19 +457,7 @@ export default function AppNavigator() {
   const setUser = useAppStore((state) => state.setUser);
   const ensureFreshQuota = useMembershipStore((state) => state.ensureFreshQuota);
 
-  useEffect(() => {
-    void checkAuth();
-    // 设置导航重置函数供 API 401 使用
-    setNavigationReset(() => {
-      setIsLoggedIn(false);
-      setToken(null);
-      setUser(null);
-      useChatStore.getState().resetState();
-      useMembershipStore.getState().resetState();
-    });
-  }, []);
-
-  const checkAuth = async () => {
+  const checkAuth = useCallback(async () => {
     setBootScreen(DEFAULT_BOOT_SCREEN);
     const token = await sessionStorage.getToken();
     setBootScreen((current) => ({
@@ -554,7 +542,19 @@ export default function AppNavigator() {
     }));
 
     setIsLoggedIn(true);
-  };
+  }, [ensureFreshQuota, setToken]);
+
+  useEffect(() => {
+    void checkAuth();
+    // 设置导航重置函数供 API 401 使用
+    setNavigationReset(() => {
+      setIsLoggedIn(false);
+      setToken(null);
+      setUser(null);
+      useChatStore.getState().resetState();
+      useMembershipStore.getState().resetState();
+    });
+  }, [checkAuth, setToken, setUser]);
 
   if (isLoggedIn === null) {
     return (

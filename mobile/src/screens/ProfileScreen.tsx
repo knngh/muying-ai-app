@@ -4,6 +4,9 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 import LinearGradient from 'react-native-linear-gradient'
 import { Button, Snackbar, Text } from 'react-native-paper'
 import { useNavigation, useRoute } from '@react-navigation/native'
+import type { CompositeNavigationProp, RouteProp } from '@react-navigation/native'
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs'
+import type { StackNavigationProp } from '@react-navigation/stack'
 import { ScreenContainer, ContentSection } from '../components/layout'
 import {
   ProfileHeader,
@@ -15,13 +18,20 @@ import {
   ProfileSkeleton,
 } from '../components/profile'
 import { useProfileData } from '../hooks/useProfileData'
+import type { RootStackParamList, TabParamList } from '../navigation/AppNavigator'
 import { colors, fontSize, spacing, borderRadius } from '../theme'
 
 const TAB_SCROLL_BOTTOM_GAP = spacing.xxxl * 4 + spacing.lg
 
+type ProfileNavigationProp = CompositeNavigationProp<
+  BottomTabNavigationProp<TabParamList, 'Profile'>,
+  StackNavigationProp<RootStackParamList>
+>
+type ProfileRouteProp = RouteProp<TabParamList, 'Profile'>
+
 export default function ProfileScreen() {
-  const navigation = useNavigation<any>()
-  const route = useRoute<any>()
+  const navigation = useNavigation<ProfileNavigationProp>()
+  const route = useRoute<ProfileRouteProp>()
   const openCalendar = () => navigation.navigate('Main', { screen: 'CalendarTab' })
   const {
     user,
@@ -240,24 +250,28 @@ export default function ProfileScreen() {
             <Text style={styles.sectionMeta}>常用功能</Text>
           </View>
           <View style={styles.quickActionGrid}>
-            {quickActions.map((item) => (
-              <TouchableOpacity
-                key={item.title}
-                style={styles.quickActionCard}
-                onPress={item.onPress}
-                activeOpacity={0.88}
-              >
-                <View style={[styles.quickActionIconShell, { backgroundColor: item.shell }]}>
-                  <MaterialCommunityIcons name={item.icon} size={18} color={item.accent} />
-                </View>
-                <Text style={styles.quickActionTitle}>{item.title}</Text>
-                <Text style={styles.quickActionSubtitle}>{item.subtitle}</Text>
-                <View style={styles.quickActionFooter}>
-                  <Text style={styles.quickActionCta}>去查看</Text>
-                  <MaterialCommunityIcons name="chevron-right" size={18} color={colors.primaryDark} />
-                </View>
-              </TouchableOpacity>
-            ))}
+            {quickActions.map((item) => {
+              const quickActionIconShellStyle = [styles.quickActionIconShell, { backgroundColor: item.shell }]
+
+              return (
+                <TouchableOpacity
+                  key={item.title}
+                  style={styles.quickActionCard}
+                  onPress={item.onPress}
+                  activeOpacity={0.88}
+                >
+                  <View style={quickActionIconShellStyle}>
+                    <MaterialCommunityIcons name={item.icon} size={18} color={item.accent} />
+                  </View>
+                  <Text style={styles.quickActionTitle}>{item.title}</Text>
+                  <Text style={styles.quickActionSubtitle}>{item.subtitle}</Text>
+                  <View style={styles.quickActionFooter}>
+                    <Text style={styles.quickActionCta}>去查看</Text>
+                    <MaterialCommunityIcons name="chevron-right" size={18} color={colors.primaryDark} />
+                  </View>
+                </TouchableOpacity>
+              )
+            })}
           </View>
         </ContentSection>
 

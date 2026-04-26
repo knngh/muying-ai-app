@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react'
-import { Animated, StyleSheet, View, type ViewStyle } from 'react-native'
+import { Animated, StyleSheet, View, type DimensionValue, type ViewStyle } from 'react-native'
 import LinearGradient from 'react-native-linear-gradient'
 import { colors, borderRadius } from '../../theme'
 
@@ -17,6 +17,22 @@ export default function Skeleton({
   style,
 }: SkeletonProps) {
   const shimmer = useRef(new Animated.Value(-160)).current
+  const skeletonStyle = [
+    styles.skeleton,
+    {
+      width: width as DimensionValue,
+      height,
+      borderRadius: br,
+    },
+    style,
+  ]
+  const skeletonCoreStyle = [styles.skeletonCore, { borderRadius: br }]
+  const shimmerStyle = [
+    styles.shimmer,
+    {
+      transform: [{ translateX: shimmer }],
+    },
+  ]
 
   useEffect(() => {
     const animation = Animated.loop(
@@ -31,26 +47,11 @@ export default function Skeleton({
   }, [shimmer])
 
   return (
-    <View
-      style={[
-        styles.skeleton,
-        {
-          width: width as any,
-          height,
-          borderRadius: br,
-        },
-        style,
-      ]}
-    >
-      <View style={[styles.skeletonCore, { borderRadius: br }]} />
+    <View style={skeletonStyle}>
+      <View style={skeletonCoreStyle} />
       <Animated.View
         pointerEvents="none"
-        style={[
-          styles.shimmer,
-          {
-            transform: [{ translateX: shimmer }],
-          },
-        ]}
+        style={shimmerStyle}
       >
         <LinearGradient
           colors={['rgba(255,248,242,0)', 'rgba(255,250,246,0.72)', 'rgba(220,236,238,0)']}

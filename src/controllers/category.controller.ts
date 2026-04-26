@@ -1,7 +1,16 @@
 import { Request, Response, NextFunction } from 'express';
+import { Prisma } from '@prisma/client';
 import prisma from '../config/database';
-import { successResponse, AppError, ErrorCodes } from '../middlewares/error.middleware';
+import { successResponse, AppError, ErrorCodes, ApiResponse } from '../middlewares/error.middleware';
 import { cache, CacheKeys, CacheTTL } from '../services/cache.service';
+
+type CategoriesListResponse = ApiResponse<{
+  list: Awaited<ReturnType<typeof prisma.category.findMany>>;
+}>;
+
+type CategoryDetailResponse = ApiResponse<
+  NonNullable<Awaited<ReturnType<typeof prisma.category.findUnique>>>
+>;
 
 /**
  * 获取分类列表（带缓存）
@@ -15,14 +24,14 @@ export const getCategories = async (req: Request, res: Response, next: NextFunct
     const shouldCache = !level && !parentId && isActive === undefined;
     
     if (shouldCache) {
-      const cached = cache.get<any>(CacheKeys.CATEGORIES_ALL);
+      const cached = cache.get<CategoriesListResponse>(CacheKeys.CATEGORIES_ALL);
       if (cached) {
         console.log('[Cache] Hit: categories:all');
         return res.json(cached);
       }
     }
 
-    const where: any = {};
+    const where: Prisma.CategoryWhereInput = {};
     
     if (level) {
       where.level = parseInt(level as string);
@@ -75,7 +84,7 @@ export const getCategoryBySlug = async (req: Request, res: Response, next: NextF
 
     // 尝试从缓存获取
     const cacheKey = CacheKeys.CATEGORY_DETAIL(slug);
-    const cached = cache.get<any>(cacheKey);
+    const cached = cache.get<CategoryDetailResponse>(cacheKey);
     if (cached) {
       console.log(`[Cache] Hit: ${cacheKey}`);
       return res.json(cached);

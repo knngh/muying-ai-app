@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Alert,
+  NativeSyntheticEvent,
+  NativeScrollEvent,
   View,
   ScrollView,
   StyleSheet,
@@ -9,13 +11,14 @@ import {
   Share,
   Dimensions,
 } from 'react-native'
-import { WebView } from 'react-native-webview'
+import { WebView, type WebViewMessageEvent } from 'react-native-webview'
 import { Text, Chip, Button, ActivityIndicator } from 'react-native-paper'
 import LinearGradient from 'react-native-linear-gradient'
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons'
 import { useRoute } from '@react-navigation/native'
 import { useNavigation } from '@react-navigation/native'
 import type { RouteProp } from '@react-navigation/native'
+import type { StackNavigationProp } from '@react-navigation/stack'
 import type { RootStackParamList } from '../navigation/AppNavigator'
 import {
   articleApi,
@@ -35,19 +38,42 @@ import { buildKnowledgeAiAssist } from '../utils/aiAssist'
 import { useAppStore } from '../stores/appStore'
 import { getStageSummary } from '../utils/stage'
 import {
+  addArticleHeadingAnchors,
+  buildKnowledgeReadingMeta,
+  buildKnowledgeReadingPath,
+  extractArticleOutline,
+  formatRichArticleContent as formatRichArticleContentShared,
+  getKnowledgeDisplayTags as getKnowledgeDisplayTagsShared,
+  getKnowledgeFallbackSummary as getKnowledgeFallbackSummaryShared,
+  getKnowledgeDisplayTitle as getKnowledgeDisplayTitleShared,
   isGenericForeignTitle,
   isMostlyChineseText,
   normalizePlainText,
+  normalizeKnowledgeLabel as normalizeKnowledgeLabelShared,
+  sanitizeAuthoritySourceUrl as sanitizeAuthoritySourceUrlShared,
   sanitizeTranslationText,
   stripHtmlTags,
+  shouldHideAuthorityCategoryChip as shouldHideAuthorityCategoryChipShared,
+  toReadableUrl as toReadableUrlShared,
 } from '../utils/knowledgeText'
 
 type DetailRouteProp = RouteProp<RootStackParamList, 'KnowledgeDetail'>
 
+type ArticleSectionMetrics = {
+  id: string
+  top: number
+}
+
+type ArticleWebViewLayoutMessage = {
+  type: 'layout'
+  height: number
+  sections: ArticleSectionMetrics[]
+}
+
 const { width: screenWidth } = Dimensions.get('window')
 
 export default function KnowledgeDetailScreen() {
-  const navigation = useNavigation<any>()
+  const navigation = useNavigation<StackNavigationProp<RootStackParamList, 'KnowledgeDetail'>>()
   const route = useRoute<DetailRouteProp>()
   const user = useAppStore((state) => state.user)
   const stage = getStageSummary(user)
@@ -57,9 +83,14 @@ export default function KnowledgeDetailScreen() {
   const [translationError, setTranslationError] = useState('')
   const [showingTranslation, setShowingTranslation] = useState(false)
   const [webViewHeight, setWebViewHeight] = useState(120)
+  const [sectionOffsets, setSectionOffsets] = useState<Record<string, number>>({})
+  const [scrollProgress, setScrollProgress] = useState(0)
+  const [showBackToTop, setShowBackToTop] = useState(false)
   const articleOpenedAtRef = useRef(Date.now())
   const reportedReadKeyRef = useRef<string | null>(null)
   const aiHitTrackedRef = useRef<string | null>(null)
+  const scrollViewRef = useRef<ScrollView | null>(null)
+  const readingShellTopRef = useRef(0)
 
   const {
     currentArticle: article,
@@ -77,6 +108,9 @@ export default function KnowledgeDetailScreen() {
     setTranslationError('')
     setShowingTranslation(false)
     setWebViewHeight(120)
+    setSectionOffsets({})
+    setScrollProgress(0)
+    setShowBackToTop(false)
     articleOpenedAtRef.current = Date.now()
     reportedReadKeyRef.current = null
   }, [fetchArticleDetail, slug])
@@ -208,17 +242,25 @@ export default function KnowledgeDetailScreen() {
   const displayTags = useMemo(() => getDisplayTags(article), [article])
   const displayTopic = useMemo(() => normalizeKnowledgeLabel(article?.topic), [article?.topic])
   const aiAssist = useMemo(() => buildKnowledgeAiAssist(article), [article])
+  const readingMeta = useMemo(() => buildKnowledgeReadingMeta(article), [article])
+  const readingPath = useMemo(() => buildKnowledgeReadingPath(article), [article])
   const displayedBodyContent = showingTranslation && translatedContentText
     ? translatedContentText
     : article?.content || ''
   const isBodyFallback = !stripHtmlTags(displayedBodyContent).replace(/\s+/g, '').trim()
+  const contentOutline = useMemo(() => {
+    const rawContent = isBodyFallback
+      ? displayedSummary || ''
+      : displayedBodyContent
+    return extractArticleOutline(rawContent)
+  }, [displayedBodyContent, displayedSummary, isBodyFallback])
   const displayedContentHtml = useMemo(() => {
     const rawContent = isBodyFallback
       ? formatRichArticleContent(
           displayedSummary || '当前文章暂未同步完整正文，可先查看摘要，再打开机构原文继续阅读。',
         )
       : formatRichArticleContent(displayedBodyContent)
-    return buildSafeArticleHtml(rawContent)
+    return buildSafeArticleHtml(addArticleHeadingAnchors(rawContent))
   }, [displayedBodyContent, displayedSummary, isBodyFallback])
   useEffect(() => {
     setWebViewHeight(120)
@@ -331,6 +373,58 @@ export default function KnowledgeDetailScreen() {
     }
   }
 
+  const handleJumpToSection = (sectionId: string) => {
+    const offset = sectionOffsets[sectionId]
+    const targetY = Math.max(readingShellTopRef.current + (offset || 0) - 12, 0)
+    scrollViewRef.current?.scrollTo({ y: targetY, animated: true })
+  }
+
+  const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const {
+      contentOffset,
+      contentSize,
+      layoutMeasurement,
+    } = event.nativeEvent
+
+    const maxScroll = Math.max(contentSize.height - layoutMeasurement.height, 0)
+    const nextProgress = maxScroll > 0
+      ? Math.min(100, Math.max(0, Math.round((contentOffset.y / maxScroll) * 100)))
+      : 100
+
+    setScrollProgress(nextProgress)
+    setShowBackToTop(contentOffset.y > 420)
+  }
+
+  const handleBackToTop = () => {
+    scrollViewRef.current?.scrollTo({ y: 0, animated: true })
+  }
+
+  const handleWebViewMessage = (event: WebViewMessageEvent) => {
+    try {
+      const payload = JSON.parse(event.nativeEvent.data) as ArticleWebViewLayoutMessage
+      if (payload.type !== 'layout') {
+        return
+      }
+
+      if (Number.isFinite(payload.height) && payload.height > 0) {
+        setWebViewHeight(Math.max(Math.ceil(payload.height) + 2, 120))
+      }
+
+      const nextOffsets = payload.sections.reduce<Record<string, number>>((acc, item) => {
+        if (item.id && Number.isFinite(item.top) && item.top >= 0) {
+          acc[item.id] = item.top
+        }
+        return acc
+      }, {})
+      setSectionOffsets(nextOffsets)
+    } catch {
+      const nextHeight = Number(event.nativeEvent.data)
+      if (!Number.isNaN(nextHeight) && nextHeight > 0) {
+        setWebViewHeight(Math.max(nextHeight + 2, 120))
+      }
+    }
+  }
+
   const handleAskAi = () => {
     if (!article) return
 
@@ -390,11 +484,11 @@ export default function KnowledgeDetailScreen() {
         const nextTranslation = await articleApi.getTranslation(slug)
         setTranslation(nextTranslation)
         setShowingTranslation(true)
-      } catch (error: unknown) {
-        const message = isTranslationPendingError(error)
+      } catch (fetchError: unknown) {
+        const message = isTranslationPendingError(fetchError)
           ? '中文辅助阅读正在准备中，请稍后再试'
-          : error instanceof Error
-            ? error.message
+          : fetchError instanceof Error
+            ? fetchError.message
             : '翻译失败，请稍后重试'
         setTranslationError(message)
       } finally {
@@ -442,6 +536,9 @@ export default function KnowledgeDetailScreen() {
   const catColor = article.category
     ? categoryColors[article.category.name] || colors.primary
     : colors.primary
+  const categoryChipStyle = [styles.categoryChip, { backgroundColor: `${catColor}20` }]
+  const categoryChipTextStyle = { fontSize: fontSize.xs, color: catColor, fontWeight: '700' as const }
+  const webviewStyle = [styles.webview, { height: webViewHeight }]
   const articleFacts = [
     article.author ? { label: '作者', value: article.author } : null,
     article.audience ? { label: '适用人群', value: article.audience } : null,
@@ -490,7 +587,12 @@ export default function KnowledgeDetailScreen() {
 
   return (
     <ScreenContainer style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        ref={scrollViewRef}
+        contentContainerStyle={styles.scrollContent}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+      >
         <StandardCard style={styles.heroCard} elevation={2}>
           <LinearGradient
             colors={['#FAE8DD', '#F0D8C9', '#F8F3EE']}
@@ -531,8 +633,8 @@ export default function KnowledgeDetailScreen() {
               ) : null}
               {showCategoryChip && article.category ? (
                 <Chip
-                  style={[styles.categoryChip, { backgroundColor: `${catColor}20` }]}
-                  textStyle={{ fontSize: fontSize.xs, color: catColor, fontWeight: '700' }}
+                  style={categoryChipStyle}
+                  textStyle={categoryChipTextStyle}
                   compact
                 >
                   {article.category.name}
@@ -582,6 +684,85 @@ export default function KnowledgeDetailScreen() {
               </View>
             </View>
             <Text style={styles.summaryText}>{displayedSummaryText}</Text>
+          </View>
+        ) : null}
+
+        <View style={styles.readingMetaCard}>
+          <View style={styles.panelHeader}>
+            <View style={[styles.panelIconShell, styles.readingMetaIconShell]}>
+              <MaterialCommunityIcons name="chart-timeline-variant" size={18} color={colors.techDark} />
+            </View>
+            <View style={styles.panelHeaderBody}>
+              <Text style={styles.cardEyebrow}>阅读速览</Text>
+              <Text style={styles.panelTitle}>先判断篇幅和结构</Text>
+            </View>
+            <Chip compact style={styles.readingMetaChip} textStyle={styles.readingMetaChipText}>
+              {readingMeta.contentModeLabel}
+            </Chip>
+          </View>
+          <View style={styles.readingMetaGrid}>
+            <View style={styles.readingMetaItem}>
+              <Text style={styles.readingMetaLabel}>建议阅读</Text>
+              <Text style={styles.readingMetaValue}>{readingMeta.estimatedMinutesLabel}</Text>
+            </View>
+            <View style={styles.readingMetaItem}>
+              <Text style={styles.readingMetaLabel}>正文体量</Text>
+              <Text style={styles.readingMetaValue}>{readingMeta.textLengthLabel}</Text>
+            </View>
+            <View style={styles.readingMetaItem}>
+              <Text style={styles.readingMetaLabel}>结构信息</Text>
+              <Text style={styles.readingMetaValue}>{readingMeta.sectionLabel}</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.readingPathCard}>
+          <View style={styles.panelHeader}>
+            <View style={[styles.panelIconShell, styles.readingPathIconShell]}>
+              <MaterialCommunityIcons name="map-marker-path" size={18} color={colors.primaryDark} />
+            </View>
+            <View style={styles.panelHeaderBody}>
+              <Text style={styles.cardEyebrow}>{readingPath.kicker}</Text>
+              <Text style={styles.panelTitle}>{readingPath.title}</Text>
+            </View>
+          </View>
+          <Text style={styles.readingPathDesc}>{readingPath.description}</Text>
+          <View style={styles.readingPathList}>
+            {readingPath.items.map((item) => (
+              <View key={item.title} style={styles.readingPathItem}>
+                <Text style={styles.readingPathItemTitle}>{item.title}</Text>
+                <Text style={styles.readingPathItemText}>{item.description}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {contentOutline.length > 0 ? (
+          <View style={styles.outlineCard}>
+            <View style={styles.panelHeader}>
+              <View style={[styles.panelIconShell, styles.outlineIconShell]}>
+                <MaterialCommunityIcons name="format-list-bulleted" size={18} color={colors.techDark} />
+              </View>
+              <View style={styles.panelHeaderBody}>
+                <Text style={styles.cardEyebrow}>正文目录</Text>
+                <Text style={styles.panelTitle}>按章节快速定位</Text>
+              </View>
+            </View>
+            <View style={styles.outlineList}>
+              {contentOutline.map((item) => (
+                <Button
+                  key={item.id}
+                  mode="contained-tonal"
+                  onPress={() => handleJumpToSection(item.id)}
+                  style={[styles.outlineItemButton, item.level === 3 && styles.outlineItemButtonSub]}
+                  contentStyle={styles.outlineItemContent}
+                  buttonColor="rgba(255,255,255,0.82)"
+                  textColor={colors.techDark}
+                >
+                  {item.title}
+                </Button>
+              ))}
+            </View>
           </View>
         ) : null}
 
@@ -713,7 +894,7 @@ export default function KnowledgeDetailScreen() {
               buttonColor="rgba(184,138,72,0.16)"
               textColor={colors.gold}
             >
-              {showingTranslation ? '查看原文' : translation ? '切换中文' : '生成中文'}
+              {showingTranslation ? '查看原文' : translation ? '查看中文' : '生成中文'}
             </Button>
           ) : null}
           <Button
@@ -795,7 +976,12 @@ export default function KnowledgeDetailScreen() {
           <Text style={styles.translationError}>{translationError}</Text>
         ) : null}
 
-        <StandardCard style={styles.readingShell} elevation={1}>
+        <View
+          onLayout={(event) => {
+            readingShellTopRef.current = event.nativeEvent.layout.y
+          }}
+        >
+          <StandardCard style={styles.readingShell} elevation={1}>
           <View style={styles.readingHeader}>
             <View style={styles.panelHeader}>
               <View style={[styles.panelIconShell, styles.readingIconShell]}>
@@ -828,7 +1014,7 @@ export default function KnowledgeDetailScreen() {
               key={`${slug}:${showingTranslation ? 'translated' : 'source'}:${displayedContentHtml.length}`}
               originWhitelist={['about:blank']}
               source={{ html: displayedContentHtml }}
-              style={[styles.webview, { height: webViewHeight }]}
+              style={webviewStyle}
               javaScriptEnabled
               domStorageEnabled={false}
               allowFileAccess={false}
@@ -837,7 +1023,16 @@ export default function KnowledgeDetailScreen() {
               scrollEnabled={false}
               injectedJavaScript={`
                 (function() {
-                  function sendHeight() {
+                  function collectSections() {
+                    var headings = Array.prototype.slice.call(document.querySelectorAll('h1[id], h2[id], h3[id]'));
+                    return headings.map(function(node) {
+                      return {
+                        id: node.id,
+                        top: Math.max(node.offsetTop || 0, 0)
+                      };
+                    });
+                  }
+                  function sendLayout() {
                     var height = Math.max(
                       document.documentElement.scrollHeight || 0,
                       document.documentElement.offsetHeight || 0,
@@ -847,16 +1042,20 @@ export default function KnowledgeDetailScreen() {
                       document.documentElement.getBoundingClientRect().height || 0,
                       (document.body.lastElementChild && (document.body.lastElementChild.getBoundingClientRect().bottom + window.scrollY)) || 0
                     );
-                    window.ReactNativeWebView.postMessage(String(Math.ceil(height)));
+                    window.ReactNativeWebView.postMessage(JSON.stringify({
+                      type: 'layout',
+                      height: Math.ceil(height),
+                      sections: collectSections()
+                    }));
                   }
                   function bindImageListeners() {
                     var images = document.images || [];
                     for (var index = 0; index < images.length; index += 1) {
-                      images[index].addEventListener('load', sendHeight);
-                      images[index].addEventListener('error', sendHeight);
+                      images[index].addEventListener('load', sendLayout);
+                      images[index].addEventListener('error', sendLayout);
                     }
                   }
-                  var observer = new MutationObserver(sendHeight);
+                  var observer = new MutationObserver(sendLayout);
                   observer.observe(document.body, {
                     subtree: true,
                     childList: true,
@@ -864,25 +1063,40 @@ export default function KnowledgeDetailScreen() {
                     characterData: true
                   });
                   bindImageListeners();
-                  window.addEventListener('load', sendHeight);
-                  window.addEventListener('resize', sendHeight);
-                  setTimeout(sendHeight, 100);
-                  setTimeout(sendHeight, 400);
-                  setTimeout(sendHeight, 1200);
+                  window.addEventListener('load', sendLayout);
+                  window.addEventListener('resize', sendLayout);
+                  setTimeout(sendLayout, 100);
+                  setTimeout(sendLayout, 400);
+                  setTimeout(sendLayout, 1200);
                   true;
                 })();
               `}
               onShouldStartLoadWithRequest={(request) => shouldAllowWebViewNavigation(request.url)}
-              onMessage={(event) => {
-                const nextHeight = Number(event.nativeEvent.data)
-                if (!Number.isNaN(nextHeight) && nextHeight > 0) {
-                  setWebViewHeight(Math.max(nextHeight + 2, 120))
-                }
-              }}
+              onMessage={handleWebViewMessage}
             />
           </View>
-        </StandardCard>
+          </StandardCard>
+        </View>
       </ScrollView>
+
+      <View pointerEvents="box-none" style={styles.floatingTools}>
+        <View style={styles.progressBadge}>
+          <Text style={styles.progressBadgeText}>已阅读 {scrollProgress}%</Text>
+        </View>
+        {showBackToTop ? (
+          <Button
+            mode="contained"
+            icon="arrow-up"
+            onPress={handleBackToTop}
+            style={styles.backTopButton}
+            contentStyle={styles.backTopButtonContent}
+            buttonColor={colors.techDark}
+            textColor={colors.white}
+          >
+            回到顶部
+          </Button>
+        ) : null}
+      </View>
 
       <View style={styles.actionBar}>
         <View style={styles.actionGuideRow}>
@@ -1170,6 +1384,15 @@ const styles = StyleSheet.create({
   aiAssistIconShell: {
     backgroundColor: 'rgba(197,108,71,0.12)',
   },
+  readingPathIconShell: {
+    backgroundColor: 'rgba(184,138,72,0.14)',
+  },
+  outlineIconShell: {
+    backgroundColor: 'rgba(94,126,134,0.12)',
+  },
+  readingMetaIconShell: {
+    backgroundColor: 'rgba(94,126,134,0.12)',
+  },
   panelHeaderBody: {
     flex: 1,
     gap: 2,
@@ -1189,6 +1412,97 @@ const styles = StyleSheet.create({
     fontSize: fontSize.md,
     color: colors.inkSoft,
     lineHeight: 24,
+    textAlign: 'justify',
+  },
+  readingMetaCard: {
+    backgroundColor: 'rgba(247, 251, 251, 0.96)',
+    borderRadius: borderRadius.xl,
+    borderWidth: 1,
+    borderColor: 'rgba(94,126,134,0.16)',
+    padding: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  readingMetaChip: {
+    backgroundColor: 'rgba(255,255,255,0.92)',
+  },
+  readingMetaChipText: {
+    color: colors.techDark,
+    fontSize: fontSize.xs,
+    fontWeight: '700',
+  },
+  readingMetaGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  readingMetaItem: {
+    width: '31%',
+    minWidth: 92,
+    padding: spacing.sm,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.82)',
+  },
+  readingMetaLabel: {
+    color: colors.textSecondary,
+    fontSize: fontSize.xs,
+  },
+  readingMetaValue: {
+    marginTop: 6,
+    color: colors.ink,
+    fontWeight: '800',
+    lineHeight: 20,
+  },
+  readingPathCard: {
+    backgroundColor: 'rgba(255, 251, 247, 0.98)',
+    borderRadius: borderRadius.xl,
+    borderWidth: 1,
+    borderColor: 'rgba(184,138,72,0.16)',
+    padding: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  readingPathDesc: {
+    color: colors.inkSoft,
+    lineHeight: 22,
+  },
+  readingPathList: {
+    marginTop: spacing.md,
+    gap: spacing.sm,
+  },
+  readingPathItem: {
+    padding: spacing.sm,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.82)',
+  },
+  readingPathItemTitle: {
+    color: colors.ink,
+    fontSize: fontSize.sm,
+    fontWeight: '700',
+  },
+  readingPathItemText: {
+    marginTop: 6,
+    color: colors.textSecondary,
+    lineHeight: 20,
+  },
+  outlineCard: {
+    backgroundColor: 'rgba(247, 251, 251, 0.96)',
+    borderRadius: borderRadius.xl,
+    borderWidth: 1,
+    borderColor: 'rgba(94,126,134,0.16)',
+    padding: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  outlineList: {
+    gap: spacing.sm,
+  },
+  outlineItemButton: {
+    borderRadius: 18,
+  },
+  outlineItemButtonSub: {
+    marginLeft: spacing.md,
+  },
+  outlineItemContent: {
+    minHeight: 44,
+    justifyContent: 'flex-start',
   },
   aiHitContextCard: {
     backgroundColor: 'rgba(247, 251, 251, 0.94)',
@@ -1439,6 +1753,44 @@ const styles = StyleSheet.create({
     minHeight: 300,
     backgroundColor: 'rgba(255, 252, 248, 0.96)',
   },
+  floatingTools: {
+    position: 'absolute',
+    right: spacing.md,
+    bottom: 112,
+    zIndex: 20,
+    alignItems: 'flex-end',
+    gap: spacing.sm,
+  },
+  progressBadge: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255, 250, 246, 0.96)',
+    borderWidth: 1,
+    borderColor: 'rgba(184,138,72,0.16)',
+    shadowColor: colors.inkSoft,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 4,
+  },
+  progressBadgeText: {
+    color: colors.inkSoft,
+    fontSize: fontSize.xs,
+    fontWeight: '800',
+  },
+  backTopButton: {
+    borderRadius: 999,
+    shadowColor: colors.inkSoft,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.14,
+    shadowRadius: 18,
+    elevation: 4,
+  },
+  backTopButtonContent: {
+    height: 42,
+    paddingHorizontal: spacing.xs,
+  },
   actionBar: {
     gap: spacing.sm,
     paddingVertical: spacing.sm,
@@ -1493,110 +1845,24 @@ const styles = StyleSheet.create({
   },
 })
 
-function formatArticleStage(stage?: string) {
-  if (!stage) return '全阶段'
-
-  const stageMap: Record<string, string> = {
-    preparation: '备孕期',
-    'first-trimester': '孕早期',
-    'second-trimester': '孕中期',
-    'third-trimester': '孕晚期',
-    newborn: '新生儿期',
-    postpartum: '产后恢复',
-    '0-6-months': '0-6个月',
-    '6-12-months': '6-12个月',
-    '1-3-years': '1-3岁',
-    '3-years-plus': '3岁以上',
-  }
-
-  return stageMap[stage] || stage
-}
-
 function normalizeKnowledgeLabel(label?: string): string {
-  const value = (label || '').trim()
-  if (!value) return ''
-
-  const lower = value.toLowerCase()
-  if (/american academy of pediatrics|healthychildren\.org|\baap\b/.test(lower)) return 'AAP'
-  if (/mayo clinic|mayoclinic\.org/.test(lower)) return 'Mayo Clinic'
-  if (/msd manuals?|msdmanuals\.cn|merck manual/.test(lower)) return 'MSD Manuals'
-  if (/national health service|\bnhs\b|nhs\.uk/.test(lower)) return 'NHS'
-  if (/world health organization|\bwho\b|who\.int/.test(lower)) return 'WHO'
-  if (/centers? for disease control|\bcdc\b|cdc\.gov/.test(lower)) return 'CDC'
-  if (/american college of obstetricians and gynecologists|\bacog\b|acog\.org/.test(lower)) return 'ACOG'
-  const mapped = {
-    pregnancy: '孕期',
-    policy: '指南/政策',
-    parenting: '养育',
-    nutrition: '营养',
-    vaccine: '疫苗',
-    child: '儿童',
-    toddler: '幼儿',
-    infant: '婴儿',
-    breastfeeding: '喂养',
-  }[lower]
-
-  return mapped || value
-}
-
-function isSourceLikeKnowledgeTag(label: string) {
-  const normalized = normalizeKnowledgeLabel(label).toLowerCase()
-  if (!normalized) return false
-
-  return /^(aap|acog|cdc|who|nhs|mayo clinic|msd manuals)$/i.test(normalized)
-    || /healthychildren|mayoclinic|msdmanuals|who\.int|cdc\.gov|nhs\.uk|acog\.org/i.test(normalized)
-    || /american academy of pediatrics|american college of obstetricians and gynecologists|world health organization|national health service|centers? for disease control/i.test(normalized)
+  return normalizeKnowledgeLabelShared(label)
 }
 
 function shouldHideAuthorityCategoryChip(article: Article) {
-  if (!article.category) return false
-  if (article.category.slug === 'authority-source') return true
-
-  const categoryKey = normalizeKnowledgeLabel(article.category.name).toLowerCase()
-  const sourceKey = normalizeKnowledgeLabel(article.sourceOrg || article.source).toLowerCase()
-  return Boolean(categoryKey && sourceKey && categoryKey === sourceKey)
+  return shouldHideAuthorityCategoryChipShared(article)
 }
 
 function getDisplayTags(article?: Article | null) {
-  if (!article?.tags?.length) return []
-
-  const seen = new Set<string>()
-  const sourceKey = normalizeKnowledgeLabel(article.sourceOrg || article.source).toLowerCase()
-  const topicKey = normalizeKnowledgeLabel(article.topic).toLowerCase()
-
-  return article.tags
-    .map((tag) => ({
-      ...tag,
-      displayName: normalizeKnowledgeLabel(tag.name),
-    }))
-    .filter((tag) => {
-      const key = tag.displayName.toLowerCase()
-      if (!key) return false
-      if (key === sourceKey || key === topicKey) return false
-      if (isSourceLikeKnowledgeTag(key)) return false
-      if (seen.has(key)) return false
-      seen.add(key)
-      return true
-    })
+  return getKnowledgeDisplayTagsShared(article)
 }
 
 function getLocalizedFallbackTitle(article: Article) {
-  const topic = normalizeKnowledgeLabel(article.topic)
-  const category = article.category ? normalizeKnowledgeLabel(article.category.name) : ''
-  const stage = formatArticleStage(article.stage)
-  const primary = topic || category || (stage !== '全阶段' ? stage : '权威')
-  return `${primary}参考`
+  return getKnowledgeDisplayTitleShared(article)
 }
 
 function getLocalizedFallbackSummary(article: Article) {
-  const source = normalizeKnowledgeLabel(article.sourceOrg || article.source) || '权威机构'
-  const stage = formatArticleStage(article.stage)
-  const topic = normalizeKnowledgeLabel(article.topic)
-  const audience = normalizeKnowledgeLabel(article.audience)
-  const category = article.category ? normalizeKnowledgeLabel(article.category.name) : ''
-  const focus = topic || audience || category || '当前阶段重点'
-  const stagePrefix = stage && stage !== '全阶段' ? `${stage}阶段` : '当前阶段'
-  return `${source}相关原文正在准备中文辅助阅读，这篇内容聚焦${stagePrefix}的${focus}，可先查看导读要点，再按需打开机构原文。`
+  return getKnowledgeFallbackSummaryShared(article)
 }
 
 function buildAiHitContextText(
@@ -1626,233 +1892,8 @@ function buildAiHitContextText(
   return [triggerText, matchReasonText, originText].filter(Boolean).join('')
 }
 
-function escapeHtml(input: string): string {
-  return input
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-}
-
-function appendInlineStyle(attrs: string | undefined, inlineStyle: string): string {
-  const normalizedAttrs = attrs || ''
-  const styleMatch = normalizedAttrs.match(/\sstyle=(['"])(.*?)\1/i)
-
-  if (!styleMatch) {
-    return `${normalizedAttrs} style="${inlineStyle}"`
-  }
-
-  const quote = styleMatch[1]
-  const existing = styleMatch[2]?.trim() || ''
-  const merged = existing.endsWith(';') ? `${existing}${inlineStyle}` : `${existing};${inlineStyle}`
-  return normalizedAttrs.replace(/\sstyle=(['"])(.*?)\1/i, ` style=${quote}${merged}${quote}`)
-}
-
-function stripProblematicInlineStyles(html: string): string {
-  return html.replace(/\sstyle=(['"])(.*?)\1/gi, (_match, quote: string, rawStyle: string) => {
-    const cleaned = rawStyle
-      .split(';')
-      .map(item => item.trim())
-      .filter(Boolean)
-      .filter((item) => !/^(?:margin(?:-(?:top|right|bottom|left))?|padding(?:-(?:top|right|bottom|left))?|height|min-height|max-height)\s*:/i.test(item))
-      .join(';')
-
-    return cleaned ? ` style=${quote}${cleaned}${quote}` : ''
-  })
-}
-
-function addBlockSpacingToHtml(html: string): string {
-  const blockStyles: Array<{ tag: string; style: string }> = [
-    { tag: 'p', style: 'margin:0 0 1.1em;line-height:1.9;display:block;' },
-    { tag: 'div', style: 'margin:0 0 1.1em;line-height:1.9;display:block;' },
-    { tag: 'section', style: 'margin:0 0 1.1em;line-height:1.9;display:block;' },
-    { tag: 'article', style: 'margin:0 0 1.1em;line-height:1.9;display:block;' },
-    { tag: 'li', style: 'margin:0 0 0.7em;line-height:1.9;' },
-    { tag: 'ul', style: 'margin:0 0 1em 1.2em;padding:0;' },
-    { tag: 'ol', style: 'margin:0 0 1em 1.2em;padding:0;' },
-    { tag: 'h1', style: 'margin:0 0 0.9em;line-height:1.5;font-weight:700;' },
-    { tag: 'h2', style: 'margin:0 0 0.9em;line-height:1.55;font-weight:700;' },
-    { tag: 'h3', style: 'margin:0 0 0.8em;line-height:1.6;font-weight:700;' },
-    { tag: 'blockquote', style: 'margin:0 0 1em;padding-left:0.9em;border-left:4px solid #f4c7d7;color:#6b7785;' },
-  ]
-
-  return blockStyles.reduce((result, item) => (
-    result.replace(new RegExp(`<${item.tag}(\\s[^>]*)?>`, 'gi'), (_match, attrs?: string) => (
-      `<${item.tag}${appendInlineStyle(attrs, item.style)}>`
-    ))
-  ), html)
-}
-
-function normalizeBlock(input: string): string {
-  return input
-    .replace(/\u00a0/g, ' ')
-    .replace(/[ \t]+/g, ' ')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim()
-}
-
-function isLikelyHeading(line: string): boolean {
-  const trimmed = line.trim()
-  if (!trimmed) return false
-
-  if (trimmed.length <= 24 && !/[。！？!?；;]$/.test(trimmed)) {
-    return /^(第[一二三四五六七八九十百千万0-9]+[章节部分篇条]|[一二三四五六七八九十]+[、.．]|[0-9]+[、.．]|（[一二三四五六七八九十0-9]+）|附件|附：|提示|建议|结论|原因|措施|何时就医|不确定性说明|参考来源)/u.test(trimmed)
-  }
-
-  return false
-}
-
-function splitHeadingPrefix(line: string): { heading?: string; remainder?: string } {
-  const trimmed = line.trim()
-  const match = trimmed.match(/^(第[一二三四五六七八九十百千万0-9]+[章节部分篇条]|[一二三四五六七八九十]+[、.．]|[0-9]+[、.．]|（[一二三四五六七八九十0-9]+）|附件|附：|提示|建议|结论|原因|措施|何时就医|不确定性说明|参考来源)(.*)$/u)
-  if (!match) return {}
-
-  const heading = match[1]?.trim()
-  const remainder = match[2]?.trim()
-  if (!heading) return {}
-  if (!remainder) return { heading }
-
-  const headingTextMatch = remainder.match(/^([\u4e00-\u9fa5A-Za-z0-9]{2,12}?)(?=(如果|请|应|需|可|先|要|做|保持|观察|出现|及时|立即|继续|尽快|按照|根据|对于|将|建议|注意))/u)
-  if (headingTextMatch?.[1]) {
-    const headingText = headingTextMatch[1].trim()
-    return {
-      heading: `${heading}${headingText}`,
-      remainder: remainder.slice(headingText.length).trim(),
-    }
-  }
-
-  if (remainder.length <= 12 && !/[。！？!?；;]$/.test(remainder)) {
-    return { heading: `${heading}${remainder}` }
-  }
-
-  return {
-    heading: `${heading}${remainder.replace(/[。！？!?；;].*$/u, '').trim()}`.trim(),
-    remainder,
-  }
-}
-
-function splitIntoSentences(text: string): string[] {
-  const normalized = text.trim()
-  if (!normalized) return []
-
-  const matched = normalized.match(/[^。！？!?；;]+[。！？!?；;]?/gu)
-  if (!matched) return [normalized]
-  return matched.map((item) => item.trim()).filter(Boolean)
-}
-
-function chunkSentences(sentences: string[], maxChars = 88, maxSentences = 2): string[] {
-  const chunks: string[] = []
-  let current = ''
-  let currentCount = 0
-
-  for (const sentence of sentences) {
-    const candidate = `${current}${sentence}`.trim()
-    if (current && (candidate.length > maxChars || currentCount >= maxSentences)) {
-      chunks.push(current.trim())
-      current = sentence
-      currentCount = 1
-      continue
-    }
-
-    current = candidate
-    currentCount += 1
-  }
-
-  if (current.trim()) {
-    chunks.push(current.trim())
-  }
-
-  return chunks
-}
-
-function expandDenseParagraph(paragraph: string): string[] {
-  const trimmed = paragraph.trim()
-  if (!trimmed) return []
-
-  if (trimmed.length <= 80 && splitIntoSentences(trimmed).length <= 2) {
-    return [trimmed]
-  }
-
-  const sentences = splitIntoSentences(trimmed)
-  if (sentences.length <= 2) {
-    return [trimmed]
-  }
-
-  return chunkSentences(sentences)
-}
-
 function sanitizeAuthoritySourceUrl(url?: string, sourceText = ''): string {
-  if (!url) {
-    return ''
-  }
-
-  let pathname = ''
-  try {
-    pathname = new URL(url).pathname.toLowerCase().replace(/\/+$/g, '') || '/'
-  } catch {
-    return ''
-  }
-
-  const normalizedSource = `${sourceText} ${url}`.toLowerCase()
-  const exactLandingPaths = new Set([
-    '/',
-    '/news-room',
-    '/health-topics',
-    '/health-topics/maternal-health',
-    '/health-topics/child-health',
-    '/health-topics/breastfeeding',
-    '/health-topics/vaccines-and-immunization',
-    '/pregnancy',
-    '/breastfeeding',
-    '/parents',
-    '/child-development',
-    '/vaccines-children',
-    '/vaccines-pregnancy',
-    '/vaccines-for-children',
-    '/reproductivehealth',
-    '/womens-health',
-    '/contraception',
-    '/growthcharts',
-    '/ncbddd',
-    '/act-early',
-    '/early-care',
-    '/protect-children',
-    '/medicines-and-pregnancy',
-    '/opioid-use-during-pregnancy',
-    '/pregnancy-hiv-std-tb-hepatitis',
-    '/english/ages-stages',
-    '/english/health-issues',
-    '/english/healthy-living',
-    '/english/safety-prevention',
-    '/english/family-life',
-    '/clinical',
-    '/topics',
-    '/conditions',
-    '/conditions/baby',
-    '/conditions/pregnancy-and-baby',
-    '/medicines',
-    '/vaccinations',
-    '/start-for-life',
-  ])
-
-  if (exactLandingPaths.has(pathname)) {
-    return ''
-  }
-
-  if (/chinacdc|中国疾病预防控制中心/u.test(normalizedSource)) {
-    if (pathname === '/' || pathname.endsWith('/list.html') || !/(?:\/t\d{8}_\d+\.(?:html?|shtml)|\.pdf(?:$|[?#]))/i.test(url)) {
-      return ''
-    }
-  }
-
-  if (/ndcpa|国家疾病预防控制局/u.test(normalizedSource)) {
-    if (pathname === '/' || pathname.endsWith('/list.html') || !/\/common\/content\/content_\d+\.html(?:$|[?#])/i.test(url)) {
-      return ''
-    }
-  }
-
-  return url
+  return sanitizeAuthoritySourceUrlShared(url, sourceText)
 }
 
 function formatDisplayDate(value?: string): string {
@@ -1869,101 +1910,9 @@ function formatDisplayDate(value?: string): string {
 }
 
 function toReadableUrl(url: string): string {
-  try {
-    const parsed = new URL(url)
-    const pathname = parsed.pathname === '/' ? '' : parsed.pathname.replace(/\/+$/g, '')
-    return `${parsed.hostname}${pathname}`.slice(0, 88)
-  } catch {
-    return url
-  }
-}
-
-function convertTextToRichHtml(text: string): string {
-  const normalized = normalizeBlock(
-    text
-      .replace(/\r\n/g, '\n')
-      .replace(/\r/g, '\n')
-      .replace(/([。！？!?；;])(?=(第[一二三四五六七八九十百千万0-9]+[章节部分篇条]|[一二三四五六七八九十]+[、.．]|[0-9]+[、.．]|（[一二三四五六七八九十0-9]+）|附件|附：|提示|建议|结论|原因|措施|何时就医|不确定性说明|参考来源))/gu, '$1\n')
-      .replace(/([^\n])(第[一二三四五六七八九十百千万0-9]+[章节部分篇条])/gu, '$1\n$2')
-      .replace(/([^\n])([一二三四五六七八九十]+[、.．])/gu, '$1\n$2')
-      .replace(/([^\n])(（[一二三四五六七八九十0-9]+）)/gu, '$1\n$2'),
-  )
-
-  const rawBlocks = normalized.split(/\n{2,}/).map(line => line.trim()).filter(Boolean)
-  const paragraphs: string[] = []
-
-  rawBlocks.forEach((block) => {
-    const lines = block.split(/\n+/).map(line => line.trim()).filter(Boolean)
-    let buffer = ''
-
-    lines.forEach((line) => {
-      const splitHeading = splitHeadingPrefix(line)
-      if (splitHeading.heading) {
-        if (buffer.trim()) {
-          paragraphs.push(...expandDenseParagraph(buffer))
-          buffer = ''
-        }
-        paragraphs.push(splitHeading.heading)
-        if (splitHeading.remainder) {
-          buffer = splitHeading.remainder
-        }
-        return
-      }
-
-      if (/^[-*•·]\s+/.test(line) || isLikelyHeading(line)) {
-        if (buffer.trim()) {
-          paragraphs.push(...expandDenseParagraph(buffer))
-          buffer = ''
-        }
-        paragraphs.push(line)
-        return
-      }
-
-      buffer = buffer ? `${buffer} ${line}` : line
-    })
-
-    if (buffer.trim()) {
-      paragraphs.push(...expandDenseParagraph(buffer))
-    }
-  })
-
-  return paragraphs
-    .map((line) => `<p style="margin:0 0 1.1em;line-height:1.9;display:block;">${escapeHtml(line)}</p>`)
-    .join('')
+  return toReadableUrlShared(url)
 }
 
 function formatRichArticleContent(content: string): string {
-  const trimmed = content.trim()
-  if (!trimmed) {
-    return ''
-  }
-
-  if (/<[a-z][\s\S]*>/i.test(trimmed)) {
-    const sanitizedHtml = trimmed
-      .replace(/<script[\s\S]*?<\/script>/gi, '')
-      .replace(/<style[\s\S]*?<\/style>/gi, '')
-      .replace(/<(?:nav|footer|header|aside)[\s\S]*?<\/(?:nav|footer|header|aside)>/gi, '')
-      .replace(/<(?:p|div|section|article|blockquote)[^>]*>(?:\s|&nbsp;|&#160;|<br\s*\/?>)*<\/(?:p|div|section|article|blockquote)>/gi, '')
-      .replace(/(?:<br\s*\/?>\s*){3,}/gi, '<br><br>')
-      .replace(/\sclass=(['"])[^'"]*\1/gi, '')
-      .replace(/\sid=(['"])[^'"]*\1/gi, '')
-      .replace(/\sdata-[\w-]+=(['"])[^'"]*\1/gi, '')
-      .replace(/\saria-[\w-]+=(['"])[^'"]*\1/gi, '')
-      .replace(/\srole=(['"])[^'"]*\1/gi, '')
-      .replace(/\s(?:width|height|cellpadding|cellspacing|valign|align)=(['"])[^'"]*\1/gi, '')
-      .replace(/\s(?:width|height|cellpadding|cellspacing|valign|align)=([^\s>]+)/gi, '')
-      .replace(/&nbsp;/gi, ' ')
-      .trim()
-
-    const normalizedHtml = stripProblematicInlineStyles(sanitizedHtml)
-      .trim()
-
-    if (/<(?:p|div|section|article|li|ul|ol|h[1-6]|blockquote)\b/i.test(normalizedHtml)) {
-      return addBlockSpacingToHtml(normalizedHtml)
-    }
-
-    return convertTextToRichHtml(stripHtmlTags(normalizedHtml))
-  }
-
-  return convertTextToRichHtml(trimmed)
+  return formatRichArticleContentShared(content)
 }

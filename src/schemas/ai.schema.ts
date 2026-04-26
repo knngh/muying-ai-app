@@ -6,6 +6,11 @@ const clientRequestIdSchema = z.string()
   .max(120, '请求 ID 过长')
   .regex(/^[A-Za-z0-9_-]+$/, '请求 ID 格式无效');
 
+const conversationIdSchema = z.string()
+  .trim()
+  .regex(/^\d+$/, '对话 ID 格式无效')
+  .max(20, '对话 ID 过长');
+
 const contextSchema = z.union([
   z.string().max(5000),
   z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
@@ -14,7 +19,7 @@ const contextSchema = z.union([
 export const askQuestionBody = z.object({
   question: z.string().min(1, '请输入问题').max(2000, '问题过长'),
   context: contextSchema.optional(),
-  conversationId: z.string().optional(),
+  conversationId: conversationIdSchema.optional(),
   model: z.string().optional(),
   clientRequestId: clientRequestIdSchema.optional(),
 });
@@ -25,9 +30,24 @@ export const chatBody = z.object({
     content: z.string().min(1).max(5000),
   })).min(1, '消息不能为空').max(50, '消息轮次过多'),
   context: contextSchema.optional(),
-  conversationId: z.string().optional(),
+  conversationId: conversationIdSchema.optional(),
   model: z.string().optional(),
   clientRequestId: clientRequestIdSchema.optional(),
+});
+
+export const conversationsQuery = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(50).default(20),
+});
+
+export const conversationIdParam = z.object({
+  conversationId: conversationIdSchema,
+});
+
+export const searchKnowledgeQuery = z.object({
+  q: z.string().trim().min(1, '请输入搜索关键词').max(200, '搜索关键词过长'),
+  category: z.string().trim().min(1).max(80).optional(),
+  limit: z.coerce.number().int().min(1).max(20).default(10),
 });
 
 export const feedbackBody = z.object({

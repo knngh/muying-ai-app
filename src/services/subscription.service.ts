@@ -5,6 +5,7 @@ import { cache } from './cache.service';
 import { AppError, ErrorCodes } from '../middlewares/error.middleware';
 import { recordServerAnalyticsEvent } from './analytics.service';
 import { resolveLifecycleStage } from '../utils/pregnancy';
+import { generateTrustedAIResponse } from './trusted-ai.service';
 
 const FREE_AI_LIMIT = 3;
 const MEMBER_AI_LIMIT = 9999;
@@ -143,10 +144,6 @@ function normalizeWeeklyReportTitle(rawTitle?: string | null): string {
   }
 
   return title;
-}
-
-function getTodayDate(): Date {
-  return dayjs().startOf('day').toDate();
 }
 
 function getWeekStartDate(date = dayjs()): Date {
@@ -1006,10 +1003,35 @@ export async function generateWeeklyReport(userId: string): Promise<WeeklyReport
   }
 
   const stageLabel = getStageLabel(user);
-  const highlights = buildWeeklyHighlights(stageLabel, {
+  const templateHighlights = buildWeeklyHighlights(stageLabel, {
     checkInStreak: status.checkInStreak,
     weeklyCompletionRate: status.weeklyCompletionRate,
   });
+
+  // 尝试 AI 生成个性化周报，失败则回退到模板
+  let title = '个性化周度报告';
+  let highlights = templateHighlights;
+
+  try {
+    const aiResult = await generateTrustedAIResponse({
+      question: `请为一位${stageLabel}的用户生成本周个性化周报摘要。用户连续签到${status.checkInStreak || 0}天，本周任务完成率${status.weeklyCompletionRate || 0}%。请给出3-5条本周重点提醒和建议，用中文回答，每条建议简洁明了。`,
+      context: `weekly_report_generation:${stageLabel}`,
+      userId,
+    });
+
+    if (aiResult.answer && !aiResult.degraded) {
+      const lines = aiResult.answer
+        .split('\n')
+        .map((l: string) => l.replace(/^\d+[.、]\s*/, '').trim())
+        .filter(Boolean);
+      if (lines.length > 0) {
+        title = 'AI 个性化周度报告';
+        highlights = lines.slice(0, 5);
+      }
+    }
+  } catch (aiError) {
+    console.error('[WeeklyReport] AI 生成失败，回退到模板:', aiError);
+  }
 
   const report = await prisma.aiWeeklyReport.create({
     data: {
@@ -1017,7 +1039,7 @@ export async function generateWeeklyReport(userId: string): Promise<WeeklyReport
       weekStart,
       stageInfo: stageLabel,
       content: {
-        title: '个性化周度报告',
+        title,
         highlights,
       },
     },

@@ -17,7 +17,7 @@ interface CacheStats {
 }
 
 class MemoryCache {
-  private cache: Map<string, CacheItem<any>> = new Map();
+  private cache: Map<string, CacheItem<unknown>> = new Map();
   private hits: number = 0;
   private misses: number = 0;
   private maxSize: number = 1000; // 最大缓存条目数
@@ -166,7 +166,7 @@ export const CacheKeys = {
   // 文章相关
   ARTICLES_LIST: (params: string) => `articles:list:${params}`,
   ARTICLE_DETAIL: (slug: string) => `article:detail:${slug}`,
-  ARTICLE_RELATED: (id: string) => `article:related:${id}`,
+  ARTICLE_RELATED: (id: string, limit?: number) => `article:related:${id}:${limit ?? 'default'}`,
   ARTICLES_POPULAR: 'articles:popular',
   ARTICLES_RECOMMENDED: 'articles:recommended',
   ARTICLES_AUTHORITY: 'articles:authority',

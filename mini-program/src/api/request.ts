@@ -78,10 +78,24 @@ async function request<T = unknown>(options: RequestOptions): Promise<T> {
   })
 }
 
-// 导出便捷方法
+// 带重试的请求 — 网络失败自动重试 1 次（2s 延迟）
+async function requestWithRetry<T = unknown>(options: RequestOptions): Promise<T> {
+  try {
+    return await request<T>(options)
+  } catch (error: any) {
+    const isNetworkError = error?.message?.includes('网络请求失败') || error?.message?.includes('request:fail')
+    if (isNetworkError) {
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      return request<T>(options)
+    }
+    throw error
+  }
+}
+
+// 导出便捷方法（仅 GET 使用网络重试，避免非幂等写操作被重复提交）
 export const api = {
   get: <T = unknown>(url: string, params?: Record<string, unknown>, config?: RequestConfig) =>
-    request<T>({ url, method: 'GET', params, ...config }),
+    requestWithRetry<T>({ url, method: 'GET', params, ...config }),
 
   post: <T = unknown>(url: string, data?: unknown, config?: RequestConfig) =>
     request<T>({ url, method: 'POST', data, ...config }),

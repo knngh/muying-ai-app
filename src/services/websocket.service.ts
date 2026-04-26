@@ -1,13 +1,9 @@
 // WebSocket 服务 - 为小程序和 App 提供 AI 流式对话
-import { Server as HttpServer } from 'http';
+import { IncomingMessage, Server as HttpServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import jwt from 'jsonwebtoken';
 import type { JwtPayload } from '../middlewares/auth.middleware';
 import { env } from '../config/env';
-import {
-  isEmergencyQuestion,
-  getEmergencyResponse,
-} from './ai-gateway.service';
 import { type SourceReference } from './knowledge.service';
 import { appendConversationAssistantAnswer, saveConversationExchange } from './ai-session.service';
 import { consumeAiQuota } from './subscription.service';
@@ -15,6 +11,10 @@ import { chunkTrustedAnswer, generateTrustedAIResponse } from './trusted-ai.serv
 import { isResumeContinuationContext } from './ai-context.service';
 import { buildAIActionCards } from './ai-action-card.service';
 // WebSocket 消息协议类型（与 shared/types/ai.ts 保持一致）
+interface AuthenticatedUpgradeRequest extends IncomingMessage {
+  _userId?: string
+}
+
 interface WsClientMessage {
   type: 'ask_stream' | 'chat_stream' | 'ping' | 'cancel'
   requestId: string
@@ -92,6 +92,12 @@ interface AuthenticatedWebSocket extends WebSocket {
 const RATE_LIMIT_MAX_REQUESTS = 10;
 const RATE_LIMIT_WINDOW_MS = 60_000; // 60 seconds
 
+function getErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message
+    ? error.message
+    : fallback;
+}
+
 function buildWsQuotaFingerprint(type: WsClientMessage['type'], payload: WsClientMessage['payload']): string {
   return JSON.stringify({
     type,
@@ -117,12 +123,14 @@ export function setupWebSocket(server: HttpServer): WebSocketServer {
     path: '/ws/ai',
     maxPayload: 1024 * 1024,
     verifyClient: (info, callback) => {
+      const req = info.req as AuthenticatedUpgradeRequest;
+
       try {
-        const authHeader = info.req.headers.authorization;
+        const authHeader = req.headers.authorization;
         const bearerToken = typeof authHeader === 'string' && authHeader.startsWith('Bearer ')
           ? authHeader.slice('Bearer '.length).trim()
           : '';
-        const url = new URL(info.req.url || '', `http://${info.req.headers.host}`);
+        const url = new URL(req.url || '', `http://${req.headers.host}`);
         const queryToken = url.searchParams.get('token') || '';
         const token = bearerToken || queryToken;
 
@@ -137,10 +145,10 @@ export function setupWebSocket(server: HttpServer): WebSocketServer {
         ) as JwtPayload;
 
         // 将 userId 附加到请求上，后续在 connection 事件中读取
-        (info.req as any)._userId = decoded.userId;
+        req._userId = decoded.userId;
         callback(true);
-      } catch (error: any) {
-        if (error.name === 'TokenExpiredError') {
+      } catch (error: unknown) {
+        if (error instanceof jwt.TokenExpiredError) {
           callback(false, 401, 'Unauthorized: Token expired');
         } else {
           callback(false, 401, 'Unauthorized: Invalid token');
@@ -166,7 +174,8 @@ export function setupWebSocket(server: HttpServer): WebSocketServer {
   });
 
   wss.on('connection', (ws: AuthenticatedWebSocket, req) => {
-    ws.userId = (req as any)._userId;
+    const upgradeRequest = req as AuthenticatedUpgradeRequest;
+    ws.userId = upgradeRequest._userId;
     ws.isAlive = true;
     ws.canceledRequestIds = new Set();
 
@@ -228,9 +237,9 @@ export function setupWebSocket(server: HttpServer): WebSocketServer {
         } else {
           sendError(ws, requestId, `未知消息类型: ${type}`);
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error(`[WebSocket] Error handling ${type}:`, error);
-        sendError(ws, requestId, error.message || '服务暂时不可用');
+        sendError(ws, requestId, getErrorMessage(error, '服务暂时不可用'));
       }
     });
 
@@ -328,9 +337,9 @@ async function handleAskStream(
       : conversationId;
 
     sendTrustedResult(ws, requestId, result, persistedConversationId);
-  } catch (streamError: any) {
+  } catch (streamError: unknown) {
     console.error(`[WebSocket] Stream error in ask_stream:`, streamError);
-    sendError(ws, requestId, streamError.message || '流式响应出错');
+    sendError(ws, requestId, getErrorMessage(streamError, '流式响应出错'));
   }
 
   console.log(`[WebSocket QA] User: ${ws.userId}, Question: ${question.substring(0, 50)}...`);
@@ -398,9 +407,9 @@ async function handleChatStream(
       : conversationId;
 
     sendTrustedResult(ws, requestId, result, persistedConversationId);
-  } catch (streamError: any) {
+  } catch (streamError: unknown) {
     console.error(`[WebSocket] Stream error in chat_stream:`, streamError);
-    sendError(ws, requestId, streamError.message || '流式响应出错');
+    sendError(ws, requestId, getErrorMessage(streamError, '流式响应出错'));
   }
 
   console.log(`[WebSocket Chat] User: ${ws.userId}`);

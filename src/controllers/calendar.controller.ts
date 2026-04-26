@@ -1,3 +1,4 @@
+import type { CalendarEvent as PrismaCalendarEvent, Prisma } from '@prisma/client';
 import { Request, Response, NextFunction } from 'express';
 import prisma from '../config/database';
 import { successResponse, AppError, ErrorCodes } from '../middlewares/error.middleware';
@@ -41,7 +42,7 @@ const formatUtcTime = (value: Date | null | undefined): string | null => {
 };
 
 // 辅助函数：将 Prisma CalendarEvent 序列化为前端期望的格式
-const serializeEvent = (event: any) => {
+const serializeEvent = (event: PrismaCalendarEvent) => {
   const { eventTime, endTime, isAllDay, isRecurring, status, ...rest } = event;
   return {
     ...rest,
@@ -54,6 +55,8 @@ const serializeEvent = (event: any) => {
     status,
   };
 };
+
+type SerializedCalendarEvent = ReturnType<typeof serializeEvent>;
 
 // 辅助函数：获取一周的开始和结束日期（周一到周日）
 const getWeekRange = (dateStr: string): { start: Date; end: Date } => {
@@ -218,7 +221,7 @@ export const getWeekEvents = async (req: Request, res: Response, next: NextFunct
     });
 
     // 按日期分组
-    const eventsByDate: Record<string, any[]> = {};
+    const eventsByDate: Record<string, SerializedCalendarEvent[]> = {};
     const weekDays: Array<{ date: string; dayOfWeek: number; dayName: string; isToday: boolean }> = [];
     
     const dayNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
@@ -239,7 +242,7 @@ export const getWeekEvents = async (req: Request, res: Response, next: NextFunct
     }
 
     // 将事件分配到对应日期（序列化后）
-    events.forEach((event: any) => {
+    events.forEach((event) => {
       const dateStr = formatDate(event.eventDate);
       if (eventsByDate[dateStr]) {
         eventsByDate[dateStr].push(serializeEvent(event));
@@ -249,8 +252,8 @@ export const getWeekEvents = async (req: Request, res: Response, next: NextFunct
     // 计算周统计
     const weekStats = {
       total: events.length,
-      completed: events.filter((e: any) => e.status === 1).length,
-      pending: events.filter((e: any) => e.status === 0).length
+      completed: events.filter((event) => event.status === 1).length,
+      pending: events.filter((event) => event.status === 0).length
     };
 
     res.json(successResponse({
@@ -276,12 +279,12 @@ export const getEvents = async (req: Request, res: Response, next: NextFunction)
       throw new AppError('请提供开始和结束日期', ErrorCodes.PARAM_ERROR, 400);
     }
 
-    const where: any = {
+    const where: Prisma.CalendarEventWhereInput = {
       userId: BigInt(userId),
       deletedAt: null
     };
 
-    if (type) {
+    if (typeof type === 'string' && type.trim()) {
       where.eventType = type;
     }
 
@@ -860,7 +863,7 @@ export const dragEvent = async (req: Request, res: Response, next: NextFunction)
       throw new AppError('事件不存在', ErrorCodes.PARAM_ERROR, 404);
     }
 
-    const updateData: any = {
+    const updateData: Prisma.CalendarEventUpdateInput = {
       eventDate: new Date(newDate)
     };
 
@@ -904,7 +907,7 @@ export const batchUpdateEvents = async (req: Request, res: Response, next: NextF
       }
 
       // 只允许更新安全字段
-      const safeData: Record<string, any> = {};
+      const safeData: Prisma.CalendarEventUpdateInput = {};
       if (title !== undefined) safeData.title = title;
       if (description !== undefined) safeData.description = description;
       if (eventDate !== undefined) safeData.eventDate = new Date(eventDate);
@@ -1053,7 +1056,7 @@ export const getDayEvents = async (req: Request, res: Response, next: NextFuncti
       events: events.map(serializeEvent),
       stats: {
         total: events.length,
-        completed: events.filter((e: any) => e.status === 1).length
+        completed: events.filter((event) => event.status === 1).length
       }
     }));
   } catch (error) {

@@ -1278,7 +1278,7 @@ const FEVER_SPECIFIC_CONTEXTS: Array<{ id: string; pattern: RegExp }> = [
 ];
 
 function extractFeverTemperature(text: string): number | undefined {
-  const match = text.match(/((?:3[7-9])|(?:4[0-2]))(?:[\.。．](\d))?\s*度/u);
+  const match = text.match(/((?:3[7-9])|(?:4[0-2]))(?:[.。．](\d))?\s*度/u);
   if (!match) {
     return undefined;
   }

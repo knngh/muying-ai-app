@@ -9,6 +9,7 @@ import {
 import { Button, Card, Chip, ProgressBar, Text } from 'react-native-paper'
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native'
 import type { RouteProp } from '@react-navigation/native'
+import type { StackNavigationProp } from '@react-navigation/stack'
 import dayjs from 'dayjs'
 import LinearGradient from 'react-native-linear-gradient'
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons'
@@ -190,7 +191,7 @@ function buildMilestones(stageKey: LifecycleStageKey, timelineCount: number): Mi
 }
 
 export default function GrowthArchiveScreen() {
-  const navigation = useNavigation<any>()
+  const navigation = useNavigation<StackNavigationProp<RootStackParamList, 'GrowthArchive'>>()
   const route = useRoute<RouteProp<RootStackParamList, 'GrowthArchive'>>()
   const user = useAppStore(state => state.user)
   const {
@@ -523,22 +524,27 @@ export default function GrowthArchiveScreen() {
         ) : null}
 
         <View style={styles.metricGrid}>
-          {metrics.map((item) => (
-            <Card key={item.label} style={styles.metricCard}>
-              <Card.Content>
-                <View style={[styles.metricIconShell, { backgroundColor: getMetricTone(item.label).shell }]}>
-                  <MaterialCommunityIcons
-                    name={getMetricIcon(item.label)}
-                    size={18}
-                    color={getMetricTone(item.label).icon}
-                  />
-                </View>
-                <Text style={styles.metricLabel}>{item.label}</Text>
-                <Text style={styles.metricValue}>{item.value}</Text>
-                <Text style={styles.metricHint}>{isVip ? item.hint : '会员可查看更完整趋势和导出摘要。'}</Text>
-              </Card.Content>
-            </Card>
-          ))}
+          {metrics.map((item) => {
+            const metricTone = getMetricTone(item.label)
+            const metricIconShellStyle = [styles.metricIconShell, { backgroundColor: metricTone.shell }]
+
+            return (
+              <Card key={item.label} style={styles.metricCard}>
+                <Card.Content>
+                  <View style={metricIconShellStyle}>
+                    <MaterialCommunityIcons
+                      name={getMetricIcon(item.label)}
+                      size={18}
+                      color={metricTone.icon}
+                    />
+                  </View>
+                  <Text style={styles.metricLabel}>{item.label}</Text>
+                  <Text style={styles.metricValue}>{item.value}</Text>
+                  <Text style={styles.metricHint}>{isVip ? item.hint : '会员可查看更完整趋势和导出摘要。'}</Text>
+                </Card.Content>
+              </Card>
+            )
+          })}
         </View>
 
         <View style={styles.section}>

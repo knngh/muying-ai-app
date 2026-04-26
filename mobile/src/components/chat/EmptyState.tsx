@@ -2,7 +2,7 @@ import React from 'react'
 import { Pressable, StyleSheet, View } from 'react-native'
 import { Text } from 'react-native-paper'
 import LinearGradient from 'react-native-linear-gradient'
-import { colors, fontSize, spacing, borderRadius } from '../../theme'
+import { colors, spacing, borderRadius } from '../../theme'
 
 interface EmptyStateProps {
   title?: string

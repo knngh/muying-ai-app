@@ -38,9 +38,27 @@
         </view>
       </view>
 
+      <!-- 签到卡片 -->
+      <view class="checkin-card">
+        <view class="checkin-info">
+          <text class="checkin-streak">连续签到 {{ checkinStatus.consecutiveDays }} 天</text>
+          <text class="checkin-total">累计 {{ checkinStatus.totalDays }} 天</text>
+        </view>
+        <view
+          class="checkin-btn"
+          :class="{ disabled: checkinStatus.checkedInToday }"
+          @tap="doCheckin"
+        >
+          <text class="checkin-btn-text">{{ checkinStatus.checkedInToday ? '已签到' : '签到' }}</text>
+        </view>
+      </view>
+
       <view class="action-section">
         <view class="edit-btn" @tap="openEditModal">
           <text class="edit-btn-text">编辑资料</text>
+        </view>
+        <view class="nav-btn" @tap="openFavorites">
+          <text class="nav-btn-text">我的收藏</text>
         </view>
         <view class="trust-btn" @tap="openTrustCenter">
           <text class="trust-btn-text">内容可信说明</text>
@@ -126,11 +144,34 @@ import { ref, computed, onMounted, reactive } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useAppStore } from '@/stores/app'
 import { authApi } from '@/api/modules'
+import { checkinApi, type CheckinStatus } from '@/api/checkin'
 import dayjs from 'dayjs'
 import { calculateDueDateFromPregnancyWeek, calculatePregnancyWeekFromDueDate, clearLocalSession } from '@/utils'
 
 const PROFILE_AUTO_OPEN_EDIT_KEY = 'profileAutoOpenEdit'
 const appStore = useAppStore()
+
+const checkinStatus = ref<CheckinStatus>({ checkedInToday: false, consecutiveDays: 0, totalDays: 0 })
+
+async function loadCheckinStatus() {
+  try {
+    checkinStatus.value = await checkinApi.getStatus()
+  } catch (_e) { /* ignore */ }
+}
+
+async function doCheckin() {
+  if (checkinStatus.value.checkedInToday) return
+  try {
+    checkinStatus.value = await checkinApi.checkin()
+    uni.showToast({ title: `签到成功！+${checkinStatus.value.pointsEarned || 1}积分`, icon: 'success' })
+  } catch (e: any) {
+    uni.showToast({ title: e.message || '签到失败', icon: 'none' })
+  }
+}
+
+function openFavorites() {
+  uni.navigateTo({ url: '/pages/profile/favorites' })
+}
 
 const user = computed(() => appStore.user)
 const showEditModal = ref(false)
@@ -291,6 +332,7 @@ async function syncProfileSession() {
     await appStore.fetchUser()
     appStore.setIsLoading(false)
   }
+  loadCheckinStatus()
 }
 
 onMounted(async () => {
@@ -408,6 +450,27 @@ onShow(() => {
   font-size: 28rpx;
   color: #333333;
 }
+
+/* Checkin */
+.checkin-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 20rpx 32rpx 0;
+  padding: 28rpx 32rpx;
+  background: linear-gradient(135deg, #ff6b9d, #ff8a65);
+  border-radius: 20rpx;
+}
+.checkin-info { display: flex; flex-direction: column; gap: 8rpx; }
+.checkin-streak { font-size: 30rpx; font-weight: 700; color: #fff; }
+.checkin-total { font-size: 22rpx; color: rgba(255, 255, 255, 0.8); }
+.checkin-btn { background: #fff; padding: 14rpx 36rpx; border-radius: 24rpx; }
+.checkin-btn.disabled { opacity: 0.6; }
+.checkin-btn-text { font-size: 28rpx; font-weight: 600; color: #ff6b9d; }
+
+/* Nav buttons */
+.nav-btn { background-color: #ffffff; border: 1rpx solid #d9e6ec; border-radius: 12rpx; padding: 24rpx 0; text-align: center; }
+.nav-btn-text { color: #1890ff; font-size: 30rpx; font-weight: 500; }
 
 /* Actions */
 .action-section {

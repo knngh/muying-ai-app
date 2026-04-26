@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
 
 // 统一响应格式
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   code: number;
   message: string;
   data?: T;
@@ -61,7 +61,7 @@ export const errorHandler = (
   err: Error | AppError,
   req: Request,
   res: Response,
-  next: NextFunction
+  _next: NextFunction
 ) => {
   console.error(`[${req.method} ${req.path}] Error:`, err);
 

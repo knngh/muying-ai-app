@@ -20,6 +20,7 @@ import {
 import LinearGradient from 'react-native-linear-gradient'
 import { config } from '../config'
 import { authApi } from '../api/modules'
+import type { User } from '../api/modules'
 import { useAppStore } from '../stores/appStore'
 import { colors, spacing, fontSize, borderRadius } from '../theme'
 import { sessionStorage } from '../utils/storage'
@@ -27,7 +28,6 @@ import LaunchScreen from '../components/launch/LaunchScreen'
 
 interface LoginScreenProps {
   onLoginSuccess: () => Promise<void>
-  navigation: any
 }
 
 const demoAccounts = [
@@ -134,20 +134,19 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
 
     setLoading(true)
     try {
-      let response: { user: any; token: string }
-
+      let response: { user: User; token: string }
       if (isRegister) {
         response = await authApi.register({
           username: username.trim(),
           password: password.trim(),
           phone: phone.trim() || undefined,
           email: email.trim() || undefined,
-        }) as { user: any; token: string }
+        })
       } else {
         response = await authApi.login({
           username: username.trim(),
           password: password.trim(),
-        }) as { user: any; token: string }
+        })
       }
 
       await sessionStorage.setToken(response.token)

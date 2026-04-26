@@ -22,21 +22,16 @@ This script runs:
 EOF
 }
 
-DEPLOY_ARGS=()
-
 while (($# > 0)); do
   case "$1" in
     --with-install)
       WITH_INSTALL="true"
-      DEPLOY_ARGS+=("--with-install")
       ;;
     --with-db-push)
       WITH_DB_PUSH="true"
-      DEPLOY_ARGS+=("--with-db-push")
       ;;
     --with-authority-worker)
       WITH_AUTHORITY_WORKER="true"
-      DEPLOY_ARGS+=("--with-authority-worker")
       ;;
     --skip-smoke)
       SKIP_SMOKE="true"
@@ -53,6 +48,17 @@ while (($# > 0)); do
   esac
   shift
 done
+
+DEPLOY_ARGS=()
+if [[ "${WITH_INSTALL}" == "true" ]]; then
+  DEPLOY_ARGS+=("--with-install")
+fi
+if [[ "${WITH_DB_PUSH}" == "true" ]]; then
+  DEPLOY_ARGS+=("--with-db-push")
+fi
+if [[ "${WITH_AUTHORITY_WORKER}" == "true" ]]; then
+  DEPLOY_ARGS+=("--with-authority-worker")
+fi
 
 echo "[1/4] sync"
 bash "${SCRIPT_DIR}/prod-sync-backend.sh"

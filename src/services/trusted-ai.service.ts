@@ -13,17 +13,9 @@ import {
 } from './knowledge.service';
 import type { AIDomainDecision } from './ai-domain.service';
 import {
-  normalizeContext,
   getContextSignalText,
-  hasExplicitStageSignal,
-  hasChildcareSceneSignal,
-  hasExplicitStructuredContext,
-  shouldUseProfileHints,
-  buildMergedContext,
-  buildAnswerPolicy,
   resolveDomainDecision,
   resolveKnowledge,
-  CHILDCARE_SCENE_PATTERNS,
 } from './ai-context.service';
 import { logger } from '../utils/logger';
 

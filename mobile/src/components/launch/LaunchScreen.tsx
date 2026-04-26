@@ -129,6 +129,8 @@ export default function LaunchScreen({
   const resolvedSpotlight = spotlight || copy.spotlight
   const resolvedJourney = journey || copy.journey
   const resolvedSteps = steps || copy.steps
+  const statusBarFillWidth = `${Math.round(resolvedProgress * 100)}%` as `${number}%`
+  const statusBarFillStyle = [styles.statusBarFill, { width: statusBarFillWidth }]
 
   return (
     <View style={styles.container}>
@@ -185,15 +187,17 @@ export default function LaunchScreen({
             {statusText || '启动后会直接回到你的上次状态，不需要再从空页面重新找入口。'}
           </Text>
           <View style={styles.statusBarTrack}>
-            <View style={[styles.statusBarFill, { width: `${Math.round(resolvedProgress * 100)}%` }]} />
+            <View style={statusBarFillStyle} />
           </View>
           <View style={[styles.stepsWrap, compact && styles.stepsWrapCompact]}>
             {resolvedSteps.map((step) => {
               const colorSet = getStepColors(step.status)
+              const stepDotStyle = [styles.stepDot, { backgroundColor: colorSet.dot, borderColor: colorSet.line }]
+              const stepLabelStyle = [styles.stepLabel, { color: colorSet.text }]
               return (
                 <View key={step.label} style={styles.stepRow}>
-                  <View style={[styles.stepDot, { backgroundColor: colorSet.dot, borderColor: colorSet.line }]} />
-                  <Text style={[styles.stepLabel, { color: colorSet.text }]}>{step.label}</Text>
+                  <View style={stepDotStyle} />
+                  <Text style={stepLabelStyle}>{step.label}</Text>
                 </View>
               )
             })}

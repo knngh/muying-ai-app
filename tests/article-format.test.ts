@@ -1,4 +1,10 @@
-import { segmentArticleText, textToRichParagraphHtml } from '../src/utils/article-format';
+import {
+  addArticleHeadingAnchors,
+  extractArticleOutline,
+  formatRichArticleContent,
+  segmentArticleText,
+  textToRichParagraphHtml,
+} from '../src/utils/article-format';
 
 describe('article paragraph formatting', () => {
   test('splits dense Chinese authority text into readable paragraphs', () => {
@@ -23,5 +29,45 @@ describe('article paragraph formatting', () => {
 
     expect(html).toContain('<p style=');
     expect(html.match(/<p style=/g)?.length).toBeGreaterThan(1);
+    expect(html).toContain('text-align:justify');
+    expect(html).toContain('text-align-last:left');
+  });
+
+  test('preserves table html instead of flattening it to plain text', () => {
+    const html = formatRichArticleContent('<table><tr><th>项目</th><td>内容</td></tr></table>');
+
+    expect(html).toContain('article-table-wrap');
+    expect(html).toContain('<table');
+    expect(html).toContain('<th');
+    expect(html).toContain('<td');
+  });
+
+  test('preserves inline images and adds responsive display styles', () => {
+    const html = formatRichArticleContent('<p>正文</p><img src="https://example.com/test.jpg" alt="配图">');
+
+    expect(html).toContain('<img');
+    expect(html).toContain('max-width:100%');
+    expect(html).toContain('border-radius:16px');
+  });
+
+  test('adds justified reading styles to html blocks while keeping headings left aligned', () => {
+    const html = formatRichArticleContent('<h2>护理建议</h2><p>正文内容</p><blockquote>提示内容</blockquote>');
+
+    expect(html).toContain('text-align:justify');
+    expect(html).toContain('text-align:left');
+    expect(html).toContain('<blockquote');
+  });
+
+  test('extracts article outline and injects stable heading anchors', () => {
+    const raw = '<h2>护理建议</h2><p>正文</p><h3>何时就医</h3>';
+    const outline = extractArticleOutline(raw);
+    const html = addArticleHeadingAnchors(formatRichArticleContent(raw));
+
+    expect(outline).toEqual([
+      { id: 'article-section-1', title: '护理建议', level: 2 },
+      { id: 'article-section-2', title: '何时就医', level: 3 },
+    ]);
+    expect(html).toContain('id="article-section-1"');
+    expect(html).toContain('id="article-section-2"');
   });
 });

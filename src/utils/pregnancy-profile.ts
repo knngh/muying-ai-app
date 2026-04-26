@@ -1,5 +1,5 @@
 import dayjs from 'dayjs';
-import { calculatePregnancyWeekFromDueDate, normalizePregnancyStatus } from './pregnancy';
+import { calculatePregnancyWeekFromDueDate } from './pregnancy';
 
 type MilestoneStatus = 'done' | 'active' | 'upcoming';
 

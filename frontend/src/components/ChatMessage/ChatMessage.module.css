@@ -1,7 +1,7 @@
 .messageWrapper {
   display: flex;
-  margin-bottom: 16px;
   gap: 12px;
+  margin-bottom: 16px;
 }
 
 .userMessage {
@@ -13,96 +13,184 @@
 }
 
 .avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
 }
 
 .userMessage .avatar {
-  background: #1890ff;
-  color: white;
+  background: linear-gradient(135deg, #de7864, #c55c42);
 }
 
 .assistantMessage .avatar {
-  background: #52c41a;
-  color: white;
+  background: linear-gradient(135deg, #84aa67, #5f8c47);
 }
 
 .messageCard {
-  max-width: 80%;
-  border-radius: 12px;
+  max-width: min(82%, 760px);
+  padding: 16px;
+  border-radius: 22px;
+  border: 1px solid rgba(154, 112, 82, 0.12);
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 16px 38px rgba(126, 92, 69, 0.08);
 }
 
 .userMessage .messageCard {
-  background: #e6f7ff;
-  border-color: #91d5ff;
+  background: rgba(255, 241, 235, 0.94);
 }
 
 .assistantMessage .messageCard {
-  background: #f6ffed;
-  border-color: #b7eb8f;
+  background: rgba(248, 252, 244, 0.94);
 }
 
 .emergencyCard {
-  background: #fff2f0 !important;
-  border-color: #ffccc7 !important;
-  border-width: 2px;
+  background: rgba(255, 239, 235, 0.96);
+  border-color: rgba(214, 96, 70, 0.22);
 }
 
-.sources {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px dashed #d9d9d9;
+.emergencyAlert,
+.uncertaintyAlert {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border-radius: 16px;
+}
+
+.emergencyAlert {
+  background: rgba(255, 226, 220, 0.9);
+  color: #9f3e30;
+}
+
+.uncertaintyAlert {
+  margin-top: 10px;
+  background: rgba(255, 245, 224, 0.9);
+  color: #886100;
 }
 
 .trustPanel {
   margin-top: 12px;
   padding-top: 12px;
-  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  border-top: 1px solid rgba(154, 112, 82, 0.12);
+}
+
+.tagGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tag,
+.sourceTag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(154, 112, 82, 0.12);
+  background: rgba(255, 255, 255, 0.82);
+  color: #665148;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.tagAuthority {
+  background: rgba(232, 248, 232, 0.92);
+  color: #397049;
+}
+
+.tagRiskRed {
+  background: rgba(255, 229, 224, 0.94);
+  color: #aa3f31;
+}
+
+.tagRiskYellow {
+  background: rgba(255, 244, 218, 0.94);
+  color: #8f6510;
+}
+
+.tagRiskGreen {
+  background: rgba(232, 248, 232, 0.92);
+  color: #397049;
 }
 
 .trustSummary {
-  margin-top: 10px;
-  padding: 12px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.72);
+  margin-top: 12px;
+  padding: 14px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.trustSummary strong {
+  color: #31231f;
 }
 
 .trustSummaryText {
-  margin-top: 6px;
-  line-height: 1.6;
-  color: #262626;
+  margin-top: 8px;
+  color: #43322c;
+  line-height: 1.7;
 }
 
 .trustList {
-  margin: 8px 0 0;
+  margin: 10px 0 0;
   padding-left: 18px;
-  color: #595959;
+  color: #665148;
+  line-height: 1.7;
 }
 
-.uncertaintyAlert {
-  margin-top: 10px;
+.sources {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed rgba(154, 112, 82, 0.18);
+}
+
+.sourcesTitle {
+  display: block;
+  margin-bottom: 8px;
+  color: #7d685f;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.sourceTag {
+  border: 1px solid rgba(88, 130, 197, 0.16);
+  background: rgba(237, 244, 255, 0.88);
+  color: #45659a;
+}
+
+.sourceTagLink {
+  cursor: pointer;
+}
+
+.sourceTag:disabled {
+  cursor: default;
+  opacity: 0.86;
 }
 
 .timestamp {
-  margin-top: 8px;
+  display: block;
+  margin-top: 10px;
+  color: #8a776f;
+  font-size: 11px;
   text-align: right;
 }
 
-/* 移动端适配 */
 @media (max-width: 768px) {
   .messageCard {
-    max-width: 90%;
+    max-width: 92%;
   }
-  
+
   .avatar {
-    width: 32px;
-    height: 32px;
-    font-size: 16px;
+    width: 34px;
+    height: 34px;
+    border-radius: 14px;
   }
 }

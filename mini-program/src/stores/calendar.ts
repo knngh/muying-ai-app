@@ -12,6 +12,29 @@ export const useCalendarStore = defineStore('calendar', {
     error: null as string | null,
   }),
 
+  getters: {
+    // 按日期索引事件 — 避免 getEventsByDate 每次遍历
+    eventsByDate(): Record<string, CalendarEvent[]> {
+      const map: Record<string, CalendarEvent[]> = {}
+      for (const event of this.events) {
+        const date = event.eventDate
+        if (!map[date]) map[date] = []
+        map[date].push(event)
+      }
+      return map
+    },
+
+    // 当前月有事件的日期集合（供日历高亮用）
+    datesWithEvents(): Set<string> {
+      return new Set(this.events.map(e => e.eventDate))
+    },
+
+    // 未完成事件数
+    pendingCount(): number {
+      return this.events.filter(e => !e.isCompleted && e.status !== 'completed').length
+    },
+  },
+
   actions: {
     async fetchEvents(startDate?: string, endDate?: string) {
       this.loading = true
@@ -89,7 +112,7 @@ export const useCalendarStore = defineStore('calendar', {
     },
 
     getEventsByDate(date: string): CalendarEvent[] {
-      return this.events.filter(e => e.eventDate === date)
+      return this.eventsByDate[date] || []
     },
 
     async getUpcomingEvents(days = 7): Promise<CalendarEvent[]> {

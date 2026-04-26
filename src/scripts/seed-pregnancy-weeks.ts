@@ -1,7 +1,6 @@
 import '../config/env'
-import { PrismaClient } from '@prisma/client'
+import { Prisma, PrismaClient } from '@prisma/client'
 import fs from 'fs'
-import path from 'path'
 
 const prisma = new PrismaClient()
 
@@ -104,7 +103,7 @@ async function main() {
       content: JSON.stringify(contentObj),
       difficulty: 'beginner',
       contentType: 'pregnancy_week',
-      targetStage: targetStage as any,
+      targetStage: targetStage satisfies Prisma.InputJsonObject,
       status: 1,
       isRecommended: 1
     }

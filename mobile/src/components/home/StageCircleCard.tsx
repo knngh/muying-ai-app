@@ -1,7 +1,6 @@
 import React from 'react'
 import { StyleSheet, View } from 'react-native'
 import LinearGradient from 'react-native-linear-gradient'
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons'
 import { Button, Text } from 'react-native-paper'
 import type { StageCircleSnapshot } from '../../../../shared/types'
 import { Skeleton } from '../common'

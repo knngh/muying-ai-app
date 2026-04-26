@@ -39,7 +39,7 @@ export async function getPointsLogs(req: Request, res: Response, next: NextFunct
 export async function redeemPoints(req: Request, res: Response, next: NextFunction) {
   try {
     const { points } = req.body;
-    if (!points || typeof points !== 'number') {
+    if (typeof points !== 'number') {
       return res.status(400).json({ code: ErrorCodes.PARAM_ERROR, message: 'points 必须为数字' });
     }
     const result = await redeemPointsService(req.userId!, points);

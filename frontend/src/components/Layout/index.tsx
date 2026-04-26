@@ -1,22 +1,20 @@
 import { ReactNode } from 'react'
-import { Layout as AntLayout, Menu } from 'antd'
-import {
-  HomeOutlined,
-  BookOutlined,
-  CalendarOutlined,
-  UserOutlined,
-  MessageOutlined,
-  TeamOutlined,
-  SafetyCertificateOutlined,
-} from '@ant-design/icons'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAppStore } from '@/stores/appStore'
 import styles from './Layout.module.css'
 
-const { Header, Content, Footer } = AntLayout
-
 interface LayoutProps {
   children: ReactNode
+}
+
+function isMenuItemActive(pathname: string, itemPath: string) {
+  return pathname === itemPath || pathname.startsWith(`${itemPath}/`)
+}
+
+function getActiveMenuKey(pathname: string, items: Array<{ key: string }>) {
+  return items
+    .filter((item) => isMenuItemActive(pathname, item.key))
+    .sort((left, right) => right.key.length - left.key.length)[0]?.key
 }
 
 export function Layout({ children }: LayoutProps) {
@@ -25,44 +23,60 @@ export function Layout({ children }: LayoutProps) {
   const user = useAppStore((state) => state.user)
 
   const menuItems = [
-    { key: '/', icon: <HomeOutlined />, label: '首页' },
-    { key: '/chat', icon: <MessageOutlined />, label: 'AI问答' },
-    { key: '/knowledge', icon: <BookOutlined />, label: '知识库' },
-    { key: '/community', icon: <TeamOutlined />, label: '社区' },
+    { key: '/', label: '首页', hint: 'Home' },
+    { key: '/chat', label: 'AI问答', hint: 'Chat' },
+    { key: '/knowledge', label: '知识库', hint: 'Knowledge' },
+    { key: '/community', label: '社区', hint: 'Community' },
     ...(user?.username === 'admin'
-      ? [{ key: '/community/reports', icon: <SafetyCertificateOutlined />, label: '举报处理' }]
+      ? [{ key: '/community/reports', label: '举报处理', hint: 'Reports' }]
       : []),
-    { key: '/calendar', icon: <CalendarOutlined />, label: '日历' },
-    { key: '/profile', icon: <UserOutlined />, label: '我的' },
+    { key: '/calendar', label: '日历', hint: 'Calendar' },
+    { key: '/profile', label: '我的', hint: 'Profile' },
   ]
+  const activeMenuKey = getActiveMenuKey(location.pathname, menuItems)
 
-  const handleMenuClick = ({ key }: { key: string }) => {
+  const handleMenuClick = (key: string) => {
     navigate(key)
   }
 
   return (
-    <AntLayout className={styles.layout}>
-      <Header className={styles.header}>
-        <div className={styles.logo}>母婴AI助手</div>
-        <Menu
-          mode="horizontal"
-          selectedKeys={[location.pathname]}
-          items={menuItems}
-          onClick={handleMenuClick}
-          className={styles.menu}
-          style={{ flex: 1, minWidth: 0 }}
-        />
-      </Header>
-      <Content className={styles.content}>
+    <div className={styles.layout}>
+      <header className={styles.header}>
+        <div className={styles.headerInner}>
+          <div className={styles.brandBlock}>
+            <div className={styles.brandBadge}>MY</div>
+            <div>
+              <div className={styles.logo}>母婴AI助手</div>
+              <p className={styles.tagline}>孕育知识、记录与支持，集中在一个入口里。</p>
+            </div>
+          </div>
+          <nav className={styles.nav} aria-label="主导航">
+            {menuItems.map((item) => {
+              const active = item.key === activeMenuKey
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => handleMenuClick(item.key)}
+                  className={active ? `${styles.navItem} ${styles.navItemActive}` : styles.navItem}
+                >
+                  <span className={styles.navHint}>{item.hint}</span>
+                  <span>{item.label}</span>
+                </button>
+              )
+            })}
+          </nav>
+        </div>
+      </header>
+      <main className={styles.content}>
         <div className={styles.container}>{children}</div>
-      </Content>
-      <Footer className={styles.footer}>
-        母婴AI助手 ©{new Date().getFullYear()} Created with ❤️
-        <br />
-        <span style={{ fontSize: 12, color: '#999' }}>
-          ⚠️ 本平台内容仅供参考，不构成医疗建议。如有不适请立即就医。
-        </span>
-      </Footer>
-    </AntLayout>
+      </main>
+      <footer className={styles.footer}>
+        <div className={styles.footerInner}>
+          <p>母婴AI助手 ©{new Date().getFullYear()}</p>
+          <p>本平台内容仅供参考，不构成医疗建议。如有不适请立即就医。</p>
+        </div>
+      </footer>
+    </div>
   )
 }

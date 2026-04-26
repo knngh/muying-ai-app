@@ -2,15 +2,29 @@ import { defineStore } from 'pinia'
 import { articleApi } from '@/api/modules'
 import { isTranslationPendingError } from '@/api/modules'
 import type { Article, AuthorityArticleTranslation, PaginatedResponse } from '@/api/modules'
+import type { RecentAIHitArticle } from '../../../shared/types'
+import {
+  buildRecentAIHitArticle,
+  mergeRecentAIHitArticles,
+  sanitizeRecentAIHitArticles,
+} from '../../../shared/utils/recent-ai-hit'
+import {
+  dedupeKnowledgeArticles,
+  getKnowledgeArticlePathname,
+  getKnowledgeArticleTimestamp,
+  isGenericKnowledgeTitleKey,
+  isKnowledgeLandingLikePath,
+  normalizeKnowledgeSourceKey,
+  normalizeKnowledgeTitleKey,
+} from '../../../shared/utils/knowledge-dedupe'
 import { getAuthorityRegionPriority } from '@/utils/authority-source'
 
 const TRANSLATION_CACHE_STORAGE_KEY = 'knowledgeTranslationCache'
 const RECENT_AI_HIT_ARTICLES_KEY = 'knowledgeRecentAiHitArticles'
 const MAX_PERSISTED_TRANSLATIONS = 12
-const RECENT_AI_HIT_ARTICLE_LIMIT = 6
-const RECENT_AI_HIT_RETENTION_DAYS = 14
-const RECENT_AI_HIT_MAX_FUTURE_SKEW_MS = 6 * 60 * 60 * 1000
+let knowledgeListRequestId = 0
 const translationInFlight = new Map<string, Promise<AuthorityArticleTranslation>>()
+const articleDetailInFlight = new Map<string, Promise<Article>>()
 
 function loadPersistedTranslations() {
   const stored = uni.getStorageSync(TRANSLATION_CACHE_STORAGE_KEY) as Array<{ slug: string; translation: AuthorityArticleTranslation }> | null
@@ -36,32 +50,10 @@ function loadPersistedTranslations() {
 
 const persistedTranslations = loadPersistedTranslations()
 
-export interface RecentAIHitArticle {
-  slug: string
-  articleId: number
-  title: string
-  summary: string
-  source?: string
-  sourceOrg?: string
-  sourceLanguage?: 'zh' | 'en'
-  sourceLocale?: string
-  topic?: string
-  stage?: string
-  publishedAt?: string
-  sourceUpdatedAt?: string
-  createdAt: string
-  lastHitAt: string
-  qaId?: string
-  trigger?: 'hit_card' | 'knowledge_action'
-  matchReason?: 'entry_meta' | 'source_url' | 'source_title' | 'source_keyword'
-  originEntrySource?: string
-  originReportId?: string
-}
+export type { RecentAIHitArticle } from '../../../shared/types'
 
 function getArticleTimestamp(article: Article): number {
-  const value = article.publishedAt || article.createdAt
-  const timestamp = value ? new Date(value).getTime() : 0
-  return Number.isNaN(timestamp) ? 0 : timestamp
+  return getKnowledgeArticleTimestamp(article)
 }
 
 function getArticleDateBucket(article: Article): string {
@@ -76,91 +68,6 @@ function getArticleDateBucket(article: Article): string {
 
 function getSourcePriority(article: Article): number {
   return getAuthorityRegionPriority(article)
-}
-
-function getKnowledgeArticlePathname(article: Article): string {
-  const url = article.sourceUrl || ''
-  if (!url) {
-    return ''
-  }
-
-  try {
-    return new URL(url).pathname.toLowerCase().replace(/\/+$/u, '') || '/'
-  } catch {
-    return ''
-  }
-}
-
-function isKnowledgeLandingLikePath(pathname: string): boolean {
-  if (!pathname) {
-    return false
-  }
-
-  return [
-    /^\/$/,
-    /^\/topics(?:\/[^/]+)?$/,
-    /^\/parents$/,
-    /^\/pregnancy$/,
-    /^\/breastfeeding$/,
-    /^\/contraception$/,
-    /^\/child-development$/,
-    /^\/conditions(?:\/[^/]+)?$/,
-    /^\/english\/(?:ages-stages|health-issues|healthy-living|safety-prevention|family-life)$/,
-  ].some(pattern => pattern.test(pathname))
-}
-
-function normalizeKnowledgeSourceKey(article: Article): string {
-  return `${article.sourceOrg || ''} ${article.source || ''}`
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
-function normalizeKnowledgeTitleKey(article: Article): string {
-  return (article.title || '')
-    .toLowerCase()
-    .replace(/[“”"']/g, '')
-    .replace(/[，。；：、]/g, ' ')
-    .replace(/[|()[\]{}]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
-function buildKnowledgeDedupeKeys(article: Article): string[] {
-  const keys = [
-    article.slug,
-    article.sourceUrl,
-    article.originalId ? String(article.originalId) : '',
-  ].filter(Boolean) as string[]
-
-  // Title + source dedup for non-generic titles (matches backend logic)
-  const titleKey = normalizeKnowledgeTitleKey(article)
-  const sourceKey = normalizeKnowledgeSourceKey(article)
-  if (titleKey && sourceKey && !isGenericKnowledgeTitleKey(titleKey)) {
-    keys.push(`title:${sourceKey}:${titleKey}`)
-  }
-
-  return Array.from(new Set(keys))
-}
-
-function isGenericKnowledgeTitleKey(titleKey: string): boolean {
-  if (!titleKey) {
-    return true
-  }
-
-  const genericTitleKeys = new Set([
-    'nutrition',
-    'pregnancy',
-    'breastfeeding',
-    'immunization',
-    'vaccines',
-    'contraception',
-    'child development',
-    'parents',
-    'participants',
-  ])
-
-  return titleKey.length < 8 || genericTitleKeys.has(titleKey)
 }
 
 function getKnowledgeArticleQualityScore(article: Article): number {
@@ -188,51 +95,8 @@ function getKnowledgeArticleQualityScore(article: Article): number {
   return score
 }
 
-function pickBetterKnowledgeArticle(left: Article, right: Article): Article {
-  const leftSummaryLength = (left.summary || '').trim().length
-  const rightSummaryLength = (right.summary || '').trim().length
-  if (leftSummaryLength !== rightSummaryLength) {
-    return rightSummaryLength > leftSummaryLength ? right : left
-  }
-
-  const timestampDiff = getArticleTimestamp(right) - getArticleTimestamp(left)
-  if (timestampDiff !== 0) {
-    return timestampDiff > 0 ? right : left
-  }
-
-  const sourcePriorityDiff = getSourcePriority(left) - getSourcePriority(right)
-  if (sourcePriorityDiff !== 0) {
-    return sourcePriorityDiff < 0 ? left : right
-  }
-
-  return left
-}
-
-function dedupeKnowledgeArticles(list: Article[]): Article[] {
-  const deduped = new Map<string, Article>()
-
-  list.forEach((article) => {
-    const keys = buildKnowledgeDedupeKeys(article)
-    const existing = keys
-      .map(key => deduped.get(key))
-      .find((item): item is Article => Boolean(item))
-
-    if (!existing) {
-      keys.forEach(key => deduped.set(key, article))
-      return
-    }
-
-    const selected = pickBetterKnowledgeArticle(existing, article)
-    keys.forEach(key => deduped.set(key, selected))
-  })
-
-  return Array.from(new Map(
-    Array.from(deduped.values()).map(article => [article.slug, article]),
-  ).values())
-}
-
 function sortKnowledgeArticles(list: Article[]): Article[] {
-  return [...dedupeKnowledgeArticles(list)].sort((left, right) => {
+  return [...dedupeKnowledgeArticles(list, getSourcePriority)].sort((left, right) => {
     const sourceDiff = getSourcePriority(left) - getSourcePriority(right)
     if (sourceDiff !== 0) {
       return sourceDiff
@@ -250,86 +114,6 @@ function sortKnowledgeArticles(list: Article[]): Article[] {
 
     return getArticleTimestamp(right) - getArticleTimestamp(left)
   })
-}
-
-function toRecentAIHitArticle(
-  article: Article | RecentAIHitArticle,
-  input?: {
-    qaId?: string
-    trigger?: 'hit_card' | 'knowledge_action'
-    matchReason?: 'entry_meta' | 'source_url' | 'source_title' | 'source_keyword'
-    originEntrySource?: string
-    originReportId?: string
-  },
-): RecentAIHitArticle {
-  return {
-    slug: article.slug,
-    articleId: 'articleId' in article ? article.articleId : article.id,
-    title: article.title,
-    summary: article.summary,
-    source: article.source,
-    sourceOrg: article.sourceOrg,
-    sourceLanguage: article.sourceLanguage,
-    sourceLocale: article.sourceLocale,
-    topic: article.topic,
-    stage: article.stage,
-    publishedAt: article.publishedAt,
-    sourceUpdatedAt: article.sourceUpdatedAt,
-    createdAt: article.createdAt,
-    lastHitAt: new Date().toISOString(),
-    qaId: input?.qaId,
-    trigger: input?.trigger,
-    matchReason: input?.matchReason,
-    originEntrySource: input?.originEntrySource,
-    originReportId: input?.originReportId,
-  }
-}
-
-function isValidRecentAIHitTimestamp(value?: string, now = Date.now()) {
-  if (!value) return false
-
-  const timestamp = new Date(value).getTime()
-  if (Number.isNaN(timestamp)) return false
-
-  const maxAgeMs = RECENT_AI_HIT_RETENTION_DAYS * 24 * 60 * 60 * 1000
-  if (timestamp < now - maxAgeMs) return false
-  if (timestamp > now + RECENT_AI_HIT_MAX_FUTURE_SKEW_MS) return false
-  return true
-}
-
-function sanitizeRecentAIHitArticles(items: RecentAIHitArticle[], now = Date.now()) {
-  const deduped = new Map<string, RecentAIHitArticle>()
-
-  items.forEach((item) => {
-    const slug = item.slug?.trim()
-    const title = item.title?.replace(/\s+/g, ' ').trim()
-    if (!slug || !title || title.length < 4 || !Number.isFinite(item.articleId) || item.articleId <= 0) {
-      return
-    }
-
-    if (!isValidRecentAIHitTimestamp(item.lastHitAt, now)) {
-      return
-    }
-
-    const nextItem: RecentAIHitArticle = {
-      ...item,
-      slug,
-      title,
-      summary: item.summary?.replace(/\s+/g, ' ').trim() || '',
-      source: item.source?.replace(/\s+/g, ' ').trim() || undefined,
-      sourceOrg: item.sourceOrg?.replace(/\s+/g, ' ').trim() || undefined,
-      topic: item.topic?.replace(/\s+/g, ' ').trim() || undefined,
-    }
-
-    const existing = deduped.get(slug)
-    if (!existing || nextItem.lastHitAt > existing.lastHitAt) {
-      deduped.set(slug, nextItem)
-    }
-  })
-
-  return Array.from(deduped.values())
-    .sort((left, right) => right.lastHitAt.localeCompare(left.lastHitAt))
-    .slice(0, RECENT_AI_HIT_ARTICLE_LIMIT)
 }
 
 export const useKnowledgeStore = defineStore('knowledge', {
@@ -366,6 +150,7 @@ export const useKnowledgeStore = defineStore('knowledge', {
 
     async fetchArticles(params?: { page?: number; reset?: boolean }) {
       const page = params?.page || this.page
+      const requestId = ++knowledgeListRequestId
       this.loading = true
       this.error = null
 
@@ -380,6 +165,10 @@ export const useKnowledgeStore = defineStore('knowledge', {
           keyword: this.keyword || undefined,
         }) as PaginatedResponse<Article>
 
+        if (requestId !== knowledgeListRequestId) {
+          return
+        }
+
         if (params?.reset) {
           this.articles = sortKnowledgeArticles(response.list)
         } else {
@@ -391,22 +180,39 @@ export const useKnowledgeStore = defineStore('knowledge', {
         this.total = response.pagination.total
         this.page = response.pagination.page
       } catch (error: unknown) {
+        if (requestId !== knowledgeListRequestId) {
+          return
+        }
+
         const err = error as { message?: string }
         this.error = err.message || '获取文章列表失败'
       } finally {
-        this.loading = false
+        if (requestId === knowledgeListRequestId) {
+          this.loading = false
+        }
       }
     },
 
     async fetchArticleDetail(slug: string) {
+      if (this.currentArticle?.slug === slug) {
+        return
+      }
+
       this.loading = true
       this.error = null
       try {
-        this.currentArticle = await articleApi.getBySlug(slug) as Article
+        const inFlight = articleDetailInFlight.get(slug)
+        const request = inFlight || articleApi.getBySlug(slug) as Promise<Article>
+        if (!inFlight) {
+          articleDetailInFlight.set(slug, request)
+        }
+
+        this.currentArticle = await request
       } catch (error: unknown) {
         const err = error as { message?: string }
         this.error = err.message || '获取文章详情失败'
       } finally {
+        articleDetailInFlight.delete(slug)
         this.loading = false
       }
     },
@@ -492,7 +298,8 @@ export const useKnowledgeStore = defineStore('knowledge', {
       this.persistTranslationCache()
 
       if (this.translationFailed[slug]) {
-        const { [slug]: _ignored, ...rest } = this.translationFailed
+        const rest = { ...this.translationFailed }
+        delete rest[slug]
         this.translationFailed = rest
       }
     },
@@ -528,11 +335,22 @@ export const useKnowledgeStore = defineStore('knowledge', {
       originEntrySource?: string
       originReportId?: string
     }) {
-      const nextHit = toRecentAIHitArticle(article, input)
-      const nextList = sanitizeRecentAIHitArticles([
-        nextHit,
-        ...this.recentAiHitArticles.filter(item => item.slug !== nextHit.slug),
-      ])
+      const nextHit = buildRecentAIHitArticle({
+        slug: article.slug,
+        articleId: 'articleId' in article ? article.articleId : article.id,
+        title: article.title,
+        summary: article.summary,
+        source: article.source,
+        sourceOrg: article.sourceOrg,
+        sourceLanguage: article.sourceLanguage,
+        sourceLocale: article.sourceLocale,
+        topic: article.topic,
+        stage: article.stage,
+        publishedAt: article.publishedAt,
+        sourceUpdatedAt: article.sourceUpdatedAt,
+        createdAt: article.createdAt,
+      }, input)
+      const nextList = mergeRecentAIHitArticles(this.recentAiHitArticles, nextHit)
 
       this.recentAiHitArticles = nextList
       this.recentAiHitArticlesLoaded = true
@@ -580,10 +398,26 @@ export const useKnowledgeStore = defineStore('knowledge', {
 
     async likeArticle(id: number) {
       try {
-        const result = await articleApi.like(id) as { liked: boolean }
+        const current = this.currentArticle?.id === id
+          ? this.currentArticle
+          : this.articles.find((a) => a.id === id)
+        const result = current?.isLiked
+          ? await articleApi.unlike(id) as { liked: boolean; likeCount?: number }
+          : await articleApi.like(id) as { liked: boolean; likeCount?: number }
+        const nextLikeCount = (a: Article) =>
+          typeof result.likeCount === 'number'
+            ? result.likeCount
+            : (result.liked ? a.likeCount + 1 : Math.max(a.likeCount - 1, 0))
         this.articles = this.articles.map(a =>
-          a.id === id ? { ...a, isLiked: result.liked, likeCount: a.likeCount + (result.liked ? 1 : 0) } : a
+          a.id === id ? { ...a, isLiked: result.liked, likeCount: nextLikeCount(a) } : a
         )
+        if (this.currentArticle?.id === id) {
+          this.currentArticle = {
+            ...this.currentArticle,
+            isLiked: result.liked,
+            likeCount: nextLikeCount(this.currentArticle),
+          }
+        }
       } catch (_error) {
         console.error('点赞失败:', _error)
       }
@@ -591,10 +425,26 @@ export const useKnowledgeStore = defineStore('knowledge', {
 
     async favoriteArticle(id: number) {
       try {
-        const result = await articleApi.favorite(id) as { favorited: boolean }
+        const current = this.currentArticle?.id === id
+          ? this.currentArticle
+          : this.articles.find((a) => a.id === id)
+        const result = current?.isFavorited
+          ? await articleApi.unfavorite(id) as { favorited: boolean; collectCount?: number }
+          : await articleApi.favorite(id) as { favorited: boolean; collectCount?: number }
+        const nextCollectCount = (a: Article) =>
+          typeof result.collectCount === 'number'
+            ? result.collectCount
+            : (result.favorited ? a.collectCount + 1 : Math.max(a.collectCount - 1, 0))
         this.articles = this.articles.map(a =>
-          a.id === id ? { ...a, isFavorited: result.favorited } : a
+          a.id === id ? { ...a, isFavorited: result.favorited, collectCount: nextCollectCount(a) } : a
         )
+        if (this.currentArticle?.id === id) {
+          this.currentArticle = {
+            ...this.currentArticle,
+            isFavorited: result.favorited,
+            collectCount: nextCollectCount(this.currentArticle),
+          }
+        }
       } catch (_error) {
         console.error('收藏失败:', _error)
       }

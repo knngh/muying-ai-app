@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native'
 import { Button, Modal, Portal, Text, TextInput } from 'react-native-paper'
 import DateTimePicker from '@react-native-community/datetimepicker'
+import type { DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import dayjs from 'dayjs'
 import { colors, fontSize, spacing, borderRadius } from '../../theme'
 
@@ -94,14 +95,14 @@ export default function EditProfileModal({
     return parsed.isValid() ? parsed.toDate() : new Date()
   }
 
-  const handleDueDateChange = (_event: any, selectedDate?: Date) => {
+  const handleDueDateChange = (_event: DateTimePickerEvent, selectedDate?: Date) => {
     if (Platform.OS === 'android') setShowDueDatePicker(false)
     if (selectedDate) {
       onChangeDueDate(dayjs(selectedDate).format('YYYY-MM-DD'))
     }
   }
 
-  const handleBabyBirthdayChange = (_event: any, selectedDate?: Date) => {
+  const handleBabyBirthdayChange = (_event: DateTimePickerEvent, selectedDate?: Date) => {
     if (Platform.OS === 'android') setShowBabyBirthdayPicker(false)
     if (selectedDate) {
       onChangeBabyBirthday(dayjs(selectedDate).format('YYYY-MM-DD'))

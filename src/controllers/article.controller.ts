@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { Prisma } from '@prisma/client';
 import { Request, Response, NextFunction } from 'express';
 import prisma from '../config/database';
 import { getAuthoritySourceConfig, inferAuthorityLocaleDefaults } from '../config/authority-sources';
@@ -61,6 +62,32 @@ interface AuthorityCacheRecord {
   original_id?: string;
 }
 
+type ArticleTagRelation = {
+  tag: {
+    id: bigint;
+    name: string;
+    slug: string;
+  };
+};
+
+type CountRow = {
+  total: bigint | number | string | null;
+};
+
+const articleDetailInclude = {
+  category: {
+    include: { parent: true },
+  },
+  author: true,
+  tags: {
+    include: { tag: true },
+  },
+} satisfies Prisma.ArticleInclude;
+
+type ArticleDetailCacheRecord = Prisma.ArticleGetPayload<{
+  include: typeof articleDetailInclude;
+}>;
+
 const AUTHORITY_CACHE_PATHS = [
   '/tmp/authority-knowledge-cache.json',
   path.join(process.cwd(), 'data', 'authority-knowledge-cache.json'),
@@ -76,6 +103,18 @@ let authorityCacheMemo: { path: string; mtimeMs: number; records: AuthorityCache
 let authorityTranslationCacheMemo: Record<string, AuthorityTranslationCacheRecord> | null = null;
 let translationCacheWriteQueue: Promise<void> = Promise.resolve();
 const authorityTranslationInFlight = new Map<string, Promise<AuthorityTranslationCacheRecord>>();
+const authorityTranslationInFlightTimestamps = new Map<string, number>();
+const AUTHORITY_TRANSLATION_INFLIGHT_TTL_MS = 2 * 60 * 1000; // 2 分钟
+
+function cleanupStaleInFlightTranslations() {
+  const now = Date.now();
+  for (const [slug, startedAt] of authorityTranslationInFlightTimestamps) {
+    if (now - startedAt > AUTHORITY_TRANSLATION_INFLIGHT_TTL_MS) {
+      authorityTranslationInFlight.delete(slug);
+      authorityTranslationInFlightTimestamps.delete(slug);
+    }
+  }
+}
 const AUTHORITY_TRANSLATION_WAIT_TIMEOUT_MS = Math.max(10000, Number(process.env.AUTHORITY_TRANSLATION_WAIT_TIMEOUT_MS || 35000));
 const AUTHORITY_TRANSLATION_TASK_ROLES: AITaskModelRole[] = ['minimax_render', 'glm_classify', 'kimi_reason'];
 const AUTHORITY_TRANSLATION_SOURCE_CHAR_LIMIT = Math.max(
@@ -126,10 +165,10 @@ function isMostlyChineseText(input: string): boolean {
     return false;
   }
 
-  const chineseChars = countMatches(text, /[\u4e00-\u9fff]/gu);
+  const chineseChars = countMatches(text, /[\u3400-\u4dbf\u4e00-\u9fff]/gu);
   const latinChars = countMatches(text, /[A-Za-z]/g);
 
-  if (chineseChars >= 80 && chineseChars >= latinChars) {
+  if (chineseChars >= 30 && chineseChars >= latinChars) {
     return true;
   }
 
@@ -916,6 +955,9 @@ function getOrCreateAuthorityTranslation(slug: string, record: AuthorityCacheRec
     return Promise.resolve(cached);
   }
 
+  // 清理超时的 in-flight 条目，防止泄漏
+  cleanupStaleInFlightTranslations();
+
   const inFlight = authorityTranslationInFlight.get(slug);
   if (inFlight) {
     return inFlight;
@@ -924,8 +966,10 @@ function getOrCreateAuthorityTranslation(slug: string, record: AuthorityCacheRec
   const task = translateAuthorityRecord(slug, record)
     .finally(() => {
       authorityTranslationInFlight.delete(slug);
+      authorityTranslationInFlightTimestamps.delete(slug);
     });
   authorityTranslationInFlight.set(slug, task);
+  authorityTranslationInFlightTimestamps.set(slug, Date.now());
   return task;
 }
 
@@ -1555,13 +1599,13 @@ export const getArticles = async (req: Request, res: Response, next: NextFunctio
       const filteredCacheKey = CacheKeys.ARTICLES_AUTHORITY_FILTERED(filterParamsKey);
 
       if (isAuthorityFirstPage) {
-        const cached = cache.get<any>(CacheKeys.ARTICLES_AUTHORITY);
+        const cached = cache.get<unknown>(CacheKeys.ARTICLES_AUTHORITY);
         if (cached) {
           console.log(`[Cache] Hit: ${CacheKeys.ARTICLES_AUTHORITY}`);
           return res.json(cached);
         }
       } else {
-        const cached = cache.get<any>(filteredCacheKey);
+        const cached = cache.get<unknown>(filteredCacheKey);
         if (cached) {
           console.log(`[Cache] Hit: ${filteredCacheKey}`);
           return res.json(cached);
@@ -1641,7 +1685,7 @@ export const getArticles = async (req: Request, res: Response, next: NextFunctio
           : '';
       
       if (cacheKey) {
-        const cached = cache.get<any>(cacheKey);
+        const cached = cache.get<unknown>(cacheKey);
         if (cached) {
           console.log(`[Cache] Hit: ${cacheKey}`);
           return res.json(cached);
@@ -1652,20 +1696,20 @@ export const getArticles = async (req: Request, res: Response, next: NextFunctio
     const skip = (Number(page) - 1) * Number(pageSize);
 
     // 构建查询条件
-    const where: any = {
+    const where: Prisma.ArticleWhereInput = {
       status: 1,
       deletedAt: null
     };
 
-    if (category) {
+    if (typeof category === 'string' && category.trim()) {
       where.category = { slug: category };
     }
 
-    if (difficulty) {
+    if (typeof difficulty === 'string' && difficulty.trim()) {
       where.difficulty = difficulty;
     }
 
-    if (contentType) {
+    if (typeof contentType === 'string' && contentType.trim()) {
       where.contentType = contentType;
     }
 
@@ -1677,7 +1721,7 @@ export const getArticles = async (req: Request, res: Response, next: NextFunctio
     }
 
     // 排序
-    let orderBy: any = { publishedAt: 'desc' };
+    let orderBy: Prisma.ArticleOrderByWithRelationInput = { publishedAt: 'desc' };
     if (sort === 'popular') {
       orderBy = { viewCount: 'desc' };
     } else if (sort === 'recommended') {
@@ -1793,22 +1837,14 @@ export const getArticleBySlug = async (req: Request, res: Response, next: NextFu
 
     // 尝试从缓存获取文章详情
     const cacheKey = CacheKeys.ARTICLE_DETAIL(slug);
-    let article = cache.get<any>(cacheKey);
+    let article = cache.get<ArticleDetailCacheRecord>(cacheKey);
 
     if (article) {
       console.log(`[Cache] Hit: ${cacheKey}`);
     } else {
       article = await prisma.article.findUnique({
         where: { slug },
-        include: {
-          category: {
-            include: { parent: true }
-          },
-          author: true,
-          tags: {
-            include: { tag: true }
-          }
-        }
+        include: articleDetailInclude
       });
 
       if (!article || article.status !== 1 || article.deletedAt) {
@@ -1850,7 +1886,7 @@ export const getArticleBySlug = async (req: Request, res: Response, next: NextFu
 
     res.json(successResponse({
       ...article,
-      tags: article.tags.map((t: any) => t.tag),
+      tags: article.tags.map((tagRelation: ArticleTagRelation) => tagRelation.tag),
       isLiked,
       isFavorited
     }));
@@ -1919,8 +1955,8 @@ export const getRelatedArticles = async (req: Request, res: Response, next: Next
     const limit = Number(req.query.limit) || 5;
 
     // 尝试从缓存获取
-    const cacheKey = CacheKeys.ARTICLE_RELATED(id);
-    const cached = cache.get<any>(cacheKey);
+    const cacheKey = CacheKeys.ARTICLE_RELATED(id, limit);
+    const cached = cache.get<unknown>(cacheKey);
     if (cached) {
       console.log(`[Cache] Hit: ${cacheKey}`);
       return res.json(cached);
@@ -2029,7 +2065,8 @@ export const searchArticles = async (req: Request, res: Response, next: NextFunc
         `
       ]);
 
-      res.json(paginatedResponse(articles as unknown[], currentPage, currentPageSize, Number((total as any)[0]?.total || 0)));
+      const totalRows = total as CountRow[];
+      res.json(paginatedResponse(articles as unknown[], currentPage, currentPageSize, Number(totalRows[0]?.total || 0)));
       return;
     } catch (searchError) {
       console.error('[Search] Fulltext query failed, fallback to LIKE search:', searchError);
@@ -2167,13 +2204,17 @@ export const unlikeArticle = async (req: Request, res: Response, next: NextFunct
       throw new AppError('未点赞', ErrorCodes.PARAM_ERROR, 400);
     }
 
-    const [, updatedArticle] = await Promise.all([
-      prisma.userLike.delete({ where: { id: like.id } }),
-      prisma.article.update({
+    const updatedArticle = await prisma.$transaction(async (tx) => {
+      await tx.userLike.delete({ where: { id: like.id } });
+      const article = await tx.article.findUnique({
         where: { id: BigInt(id) },
-        data: { likeCount: { decrement: 1 } }
-      })
-    ]);
+        select: { likeCount: true },
+      });
+      return tx.article.update({
+        where: { id: BigInt(id) },
+        data: { likeCount: Math.max(0, (article?.likeCount ?? 1) - 1) },
+      });
+    });
 
     // 清除热门文章缓存
     cache.delete(CacheKeys.ARTICLES_POPULAR);
@@ -2244,13 +2285,17 @@ export const unfavoriteArticle = async (req: Request, res: Response, next: NextF
       throw new AppError('未收藏', ErrorCodes.PARAM_ERROR, 400);
     }
 
-    const [, updatedArticle] = await Promise.all([
-      prisma.userFavorite.delete({ where: { id: favorite.id } }),
-      prisma.article.update({
+    const updatedArticle = await prisma.$transaction(async (tx) => {
+      await tx.userFavorite.delete({ where: { id: favorite.id } });
+      const article = await tx.article.findUnique({
         where: { id: BigInt(id) },
-        data: { collectCount: { decrement: 1 } }
-      })
-    ]);
+        select: { collectCount: true },
+      });
+      return tx.article.update({
+        where: { id: BigInt(id) },
+        data: { collectCount: Math.max(0, (article?.collectCount ?? 1) - 1) },
+      });
+    });
 
     res.json(successResponse({ favorited: false, collectCount: updatedArticle.collectCount }, '取消收藏成功'));
   } catch (error) {

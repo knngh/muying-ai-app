@@ -3,7 +3,7 @@ import { StyleSheet, View } from 'react-native'
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons'
 import { Card, Text } from 'react-native-paper'
 import { StandardCard } from '../layout'
-import { borderRadius, colors, fontSize, spacing } from '../../theme'
+import { colors, spacing } from '../../theme'
 
 interface InfoGridProps {
   focusTitle: string

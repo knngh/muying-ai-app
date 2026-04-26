@@ -55,12 +55,12 @@ export async function ragAnswer(question: string): Promise<{
     const systemPrompt = RAG_SYSTEM_PROMPT.replace('{CONTEXT}', context);
     
     // 5. 调用大模型生成回答
-    const messages = [
+    const messages: Array<{ role: 'system' | 'user'; content: string }> = [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: question }
     ];
     
-    const answer = await callAIGateway(messages as any);
+    const answer = await callAIGateway(messages);
     
     // 6. 计算置信度
     const confidence = relevantDocs.length > 0 

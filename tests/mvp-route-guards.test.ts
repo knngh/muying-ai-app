@@ -26,6 +26,10 @@ const checkHealth = Object.assign((_req: unknown, _res: unknown, next: () => voi
 const searchKnowledge = Object.assign((_req: unknown, _res: unknown, next: () => void) => next(), { _id: 'searchKnowledge' });
 const submitFeedback = Object.assign((_req: unknown, _res: unknown, next: () => void) => next(), { _id: 'submitFeedback' });
 const getKnowledgeBaseStats = Object.assign((_req: unknown, _res: unknown, next: () => void) => next(), { _id: 'getKnowledgeBaseStats' });
+const getGrowthProfile = Object.assign((_req: unknown, _res: unknown, next: () => void) => next(), { _id: 'getGrowthProfile' });
+const upsertGrowthProfile = Object.assign((_req: unknown, _res: unknown, next: () => void) => next(), { _id: 'upsertGrowthProfile' });
+const getGrowthRecords = Object.assign((_req: unknown, _res: unknown, next: () => void) => next(), { _id: 'getGrowthRecords' });
+const createGrowthRecord = Object.assign((_req: unknown, _res: unknown, next: () => void) => next(), { _id: 'createGrowthRecord' });
 
 const validate = jest.fn((schema: { body?: unknown; params?: unknown; query?: unknown }) => {
   const kind = schema.body ? 'body' : schema.params ? 'params' : schema.query ? 'query' : 'unknown';
@@ -52,6 +56,13 @@ jest.mock('../src/controllers/ai.controller', () => ({
   searchKnowledge,
   submitFeedback,
   getKnowledgeBaseStats,
+}));
+
+jest.mock('../src/controllers/growth.controller', () => ({
+  getProfile: getGrowthProfile,
+  upsertProfile: upsertGrowthProfile,
+  getRecords: getGrowthRecords,
+  createRecord: createGrowthRecord,
 }));
 
 jest.mock('../src/middlewares/auth.middleware', () => ({
@@ -83,6 +94,7 @@ jest.mock('../src/middlewares/payment-callback.middleware', () => ({
 
 import paymentRoutes from '../src/routes/payment.routes';
 import aiRoutes from '../src/routes/ai.routes';
+import growthRoutes from '../src/routes/growth.routes';
 
 function findRoute(router: Router, path: string, method: 'get' | 'post' | 'delete') {
   return (router as unknown as { stack: Array<{ route?: { path: string; methods: Record<string, boolean>; stack: Array<{ handle: unknown }> } }> })
@@ -137,5 +149,41 @@ describe('MVP 路由守卫回归测试', () => {
     expect(askStreamHandles[askStreamHandles.length - 1]).toBe(askQuestionStream);
     expect(chatHandles[chatHandles.length - 1]).toBe(chat);
     expect(chatStreamHandles[chatStreamHandles.length - 1]).toBe(chatStream);
+  });
+
+  it('AI 对话和知识库检索路由必须校验 params/query', () => {
+    const conversationsHandles = getRouteHandles(aiRoutes, '/conversations', 'get');
+    const historyHandles = getRouteHandles(aiRoutes, '/conversations/:conversationId', 'get');
+    const deleteHandles = getRouteHandles(aiRoutes, '/conversations/:conversationId', 'delete');
+    const searchHandles = getRouteHandles(aiRoutes, '/knowledge/search', 'get');
+
+    expect(conversationsHandles[0]).toBe(queryRateLimiter);
+    expect((conversationsHandles[1] as { _id?: string })._id).toBe('validate:query');
+    expect(conversationsHandles[conversationsHandles.length - 1]).toBe(getConversations);
+    expect(historyHandles[0]).toBe(queryRateLimiter);
+    expect((historyHandles[1] as { _id?: string })._id).toBe('validate:params');
+    expect(historyHandles[historyHandles.length - 1]).toBe(getConversationHistory);
+    expect(deleteHandles[0]).toBe(writeRateLimiter);
+    expect((deleteHandles[1] as { _id?: string })._id).toBe('validate:params');
+    expect(deleteHandles[deleteHandles.length - 1]).toBe(deleteConversation);
+    expect(searchHandles[0]).toBe(aiRateLimiter);
+    expect((searchHandles[1] as { _id?: string })._id).toBe('validate:query');
+    expect(searchHandles[searchHandles.length - 1]).toBe(searchKnowledge);
+  });
+
+  it('成长档案写入和列表查询必须经过输入校验', () => {
+    const profileHandles = getRouteHandles(growthRoutes, '/profile', 'post');
+    const recordsQueryHandles = getRouteHandles(growthRoutes, '/records', 'get');
+    const recordsCreateHandles = getRouteHandles(growthRoutes, '/records', 'post');
+
+    expect(profileHandles[0]).toBe(writeRateLimiter);
+    expect((profileHandles[1] as { _id?: string })._id).toBe('validate:body');
+    expect(profileHandles[profileHandles.length - 1]).toBe(upsertGrowthProfile);
+    expect(recordsQueryHandles[0]).toBe(queryRateLimiter);
+    expect((recordsQueryHandles[1] as { _id?: string })._id).toBe('validate:query');
+    expect(recordsQueryHandles[recordsQueryHandles.length - 1]).toBe(getGrowthRecords);
+    expect(recordsCreateHandles[0]).toBe(writeRateLimiter);
+    expect((recordsCreateHandles[1] as { _id?: string })._id).toBe('validate:body');
+    expect(recordsCreateHandles[recordsCreateHandles.length - 1]).toBe(createGrowthRecord);
   });
 });

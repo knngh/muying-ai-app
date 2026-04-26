@@ -8,6 +8,9 @@ import {
 } from 'react-native'
 import { Chip, IconButton, Snackbar, Text } from 'react-native-paper'
 import { useNavigation, useRoute } from '@react-navigation/native'
+import type { CompositeNavigationProp, RouteProp } from '@react-navigation/native'
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs'
+import type { StackNavigationProp } from '@react-navigation/stack'
 import LinearGradient from 'react-native-linear-gradient'
 import { getDisclaimer } from '../api/ai'
 import type { AIMessage } from '../api/ai'
@@ -21,6 +24,7 @@ import { useChatStore } from '../stores/chatStore'
 import { getStageSummary } from '../utils/stage'
 import { QUICK_QUESTION_MAP } from '../utils/chatPrompts'
 import { colors, spacing, borderRadius } from '../theme'
+import type { RootStackParamList, TabParamList } from '../navigation/AppNavigator'
 
 type ChatEntrySource = 'weekly_report' | 'home_suggested_question' | 'knowledge_detail' | 'knowledge_recent_ai'
 
@@ -71,8 +75,11 @@ const CHAT_SOURCE_LABEL: Record<ChatEntrySource, { title: string; subtitle: stri
 }
 
 export default function ChatScreen() {
-  const navigation = useNavigation<any>()
-  const route = useRoute<any>()
+  const navigation = useNavigation<CompositeNavigationProp<
+    BottomTabNavigationProp<TabParamList, 'Chat'>,
+    StackNavigationProp<RootStackParamList>
+  >>()
+  const route = useRoute<RouteProp<TabParamList, 'Chat'>>()
   const user = useAppStore((state) => state.user)
   const activeEntryMeta = useChatStore((state) => state.activeEntryMeta)
   const flatListRef = useRef<FlatList>(null)
@@ -94,7 +101,6 @@ export default function ChatScreen() {
     status,
     plans,
     membershipLoading,
-    activePlan,
     remainingCount,
     upgradeVisible,
     setUpgradeVisible,
@@ -205,12 +211,7 @@ export default function ChatScreen() {
   }, [activeEntryMeta, entrySource, handleQuickQuestion, sendFromHook, stage.lifecycleKey])
 
   useEffect(() => {
-    const params = route.params as {
-      prefillQuestion?: string
-      prefillContext?: Record<string, string | number | boolean | null>
-      autoSend?: boolean
-      source?: ChatEntrySource
-    } | undefined
+    const params = route.params
 
     if (!params?.prefillQuestion) {
       return
@@ -371,7 +372,7 @@ export default function ChatScreen() {
         ) : null}
       </View>
     ),
-    [clearMessages, entrySource, error, remainingCount, status],
+    [clearMessages, entrySource, error, remainingCount, stage.lifecycleLabel, status],
   )
 
   return (

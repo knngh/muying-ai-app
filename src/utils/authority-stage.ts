@@ -107,8 +107,14 @@ export function inferAuthorityStages(input: InferAuthorityStagesInput): Authorit
     || isChildAudience;
   const hasDevelopmentContext = hasToddlerContext
     || hasChildContext
-    || /父母|家长|育儿|行为|管教|里程碑|成长发育|发展迟缓|development|milestone|discipline|behavior|parenting|parents/i.test(primaryText)
+    || /育儿|行为|管教|里程碑|成长发育|发展迟缓|development|milestone|discipline|behavior|parenting|parents/i.test(primaryText)
     || topic === 'development';
+  const hasNewbornCareSignal = /新生儿|neonat|newborn|出生后|月子|黄疸|脐带|胎便|拍嗝/u.test(haystack);
+  const shouldAddNewbornStage = topic === 'newborn'
+    || (
+      hasNewbornCareSignal
+      && !['feeding', 'vaccination', 'common-symptoms', 'development'].includes(topic)
+    );
   const shouldLockToPregnancyTimeline = hasExplicitPregnancyWeekInPrimary
     && !hasPostpartumContext
     && !hasChildKeywordsInTitle
@@ -149,7 +155,7 @@ export function inferAuthorityStages(input: InferAuthorityStagesInput): Authorit
     stages.push('postpartum');
   }
 
-  if (hasInfantContext && /新生儿|出生后|月子|黄疸|脐带|奶量|拍嗝/u.test(haystack)) {
+  if (hasInfantContext && shouldAddNewbornStage) {
     stages.push('newborn');
     stages.push('0-6-months');
   }
@@ -179,8 +185,10 @@ export function inferAuthorityStages(input: InferAuthorityStagesInput): Authorit
   }
 
   if (isNewbornAudience) {
-    stages.push('newborn');
     stages.push('0-6-months');
+    if (shouldAddNewbornStage) {
+      stages.push('newborn');
+    }
   }
 
   if (isInfantAudience) {
@@ -214,8 +222,10 @@ export function inferAuthorityStages(input: InferAuthorityStagesInput): Authorit
     }
 
     if (isNewbornAudience) {
-      stages.push('newborn');
       stages.push('0-6-months');
+      if (shouldAddNewbornStage) {
+        stages.push('newborn');
+      }
     }
 
     if (isInfantAudience || isFamilyAudience) {

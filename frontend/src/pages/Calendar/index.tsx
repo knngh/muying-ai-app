@@ -1,34 +1,49 @@
-import { useEffect, useState } from 'react'
-import { Card, Calendar as AntCalendar, Typography, List, Tag, Modal, Form, Input, Select, DatePicker, Switch, Button, Space, Spin, Empty, Row, Col } from 'antd'
-import { CalendarOutlined, PlusOutlined, CheckCircleOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons'
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useCalendarStore } from '@/stores/calendarStore'
 import type { CalendarEvent } from '@/api/modules'
 import dayjs, { Dayjs } from 'dayjs'
+import styles from './Calendar.module.css'
 
-const { Title, Text } = Typography
-
-const eventTypeColors: Record<string, string> = {
-  checkup: 'orange',
-  vaccine: 'green',
-  reminder: 'blue',
-  other: 'default',
+type EventDraft = {
+  title: string
+  description: string
+  eventDate: string
+  eventType: CalendarEvent['eventType']
+  reminderEnabled: boolean
 }
 
-const eventTypeLabels: Record<string, string> = {
+const initialDraft: EventDraft = {
+  title: '',
+  description: '',
+  eventDate: dayjs().format('YYYY-MM-DD'),
+  eventType: 'checkup',
+  reminderEnabled: false,
+}
+
+const eventTypeLabels: Record<CalendarEvent['eventType'], string> = {
   checkup: '产检',
   vaccine: '疫苗',
   reminder: '提醒',
+  exercise: '运动',
+  diet: '饮食',
   other: '其他',
+}
+
+function buildMonthGrid(month: string) {
+  const startOfMonth = dayjs(month).startOf('month')
+  const firstCell = startOfMonth.startOf('week')
+  return Array.from({ length: 42 }, (_, index) => firstCell.add(index, 'day'))
 }
 
 export function Calendar() {
   const [modalVisible, setModalVisible] = useState(false)
-  const [form] = Form.useForm()
-  
+  const [draft, setDraft] = useState<EventDraft>(initialDraft)
+  const [formError, setFormError] = useState('')
+  const [upcomingEvents, setUpcomingEvents] = useState<CalendarEvent[]>([])
+
   const {
-    events: _events,
     selectedEvent,
-    currentMonth: _currentMonth,
+    currentMonth,
     loading,
     fetchEvents,
     createEvent,
@@ -41,281 +56,311 @@ export function Calendar() {
     getUpcomingEvents,
   } = useCalendarStore()
 
-  const [upcomingEvents, setUpcomingEvents] = useState<CalendarEvent[]>([])
+  const monthDays = useMemo(() => buildMonthGrid(currentMonth), [currentMonth])
+  const monthLabel = dayjs(currentMonth).format('YYYY年MM月')
+
+  const refreshUpcoming = useCallback(() => {
+    getUpcomingEvents(7).then(setUpcomingEvents)
+  }, [getUpcomingEvents])
 
   useEffect(() => {
-    // 初始化时加载当前月份的事件
-    const start = dayjs().startOf('month').format('YYYY-MM-DD')
-    const end = dayjs().endOf('month').format('YYYY-MM-DD')
+    const start = dayjs(currentMonth).startOf('month').format('YYYY-MM-DD')
+    const end = dayjs(currentMonth).endOf('month').format('YYYY-MM-DD')
     fetchEvents(start, end)
-    
-    // 获取近期事件
-    getUpcomingEvents(7).then(setUpcomingEvents)
-  }, [])
+    refreshUpcoming()
+  }, [currentMonth, fetchEvents, refreshUpcoming])
 
-  // 处理月份变化
-  const handlePanelChange = (date: Dayjs) => {
-    const month = date.format('YYYY-MM')
-    setCurrentMonth(month)
+  const changeMonth = (offset: number) => {
+    setCurrentMonth(dayjs(currentMonth).add(offset, 'month').format('YYYY-MM'))
   }
 
-  // 处理日期选择
-  const handleDateSelect = (date: Dayjs) => {
-    const dateStr = date.format('YYYY-MM-DD')
-    const dayEvents = getEventsByDate(dateStr)
-    if (dayEvents.length > 0) {
-      selectEvent(dayEvents[0])
-    }
-  }
-
-  // 打开新建事件弹窗
-  const openCreateModal = () => {
-    form.resetFields()
+  const openCreateModal = (date?: Dayjs) => {
     selectEvent(null)
+    setDraft({
+      ...initialDraft,
+      eventDate: date?.format('YYYY-MM-DD') || dayjs().format('YYYY-MM-DD'),
+    })
+    setFormError('')
     setModalVisible(true)
   }
 
-  // 打开编辑事件弹窗
   const openEditModal = (event: CalendarEvent) => {
     selectEvent(event)
-    form.setFieldsValue({
+    setDraft({
       title: event.title,
-      description: event.description,
-      eventDate: dayjs(event.eventDate),
+      description: event.description || '',
+      eventDate: event.eventDate,
       eventType: event.eventType,
       reminderEnabled: event.reminderEnabled,
     })
+    setFormError('')
     setModalVisible(true)
   }
 
-  // 提交表单
-  const handleSubmit = async () => {
-    try {
-      const values = await form.validateFields()
-      const eventData = {
-        title: values.title,
-        description: values.description,
-        eventDate: values.eventDate.format('YYYY-MM-DD'),
-        eventType: values.eventType,
-        isCompleted: false,
-        reminderEnabled: values.reminderEnabled || false,
-      }
+  const handleCloseModal = () => {
+    setModalVisible(false)
+    selectEvent(null)
+    setDraft(initialDraft)
+    setFormError('')
+  }
 
-      if (selectedEvent) {
-        await updateEvent(selectedEvent.id, eventData)
-      } else {
-        await createEvent(eventData)
-      }
-      
-      setModalVisible(false)
-      form.resetFields()
-    } catch (error) {
-      console.error('提交失败:', error)
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
+    if (!draft.title.trim()) {
+      setFormError('请输入事件标题')
+      return
     }
+    if (!draft.eventDate) {
+      setFormError('请选择日期')
+      return
+    }
+
+    const eventData = {
+      title: draft.title.trim(),
+      description: draft.description.trim() || undefined,
+      eventDate: draft.eventDate,
+      eventType: draft.eventType,
+      isCompleted: selectedEvent?.isCompleted || false,
+      reminderEnabled: draft.reminderEnabled,
+    }
+
+    if (selectedEvent) {
+      await updateEvent(selectedEvent.id, eventData)
+    } else {
+      await createEvent(eventData)
+    }
+
+    handleCloseModal()
+    refreshUpcoming()
   }
 
-  // 删除事件
   const handleDelete = async (id: number) => {
-    Modal.confirm({
-      title: '确认删除',
-      content: '确定要删除这个事件吗？',
-      onOk: () => deleteEvent(id),
-    })
+    if (!window.confirm('确定要删除这个事件吗？')) return
+    await deleteEvent(id)
+    refreshUpcoming()
   }
 
-  // 标记完成
   const handleComplete = async (id: number) => {
     await completeEvent(id)
+    refreshUpcoming()
   }
 
-  // 渲染日期单元格
-  const dateCellRender = (date: Dayjs) => {
-    const dateStr = date.format('YYYY-MM-DD')
-    const dayEvents = getEventsByDate(dateStr)
-    
-    if (dayEvents.length === 0) return null
-    
-    return (
-      <ul style={{ padding: 0, margin: 0, listStyle: 'none' }}>
-        {dayEvents.slice(0, 2).map(event => (
-          <li key={event.id}>
-            <Tag 
-              color={eventTypeColors[event.eventType]}
-              style={{ fontSize: 10, padding: '0 4px', marginBottom: 2 }}
-            >
-              {event.title.length > 6 ? event.title.slice(0, 6) + '...' : event.title}
-            </Tag>
-          </li>
-        ))}
-        {dayEvents.length > 2 && (
-          <li>
-            <Text type="secondary" style={{ fontSize: 10 }}>
-              +{dayEvents.length - 2} 更多
-            </Text>
-          </li>
-        )}
-      </ul>
-    )
-  }
+  const renderEventPills = (events: CalendarEvent[]) => (
+    <div className={styles.dayEvents}>
+      {events.slice(0, 2).map((event) => (
+        <span key={event.id} className={`${styles.eventPill} ${styles[`eventType_${event.eventType}`] || ''}`}>
+          {event.title.length > 7 ? `${event.title.slice(0, 7)}...` : event.title}
+        </span>
+      ))}
+      {events.length > 2 ? <span className={styles.morePill}>+{events.length - 2}</span> : null}
+    </div>
+  )
 
-  // 渲染事件列表项
   const renderEventItem = (event: CalendarEvent) => (
-    <List.Item
-      actions={[
-        <Button 
-          key="complete" 
-          type="text" 
-          icon={<CheckCircleOutlined />}
-          onClick={() => handleComplete(event.id)}
+    <article key={event.id} className={styles.eventItem}>
+      <div>
+        <div className={styles.eventTitleRow}>
+          <strong className={event.isCompleted ? styles.completedTitle : ''}>{event.title}</strong>
+          <span className={`${styles.typeBadge} ${styles[`eventType_${event.eventType}`] || ''}`}>
+            {eventTypeLabels[event.eventType] || event.eventType}
+          </span>
+        </div>
+        <p>{event.eventDate}</p>
+        {event.description ? <p>{event.description}</p> : null}
+      </div>
+      <div className={styles.eventActions}>
+        <button
+          type="button"
+          className={styles.textButton}
           disabled={event.isCompleted}
+          onClick={() => handleComplete(event.id)}
         >
           {event.isCompleted ? '已完成' : '完成'}
-        </Button>,
-        <Button 
-          key="edit" 
-          type="text" 
-          icon={<EditOutlined />}
-          onClick={() => openEditModal(event)}
-        />,
-        <Button 
-          key="delete" 
-          type="text" 
-          danger 
-          icon={<DeleteOutlined />}
-          onClick={() => handleDelete(event.id)}
-        />,
-      ]}
-    >
-      <List.Item.Meta
-        title={
-          <Space>
-            <Text delete={event.isCompleted}>{event.title}</Text>
-            <Tag color={eventTypeColors[event.eventType]}>
-              {eventTypeLabels[event.eventType]}
-            </Tag>
-          </Space>
-        }
-        description={
-          <Space direction="vertical" size={0}>
-            <Text type="secondary">{event.eventDate}</Text>
-            {event.description && (
-              <Text type="secondary" style={{ fontSize: 12 }}>
-                {event.description}
-              </Text>
-            )}
-          </Space>
-        }
-      />
-    </List.Item>
+        </button>
+        <button type="button" className={styles.textButton} onClick={() => openEditModal(event)}>
+          编辑
+        </button>
+        <button type="button" className={styles.textButtonDanger} onClick={() => handleDelete(event.id)}>
+          删除
+        </button>
+      </div>
+    </article>
   )
 
   return (
-    <div>
-      {/* 头部 */}
-      <Card style={{ marginBottom: 24 }}>
-        <Space style={{ width: '100%', justifyContent: 'space-between' }}>
-          <div>
-            <Title level={3} style={{ margin: 0 }}>
-              <CalendarOutlined /> 孕育日历
-            </Title>
-            <Text type="secondary">记录重要的孕育里程碑</Text>
+    <div className={styles.page}>
+      <section className={styles.hero}>
+        <div>
+          <span className={styles.eyebrow}>Care Calendar</span>
+          <h1>孕育日历</h1>
+          <p>记录产检、疫苗、提醒和日常安排，把关键节点放到同一个月视图里。</p>
+        </div>
+        <button type="button" className={styles.primaryButton} onClick={() => openCreateModal()}>
+          添加事件
+        </button>
+      </section>
+
+      <div className={styles.contentGrid}>
+        <section className={styles.calendarCard}>
+          <div className={styles.monthHeader}>
+            <button type="button" className={styles.secondaryButton} onClick={() => changeMonth(-1)}>
+              上个月
+            </button>
+            <h2>{monthLabel}</h2>
+            <button type="button" className={styles.secondaryButton} onClick={() => changeMonth(1)}>
+              下个月
+            </button>
           </div>
-          <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal}>
-            添加事件
-          </Button>
-        </Space>
-      </Card>
 
-      <Row gutter={[16, 16]}>
-        {/* 日历 */}
-        <Col xs={24} lg={16}>
-          <Card>
-            <Spin spinning={loading}>
-              <AntCalendar
-                mode="month"
-                onPanelChange={handlePanelChange}
-                onSelect={handleDateSelect}
-                cellRender={(current, info) => {
-                  if (info.type === 'date') {
-                    return (
-                      <div>
-                        <div>{current.date()}</div>
-                        {dateCellRender(current)}
-                      </div>
-                    )
-                  }
-                  return info.originNode
-                }}
-              />
-            </Spin>
-          </Card>
-        </Col>
+          {loading ? <div className={styles.loadingBar}>正在同步事件...</div> : null}
 
-        {/* 近期事项 */}
-        <Col xs={24} lg={8}>
-          <Card title="近期事项 (7天内)">
-            <Spin spinning={loading}>
-              {upcomingEvents.length > 0 ? (
-                <List
-                  dataSource={upcomingEvents}
-                  renderItem={renderEventItem}
-                  style={{ maxHeight: 400, overflow: 'auto' }}
+          <div className={styles.weekHeader}>
+            {['日', '一', '二', '三', '四', '五', '六'].map((day) => (
+              <span key={day}>{day}</span>
+            ))}
+          </div>
+
+          <div className={styles.monthGrid}>
+            {monthDays.map((date) => {
+              const dateStr = date.format('YYYY-MM-DD')
+              const dayEvents = getEventsByDate(dateStr)
+              const inMonth = date.format('YYYY-MM') === currentMonth
+              const isToday = date.isSame(dayjs(), 'day')
+
+              return (
+                <button
+                  key={dateStr}
+                  type="button"
+                  className={[
+                    styles.dayCell,
+                    inMonth ? '' : styles.dayCellMuted,
+                    isToday ? styles.dayCellToday : '',
+                  ].filter(Boolean).join(' ')}
+                  onClick={() => {
+                    if (dayEvents[0]) {
+                      selectEvent(dayEvents[0])
+                    } else {
+                      openCreateModal(date)
+                    }
+                  }}
+                >
+                  <span className={styles.dayNumber}>{date.date()}</span>
+                  {renderEventPills(dayEvents)}
+                </button>
+              )
+            })}
+          </div>
+        </section>
+
+        <aside className={styles.sidePanel}>
+          <section className={styles.panelCard}>
+            <div className={styles.sectionHeader}>
+              <div>
+                <span className={styles.eyebrow}>Upcoming</span>
+                <h2>近期事项</h2>
+              </div>
+            </div>
+            {upcomingEvents.length > 0 ? (
+              <div className={styles.eventList}>
+                {upcomingEvents.map(renderEventItem)}
+              </div>
+            ) : (
+              <div className={styles.emptyState}>暂无近期事项</div>
+            )}
+          </section>
+
+          <section className={styles.panelCard}>
+            <div className={styles.sectionHeader}>
+              <div>
+                <span className={styles.eyebrow}>Selected</span>
+                <h2>选中事件</h2>
+              </div>
+            </div>
+            {selectedEvent ? (
+              renderEventItem(selectedEvent)
+            ) : (
+              <div className={styles.emptyState}>点击日期或事件查看详情</div>
+            )}
+          </section>
+        </aside>
+      </div>
+
+      {modalVisible ? (
+        <div className={styles.modalOverlay} onClick={handleCloseModal}>
+          <div className={styles.modalCard} onClick={(event) => event.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <div>
+                <span className={styles.eyebrow}>Event</span>
+                <h2>{selectedEvent ? '编辑事件' : '新建事件'}</h2>
+              </div>
+              <button type="button" className={styles.textButton} onClick={handleCloseModal}>
+                关闭
+              </button>
+            </div>
+
+            <form className={styles.form} onSubmit={handleSubmit}>
+              <label className={styles.formField}>
+                <span>事件标题</span>
+                <input
+                  value={draft.title}
+                  onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))}
+                  placeholder="例如：产检 - 唐筛"
                 />
-              ) : (
-                <Empty description="暂无近期事项" />
-              )}
-            </Spin>
-          </Card>
-        </Col>
-      </Row>
+              </label>
 
-      {/* 新建/编辑事件弹窗 */}
-      <Modal
-        title={selectedEvent ? '编辑事件' : '新建事件'}
-        open={modalVisible}
-        onOk={handleSubmit}
-        onCancel={() => setModalVisible(false)}
-        confirmLoading={loading}
-      >
-        <Form form={form} layout="vertical">
-          <Form.Item
-            name="title"
-            label="事件标题"
-            rules={[{ required: true, message: '请输入事件标题' }]}
-          >
-            <Input placeholder="例如：产检 - 唐筛" />
-          </Form.Item>
-          
-          <Form.Item name="description" label="描述">
-            <Input.TextArea rows={3} placeholder="事件详细描述（可选）" />
-          </Form.Item>
-          
-          <Form.Item
-            name="eventDate"
-            label="日期"
-            rules={[{ required: true, message: '请选择日期' }]}
-          >
-            <DatePicker style={{ width: '100%' }} />
-          </Form.Item>
-          
-          <Form.Item
-            name="eventType"
-            label="事件类型"
-            rules={[{ required: true, message: '请选择事件类型' }]}
-          >
-            <Select placeholder="选择事件类型">
-              <Select.Option value="checkup">产检</Select.Option>
-              <Select.Option value="vaccine">疫苗</Select.Option>
-              <Select.Option value="reminder">提醒</Select.Option>
-              <Select.Option value="other">其他</Select.Option>
-            </Select>
-          </Form.Item>
-          
-          <Form.Item name="reminderEnabled" label="开启提醒" valuePropName="checked">
-            <Switch />
-          </Form.Item>
-        </Form>
-      </Modal>
+              <label className={styles.formField}>
+                <span>描述</span>
+                <textarea
+                  rows={3}
+                  value={draft.description}
+                  onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))}
+                  placeholder="事件详细描述（可选）"
+                />
+              </label>
+
+              <label className={styles.formField}>
+                <span>日期</span>
+                <input
+                  type="date"
+                  value={draft.eventDate}
+                  onChange={(event) => setDraft((current) => ({ ...current, eventDate: event.target.value }))}
+                />
+              </label>
+
+              <label className={styles.formField}>
+                <span>事件类型</span>
+                <select
+                  value={draft.eventType}
+                  onChange={(event) => setDraft((current) => ({
+                    ...current,
+                    eventType: event.target.value as CalendarEvent['eventType'],
+                  }))}
+                >
+                  {Object.entries(eventTypeLabels).map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label className={styles.switchRow}>
+                <input
+                  type="checkbox"
+                  checked={draft.reminderEnabled}
+                  onChange={(event) => setDraft((current) => ({ ...current, reminderEnabled: event.target.checked }))}
+                />
+                <span>开启提醒</span>
+              </label>
+
+              {formError ? <div className={styles.formError}>{formError}</div> : null}
+
+              <button type="submit" className={styles.primaryButton} disabled={loading}>
+                {loading ? '保存中...' : '保存'}
+              </button>
+            </form>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

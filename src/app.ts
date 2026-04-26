@@ -1,5 +1,6 @@
-import express, { Express, Request, Response, NextFunction } from 'express';
+import express, { Express, Request, Response } from 'express';
 import { createServer } from 'http';
+import path from 'path';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
@@ -30,17 +31,28 @@ import quotaRoutes from './routes/quota.routes';
 import reportRoutes from './routes/report.routes';
 import analyticsRoutes from './routes/analytics.routes';
 import checkinRoutes from './routes/checkin.routes';
+import growthRoutes from './routes/growth.routes';
 
 // 中间件导入
 import { errorHandler, notFoundHandler } from './middlewares/error.middleware';
 import { cache } from './services/cache.service';
 import { setupWebSocket } from './services/websocket.service';
 import prisma from './config/database';
+import { maskSensitiveUrl } from './utils/logging';
 
 const app: Express = express();
 const PORT = env.PORT;
 const HOST = env.HOST;
 const isTestEnv = env.NODE_ENV === 'test' || typeof process.env.JEST_WORKER_ID !== 'undefined';
+
+function buildCorsOrigin(origin: string): string | string[] {
+  const origins = origin
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  return origins.length > 1 ? origins : (origins[0] || origin);
+}
 
 // ============================================
 // 基础中间件
@@ -48,7 +60,7 @@ const isTestEnv = env.NODE_ENV === 'test' || typeof process.env.JEST_WORKER_ID !
 app.set('trust proxy', 1);
 app.use(helmet()); // 安全头部
 app.use(cors({
-  origin: env.CORS_ORIGIN,
+  origin: buildCorsOrigin(env.CORS_ORIGIN),
   credentials: true
 }));
 app.use(compression({
@@ -56,14 +68,27 @@ app.use(compression({
   threshold: 1024 // 大于1KB才压缩
 })); 
 app.use(express.json({ limit: '1mb' })); // JSON 解析（收紧默认限制）
-app.use(express.urlencoded({ extended: true })); // URL 编码解析
+app.use(express.urlencoded({ extended: true, limit: '100kb', parameterLimit: 100 })); // URL 编码解析
 
 // 日志中间件
+morgan.token('safe-url', (req) => {
+  const expressReq = req as Request;
+  return maskSensitiveUrl(expressReq.originalUrl || req.url);
+});
 if (env.isDev) {
-  app.use(morgan('dev'));
+  app.use(morgan(':method :safe-url :status :response-time ms - :res[content-length]'));
 } else {
-  app.use(morgan('combined'));
+  app.use(morgan(':remote-addr - :remote-user [:date[clf]] ":method :safe-url HTTP/:http-version" :status :res[content-length] ":referrer" ":user-agent"'));
 }
+
+// 静态文件 - 头像上传目录
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads'), {
+  dotfiles: 'deny',
+  fallthrough: false,
+  index: false,
+  immutable: true,
+  maxAge: '7d',
+}));
 
 // ============================================
 // API 路由
@@ -83,17 +108,21 @@ app.get('/health', async (req: Request, res: Response) => {
   }
 
   const healthy = dbStatus === 'ok';
+  const cachePayload: { keys: number; hitRate: string; memory?: string } = {
+    keys: cacheStats.keys,
+    hitRate: `${cache.getHitRate().toFixed(2)}%`,
+  };
+
+  if (!env.isProd) {
+    cachePayload.memory = cacheStats.memoryUsage;
+  }
 
   res.status(healthy ? 200 : 503).json({
     status: healthy ? 'ok' : 'degraded',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     database: dbStatus,
-    cache: {
-      keys: cacheStats.keys,
-      hitRate: `${cache.getHitRate().toFixed(2)}%`,
-      memory: cacheStats.memoryUsage
-    }
+    cache: cachePayload
   });
 });
 
@@ -113,6 +142,7 @@ app.use(`${API_PREFIX}/quota`, quotaRoutes);
 app.use(`${API_PREFIX}/report`, reportRoutes);
 app.use(`${API_PREFIX}/analytics`, analyticsRoutes);
 app.use(`${API_PREFIX}/checkin`, checkinRoutes);
+app.use(`${API_PREFIX}/growth`, growthRoutes);
 
 // ============================================
 // 错误处理
@@ -161,6 +191,18 @@ async function gracefulShutdown(signal: string) {
 if (!isTestEnv) {
   process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
   process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+  // 全局未捕获异常处理 — 防止进程静默崩溃
+  process.on('unhandledRejection', (reason, promise) => {
+    console.error('未处理的 Promise rejection:', reason);
+    console.error('Promise:', promise);
+  });
+
+  process.on('uncaughtException', (error) => {
+    console.error('未捕获的异常:', error);
+    // 给日志写入的时间，然后优雅退出
+    gracefulShutdown('uncaughtException');
+  });
 }
 
 export default app;

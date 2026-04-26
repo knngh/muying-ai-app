@@ -38,17 +38,21 @@ export default function StatsRow({ usageLabel, checkInStreak, weeklyCompletionRa
 
   return (
     <View style={styles.statRow}>
-      {metrics.map((metric) => (
-        <StandardCard key={metric.label} style={styles.statCard}>
-          <View style={styles.statContent}>
-            <View style={[styles.iconShell, { backgroundColor: metric.shell }]}>
-              <MaterialCommunityIcons name={metric.icon} size={18} color={metric.accent} />
+      {metrics.map((metric) => {
+        const iconShellStyle = [styles.iconShell, { backgroundColor: metric.shell }]
+
+        return (
+          <StandardCard key={metric.label} style={styles.statCard}>
+            <View style={styles.statContent}>
+              <View style={iconShellStyle}>
+                <MaterialCommunityIcons name={metric.icon} size={18} color={metric.accent} />
+              </View>
+              <Text style={styles.statLabel}>{metric.label}</Text>
+              <Text style={styles.statValue}>{metric.value}</Text>
             </View>
-            <Text style={styles.statLabel}>{metric.label}</Text>
-            <Text style={styles.statValue}>{metric.value}</Text>
-          </View>
-        </StandardCard>
-      ))}
+          </StandardCard>
+        )
+      })}
     </View>
   )
 }

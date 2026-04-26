@@ -37,6 +37,11 @@ export interface CalendarSuggestion {
   minOffsetDays: number
   maxOffsetDays: number
   reminderLabel: string
+  preferredOffsetDays?: number
+  windowStartDate?: string
+  windowEndDate?: string
+  focusDate?: string
+  sourceLabel?: string
 }
 
 export interface StageSummary {
@@ -197,6 +202,7 @@ function createCalendarSuggestion(
     minOffsetDays,
     maxOffsetDays,
     reminderLabel: '默认前一晚 20:00 提醒',
+    preferredOffsetDays: Math.round((minOffsetDays + maxOffsetDays) / 2),
   }
 }
 

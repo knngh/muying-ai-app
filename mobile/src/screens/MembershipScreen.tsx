@@ -4,6 +4,7 @@ import { Button, Card, Chip, Divider, Text } from 'react-native-paper'
 import LinearGradient from 'react-native-linear-gradient'
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native'
 import type { RouteProp } from '@react-navigation/native'
+import type { StackNavigationProp } from '@react-navigation/stack'
 import dayjs from 'dayjs'
 import { useMembershipStore } from '../stores/membershipStore'
 import { useAppStore } from '../stores/appStore'
@@ -42,7 +43,7 @@ type MembershipContextCard = {
 }
 
 export default function MembershipScreen() {
-  const navigation = useNavigation<any>()
+  const navigation = useNavigation<StackNavigationProp<RootStackParamList, 'Membership'>>()
   const route = useRoute<RouteProp<RootStackParamList, 'Membership'>>()
   const user = useAppStore((state) => state.user)
   const { status, currentPlanCode, expireAt, aiUsedToday, plans, purchasePlan, ensureFreshQuota, loading } =
@@ -118,7 +119,7 @@ export default function MembershipScreen() {
           },
         })
       }
-    }, [aiUsedToday, currentPlanCode, ensureFreshQuota, plans.length, status]),
+    }, [aiUsedToday, contextCard, currentPlanCode, ensureFreshQuota, entryAction, plans.length, source, status]),
   )
 
   const handlePurchase = async (code: 'monthly' | 'quarterly' | 'yearly') => {

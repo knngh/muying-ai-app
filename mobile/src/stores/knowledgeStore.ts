@@ -2,6 +2,16 @@ import { create } from 'zustand'
 import type { ApiError } from '../api'
 import { articleApi, categoryApi, tagApi } from '../api/modules'
 import type { Article, Category, Tag, PaginatedResponse } from '../api/modules'
+import type { RecentAIHitArticle } from '../../../shared/types'
+import {
+  buildRecentAIHitArticle,
+  mergeRecentAIHitArticles,
+  sanitizeRecentAIHitArticles,
+} from '../../../shared/utils/recent-ai-hit'
+import {
+  dedupeKnowledgeArticles,
+  getKnowledgeArticleTimestamp,
+} from '../../../shared/utils/knowledge-dedupe'
 import { storage } from '../utils/storage'
 import {
   getKnowledgeFallbackKeyword,
@@ -22,36 +32,13 @@ const CHINESE_AUTHORITY_PATTERNS = [
 ]
 const MOBILE_KNOWLEDGE_PAGE_SIZE = 6
 const RECENT_AI_HIT_ARTICLES_KEY = 'knowledge_recent_ai_hit_articles'
-const RECENT_AI_HIT_ARTICLE_LIMIT = 6
-const RECENT_AI_HIT_RETENTION_DAYS = 14
-const RECENT_AI_HIT_MAX_FUTURE_SKEW_MS = 6 * 60 * 60 * 1000
+let knowledgeListRequestId = 0
+const articleDetailInFlight = new Map<string, Promise<Article>>()
 
-export type RecentAIHitArticle = {
-  slug: string
-  articleId: number
-  title: string
-  summary: string
-  source?: string
-  sourceOrg?: string
-  sourceLanguage?: 'zh' | 'en'
-  sourceLocale?: string
-  topic?: string
-  stage?: string
-  publishedAt?: string
-  sourceUpdatedAt?: string
-  createdAt: string
-  lastHitAt: string
-  qaId?: string
-  trigger?: 'hit_card' | 'knowledge_action'
-  matchReason?: 'entry_meta' | 'source_url' | 'source_title' | 'source_keyword'
-  originEntrySource?: string
-  originReportId?: string
-}
+export type { RecentAIHitArticle } from '../../../shared/types'
 
 function getArticleTimestamp(article: Article): number {
-  const value = article.publishedAt || article.createdAt
-  const timestamp = value ? new Date(value).getTime() : 0
-  return Number.isNaN(timestamp) ? 0 : timestamp
+  return getKnowledgeArticleTimestamp(article)
 }
 
 function getArticleDateBucket(article: Article): string {
@@ -90,7 +77,7 @@ function getSourcePriority(article: Article): number {
 function sortKnowledgeArticles(list: Article[], selectedStage: string | null = null): Article[] {
   const stagePriority = getKnowledgeStagePriorityMap(selectedStage)
 
-  return [...list].sort((left, right) => {
+  return [...dedupeKnowledgeArticles(list, getSourcePriority)].sort((left, right) => {
     const leftPriority = stagePriority.get(left.stage || '') ?? Number.MAX_SAFE_INTEGER
     const rightPriority = stagePriority.get(right.stage || '') ?? Number.MAX_SAFE_INTEGER
     if (leftPriority !== rightPriority) {
@@ -194,106 +181,6 @@ async function getKnowledgeArticlesWithFallback(params: {
   }
 }
 
-function toRecentAIHitArticle(
-  article: Article,
-  input?: {
-    qaId?: string
-    trigger?: 'hit_card' | 'knowledge_action'
-    matchReason?: 'entry_meta' | 'source_url' | 'source_title' | 'source_keyword'
-    originEntrySource?: string
-    originReportId?: string
-  },
-): RecentAIHitArticle {
-  return {
-    slug: article.slug,
-    articleId: article.id,
-    title: article.title,
-    summary: article.summary,
-    source: article.source,
-    sourceOrg: article.sourceOrg,
-    sourceLanguage: article.sourceLanguage,
-    sourceLocale: article.sourceLocale,
-    topic: article.topic,
-    stage: article.stage,
-    publishedAt: article.publishedAt,
-    sourceUpdatedAt: article.sourceUpdatedAt,
-    createdAt: article.createdAt,
-    lastHitAt: new Date().toISOString(),
-    qaId: input?.qaId,
-    trigger: input?.trigger,
-    matchReason: input?.matchReason,
-    originEntrySource: input?.originEntrySource,
-    originReportId: input?.originReportId,
-  }
-}
-
-function mergeRecentAIHitArticles(
-  existing: RecentAIHitArticle[],
-  next: RecentAIHitArticle,
-): RecentAIHitArticle[] {
-  return sanitizeRecentAIHitArticles([next, ...existing.filter((item) => item.slug !== next.slug)])
-}
-
-function isValidRecentAIHitTimestamp(value?: string, now = Date.now()) {
-  if (!value) {
-    return false
-  }
-
-  const timestamp = new Date(value).getTime()
-  if (Number.isNaN(timestamp)) {
-    return false
-  }
-
-  const maxAgeMs = RECENT_AI_HIT_RETENTION_DAYS * 24 * 60 * 60 * 1000
-  if (timestamp < now - maxAgeMs) {
-    return false
-  }
-
-  if (timestamp > now + RECENT_AI_HIT_MAX_FUTURE_SKEW_MS) {
-    return false
-  }
-
-  return true
-}
-
-function sanitizeRecentAIHitArticles(
-  items: RecentAIHitArticle[],
-  now = Date.now(),
-) {
-  const deduped = new Map<string, RecentAIHitArticle>()
-
-  for (const item of items) {
-    const slug = item.slug?.trim()
-    const title = item.title?.replace(/\s+/g, ' ').trim()
-    if (!slug || !title || title.length < 4 || !Number.isFinite(item.articleId) || item.articleId <= 0) {
-      continue
-    }
-
-    if (!isValidRecentAIHitTimestamp(item.lastHitAt, now)) {
-      continue
-    }
-
-    const nextItem: RecentAIHitArticle = {
-      ...item,
-      slug,
-      title,
-      summary: item.summary?.replace(/\s+/g, ' ').trim() || '',
-      source: item.source?.replace(/\s+/g, ' ').trim() || undefined,
-      sourceOrg: item.sourceOrg?.replace(/\s+/g, ' ').trim() || undefined,
-      topic: item.topic?.replace(/\s+/g, ' ').trim() || undefined,
-    }
-
-    const existing = deduped.get(slug)
-    if (!existing || nextItem.lastHitAt > existing.lastHitAt) {
-      deduped.set(slug, nextItem)
-    }
-  }
-
-  return Array.from(deduped.values())
-    .sort((left, right) => right.lastHitAt.localeCompare(left.lastHitAt))
-    .slice(0, RECENT_AI_HIT_ARTICLE_LIMIT)
-}
-
 interface KnowledgeState {
   articles: Article[]
   categories: Category[]
@@ -355,6 +242,7 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
   fetchArticles: async (params) => {
     const state = get()
     const page = params?.page || state.page
+    const requestId = ++knowledgeListRequestId
     set({ loading: true, error: null, errorDetail: null })
     try {
       const response = await getKnowledgeArticlesWithFallback({
@@ -365,6 +253,10 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
         selectedStage: state.selectedStage,
         keyword: state.keyword,
       })
+      if (requestId !== knowledgeListRequestId) {
+        return
+      }
+
       const nextArticles = params?.reset
         ? sortKnowledgeArticles(response.list, state.selectedStage)
         : mergeKnowledgeArticles(state.articles, response.list, state.selectedStage)
@@ -377,6 +269,10 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
         errorDetail: null,
       })
     } catch (error: unknown) {
+      if (requestId !== knowledgeListRequestId) {
+        return
+      }
+
       const err = error as ApiError
       if (__DEV__) {
         console.warn('[KnowledgeStore] fetchArticles failed', err.message || error)
@@ -404,10 +300,21 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
   },
 
   fetchArticleDetail: async (slug) => {
+    const currentArticle = get().currentArticle
+    if (currentArticle?.slug === slug) {
+      return
+    }
+
     set({ loading: true, error: null, errorDetail: null })
     try {
+      const inFlight = articleDetailInFlight.get(slug)
+      const request = inFlight || articleApi.getBySlug(slug) as Promise<Article>
+      if (!inFlight) {
+        articleDetailInFlight.set(slug, request)
+      }
+
       set({
-        currentArticle: await articleApi.getBySlug(slug) as Article,
+        currentArticle: await request,
         loading: false,
         error: null,
         errorDetail: null,
@@ -415,6 +322,8 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
     } catch (error: unknown) {
       const err = error as ApiError
       set({ error: err.message || '获取文章详情失败', errorDetail: err, loading: false })
+    } finally {
+      articleDetailInFlight.delete(slug)
     }
   },
 
@@ -437,7 +346,21 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
   },
 
   recordAiHitArticle: async (article, input) => {
-    const nextHit = toRecentAIHitArticle(article, input)
+    const nextHit = buildRecentAIHitArticle({
+      slug: article.slug,
+      articleId: article.id,
+      title: article.title,
+      summary: article.summary,
+      source: article.source,
+      sourceOrg: article.sourceOrg,
+      sourceLanguage: article.sourceLanguage,
+      sourceLocale: article.sourceLocale,
+      topic: article.topic,
+      stage: article.stage,
+      publishedAt: article.publishedAt,
+      sourceUpdatedAt: article.sourceUpdatedAt,
+      createdAt: article.createdAt,
+    }, input)
     const nextList = mergeRecentAIHitArticles(get().recentAiHitArticles, nextHit)
     set({
       recentAiHitArticles: nextList,
@@ -467,6 +390,7 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
   }),
 
   search: async (keyword) => {
+    const requestId = ++knowledgeListRequestId
     set({ keyword, page: 1, loading: true, error: null, errorDetail: null })
     try {
       const state = get()
@@ -478,6 +402,10 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
         selectedStage: state.selectedStage,
         keyword,
       })
+      if (requestId !== knowledgeListRequestId) {
+        return
+      }
+
       set({
         articles: sortKnowledgeArticles(response.list, state.selectedStage),
         total: response.pagination.total,
@@ -486,6 +414,10 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
         errorDetail: null,
       })
     } catch (error: unknown) {
+      if (requestId !== knowledgeListRequestId) {
+        return
+      }
+
       const err = error as ApiError
       if (__DEV__) {
         console.warn('[KnowledgeStore] search failed', err.message || error)

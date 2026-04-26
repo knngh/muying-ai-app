@@ -102,6 +102,12 @@ function normalizeDetectionInput(input: string | DetectionInput): { primary: str
 
 export function detectTopic(input: string | DetectionInput, source: AuthoritySourceConfig): string {
   const { primary, extended, sourceUrl } = normalizeDetectionInput(input);
+  const headline = typeof input === 'string'
+    ? input.toLowerCase()
+    : `${input.sourceUrl || ''} ${input.title || ''}`.toLowerCase();
+  const hasExplicitBabySignal = /\/(newborn|baby|infant|neonat)\//.test(sourceUrl)
+    || /\/ages-stages\/baby\//.test(sourceUrl)
+    || /newborn|neonat|infant|baby|新生儿|婴儿|宝宝/u.test(headline);
 
   if (/政策|指南|规范|通知|解读|意见|方案|决定|纲要|条例|制度|办法/u.test(primary)) {
     return 'policy';
@@ -111,21 +117,25 @@ export function detectTopic(input: string | DetectionInput, source: AuthoritySou
     return 'vaccination';
   }
 
-  if (/\/(parents?|parenting|toddler|preschool|school|development|developmental-disability|milestone|child-development|ages-stages)\//.test(sourceUrl)
-    || /parenting|toddler|preschool|school-age|developmental disabilit|developmental delay|milestone|discipline|behavior|development|child development|learn the signs|act early|autism|adhd|语言发育|里程碑|如厕|学步|学龄前|成长发育|发展迟缓|发育障碍|育儿|自闭/u.test(primary)) {
-    return 'development';
-  }
-
-  if (/\/(newborn|baby|infant|neonat|ages-stages\/baby)\//.test(sourceUrl) || /newborn|neonat|infant|新生儿|婴儿|宝宝/u.test(primary)) {
-    return 'newborn';
-  }
-
   if (/\/(breastfeed|feeding|formula|nutrition|lactation)\//.test(sourceUrl) || /breastfeed|feeding|喂养|母乳/u.test(primary)) {
     return 'feeding';
   }
 
   if (/\/(pregnancy|prenatal|postpartum|womens-health|fertility|contraception)\//.test(sourceUrl) || /pregnan|prenatal|postpartum|孕|产后/u.test(primary)) {
     return 'pregnancy';
+  }
+
+  if (/fontanelle|head shape|flat head|skull|囟门|头型|头围|发育里程碑|growth chart/u.test(extended)) {
+    return 'development';
+  }
+
+  if (hasExplicitBabySignal) {
+    return 'newborn';
+  }
+
+  if (/\/(parents?|parenting|toddler|preschool|school|development|developmental-disability|milestone|child-development|ages-stages)\//.test(sourceUrl)
+    || /parenting|toddler|preschool|school-age|developmental disabilit|developmental delay|milestone|discipline|behavior|development|child development|learn the signs|act early|autism|adhd|语言发育|里程碑|如厕|学步|学龄前|成长发育|发展迟缓|发育障碍|育儿|自闭/u.test(primary)) {
+    return 'development';
   }
 
   if (/policy|guidance/u.test(primary)) {

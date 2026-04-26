@@ -7,8 +7,90 @@ import { applyCommunityReportAction, CommunityReportAction, reviewCommunityRepor
 import { getCurrentStageCircle } from '../services/stage-circle.service';
 import { awardBehaviorPoints } from '../services/checkin.service';
 
+type CommunityAuthorLike = {
+  id: bigint;
+  username: string;
+  nickname: string | null;
+  [key: string]: unknown;
+};
+
+type CommunityTagLike = {
+  id: bigint;
+  name: string;
+  slug: string;
+};
+
+type CommunityPostTagLike = {
+  tag: CommunityTagLike;
+};
+
+type CommunityPostFormatterInput = {
+  id: bigint;
+  authorId: bigint;
+  categoryId: bigint | null;
+  isAnonymous: number;
+  isPinned: number;
+  isFeatured: number;
+  commentCount?: number;
+  likeCount?: number;
+  tags?: CommunityPostTagLike[];
+  author?: CommunityAuthorLike | null;
+  isLiked?: boolean;
+  [key: string]: unknown;
+};
+
+type CommunityCommentFormatterInput = {
+  id: bigint;
+  postId: bigint;
+  authorId: bigint;
+  parentId: bigint | null;
+  replyToId: bigint | null;
+  author?: CommunityAuthorLike | null;
+  replies?: CommunityCommentFormatterInput[];
+  [key: string]: unknown;
+};
+
+type FormattedCommunityComment = Omit<CommunityCommentFormatterInput, 'id' | 'postId' | 'authorId' | 'parentId' | 'replyToId' | 'author' | 'replies'> & {
+  id: string;
+  postId: string;
+  authorId: string;
+  parentId: string | null;
+  replyToId: string | null;
+  author: ReturnType<typeof formatCommunityAuthor>;
+  replies?: FormattedCommunityComment[];
+};
+
+type CommunityReportFormatterInput = {
+  id: bigint;
+  targetType: string;
+  reason: string;
+  description: string | null;
+  status: string;
+  actionTaken: string | null;
+  decisionReason: string | null;
+  handledByAI: number;
+  createdAt: Date;
+  updatedAt: Date;
+  handledAt: Date | null;
+  reporter?: CommunityAuthorLike | null;
+  post?: {
+    id: bigint;
+    title: string;
+    content: string;
+    status: string;
+    deletedAt: Date | null;
+    author?: CommunityAuthorLike | null;
+  } | null;
+  comment?: {
+    id: bigint;
+    content: string;
+    deletedAt: Date | null;
+    author?: CommunityAuthorLike | null;
+  } | null;
+};
+
 const formatCommunityPost = (
-  post: any,
+  post: CommunityPostFormatterInput,
   options: {
     categoryName?: string;
     isLiked?: boolean;
@@ -23,14 +105,14 @@ const formatCommunityPost = (
   isAnonymous: Boolean(post.isAnonymous),
   isPinned: Boolean(post.isPinned),
   isFeatured: Boolean(post.isFeatured),
-  tags: Array.isArray(post.tags) ? post.tags.map((item: any) => item.tag ?? item) : [],
+  tags: Array.isArray(post.tags) ? post.tags.map((item) => item.tag) : [],
   commentCount: options.commentCount ?? post.commentCount ?? 0,
   likeCount: options.likeCount ?? post.likeCount ?? 0,
   isLiked: options.isLiked ?? post.isLiked ?? false,
   author: post.isAnonymous ? null : formatCommunityAuthor(post.author, options.isVerifiedMember ?? false),
 });
 
-const formatCommunityAuthor = (author: any, isVerifiedMember = false) => (
+const formatCommunityAuthor = (author: CommunityAuthorLike | null | undefined, isVerifiedMember = false) => (
   author
     ? {
       ...author,
@@ -40,7 +122,7 @@ const formatCommunityAuthor = (author: any, isVerifiedMember = false) => (
     : null
 );
 
-const formatCommunityComment = (comment: any, verifiedMemberIds: Set<string>) => ({
+const formatCommunityComment = (comment: CommunityCommentFormatterInput, verifiedMemberIds: Set<string>): FormattedCommunityComment => ({
   ...comment,
   id: comment.id.toString(),
   postId: comment.postId.toString(),
@@ -49,7 +131,7 @@ const formatCommunityComment = (comment: any, verifiedMemberIds: Set<string>) =>
   replyToId: comment.replyToId?.toString() ?? null,
   author: formatCommunityAuthor(comment.author, verifiedMemberIds.has(comment.authorId.toString())),
   replies: Array.isArray(comment.replies)
-    ? comment.replies.map((reply: any) => formatCommunityComment(reply, verifiedMemberIds))
+    ? comment.replies.map((reply) => formatCommunityComment(reply, verifiedMemberIds))
     : comment.replies,
 });
 
@@ -131,7 +213,7 @@ const softDeleteCommentThread = async (commentId: bigint) => {
   return { deletedCount, postId: comment.postId };
 };
 
-const formatCommunityReport = (report: any) => ({
+const formatCommunityReport = (report: CommunityReportFormatterInput) => ({
   id: report.id.toString(),
   targetType: report.targetType,
   reason: report.reason,
@@ -204,7 +286,7 @@ export const getPosts = async (req: Request, res: Response, next: NextFunction) 
     const skip = (Number(page) - 1) * Number(pageSize);
 
     // 构建查询条件
-    const where: any = {
+    const where: Prisma.CommunityPostWhereInput = {
       status: 'published',
       deletedAt: null
     };
@@ -227,7 +309,7 @@ export const getPosts = async (req: Request, res: Response, next: NextFunction) 
     }
 
     // 排序
-    let orderBy: any = { createdAt: 'desc' };
+    let orderBy: Prisma.CommunityPostOrderByWithRelationInput | Prisma.CommunityPostOrderByWithRelationInput[] = { createdAt: 'desc' };
     if (sort === 'popular') {
       orderBy = [{ viewCount: 'desc' }, { likeCount: 'desc' }];
     } else if (sort === 'hot') {
@@ -281,8 +363,8 @@ export const getPosts = async (req: Request, res: Response, next: NextFunction) 
 
     const list = posts.map(post => formatCommunityPost(post, {
       categoryName: post.categoryId ? categoryNameMap.get(post.categoryId.toString()) : undefined,
-      commentCount: (post as any)._count.comments,
-      likeCount: (post as any)._count.likes,
+      commentCount: post._count.comments,
+      likeCount: post._count.likes,
       isLiked: likedPostIds.has(post.id.toString()),
       isVerifiedMember: verifiedMemberIds.has(post.authorId.toString()),
     }));
@@ -623,7 +705,7 @@ export const getComments = async (req: Request, res: Response, next: NextFunctio
 
     const list = comments.map(comment => formatCommunityComment({
       ...comment,
-      replyCount: (comment as any)._count.replies,
+      replyCount: comment._count.replies,
     }, verifiedMemberIds));
 
     res.json(paginatedResponse(list, Number(page), Number(pageSize), total));
@@ -996,11 +1078,11 @@ export const getReports = async (req: Request, res: Response, next: NextFunction
     const { page = 1, pageSize = 20, status, targetType } = req.query;
     const skip = (Number(page) - 1) * Number(pageSize);
 
-    const where: any = {};
-    if (status) {
+    const where: Prisma.CommunityReportWhereInput = {};
+    if (typeof status === 'string') {
       where.status = status;
     }
-    if (targetType) {
+    if (typeof targetType === 'string') {
       where.targetType = targetType;
     }
 

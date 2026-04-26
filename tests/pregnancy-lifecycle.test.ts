@@ -18,4 +18,10 @@ describe('pregnancy lifecycle guards', () => {
       babyBirthday: '2026-01-01',
     })).toThrow('预产期和宝宝生日不能同时设置');
   });
+
+  it('rejects impossible profile lifecycle dates', () => {
+    expect(updateProfileBody.safeParse({ dueDate: '2026-02-31' }).success).toBe(false);
+    expect(updateProfileBody.safeParse({ babyBirthday: '2026-13-01' }).success).toBe(false);
+    expect(updateProfileBody.safeParse({ dueDate: '2026-12-05T00:00:00.000Z' }).success).toBe(false);
+  });
 });

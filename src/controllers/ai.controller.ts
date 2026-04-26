@@ -1,9 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import prisma from '../config/database';
-import { successResponse, AppError, ErrorCodes } from '../middlewares/error.middleware';
+import { successResponse, paginatedResponse, AppError, ErrorCodes } from '../middlewares/error.middleware';
 import {
-  isEmergencyQuestion,
-  getEmergencyResponse,
   getAvailableModels,
   getDefaultModel,
   getTaskModelBindings,
@@ -18,7 +16,6 @@ import {
   getUserChatSession,
   softDeleteUserChatSession,
 } from '../services/ai-session.service';
-import { type AIDomainDecision } from '../services/ai-domain.service';
 import { chunkTrustedAnswer, generateTrustedAIResponse } from '../services/trusted-ai.service';
 import {
   shouldUseProfileHints,
@@ -27,44 +24,12 @@ import {
 import { buildAIActionCards } from '../services/ai-action-card.service';
 import { logger, genRequestId } from '../utils/logger';
 
-const EMERGENCY_DISCLAIMER = '🚨 重要提示：如遇紧急情况，请立即就医！';
 const DEFAULT_MODEL_ID = getDefaultModel();
 
-async function persistDomainDecisionExchange(
-  userId: string | undefined,
-  conversationId: string | undefined,
-  question: string,
-  answer: string,
-) {
-  if (!userId) {
-    return conversationId;
-  }
-
-  return saveConversationExchange({
-    userId,
-    conversationId,
-    userQuestion: question,
-    assistantAnswer: answer,
-  });
-}
-
-function respondWithDomainDecision(
-  res: Response,
-  decision: AIDomainDecision,
-  model: string | undefined,
-  conversationId: string | undefined,
-) {
-  return res.json(successResponse({
-    answer: decision.answer,
-    isEmergency: false,
-    sources: [],
-    confidence: 1,
-    disclaimer: decision.disclaimer,
-    followUpQuestions: [],
-    model: model || DEFAULT_MODEL_ID,
-    conversationId,
-  }));
-}
+type ChatHistoryMessage = {
+  role: 'user' | 'assistant';
+  content: string;
+};
 
 function buildTrustedResponsePayload(
   result: Awaited<ReturnType<typeof generateTrustedAIResponse>>,
@@ -285,9 +250,9 @@ export const chat = async (req: Request, res: Response, next: NextFunction) => {
     }
 
     const lastMessage = messages[messages.length - 1];
-    const formattedMessages = messages.map((message: any) => ({
+    const formattedMessages: ChatHistoryMessage[] = messages.map((message) => ({
       role: message.role as 'user' | 'assistant',
-      content: message.content,
+      content: String(message.content ?? ''),
     }));
 
     const trustedResult = await generateTrustedAIResponse({
@@ -334,9 +299,9 @@ export const chatStream = async (req: Request, res: Response, next: NextFunction
     }
 
     const lastMessage = messages[messages.length - 1];
-    const formattedMessages = messages.map((message: any) => ({
+    const formattedMessages: ChatHistoryMessage[] = messages.map((message) => ({
       role: message.role as 'user' | 'assistant',
-      content: message.content,
+      content: String(message.content ?? ''),
     }));
 
     const trustedResult = await generateTrustedAIResponse({
@@ -378,10 +343,11 @@ export const chatStream = async (req: Request, res: Response, next: NextFunction
 export const getConversations = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.userId;
-    const limit = Math.min(Number(req.query.limit || 20), 50);
+    const page = Math.max(1, Number(req.query.page || 1));
+    const pageSize = Math.min(Number(req.query.pageSize || 20), 50);
 
-    const sessions = await listUserChatSessions(userId!, limit);
-    res.json(successResponse({ conversations: sessions }));
+    const sessions = await listUserChatSessions(userId!, pageSize);
+    res.json(paginatedResponse(sessions, page, pageSize, sessions.length));
   } catch (error) {
     next(error);
   }

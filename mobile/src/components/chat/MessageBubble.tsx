@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Clipboard, StyleSheet, TouchableOpacity, View } from 'react-native'
 import { useNavigation } from '@react-navigation/native'
+import type { StackNavigationProp } from '@react-navigation/stack'
 import { IconButton, Text } from 'react-native-paper'
 import { aiApi, type AIActionCard, type AIMessage } from '../../api/ai'
 import { articleApi, type Article } from '../../api/modules'
+import type { RootStackParamList } from '../../navigation/AppNavigator'
 import { useAppStore } from '../../stores/appStore'
 import { useChatStore } from '../../stores/chatStore'
 import { useKnowledgeStore } from '../../stores/knowledgeStore'
@@ -135,7 +137,7 @@ function buildKnowledgeKeyword(message: AIMessage) {
 
   for (const candidate of candidates) {
     const compact = candidate
-      .replace(/^[\d\-\.\s\u2022]+/u, '')
+      .replace(/^[-\d.\s\u2022]+/u, '')
       .replace(/\s+/g, ' ')
       .trim()
     if (!compact) continue
@@ -216,7 +218,7 @@ async function resolveKnowledgeArticleMatch(
 
 function MessageBubbleInner({ item, onCopied, onActionNotice }: MessageBubbleProps) {
   const isUser = item.role === 'user'
-  const navigation = useNavigation<any>()
+  const navigation = useNavigation<StackNavigationProp<RootStackParamList>>()
   const user = useAppStore((state) => state.user)
   const conversationId = useChatStore((state) => state.conversationId)
   const sendMessage = useChatStore((state) => state.sendMessage)
@@ -303,7 +305,7 @@ function MessageBubbleInner({ item, onCopied, onActionNotice }: MessageBubblePro
       source: 'chat',
     })
     onActionNotice?.(card?.title ? `已按“${card.title}”生成日历草稿` : '已按建议生成日历草稿')
-  }, [calendarPrefill.description, calendarPrefill.eventType, calendarPrefill.targetDate, calendarPrefill.title, item.id, item.model, item.provider, item.riskLevel, item.route, item.sourceReliability, navigation, onActionNotice, stage.lifecycleKey])
+  }, [calendarPrefill.description, calendarPrefill.eventType, calendarPrefill.targetDate, calendarPrefill.title, entryMetaProps, item.id, item.model, item.provider, item.riskLevel, item.route, item.sourceReliability, navigation, onActionNotice, stage.lifecycleKey])
 
   const handleOpenKnowledge = useCallback(async (card?: AIActionCard) => {
     const payload = card?.payload
@@ -379,7 +381,7 @@ function MessageBubbleInner({ item, onCopied, onActionNotice }: MessageBubblePro
       },
     })
     onActionNotice?.('已打开本轮命中的权威文章')
-  }, [entryMetaProps, item.id, item.model, item.provider, item.riskLevel, item.route, item.sourceReliability, navigation, onActionNotice, stage.lifecycleKey])
+  }, [entryMetaProps, item.entryMeta?.entrySource, item.entryMeta?.reportId, item.id, item.model, item.provider, item.riskLevel, item.route, item.sourceReliability, navigation, onActionNotice, stage.lifecycleKey])
 
   const handleOpenArchive = useCallback((card?: AIActionCard) => {
     void trackAppEvent('app_chat_open_archive_click', {
@@ -405,7 +407,7 @@ function MessageBubbleInner({ item, onCopied, onActionNotice }: MessageBubblePro
     const focus = card?.payload?.archiveFocus
     navigation.navigate('GrowthArchive', focus ? { source: 'chat', focus } : { source: 'chat' })
     onActionNotice?.('已打开成长档案')
-  }, [item.id, item.model, item.provider, item.riskLevel, item.route, item.sourceReliability, navigation, onActionNotice, stage.kind, stage.lifecycleKey])
+  }, [entryMetaProps, item.id, item.model, item.provider, item.riskLevel, item.route, item.sourceReliability, navigation, onActionNotice, stage.kind, stage.lifecycleKey])
 
   const handleFollowUp = useCallback(async (card?: AIActionCard) => {
     const question = card?.payload?.prefillQuestion?.trim()
@@ -428,7 +430,7 @@ function MessageBubbleInner({ item, onCopied, onActionNotice }: MessageBubblePro
 
     await sendMessage(question)
     onActionNotice?.('已按建议继续追问')
-  }, [item.id, onActionNotice, sendMessage, stage.lifecycleKey])
+  }, [entryMetaProps, item.id, onActionNotice, sendMessage, stage.lifecycleKey])
 
   const handleFollowUpQuestion = useCallback(async (question: string, index: number) => {
     const trimmed = question.trim()
@@ -451,7 +453,7 @@ function MessageBubbleInner({ item, onCopied, onActionNotice }: MessageBubblePro
 
     await sendMessage(trimmed)
     onActionNotice?.('已按建议继续追问')
-  }, [item.id, onActionNotice, sendMessage, stage.lifecycleKey])
+  }, [entryMetaProps, item.id, onActionNotice, sendMessage, stage.lifecycleKey])
 
   const handleActionCardPress = useCallback((card: AIActionCard) => {
     if (card.type === 'calendar') {
@@ -501,7 +503,7 @@ function MessageBubbleInner({ item, onCopied, onActionNotice }: MessageBubblePro
     } finally {
       setFeedbackSubmitting(false)
     }
-  }, [conversationId, entryMetaProps, feedbackSubmitting, feedbackValue, item.entryMeta?.articleSlug, item.entryMeta?.entrySource, item.entryMeta?.reportId, item.id, item.model, item.provider, item.riskLevel, item.route, item.sourceReliability, item.sources, item.triageCategory, onActionNotice])
+  }, [conversationId, feedbackSubmitting, feedbackValue, item.entryMeta?.articleSlug, item.entryMeta?.entrySource, item.entryMeta?.reportId, item.id, item.model, item.provider, item.riskLevel, item.route, item.sourceReliability, item.sources, item.triageCategory, onActionNotice])
 
   return (
     <View

@@ -39,6 +39,14 @@ type WsServerMessage = {
   }
 }
 type MessageHandler = (msg: WsServerMessage) => void
+type ReactNativeWebSocketOptions = {
+  headers?: Record<string, string>
+}
+type ReactNativeWebSocketConstructor = new (
+  url: string,
+  protocols?: string | string[] | null,
+  options?: ReactNativeWebSocketOptions,
+) => WebSocket
 
 class AIWebSocketManager {
   private ws: WebSocket | null = null
@@ -53,11 +61,12 @@ class AIWebSocketManager {
 
   connect(token: string): void {
     if (this.connected) return
+    const ReactNativeWebSocket = WebSocket as unknown as ReactNativeWebSocketConstructor
 
-    this.ws = new WebSocket(
+    this.ws = new ReactNativeWebSocket(
       `${this.baseUrl}/ws/ai`,
       undefined,
-      { headers: { Authorization: `Bearer ${token}` } } as any,
+      { headers: { Authorization: `Bearer ${token}` } },
     )
 
     this.ws.onopen = () => {

@@ -1,7 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
+import { Prisma } from '@prisma/client';
 import prisma from '../config/database';
 import { successResponse, paginatedResponse, AppError, ErrorCodes } from '../middlewares/error.middleware';
-import { calculatePregnancyWeekFromDueDate, normalizePregnancyStatus } from '../utils/pregnancy';
+import { calculatePregnancyWeekFromDueDate } from '../utils/pregnancy';
 import { buildPregnancyProfile } from '../utils/pregnancy-profile';
 
 /**
@@ -11,12 +12,13 @@ export const getFavorites = async (req: Request, res: Response, next: NextFuncti
   try {
     const userId = req.userId;
     const { type = 'article', page = 1, pageSize = 20 } = req.query;
+    const favoriteType = typeof type === 'string' ? type : 'article';
 
     const skip = (Number(page) - 1) * Number(pageSize);
 
-    const where: any = { 
+    const where: Prisma.UserFavoriteWhereInput = {
       userId: BigInt(userId!),
-      favType: type 
+      favType: favoriteType
     };
 
     const [favorites, total] = await Promise.all([

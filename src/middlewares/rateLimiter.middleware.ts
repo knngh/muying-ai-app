@@ -5,8 +5,8 @@ import type { Request } from 'express';
  * 用户维度优先的 key 生成器：已登录用户按 userId 限流，未登录回退到 IP。
  * 避免同一 IP 下多个合法用户互相触发限流（办公室/校园网共享出口场景）。
  */
-function userOrIpKeyGenerator(req: Request, res: any): string {
-  const userId = (req as any).userId;
+function userOrIpKeyGenerator(req: Request): string {
+  const userId = req.userId;
   if (userId) {
     return `user:${userId}`;
   }

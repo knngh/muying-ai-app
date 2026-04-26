@@ -1,42 +1,29 @@
-import { useEffect, useState } from 'react'
-import {
-  Avatar,
-  Button,
-  Card,
-  Empty,
-  Form,
-  Input,
-  List,
-  Modal,
-  Select,
-  Space,
-  Spin,
-  Switch,
-  Tag,
-  Typography,
-  message,
-} from 'antd'
-import {
-  EyeOutlined,
-  LikeFilled,
-  LikeOutlined,
-  MessageOutlined,
-  PlusOutlined,
-  UserOutlined,
-} from '@ant-design/icons'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { communityApi, CommunityPost } from '@/api/community'
 import { categoryApi, type Category } from '@/api/modules'
 import { useAppStore } from '@/stores/appStore'
-
-const { Paragraph, Text, Title } = Typography
-const { Search } = Input
+import styles from './Community.module.css'
 
 const sortOptions = [
   { label: '最新', value: 'latest' as const },
   { label: '最热', value: 'hot' as const },
   { label: '最多赞', value: 'popular' as const },
 ]
+
+type DraftPost = {
+  title: string
+  content: string
+  categoryId: string
+  isAnonymous: boolean
+}
+
+const initialDraft: DraftPost = {
+  title: '',
+  content: '',
+  categoryId: '',
+  isAnonymous: false,
+}
 
 const getUserIdFromToken = () => {
   const token = localStorage.getItem('token')
@@ -50,6 +37,16 @@ const getUserIdFromToken = () => {
   }
 }
 
+function getAuthorName(post: CommunityPost) {
+  if (post.isAnonymous) return '匿名用户'
+  return post.author?.nickname || post.author?.username || '用户'
+}
+
+function getAuthorBadge(post: CommunityPost) {
+  const name = getAuthorName(post)
+  return name.slice(0, 1).toUpperCase()
+}
+
 export function Community() {
   const navigate = useNavigate()
   const user = useAppStore((state) => state.user)
@@ -61,40 +58,28 @@ export function Community() {
   const [category, setCategory] = useState('')
   const [sort, setSort] = useState<'latest' | 'hot' | 'popular'>('latest')
   const [keyword, setKeyword] = useState('')
+  const [searchInput, setSearchInput] = useState('')
   const [showPostModal, setShowPostModal] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [editingPost, setEditingPost] = useState<CommunityPost | null>(null)
-  const [form] = Form.useForm()
+  const [draftPost, setDraftPost] = useState<DraftPost>(initialDraft)
+  const [formError, setFormError] = useState('')
+  const [toast, setToast] = useState('')
 
   const currentUserId = user?.id ? String(user.id) : getUserIdFromToken()
   const isEditing = !!editingPost
-  const categoryOptions = [
-    { label: '全部', value: '' },
-    ...categories.map((item) => ({ label: item.name, value: String(item.id) })),
-  ]
-  const postCategoryOptions = [
-    { label: '不分类', value: '' },
-    ...categories.map((item) => ({ label: item.name, value: String(item.id) })),
-  ]
+  const totalPages = Math.max(1, Math.ceil(total / 10))
 
-  useEffect(() => {
-    fetchCategories()
-  }, [])
-
-  useEffect(() => {
-    fetchPosts()
-  }, [page, category, sort])
-
-  const fetchCategories = async () => {
+  const fetchCategories = useCallback(async () => {
     try {
       const result = await categoryApi.getAll()
       setCategories((result || []).map((item) => ({ id: item.id, name: item.name })))
-    } catch (_error) {
+    } catch {
       setCategories([])
     }
-  }
+  }, [])
 
-  const fetchPosts = async (options?: { page?: number; keyword?: string }) => {
+  const fetchPosts = useCallback(async (options?: { page?: number; keyword?: string }) => {
     setLoading(true)
     try {
       const result = await communityApi.getPosts({
@@ -107,17 +92,36 @@ export function Community() {
       const data = result as unknown as { list: CommunityPost[]; pagination: { total: number } }
       setPosts(data.list || [])
       setTotal(data.pagination?.total || 0)
-    } catch (_error) {
-      console.error('获取帖子失败:', _error)
+    } catch (error) {
+      console.error('获取帖子失败:', error)
     } finally {
       setLoading(false)
     }
-  }
+  }, [category, keyword, page, sort])
+
+  useEffect(() => {
+    void fetchCategories()
+  }, [fetchCategories])
+
+  useEffect(() => {
+    void fetchPosts()
+  }, [fetchPosts])
+
+  useEffect(() => {
+    if (!toast) return
+    const timer = window.setTimeout(() => setToast(''), 1800)
+    return () => window.clearTimeout(timer)
+  }, [toast])
+
+  const categoryOptions = useMemo(() => [
+    { label: '全部', value: '' },
+    ...categories.map((item) => ({ label: item.name, value: String(item.id) })),
+  ], [categories])
 
   const ensureLogin = () => {
     const token = localStorage.getItem('token')
     if (!token) {
-      message.warning('请先登录')
+      setToast('请先登录')
       navigate('/login')
       return false
     }
@@ -125,9 +129,9 @@ export function Community() {
   }
 
   const resetPostForm = () => {
-    form.resetFields()
-    form.setFieldsValue({ isAnonymous: false, categoryId: '' })
+    setDraftPost(initialDraft)
     setEditingPost(null)
+    setFormError('')
   }
 
   const handleCloseModal = () => {
@@ -135,10 +139,11 @@ export function Community() {
     resetPostForm()
   }
 
-  const handleSearch = (value: string) => {
-    setKeyword(value)
+  const handleSearchSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setKeyword(searchInput.trim())
     setPage(1)
-    fetchPosts({ page: 1, keyword: value })
+    fetchPosts({ page: 1, keyword: searchInput.trim() })
   }
 
   const handleLike = async (postId: number, isLiked: boolean) => {
@@ -155,11 +160,11 @@ export function Community() {
         prev.map((item) =>
           item.id === postId
             ? { ...item, isLiked: !isLiked, likeCount: item.likeCount + (isLiked ? -1 : 1) }
-            : item
-        )
+            : item,
+        ),
       )
-    } catch (_error) {
-      message.error('操作失败')
+    } catch {
+      setToast('操作失败')
     }
   }
 
@@ -172,245 +177,326 @@ export function Community() {
   const handleOpenEdit = (post: CommunityPost) => {
     if (!ensureLogin()) return
     setEditingPost(post)
-    form.setFieldsValue({
+    setDraftPost({
       title: post.title,
       content: post.content,
       isAnonymous: post.isAnonymous,
       categoryId: post.categoryId || '',
     })
+    setFormError('')
     setShowPostModal(true)
   }
 
-  const handleSubmitPost = async (values: {
-    title: string
-    content: string
-    isAnonymous?: boolean
-    categoryId?: string
-  }) => {
+  const handleSubmitPost = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
+    if (!draftPost.title.trim()) {
+      setFormError('请输入标题')
+      return
+    }
+    if (!draftPost.content.trim()) {
+      setFormError('请输入内容')
+      return
+    }
+
     setSubmitting(true)
     try {
       if (editingPost) {
         await communityApi.updatePost(editingPost.id, {
-          title: values.title.trim(),
-          content: values.content.trim(),
-          categoryId: values.categoryId || undefined,
-          isAnonymous: Boolean(values.isAnonymous),
+          title: draftPost.title.trim(),
+          content: draftPost.content.trim(),
+          categoryId: draftPost.categoryId || undefined,
+          isAnonymous: draftPost.isAnonymous,
         })
-        message.success('帖子已更新')
+        setToast('帖子已更新')
       } else {
         await communityApi.createPost({
-          title: values.title.trim(),
-          content: values.content.trim(),
-          categoryId: values.categoryId || undefined,
-          isAnonymous: Boolean(values.isAnonymous),
+          title: draftPost.title.trim(),
+          content: draftPost.content.trim(),
+          categoryId: draftPost.categoryId || undefined,
+          isAnonymous: draftPost.isAnonymous,
         })
-        message.success('发帖成功')
+        setToast('发帖成功')
       }
 
       handleCloseModal()
       setPage(1)
       fetchPosts({ page: 1 })
-    } catch (_error) {
-      message.error(editingPost ? '更新失败' : '发帖失败')
+    } catch {
+      setFormError(editingPost ? '更新失败，请稍后重试' : '发帖失败，请稍后重试')
     } finally {
       setSubmitting(false)
     }
   }
 
-  const handleDeletePost = (post: CommunityPost) => {
-    Modal.confirm({
-      title: '删除帖子',
-      content: '删除后不可恢复，确认继续吗？',
-      okText: '删除',
-      cancelText: '取消',
-      okButtonProps: { danger: true },
-      onOk: async () => {
-        try {
-          await communityApi.deletePost(post.id)
-          message.success('删除成功')
+  const handleDeletePost = async (post: CommunityPost) => {
+    if (!window.confirm('删除后不可恢复，确认继续吗？')) {
+      return
+    }
 
-          const nextPage = posts.length === 1 && page > 1 ? page - 1 : page
-          if (nextPage !== page) {
-            setPage(nextPage)
-          }
-          fetchPosts({ page: nextPage })
-        } catch (_error) {
-          message.error('删除失败')
-        }
-      },
-    })
+    try {
+      await communityApi.deletePost(post.id)
+      setToast('删除成功')
+
+      const nextPage = posts.length === 1 && page > 1 ? page - 1 : page
+      if (nextPage !== page) {
+        setPage(nextPage)
+      }
+      fetchPosts({ page: nextPage })
+    } catch {
+      setToast('删除失败')
+    }
   }
 
   const isOwnPost = (post: CommunityPost) => !!currentUserId && String(post.authorId) === currentUserId
 
   return (
-    <div>
-      <Card style={{ marginBottom: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <Title level={3} style={{ margin: 0 }}>
-            社区交流
-          </Title>
-          <Button type="primary" icon={<PlusOutlined />} onClick={handleOpenCreate}>
-            发帖
-          </Button>
+    <div className={styles.page}>
+      {toast ? <div className={styles.toast}>{toast}</div> : null}
+
+      <section className={styles.hero}>
+        <div>
+          <span className={styles.eyebrow}>Community Exchange</span>
+          <h1>社区交流</h1>
+          <p>分享经验、提出问题，也可以围绕阶段化知识继续交流。</p>
+        </div>
+        <button type="button" className={styles.primaryButton} onClick={handleOpenCreate}>
+          发帖
+        </button>
+      </section>
+
+      <section className={styles.toolbar}>
+        <form className={styles.searchForm} onSubmit={handleSearchSubmit}>
+          <input
+            value={searchInput}
+            onChange={(event) => setSearchInput(event.target.value)}
+            placeholder="搜索帖子..."
+            className={styles.searchInput}
+          />
+          <button type="submit" className={styles.primaryButton}>
+            搜索
+          </button>
+        </form>
+
+        <div className={styles.filterRow}>
+          <label className={styles.filterField}>
+            <span>分类</span>
+            <select
+              value={category}
+              onChange={(event) => {
+                setCategory(event.target.value)
+                setPage(1)
+              }}
+            >
+              {categoryOptions.map((option) => (
+                <option key={option.value || 'all'} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className={styles.filterField}>
+            <span>排序</span>
+            <select
+              value={sort}
+              onChange={(event) => {
+                setSort(event.target.value as 'latest' | 'hot' | 'popular')
+                setPage(1)
+              }}
+            >
+              {sortOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      </section>
+
+      <section className={styles.listSection}>
+        <div className={styles.listHeader}>
+          <div>
+            <span className={styles.eyebrow}>Posts</span>
+            <h2>帖子列表</h2>
+          </div>
+          <span className={styles.resultMeta}>共 {total} 条</span>
         </div>
 
-        <Search
-          placeholder="搜索帖子..."
-          allowClear
-          onSearch={handleSearch}
-          style={{ marginBottom: 16 }}
-        />
-
-        <Space>
-          <Select
-            value={category}
-            onChange={(value) => {
-              setCategory(value)
-              setPage(1)
-            }}
-            options={categoryOptions}
-            style={{ width: 120 }}
-          />
-          <Select
-            value={sort}
-            onChange={(value) => {
-              setSort(value)
-              setPage(1)
-            }}
-            options={sortOptions}
-            style={{ width: 100 }}
-          />
-        </Space>
-      </Card>
-
-      <Spin spinning={loading}>
-        {posts.length > 0 ? (
-          <List
-            dataSource={posts}
-            renderItem={(post) => (
-              <Card
-                hoverable
-                style={{ marginBottom: 12 }}
-                onClick={() => navigate(`/community/${post.id}`)}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 8 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', minWidth: 0 }}>
-                    <Avatar size="small" icon={<UserOutlined />} src={post.author?.avatar} />
-                    <div style={{ marginLeft: 8, minWidth: 0 }}>
-                      <Text>
-                        {post.isAnonymous ? '匿名用户' : post.author?.nickname || post.author?.username || '用户'}
-                      </Text>
+        {loading ? (
+          <div className={styles.loadingState}>
+            <span className={styles.loadingDot} />
+            <span>正在加载帖子...</span>
+          </div>
+        ) : posts.length > 0 ? (
+          <>
+            <div className={styles.postList}>
+              {posts.map((post) => (
+                <article
+                  key={post.id}
+                  className={styles.postCard}
+                  onClick={() => navigate(`/community/${post.id}`)}
+                >
+                  <div className={styles.postTop}>
+                    <div className={styles.authorRow}>
+                      <div className={styles.avatar}>{getAuthorBadge(post)}</div>
                       <div>
-                        <Text type="secondary" style={{ fontSize: 12 }}>
-                          {new Date(post.createdAt).toLocaleString()}
-                        </Text>
+                        <strong>{getAuthorName(post)}</strong>
+                        <span>{new Date(post.createdAt).toLocaleString()}</span>
                       </div>
                     </div>
+
+                    {isOwnPost(post) ? (
+                      <div className={styles.ownerActions}>
+                        <button
+                          type="button"
+                          className={styles.textButton}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            handleOpenEdit(post)
+                          }}
+                        >
+                          编辑
+                        </button>
+                        <button
+                          type="button"
+                          className={styles.textButtonDanger}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            handleDeletePost(post)
+                          }}
+                        >
+                          删除
+                        </button>
+                      </div>
+                    ) : null}
                   </div>
-                  {isOwnPost(post) && (
-                    <Space size={4}>
-                      <Button
-                        type="link"
-                        size="small"
+
+                  <div className={styles.tagRow}>
+                    {post.isPinned ? <span className={`${styles.metaTag} ${styles.metaTagPinned}`}>置顶</span> : null}
+                    {(post.categoryName || post.category) ? (
+                      <span className={styles.metaTag}>{post.categoryName || post.category}</span>
+                    ) : null}
+                    {post.isAnonymous ? <span className={styles.metaTag}>匿名</span> : null}
+                  </div>
+
+                  <h3>{post.title}</h3>
+                  <p className={styles.postSummary}>{post.content}</p>
+
+                  <div className={styles.postFooter}>
+                    <div className={styles.postStats}>
+                      <button
+                        type="button"
+                        className={post.isLiked ? `${styles.statButton} ${styles.statButtonActive}` : styles.statButton}
                         onClick={(event) => {
                           event.stopPropagation()
-                          handleOpenEdit(post)
+                          handleLike(post.id, !!post.isLiked)
                         }}
                       >
-                        编辑
-                      </Button>
-                      <Button
-                        type="link"
-                        size="small"
-                        danger
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          handleDeletePost(post)
-                        }}
-                      >
-                        删除
-                      </Button>
-                    </Space>
-                  )}
-                </div>
+                        点赞 {post.likeCount}
+                      </button>
+                      <span>评论 {post.commentCount}</span>
+                      <span>阅读 {post.viewCount}</span>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
 
-                <Title level={5} style={{ marginBottom: 8 }}>
-                  {post.isPinned && <Tag color="red">置顶</Tag>}
-                  {post.title}
-                </Title>
-
-                <Paragraph ellipsis={{ rows: 2 }} style={{ color: '#666', marginBottom: 12 }}>
-                  {post.content}
-                </Paragraph>
-
-                <Space size="large" wrap>
-                  <span
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      handleLike(post.id, !!post.isLiked)
-                    }}
-                    style={{ cursor: 'pointer' }}
-                  >
-                    {post.isLiked ? <LikeFilled style={{ color: '#1890ff' }} /> : <LikeOutlined />}{' '}
-                    {post.likeCount}
-                  </span>
-                  <span>
-                    <MessageOutlined /> {post.commentCount}
-                  </span>
-                  <span>
-                    <EyeOutlined /> {post.viewCount}
-                  </span>
-                  {(post.categoryName || post.category) && <Tag>{post.categoryName || post.category}</Tag>}
-                  {post.isAnonymous && <Tag color="gold">匿名</Tag>}
-                </Space>
-              </Card>
-            )}
-            pagination={{
-              current: page,
-              total,
-              pageSize: 10,
-              onChange: setPage,
-              showTotal: (value) => `共 ${value} 条`,
-            }}
-          />
+            <div className={styles.pagination}>
+              <button
+                type="button"
+                className={styles.secondaryButton}
+                disabled={page <= 1}
+                onClick={() => setPage((current) => Math.max(1, current - 1))}
+              >
+                上一页
+              </button>
+              <span>第 {page} / {totalPages} 页</span>
+              <button
+                type="button"
+                className={styles.secondaryButton}
+                disabled={page >= totalPages}
+                onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+              >
+                下一页
+              </button>
+            </div>
+          </>
         ) : (
-          <Empty description="暂无帖子" />
+          <div className={styles.emptyState}>暂无帖子</div>
         )}
-      </Spin>
+      </section>
 
-      <Modal
-        title={isEditing ? '编辑帖子' : '发布帖子'}
-        open={showPostModal}
-        onCancel={handleCloseModal}
-        footer={null}
-        destroyOnClose
-      >
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={handleSubmitPost}
-          initialValues={{ isAnonymous: false, categoryId: '' }}
-        >
-          <Form.Item name="title" label="标题" rules={[{ required: true, message: '请输入标题' }]}>
-            <Input placeholder="请输入帖子标题" maxLength={100} />
-          </Form.Item>
-          <Form.Item name="categoryId" label="分类">
-            <Select options={postCategoryOptions} />
-          </Form.Item>
-          <Form.Item name="content" label="内容" rules={[{ required: true, message: '请输入内容' }]}>
-            <Input.TextArea rows={6} placeholder="分享您的经验..." maxLength={5000} showCount />
-          </Form.Item>
-          <Form.Item name="isAnonymous" label="匿名发布" valuePropName="checked">
-            <Switch />
-          </Form.Item>
-          <Form.Item>
-            <Button type="primary" htmlType="submit" block loading={submitting}>
-              {isEditing ? '保存修改' : '立即发布'}
-            </Button>
-          </Form.Item>
-        </Form>
-      </Modal>
+      {showPostModal ? (
+        <div className={styles.modalOverlay} onClick={handleCloseModal}>
+          <div className={styles.modalCard} onClick={(event) => event.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <div>
+                <span className={styles.eyebrow}>Editor</span>
+                <h2>{isEditing ? '编辑帖子' : '发布帖子'}</h2>
+              </div>
+              <button type="button" className={styles.textButton} onClick={handleCloseModal}>
+                关闭
+              </button>
+            </div>
+
+            <form className={styles.postForm} onSubmit={handleSubmitPost}>
+              <label className={styles.formField}>
+                <span>标题</span>
+                <input
+                  value={draftPost.title}
+                  maxLength={100}
+                  onChange={(event) => setDraftPost((current) => ({ ...current, title: event.target.value }))}
+                  placeholder="请输入帖子标题"
+                />
+              </label>
+
+              <label className={styles.formField}>
+                <span>分类</span>
+                <select
+                  value={draftPost.categoryId}
+                  onChange={(event) => setDraftPost((current) => ({ ...current, categoryId: event.target.value }))}
+                >
+                  <option value="">不分类</option>
+                  {categories.map((item) => (
+                    <option key={item.id} value={String(item.id)}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className={styles.formField}>
+                <span>内容</span>
+                <textarea
+                  value={draftPost.content}
+                  maxLength={5000}
+                  rows={8}
+                  onChange={(event) => setDraftPost((current) => ({ ...current, content: event.target.value }))}
+                  placeholder="分享您的经验..."
+                />
+              </label>
+
+              <label className={styles.switchRow}>
+                <input
+                  type="checkbox"
+                  checked={draftPost.isAnonymous}
+                  onChange={(event) => setDraftPost((current) => ({ ...current, isAnonymous: event.target.checked }))}
+                />
+                <span>匿名发布</span>
+              </label>
+
+              {formError ? <div className={styles.formError}>{formError}</div> : null}
+
+              <button type="submit" className={styles.primaryButton} disabled={submitting}>
+                {submitting ? '提交中...' : isEditing ? '保存修改' : '立即发布'}
+              </button>
+            </form>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

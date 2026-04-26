@@ -19,6 +19,13 @@ export interface JwtPayload {
   exp: number;
 }
 
+function isValidJwtPayload(payload: unknown): payload is JwtPayload {
+  return typeof payload === 'object'
+    && payload !== null
+    && typeof (payload as { userId?: unknown }).userId === 'string'
+    && /^\d+$/.test((payload as { userId: string }).userId);
+}
+
 export const authMiddleware = async (
   req: Request,
   res: Response,
@@ -40,7 +47,11 @@ export const authMiddleware = async (
     const decoded = jwt.verify(
       token,
       env.JWT_SECRET
-    ) as JwtPayload;
+    );
+
+    if (!isValidJwtPayload(decoded)) {
+      throw new AppError('Token 无效', ErrorCodes.TOKEN_INVALID, 401);
+    }
 
     req.userId = decoded.userId;
     next();
@@ -71,12 +82,14 @@ export const optionalAuthMiddleware = async (
         const decoded = jwt.verify(
           token,
           env.JWT_SECRET
-        ) as JwtPayload;
-        req.userId = decoded.userId;
+        );
+        if (isValidJwtPayload(decoded)) {
+          req.userId = decoded.userId;
+        }
       }
     }
     next();
-  } catch (error) {
+  } catch (_error) {
     // 可选认证，忽略错误
     next();
   }

@@ -1,9 +1,11 @@
 import { useCallback, useMemo, useState } from 'react'
 import { Alert } from 'react-native'
 import { CommonActions, useNavigation } from '@react-navigation/native'
+import type { StackNavigationProp } from '@react-navigation/stack'
 import { useFocusEffect } from '@react-navigation/native'
 import dayjs from 'dayjs'
 import { authApi } from '../api/modules'
+import type { RootStackParamList } from '../navigation/AppNavigator'
 import { useAppStore } from '../stores/appStore'
 import { useChatStore } from '../stores/chatStore'
 import { useMembershipStore } from '../stores/membershipStore'
@@ -90,7 +92,7 @@ function getFeedingModeLabel(value?: string | number | null): string {
 }
 
 export function useProfileData() {
-  const navigation = useNavigation<any>()
+  const navigation = useNavigation<StackNavigationProp<RootStackParamList>>()
   const { user, setToken, setUser } = useAppStore()
   const resetChatState = useChatStore((state) => state.resetState)
   const resetMembershipState = useMembershipStore((state) => state.resetState)

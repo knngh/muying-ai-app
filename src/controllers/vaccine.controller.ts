@@ -1,21 +1,23 @@
 import { Request, Response, NextFunction } from 'express';
+import { Prisma } from '@prisma/client';
 import prisma from '../config/database';
 import { successResponse, AppError, ErrorCodes } from '../middlewares/error.middleware';
 
 // 获取疫苗列表
 export const getVaccines = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { monthAge, category } = req.query;
+    const monthAge = req.query.monthAge as number | undefined;
+    const category = req.query.category as string | undefined;
 
-    const where: any = { status: 1 };
+    const where: Prisma.VaccineWhereInput = { status: 1 };
 
     if (category) {
       where.category = category;
     }
 
     // 如果提供了月龄，筛选适用疫苗
-    if (monthAge) {
-      const age = Number(monthAge);
+    if (monthAge !== undefined) {
+      const age = monthAge;
       where.OR = [
         { minMonth: { lte: age }, maxMonth: { gte: age } },
         { minMonth: { lte: age }, maxMonth: null },

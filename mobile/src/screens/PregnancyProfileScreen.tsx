@@ -1,10 +1,12 @@
 import React, { useCallback, useMemo, useState } from 'react'
 import { ScrollView, StyleSheet, View } from 'react-native'
 import { useFocusEffect, useNavigation } from '@react-navigation/native'
+import type { StackNavigationProp } from '@react-navigation/stack'
 import LinearGradient from 'react-native-linear-gradient'
 import { ActivityIndicator, Button, Chip, Text } from 'react-native-paper'
 import { userApi, type PregnancyProfile } from '../api/modules'
 import { ScreenContainer, StandardCard } from '../components/layout'
+import type { RootStackParamList } from '../navigation/AppNavigator'
 import { borderRadius, colors, fontSize, spacing } from '../theme'
 import { analyzeDiaryEntry } from '../utils/aiAssist'
 
@@ -57,7 +59,7 @@ function normalizeProfilePayload(value: LoosePregnancyProfile | null | undefined
 }
 
 export default function PregnancyProfileScreen() {
-  const navigation = useNavigation<any>()
+  const navigation = useNavigation<StackNavigationProp<RootStackParamList, 'PregnancyProfile'>>()
   const openCalendar = () => navigation.navigate('Main', { screen: 'CalendarTab' })
   const [loading, setLoading] = useState(true)
   const [profile, setProfile] = useState<PregnancyProfile | null>(null)
@@ -66,6 +68,10 @@ export default function PregnancyProfileScreen() {
     () => analyzeDiaryEntry(profile?.snapshot.weeklyDiaryPreview || ''),
     [profile?.snapshot.weeklyDiaryPreview],
   )
+  const progressFillWidth = profile ? (`${profile.progressPercent}%` as `${number}%`) : null
+  const progressFillStyle = progressFillWidth
+    ? [styles.progressFill, { width: progressFillWidth }]
+    : styles.progressFill
 
   const loadProfile = useCallback(async () => {
     setLoading(true)
@@ -188,7 +194,7 @@ export default function PregnancyProfileScreen() {
               <Text style={styles.progressValue}>{profile.progressPercent}%</Text>
             </View>
             <View style={styles.progressTrack}>
-              <View style={[styles.progressFill, { width: `${profile.progressPercent}%` }]} />
+              <View style={progressFillStyle} />
             </View>
           </LinearGradient>
         </StandardCard>

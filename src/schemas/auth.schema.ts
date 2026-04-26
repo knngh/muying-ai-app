@@ -1,18 +1,31 @@
 import { z } from 'zod';
 
+const DATE_ONLY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+function isValidDateOnly(value: string): boolean {
+  const match = DATE_ONLY_PATTERN.exec(value);
+  if (!match) {
+    return false;
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+
+  return date.getUTCFullYear() === year
+    && date.getUTCMonth() === month - 1
+    && date.getUTCDate() === day;
+}
+
 const dateString = z.string().refine((value) => {
   const normalized = value.trim();
   if (!normalized) {
     return false;
   }
 
-  const isDateOnly = /^\d{4}-\d{2}-\d{2}$/.test(normalized);
-  if (isDateOnly) {
-    return !Number.isNaN(new Date(`${normalized}T00:00:00.000Z`).getTime());
-  }
-
-  return !Number.isNaN(new Date(normalized).getTime());
-}, '日期格式错误');
+  return isValidDateOnly(normalized);
+}, '日期格式错误，请使用 YYYY-MM-DD');
 
 export const registerBody = z.object({
   username: z.string().min(2, '用户名至少2个字符').max(20, '用户名最多20个字符'),

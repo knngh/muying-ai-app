@@ -128,6 +128,42 @@
         </text>
       </view>
 
+      <view class="reading-meta-box">
+        <text class="reading-meta-kicker">阅读速览</text>
+        <view class="reading-meta-head">
+          <text class="reading-meta-title">先判断篇幅和结构</text>
+          <text class="reading-meta-mode">{{ readingMeta.contentModeLabel }}</text>
+        </view>
+        <view class="reading-meta-grid">
+          <view class="reading-meta-item">
+            <text class="reading-meta-item-label">建议阅读</text>
+            <text class="reading-meta-item-value">{{ readingMeta.estimatedMinutesLabel }}</text>
+          </view>
+          <view class="reading-meta-item">
+            <text class="reading-meta-item-label">正文体量</text>
+            <text class="reading-meta-item-value">{{ readingMeta.textLengthLabel }}</text>
+          </view>
+          <view class="reading-meta-item">
+            <text class="reading-meta-item-label">结构信息</text>
+            <text class="reading-meta-item-value">{{ readingMeta.sectionLabel }}</text>
+          </view>
+        </view>
+      </view>
+
+      <view class="reading-path-box">
+        <text class="reading-path-kicker">{{ readingPath.kicker }}</text>
+        <text class="reading-path-title">{{ readingPath.title }}</text>
+        <text class="reading-path-desc">{{ readingPath.description }}</text>
+        <view
+          v-for="item in readingPath.items"
+          :key="item.title"
+          class="reading-path-item"
+        >
+          <text class="reading-path-item-title">{{ item.title }}</text>
+          <text class="reading-path-item-desc">{{ item.description }}</text>
+        </view>
+      </view>
+
       <view v-if="displayedSummaryText" class="summary-box">
         <text class="summary-label">{{ showingTranslation ? '中文摘要' : '核心摘要' }}</text>
         <text class="summary-text">{{ displayedSummaryText }}</text>
@@ -143,6 +179,21 @@
       <view v-else class="source-box source-box--muted">
         <text class="source-label">原始来源</text>
         <text class="source-url">当前未提供可直接打开的机构原文链接，请优先参考本页摘要、同步时间和机构标签。</text>
+      </view>
+
+      <view v-if="contentOutline.length" class="outline-box">
+        <text class="outline-kicker">正文目录</text>
+        <text class="outline-title">按章节快速定位</text>
+        <view
+          v-for="item in contentOutline"
+          :key="item.id"
+          class="outline-item"
+          :class="{ 'outline-item--sub': item.level === 3 }"
+          @tap="jumpToSection(item.id)"
+        >
+          <text class="outline-item-label">{{ item.level === 3 ? '要点' : '章节' }}</text>
+          <text class="outline-item-title">{{ item.title }}</text>
+        </view>
       </view>
 
       <view v-if="showTranslationEntry" class="translation-box">
@@ -204,13 +255,26 @@
           <text class="share-btn-text">分享给家人</text>
         </button>
       </view>
+
+      <view class="floating-reading-tools">
+        <view class="mini-progress-badge">
+          <text class="mini-progress-badge-text">已阅读 {{ readingProgress }}%</text>
+        </view>
+        <view
+          v-if="showBackToTop"
+          class="mini-back-top"
+          @tap="backToTop"
+        >
+          <text class="mini-back-top-text">回到顶部</text>
+        </view>
+      </view>
     </view>
   </view>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { onLoad, onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app'
+import { computed, nextTick, ref, watch } from 'vue'
+import { onLoad, onPageScroll, onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app'
 import { articleApi, isTranslationPendingError } from '@/api/modules'
 import type { AuthorityArticleTranslation } from '@/api/modules'
 import type { Article } from '@/api/modules'
@@ -219,12 +283,17 @@ import { getAuthorityRegionLabel, getAuthorityRegionTag, isChineseAuthoritySourc
 import { buildKnowledgeAiAssist } from '@/utils/ai-assist'
 import { trackMiniEvent } from '@/utils/analytics'
 import {
+  addArticleHeadingAnchors,
+  buildKnowledgeReadingMeta,
+  buildKnowledgeReadingPath,
+  extractArticleOutline,
   formatDate,
   formatRichArticleContent,
   formatSourceLabel,
-  isGenericForeignTitle,
-  getLocalizedFallbackTitle,
+  getKnowledgeDisplayTitle,
   isMostlyChineseText,
+  normalizePlainText,
+  sanitizeAuthoritySourceUrl,
   sanitizeTranslationText,
   stripHtmlTags,
 } from '@/utils/knowledge-format'
@@ -258,6 +327,10 @@ const shouldWarmTranslation = ref(false)
 const autoShowTranslation = ref(false)
 const continueReadingItems = ref<ContinueReadingItem[]>([])
 const relatedArticles = ref<Article[]>([])
+const readingProgress = ref(0)
+const showBackToTop = ref(false)
+const contentHeightPx = ref(1)
+const viewportHeightPx = ref(uni.getSystemInfoSync().windowHeight || 1)
 let openSourceType: '' | 'chat_hit' = ''
 let openAiHitContext: {
   qaId?: string
@@ -275,12 +348,12 @@ const displayedTitle = computed(() => {
   if (showingTranslation.value && translatedTitleText.value) {
     return translatedTitleText.value
   }
-
-  const rawTitle = article.value?.title || ''
-  if (isGenericForeignTitle(rawTitle)) {
-    return getLocalizedFallbackTitle(article.value?.topic, normalizedStageValue.value)
-  }
-  return rawTitle
+  return getKnowledgeDisplayTitle({
+    title: article.value?.title,
+    topic: article.value?.topic,
+    stage: normalizedStageValue.value,
+    category: article.value?.category,
+  })
 })
 
 const displayedSummary = computed(() => {
@@ -291,6 +364,8 @@ const displayedSummary = computed(() => {
 })
 
 const displayedSummaryText = computed(() => normalizePlainText(displayedSummary.value))
+const readingMeta = computed(() => buildKnowledgeReadingMeta(article.value))
+const readingPath = computed(() => buildKnowledgeReadingPath(article.value))
 
 const displayedSourceUrl = computed(() => sanitizeAuthoritySourceUrl(
   article.value?.sourceUrl,
@@ -306,14 +381,27 @@ const isBodyFallback = computed(() => {
 
 const displayedContent = computed(() => {
   if (showingTranslation.value && translatedContentText.value) {
-    return formatRichArticleContent(translatedContentText.value)
+    return addArticleHeadingAnchors(formatRichArticleContent(translatedContentText.value))
   }
 
   const body = article.value?.content || ''
   if (!body.trim() && article.value?.summary) {
-    return formatRichArticleContent(article.value.summary)
+    return addArticleHeadingAnchors(formatRichArticleContent(article.value.summary))
   }
-  return formatRichArticleContent(body)
+  return addArticleHeadingAnchors(formatRichArticleContent(body))
+})
+
+const contentOutline = computed(() => {
+  if (showingTranslation.value && translatedContentText.value) {
+    return extractArticleOutline(translatedContentText.value)
+  }
+
+  const body = article.value?.content || ''
+  if (!body.trim() && article.value?.summary) {
+    return extractArticleOutline(article.value.summary)
+  }
+
+  return extractArticleOutline(body)
 })
 
 const translationNoticeText = computed(() => (
@@ -468,13 +556,17 @@ const detailHighlights = computed(() => {
 
 const translationReadyText = computed(() => {
   if (!showTranslationEntry.value) return ''
+  if (translationError.value) return ''
   if (translating.value) return '正在准备译文，保持当前页面即可。'
-  if (translation.value && !showingTranslation.value) return '中文阅读版已准备好，点“查看中文”可直接切换。'
+  if (translation.value && !showingTranslation.value) return '中文阅读版已准备好，点”查看中文”可直接切换。'
   if (translation.value && showingTranslation.value) return '当前正在查看中文辅助阅读版。'
   return ''
 })
 
 onLoad((options) => {
+  viewportHeightPx.value = uni.getSystemInfoSync().windowHeight || 1
+  readingProgress.value = 0
+  showBackToTop.value = false
   if (typeof options?.slug === 'string') {
     currentSlug = options.slug
     shouldWarmTranslation.value = options?.translation === '1'
@@ -493,89 +585,20 @@ onLoad((options) => {
   }
 })
 
+onPageScroll((event) => {
+  const maxScroll = Math.max(contentHeightPx.value - viewportHeightPx.value, 0)
+  const nextProgress = maxScroll > 0
+    ? Math.min(100, Math.max(0, Math.round((event.scrollTop / maxScroll) * 100)))
+    : 100
+
+  readingProgress.value = nextProgress
+  showBackToTop.value = event.scrollTop > 420
+})
+
 function retryLoad() {
   if (currentSlug) {
     void loadArticleDetail(currentSlug)
   }
-}
-
-function sanitizeAuthoritySourceUrl(url?: string, sourceText = ''): string {
-  if (!url) {
-    return ''
-  }
-
-  let pathname = ''
-  try {
-    pathname = new URL(url).pathname.toLowerCase().replace(/\/+$/g, '') || '/'
-  } catch {
-    return ''
-  }
-
-  const normalizedSource = `${sourceText} ${url}`.toLowerCase()
-  const exactLandingPaths = new Set([
-    '/',
-    '/news-room',
-    '/health-topics',
-    '/health-topics/maternal-health',
-    '/health-topics/child-health',
-    '/health-topics/breastfeeding',
-    '/health-topics/vaccines-and-immunization',
-    '/pregnancy',
-    '/breastfeeding',
-    '/parents',
-    '/child-development',
-    '/vaccines-children',
-    '/vaccines-pregnancy',
-    '/vaccines-for-children',
-    '/reproductivehealth',
-    '/womens-health',
-    '/contraception',
-    '/growthcharts',
-    '/ncbddd',
-    '/act-early',
-    '/early-care',
-    '/protect-children',
-    '/medicines-and-pregnancy',
-    '/opioid-use-during-pregnancy',
-    '/pregnancy-hiv-std-tb-hepatitis',
-    '/english/ages-stages',
-    '/english/health-issues',
-    '/english/healthy-living',
-    '/english/safety-prevention',
-    '/english/family-life',
-    '/clinical',
-    '/topics',
-    '/conditions',
-    '/conditions/baby',
-    '/conditions/pregnancy-and-baby',
-    '/medicines',
-    '/vaccinations',
-    '/start-for-life',
-  ])
-
-  if (exactLandingPaths.has(pathname)) {
-    return ''
-  }
-
-  if (/chinacdc|中国疾病预防控制中心/u.test(normalizedSource)) {
-    if (pathname === '/' || pathname.endsWith('/list.html') || !/(?:\/t\d{8}_\d+\.(?:html?|shtml)|\.pdf(?:$|[?#]))/i.test(url)) {
-      return ''
-    }
-  }
-
-  if (/ndcpa|国家疾病预防控制局/u.test(normalizedSource)) {
-    if (pathname === '/' || pathname.endsWith('/list.html') || !/\/common\/content\/content_\d+\.html(?:$|[?#])/i.test(url)) {
-      return ''
-    }
-  }
-
-  return url
-}
-
-function normalizePlainText(input?: string | null): string {
-  return stripHtmlTags(input || '')
-    .replace(/\s+/g, ' ')
-    .trim()
 }
 
 function openSource(url?: string) {
@@ -584,6 +607,20 @@ function openSource(url?: string) {
     return
   }
   uni.navigateTo({ url: `/pages/webview/index?url=${encodeURIComponent(url)}` })
+}
+
+function jumpToSection(sectionId: string) {
+  uni.pageScrollTo({
+    selector: `#${sectionId}`,
+    duration: 280,
+  })
+}
+
+function backToTop() {
+  uni.pageScrollTo({
+    scrollTop: 0,
+    duration: 280,
+  })
 }
 
 function openTrustCenter() {
@@ -633,6 +670,9 @@ async function toggleTranslation() {
 }
 
 async function loadArticleDetail(slug: string) {
+  readingProgress.value = 0
+  showBackToTop.value = false
+  contentHeightPx.value = Math.max(viewportHeightPx.value, 1)
   translation.value = knowledgeStore.getCachedTranslation(slug)
   translating.value = false
   translationError.value = ''
@@ -648,6 +688,7 @@ async function loadArticleDetail(slug: string) {
   await syncRelatedArticles()
   persistRecentKnowledge()
   syncContinueReading()
+  await measurePageMetrics()
 
   if (openSourceType === 'chat_hit' && article.value?.slug === slug) {
     trackMiniEvent('app_knowledge_detail_ai_hit_open', {
@@ -667,6 +708,23 @@ async function loadArticleDetail(slug: string) {
   if (!translation.value && !isLikelyChineseSource.value) {
     void prefetchTranslation()
   }
+}
+
+async function measurePageMetrics() {
+  await nextTick()
+
+  setTimeout(() => {
+    const query = uni.createSelectorQuery()
+    query.select('.detail-page').boundingClientRect()
+    query.exec((result) => {
+      const rect = Array.isArray(result) ? result[0] : null
+      const measuredHeight = rect && typeof rect.height === 'number'
+        ? rect.height
+        : 0
+
+      contentHeightPx.value = Math.max(measuredHeight, viewportHeightPx.value, 1)
+    })
+  }, 60)
 }
 
 async function syncRelatedArticles() {
@@ -758,11 +816,11 @@ function buildContinueReadingMeta(input: {
 }
 
 function getArticleCardTitle(target: Pick<Article, 'title' | 'topic' | 'stage'> | RecentKnowledgeItem): string {
-  if (!isGenericForeignTitle(target.title)) {
-    return target.title || '权威参考'
-  }
-
-  return getLocalizedFallbackTitle('topic' in target ? target.topic : undefined, 'stage' in target ? target.stage : undefined)
+  return getKnowledgeDisplayTitle({
+    title: target.title,
+    topic: 'topic' in target ? target.topic : undefined,
+    stage: 'stage' in target ? target.stage : undefined,
+  })
 }
 
 function normalizeArticleStage(target?: Article | null): string {
@@ -903,6 +961,16 @@ onShareTimeline(() => {
     query: payload.query,
   }
 })
+
+watch(
+  () => [displayedContent.value, contentOutline.value.length, translationError.value, continueReadingItems.value.length, Boolean(article.value?.slug)],
+  () => {
+    if (!article.value) {
+      return
+    }
+    void measurePageMetrics()
+  },
+)
 </script>
 
 <style scoped>
@@ -948,8 +1016,11 @@ onShareTimeline(() => {
 .context-board,
 .pathway-box,
 .read-guide-box,
+.reading-meta-box,
+.reading-path-box,
 .summary-box,
 .source-box,
+.outline-box,
 .translation-box,
 .article-content,
 .disclaimer-box,
@@ -1181,6 +1252,123 @@ onShareTimeline(() => {
   color: #5d6b7b;
 }
 
+.reading-meta-box {
+  background: linear-gradient(145deg, #f7fbfc 0%, #ffffff 100%);
+  border: 1rpx solid rgba(80, 119, 130, 0.14);
+}
+
+.reading-meta-kicker {
+  display: block;
+  font-size: 22rpx;
+  font-weight: 700;
+  letter-spacing: 2rpx;
+  color: #507782;
+}
+
+.reading-meta-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20rpx;
+  margin-top: 10rpx;
+}
+
+.reading-meta-title {
+  font-size: 30rpx;
+  line-height: 1.35;
+  font-weight: 800;
+  color: #24303d;
+}
+
+.reading-meta-mode {
+  flex-shrink: 0;
+  padding: 10rpx 18rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.88);
+  font-size: 22rpx;
+  font-weight: 700;
+  color: #406672;
+}
+
+.reading-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16rpx;
+  margin-top: 22rpx;
+}
+
+.reading-meta-item {
+  padding: 20rpx 22rpx;
+  border-radius: 22rpx;
+  background: rgba(255, 255, 255, 0.84);
+}
+
+.reading-meta-item-label {
+  display: block;
+  font-size: 22rpx;
+  color: #7b95a0;
+}
+
+.reading-meta-item-value {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 26rpx;
+  line-height: 1.45;
+  font-weight: 800;
+  color: #2c3f4d;
+}
+
+.reading-path-kicker {
+  display: block;
+  font-size: 22rpx;
+  font-weight: 700;
+  letter-spacing: 2rpx;
+  color: #c56e46;
+}
+
+.reading-path-title {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 31rpx;
+  line-height: 1.35;
+  font-weight: 800;
+  color: #24303d;
+}
+
+.reading-path-desc {
+  display: block;
+  margin-top: 12rpx;
+  font-size: 24rpx;
+  line-height: 1.7;
+  color: #69798a;
+}
+
+.reading-path-item + .reading-path-item {
+  margin-top: 14rpx;
+}
+
+.reading-path-item {
+  margin-top: 18rpx;
+  padding: 20rpx 22rpx;
+  border-radius: 22rpx;
+  background: rgba(247, 249, 252, 0.92);
+}
+
+.reading-path-item-title {
+  display: block;
+  font-size: 25rpx;
+  font-weight: 700;
+  color: #25303c;
+}
+
+.reading-path-item-desc {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 24rpx;
+  line-height: 1.68;
+  color: #627180;
+}
+
 .ai-assist-box {
   margin-bottom: 24rpx;
   padding: 28rpx;
@@ -1336,8 +1524,15 @@ onShareTimeline(() => {
 }
 
 .summary-text,
-.source-url,
 .disclaimer-text {
+  font-size: 28rpx;
+  line-height: 1.7;
+  color: #3a4653;
+  text-align: justify;
+  text-align-last: left;
+}
+
+.source-url {
   font-size: 28rpx;
   line-height: 1.7;
   color: #3a4653;
@@ -1365,10 +1560,60 @@ onShareTimeline(() => {
   font-weight: 600;
 }
 
+.outline-kicker {
+  display: block;
+  font-size: 22rpx;
+  font-weight: 700;
+  letter-spacing: 2rpx;
+  color: #507782;
+}
+
+.outline-title {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 30rpx;
+  line-height: 1.35;
+  font-weight: 800;
+  color: #24303d;
+}
+
+.outline-item + .outline-item {
+  margin-top: 14rpx;
+}
+
+.outline-item {
+  margin-top: 18rpx;
+  padding: 20rpx 22rpx;
+  border-radius: 22rpx;
+  background: rgba(247, 249, 252, 0.92);
+}
+
+.outline-item--sub {
+  margin-left: 22rpx;
+}
+
+.outline-item-label {
+  display: block;
+  font-size: 22rpx;
+  font-weight: 700;
+  color: #7b95a0;
+}
+
+.outline-item-title {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 25rpx;
+  line-height: 1.6;
+  font-weight: 700;
+  color: #2c3f4d;
+}
+
 .content-text {
   font-size: 30rpx;
   line-height: 1.85;
   color: #24303d;
+  text-align: justify;
+  text-align-last: left;
 }
 
 .translation-head {
@@ -1487,6 +1732,7 @@ onShareTimeline(() => {
 
 .translation-btn--disabled {
   opacity: 0.65;
+  pointer-events: none;
 }
 
 .translation-btn-text {
@@ -1539,5 +1785,46 @@ onShareTimeline(() => {
   font-size: 28rpx;
   color: #fff;
   font-weight: 600;
+}
+
+.floating-reading-tools {
+  position: fixed;
+  right: 28rpx;
+  bottom: 48rpx;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 14rpx;
+}
+
+.mini-progress-badge,
+.mini-back-top {
+  box-shadow: 0 14rpx 32rpx rgba(44, 58, 76, 0.12);
+}
+
+.mini-progress-badge {
+  padding: 12rpx 22rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 250, 246, 0.94);
+  border: 1rpx solid rgba(197, 108, 71, 0.14);
+}
+
+.mini-progress-badge-text {
+  color: #6e6157;
+  font-size: 22rpx;
+  font-weight: 800;
+}
+
+.mini-back-top {
+  padding: 16rpx 24rpx;
+  border-radius: 999rpx;
+  background: rgba(44, 64, 77, 0.94);
+}
+
+.mini-back-top-text {
+  color: #fff;
+  font-size: 23rpx;
+  font-weight: 700;
 }
 </style>

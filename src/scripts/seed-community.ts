@@ -24,11 +24,6 @@ type CategoryInfo = {
   slug: string
 }
 
-type TagInfo = {
-  id: bigint
-  name: string
-}
-
 type TopicTemplate = {
   keywords: string[]
   titleTemplates: string[]

@@ -705,11 +705,12 @@ export function buildStandardSchedulePlan(params: {
 }): StandardSchedulePlan {
   const lifecycleKey = resolveDetailedLifecycleKey(params.user, params.now);
   const lifecycleCopy = getLifecycleCopy(lifecycleKey);
-  const babyBirthday = params.user.babyBirthday || null;
-
   const dueDate = params.user.dueDate || null;
-  const isPrenatal = lifecycleKey === 'pregnant';
-  const hasAnchor = isPrenatal ? Boolean(dueDate) : Boolean(babyBirthday);
+  // Current auto-generation only writes child/postpartum nodes, so keep
+  // prenatal plans unavailable until due-date generation is fully wired.
+  const supportsAutoGeneration = lifecycleKey !== 'pregnant';
+  const babyBirthday = params.user.babyBirthday || null;
+  const hasAnchor = supportsAutoGeneration ? Boolean(babyBirthday) : false;
 
   if (!hasAnchor || lifecycleKey === 'preparing') {
     return {

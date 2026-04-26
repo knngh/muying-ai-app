@@ -1,0 +1,404 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.backButton,
+.primaryButton,
+.secondaryButton,
+.textButton,
+.textButtonDanger {
+  border: none;
+  font: inherit;
+  cursor: pointer;
+}
+
+.backButton {
+  align-self: flex-start;
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.86);
+  color: #7a5e52;
+  font-weight: 700;
+  border: 1px solid rgba(154, 112, 82, 0.12);
+}
+
+.postCard,
+.commentsCard,
+.emptyState,
+.modalCard {
+  border: 1px solid rgba(154, 112, 82, 0.12);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 24px 60px rgba(130, 93, 69, 0.1);
+}
+
+.postCard,
+.commentsCard,
+.modalCard {
+  padding: 22px;
+}
+
+.postHeader,
+.commentHeader,
+.sectionHeader,
+.modalHeader,
+.replyBanner,
+.pagination,
+.postStats {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.authorRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.authorRow strong,
+.postCard h1,
+.sectionHeader h2,
+.modalHeader h2 {
+  color: #30231f;
+}
+
+.authorRow span {
+  display: block;
+  margin-top: 2px;
+  color: #8a766d;
+  font-size: 12px;
+}
+
+.avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, #de7864, #c55c42);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.inlineActions,
+.tagRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.textButton,
+.textButtonDanger {
+  padding: 0;
+  background: none;
+  font-weight: 700;
+}
+
+.textButton {
+  color: #ab5d43;
+}
+
+.textButtonDanger {
+  color: #bd523a;
+}
+
+.tagRow {
+  margin-top: 18px;
+}
+
+.metaTag {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(154, 112, 82, 0.1);
+  background: rgba(255, 250, 246, 0.9);
+  color: #6d584f;
+  font-size: 12px;
+}
+
+.metaTagPinned {
+  background: rgba(255, 231, 227, 0.94);
+  color: #b54332;
+}
+
+.postCard h1 {
+  margin: 18px 0 0;
+  font-size: clamp(30px, 4vw, 42px);
+  line-height: 1.18;
+}
+
+.postContent,
+.commentContent {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.postContent {
+  margin: 18px 0 0;
+  color: #4d3d37;
+  font-size: 16px;
+  line-height: 1.9;
+}
+
+.postStats {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(154, 112, 82, 0.1);
+  color: #806c63;
+}
+
+.primaryButton,
+.secondaryButton {
+  border-radius: 999px;
+  padding: 12px 18px;
+  font-weight: 700;
+}
+
+.primaryButton {
+  background: linear-gradient(135deg, #db785b, #c55c42);
+  color: #fff;
+  box-shadow: 0 18px 32px rgba(197, 92, 66, 0.24);
+}
+
+.secondaryButton {
+  background: rgba(246, 238, 231, 0.92);
+  color: #7c6257;
+}
+
+.primaryButton:disabled,
+.secondaryButton:disabled,
+.textButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  box-shadow: none;
+}
+
+.activeButton {
+  outline: 3px solid rgba(219, 120, 91, 0.16);
+}
+
+.eyebrow {
+  display: inline-block;
+  margin-bottom: 8px;
+  color: #ab5d43;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.commentComposer {
+  margin-top: 16px;
+  padding: 18px;
+  border-radius: 22px;
+  background: rgba(248, 243, 237, 0.82);
+}
+
+.commentComposer textarea,
+.formField input,
+.formField select,
+.formField textarea {
+  width: 100%;
+  border: 1px solid rgba(154, 112, 82, 0.16);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.96);
+  color: #342722;
+  padding: 14px 16px;
+  font: inherit;
+  line-height: 1.6;
+}
+
+.commentComposer textarea,
+.formField textarea {
+  resize: vertical;
+}
+
+.commentComposer .primaryButton {
+  margin-top: 10px;
+}
+
+.replyBanner {
+  margin-bottom: 10px;
+  color: #806a61;
+}
+
+.commentList {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.commentBlock {
+  border-top: 1px solid rgba(154, 112, 82, 0.1);
+  padding-top: 14px;
+}
+
+.commentItem,
+.replyItem {
+  padding: 14px;
+  border-radius: 20px;
+  background: rgba(255, 250, 246, 0.76);
+}
+
+.replyItem {
+  background: rgba(248, 243, 237, 0.82);
+}
+
+.commentContent {
+  margin: 12px 0 10px;
+  color: #4e3d36;
+  line-height: 1.8;
+}
+
+.repliesBox {
+  margin: 10px 0 0 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.replyPager {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin: 10px 0 0 48px;
+  color: #806a61;
+}
+
+.pagination {
+  justify-content: center;
+  margin-top: 18px;
+}
+
+.emptyInline,
+.loadingState,
+.emptyState {
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: #76645c;
+  text-align: center;
+}
+
+.emptyState {
+  padding: 28px;
+}
+
+.loadingDot {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: #d67356;
+  box-shadow: 22px 0 0 rgba(214, 115, 86, 0.34), -22px 0 0 rgba(214, 115, 86, 0.34);
+  animation: pulse 1.1s ease-in-out infinite;
+}
+
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(42, 31, 25, 0.42);
+}
+
+.modalCard {
+  width: min(100%, 640px);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.formField {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.formField span,
+.switchRow {
+  color: #806a61;
+}
+
+.switchRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.formError {
+  border-radius: 16px;
+  padding: 12px 14px;
+  background: rgba(255, 237, 233, 0.94);
+  color: #a44634;
+}
+
+.toast {
+  position: fixed;
+  top: 24px;
+  left: 50%;
+  z-index: 100;
+  transform: translateX(-50%);
+  padding: 12px 16px;
+  border-radius: 999px;
+  background: rgba(57, 42, 36, 0.92);
+  color: #fff;
+  box-shadow: 0 18px 40px rgba(57, 42, 36, 0.22);
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    transform: scale(0.85);
+    opacity: 0.7;
+  }
+
+  50% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@media (max-width: 720px) {
+  .postHeader,
+  .commentHeader,
+  .sectionHeader,
+  .modalHeader,
+  .pagination,
+  .postStats {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .inlineActions {
+    justify-content: flex-start;
+  }
+
+  .primaryButton,
+  .secondaryButton {
+    width: 100%;
+  }
+
+  .repliesBox,
+  .replyPager {
+    margin-left: 0;
+  }
+}

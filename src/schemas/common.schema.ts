@@ -13,5 +13,8 @@ export const idParam = z.object({
 
 /** slug 参数 */
 export const slugParam = z.object({
-  slug: z.string().min(1, 'slug 不能为空'),
+  slug: z.string()
+    .min(1, 'slug 不能为空')
+    .max(160, 'slug 过长')
+    .regex(/^[A-Za-z0-9_-]+$/, 'slug 格式无效'),
 });

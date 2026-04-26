@@ -89,35 +89,6 @@ export default defineConfig({
             return 'vendor-router'
           }
 
-          if (
-            packageName === 'antd'
-          ) {
-            return 'vendor-ui'
-          }
-
-          if (
-            packageName === '@ant-design/icons'
-            || packageName === '@ant-design/icons-svg'
-          ) {
-            return 'vendor-ui'
-          }
-
-          if (
-            packageName === '@ant-design/cssinjs'
-            || packageName === '@ant-design/cssinjs-utils'
-            || packageName === '@ant-design/colors'
-            || packageName === '@ant-design/fast-color'
-          ) {
-            return 'vendor-ui'
-          }
-
-          if (
-            packageName.startsWith('@rc-component/')
-            || packageName.startsWith('rc-')
-          ) {
-            return 'vendor-ui'
-          }
-
           if (isMarkdownPackage) {
             return 'vendor-markdown'
           }

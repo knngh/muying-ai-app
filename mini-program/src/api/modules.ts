@@ -1,60 +1,46 @@
 import api from './request'
 import type {
+  ArticleListParams,
+  ArticleTranslationOptions,
+  AuthorityArticleTranslation, AuthorityArticleTranslationResponse, TranslationPendingError,
+  AuthChangePasswordPayload,
+  AuthLoginPayload,
+  AuthProfileUpdatePayload,
+  AuthRegisterPayload,
+  AuthWechatLoginPayload,
+  CalendarEventDragPayload,
+  CalendarEventInput,
+  CalendarEventQueryParams,
+  CalendarWeekParams,
   Category, Tag, Article, CalendarEvent, User, PaginatedResponse,
+  FavoriteCreatePayload,
+  PaginationParams,
+  ParentCategoryParams,
   PregnancyTodoProgress, PregnancyDiary, PregnancyCustomTodo, PregnancyProfile,
+  PregnancyCustomTodoCreatePayload,
+  PregnancyCustomTodoUpdatePayload,
+  PregnancyDiaryPayload,
+  PregnancyTodoProgressUpdatePayload,
+  PregnancyWeekParams,
+  ReadHistoryRecordPayload,
 } from '../../../shared/types'
+import {
+  AUTHORITY_TRANSLATION_REQUEST_TIMEOUT_MS,
+  buildTranslationPendingError,
+  getTranslationRetryDelay,
+  sleep,
+} from '../../../shared/utils/translation-request'
 
 export type {
+  AuthorityArticleTranslation, AuthorityArticleTranslationResponse, TranslationPendingError,
   Category, Tag, Article, CalendarEvent, User, PaginatedResponse,
   PregnancyTodoProgress, PregnancyDiary, PregnancyCustomTodo, PregnancyProfile,
 }
-
-export interface AuthorityArticleTranslation {
-  slug: string
-  sourceUpdatedAt?: string
-  translatedTitle: string
-  translatedSummary: string
-  translatedContent: string
-  translationNotice: string
-  updatedAt: string
-  model?: string
-  provider?: string
-  isSourceChinese?: boolean
-}
-
-export interface AuthorityArticleTranslationResponse {
-  status: 'ready' | 'processing'
-  retryAfterMs?: number
-  translation?: AuthorityArticleTranslation
-}
-
-export type TranslationPendingError = Error & {
-  translationPending: true
-  retryAfterMs?: number
-}
-
-const AUTHORITY_TRANSLATION_REQUEST_TIMEOUT_MS = 45000
-
-function sleep(ms: number) {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms)
-  })
-}
-
-function buildTranslationPendingError(retryAfterMs?: number): TranslationPendingError {
-  const error = new Error('中文辅助阅读正在准备中，请稍后查看') as TranslationPendingError
-  error.translationPending = true
-  error.retryAfterMs = retryAfterMs
-  return error
-}
-
-export function isTranslationPendingError(error: unknown): error is TranslationPendingError {
-  return Boolean(error && typeof error === 'object' && 'translationPending' in error)
-}
+export { isTranslationPendingError } from '../../../shared/utils/translation-request'
 
 // ==================== 分类 API ====================
 export const categoryApi = {
-  getAll: (params?: { parentId?: number }) =>
+  getAll: (params?: ParentCategoryParams) =>
     api.get<{ list: Category[] }>('/categories', params as Record<string, unknown>).then(res => (res as { list: Category[] }).list),
   getBySlug: (slug: string) =>
     api.get<Category>(`/categories/${slug}`),
@@ -63,17 +49,15 @@ export const categoryApi = {
 // ==================== 标签 API ====================
 export const tagApi = {
   getAll: () => api.get<{ list: Tag[] }>('/tags').then(res => (res as { list: Tag[] }).list),
-  getArticlesByTag: (slug: string, params?: { page?: number; pageSize?: number }) =>
+  getArticlesByTag: (slug: string, params?: PaginationParams) =>
     api.get<{ tag: Tag; articles: PaginatedResponse<Article> }>(`/tags/${slug}/articles`, params as Record<string, unknown>)
       .then(res => (res as { tag: Tag; articles: PaginatedResponse<Article> }).articles),
 }
 
 // ==================== 文章 API ====================
 export const articleApi = {
-  getList: (params?: {
-    page?: number; pageSize?: number; category?: string; tag?: string;
-    difficulty?: string; contentType?: string; stage?: string; sort?: string; keyword?: string; source?: string
-  }) => api.get<PaginatedResponse<Article>>('/articles', params as Record<string, unknown>),
+  getList: (params?: ArticleListParams) =>
+    api.get<PaginatedResponse<Article>>('/articles', params as Record<string, unknown>),
   getBySlug: (slug: string) => api.get<Article>(`/articles/${slug}`),
   getTranslationStatus: (slug: string) => api.get<AuthorityArticleTranslationResponse>(
     `/articles/${slug}/translation`,
@@ -88,8 +72,9 @@ export const articleApi = {
     )
     return response.status === 'ready' ? (response.translation || null) : null
   },
-  getTranslation: async (slug: string, options?: { maxAttempts?: number }) => {
+  getTranslation: async (slug: string, options?: ArticleTranslationOptions) => {
     const maxAttempts = Math.max(1, options?.maxAttempts || 3)
+    let pendingRetryAfterMs: number | undefined
 
     for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
       const response = await api.get<AuthorityArticleTranslationResponse>(
@@ -101,67 +86,68 @@ export const articleApi = {
         return response.translation
       }
 
+      pendingRetryAfterMs = response.retryAfterMs
+
       if (attempt < maxAttempts - 1) {
-        const baseDelay = response.retryAfterMs || 2000
-        await sleep(Math.min(baseDelay * Math.pow(1.5, attempt), 10000))
+        await sleep(getTranslationRetryDelay(response.retryAfterMs, attempt))
       }
     }
 
-    throw buildTranslationPendingError()
+    throw buildTranslationPendingError(pendingRetryAfterMs)
   },
-  search: (keyword: string, params?: { page?: number; pageSize?: number }) =>
+  search: (keyword: string, params?: PaginationParams) =>
     api.get<PaginatedResponse<Article>>('/articles/search', { q: keyword, ...params } as Record<string, unknown>),
   getRelated: (id: number, limit = 5) =>
     api.get<{ list: Article[] }>(`/articles/${id}/related`, { limit }).then(res => (res as { list: Article[] }).list),
-  like: (id: number) => api.post<{ liked: boolean }>(`/articles/${id}/like`),
-  unlike: (id: number) => api.delete<{ liked: boolean }>(`/articles/${id}/like`),
-  favorite: (id: number) => api.post<{ favorited: boolean }>(`/articles/${id}/favorite`),
-  unfavorite: (id: number) => api.delete<{ favorited: boolean }>(`/articles/${id}/favorite`),
+  like: (id: number) => api.post<{ liked: boolean; likeCount: number }>(`/articles/${id}/like`),
+  unlike: (id: number) => api.delete<{ liked: boolean; likeCount: number }>(`/articles/${id}/like`),
+  favorite: (id: number) => api.post<{ favorited: boolean; collectCount: number }>(`/articles/${id}/favorite`),
+  unfavorite: (id: number) => api.delete<{ favorited: boolean; collectCount: number }>(`/articles/${id}/favorite`),
 }
 
 // ==================== 日历事件 API ====================
 export const calendarApi = {
-  getEvents: (params?: { startDate?: string; endDate?: string; eventType?: string }) =>
+  getEvents: (params?: CalendarEventQueryParams) =>
     api.get<{ list: CalendarEvent[] }>('/calendar/events', {
       startDate: params?.startDate,
       endDate: params?.endDate,
       type: params?.eventType,
     } as Record<string, unknown>).then(res => (res as { list: CalendarEvent[] }).list),
-  getWeek: (params?: { date?: string }) => api.get('/calendar/week', params as Record<string, unknown>),
+  getWeek: (params?: CalendarWeekParams) => api.get('/calendar/week', params as Record<string, unknown>),
   getDay: (date: string) => api.get(`/calendar/day/${date}`),
   getEventTypes: () => api.get('/calendar/event-types'),
-  getTodoProgress: (params?: { week?: number }) =>
+  getTodoProgress: (params?: PregnancyWeekParams) =>
     api.get<{ list: PregnancyTodoProgress[] }>('/calendar/todo-progress', params as Record<string, unknown>)
       .then(res => (res as { list: PregnancyTodoProgress[] }).list),
-  updateTodoProgress: (data: { week: number; todoKey: string; completed: boolean }) =>
+  updateTodoProgress: (data: PregnancyTodoProgressUpdatePayload) =>
     api.put<PregnancyTodoProgress>('/calendar/todo-progress', data),
-  getDiaries: (params?: { week?: number }) =>
+  getDiaries: (params?: PregnancyWeekParams) =>
     api.get<{ list: PregnancyDiary[] }>('/calendar/diaries', params as Record<string, unknown>)
       .then(res => (res as { list: PregnancyDiary[] }).list),
-  saveDiary: (data: { week: number; content: string }) =>
+  saveDiary: (data: PregnancyDiaryPayload) =>
     api.put<PregnancyDiary>('/calendar/diaries', data),
   deleteDiary: (week: number) =>
     api.delete<{ week: number }>(`/calendar/diaries/${week}`),
-  getCustomTodos: (params?: { week?: number }) =>
+  getCustomTodos: (params?: PregnancyWeekParams) =>
     api.get<{ list: PregnancyCustomTodo[] }>('/calendar/custom-todos', params as Record<string, unknown>)
       .then(res => (res as { list: PregnancyCustomTodo[] }).list),
-  createCustomTodo: (data: { week: number; content: string }) =>
+  createCustomTodo: (data: PregnancyCustomTodoCreatePayload) =>
     api.post<PregnancyCustomTodo>('/calendar/custom-todos', data),
-  updateCustomTodo: (id: string, data: { content: string }) =>
+  updateCustomTodo: (id: string, data: PregnancyCustomTodoUpdatePayload) =>
     api.put<PregnancyCustomTodo>(`/calendar/custom-todos/${id}`, data),
   deleteCustomTodo: (id: string) =>
     api.delete<{ id: string; week: number; todoKey: string }>(`/calendar/custom-todos/${id}`),
-  createEvent: (data: Partial<CalendarEvent>) => api.post<CalendarEvent>('/calendar/events', {
+  createEvent: (data: CalendarEventInput) => api.post<CalendarEvent>('/calendar/events', {
     ...data,
     eventTime: data.startTime,
   }),
-  updateEvent: (id: number, data: Partial<CalendarEvent>) => api.put<CalendarEvent>(`/calendar/events/${id}`, {
+  updateEvent: (id: number, data: CalendarEventInput) => api.put<CalendarEvent>(`/calendar/events/${id}`, {
     ...data,
     eventTime: data.startTime,
   }),
   deleteEvent: (id: number) => api.delete(`/calendar/events/${id}`),
   completeEvent: (id: number) => api.post<CalendarEvent>(`/calendar/events/${id}/complete`),
-  dragEvent: (id: number, data: { newDate: string; newStartTime?: string }) => api.patch<CalendarEvent>(`/calendar/events/${id}/drag`, {
+  dragEvent: (id: number, data: CalendarEventDragPayload) => api.patch<CalendarEvent>(`/calendar/events/${id}/drag`, {
     newDate: data.newDate,
     newTime: data.newStartTime,
   }),
@@ -169,13 +155,13 @@ export const calendarApi = {
 
 // ==================== 用户 API ====================
 export const userApi = {
-  getFavorites: (params?: { page?: number; pageSize?: number }) =>
+  getFavorites: (params?: PaginationParams) =>
     api.get('/user/favorites', params as Record<string, unknown>),
-  addFavorite: (data: { targetId: number; targetType: string }) => api.post('/user/favorites', { articleId: data.targetId }),
+  addFavorite: (data: FavoriteCreatePayload) => api.post('/user/favorites', { articleId: data.targetId }),
   removeFavorite: (articleId: number) => api.delete(`/user/favorites/${articleId}`),
-  getReadHistory: (params?: { page?: number; pageSize?: number }) =>
+  getReadHistory: (params?: PaginationParams) =>
     api.get('/user/read-history', params as Record<string, unknown>),
-  recordRead: (data: { articleId: number; duration?: number; progress?: number }) =>
+  recordRead: (data: ReadHistoryRecordPayload) =>
     api.post('/user/read-history', { articleId: data.articleId, readDuration: data.duration, progress: data.progress }),
   getStats: () => api.get('/user/stats'),
   getPregnancyProfile: () => api.get<PregnancyProfile>('/user/pregnancy-profile'),
@@ -183,18 +169,15 @@ export const userApi = {
 
 // ==================== 认证 API ====================
 export const authApi = {
-  register: (data: { username: string; password: string; pregnancyWeek?: string }) =>
+  register: (data: AuthRegisterPayload) =>
     api.post<{ user: User; token: string }>('/auth/register', data),
-  login: (data: { username: string; password: string }) =>
+  login: (data: AuthLoginPayload) =>
     api.post<{ user: User; token: string }>('/auth/login', data),
-  wechatLogin: (data: { code: string; pregnancyWeek?: string }) =>
+  wechatLogin: (data: AuthWechatLoginPayload) =>
     api.post<{ user: User; token: string }>('/auth/wechat-login', data),
   me: () => api.get<User>('/auth/me'),
   refresh: () => api.post<{ token: string }>('/auth/refresh'),
-  updateProfile: (data: {
-    nickname?: string; avatar?: string; pregnancyStatus?: number;
-    dueDate?: string | null; babyBirthday?: string | null; babyGender?: number
-  }) => api.put<User>('/auth/profile', data),
-  changePassword: (data: { oldPassword: string; newPassword: string }) => api.put('/auth/password', data),
+  updateProfile: (data: AuthProfileUpdatePayload) => api.put<User>('/auth/profile', data),
+  changePassword: (data: AuthChangePasswordPayload) => api.put('/auth/password', data),
   logout: () => api.post('/auth/logout'),
 }

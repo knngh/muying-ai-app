@@ -8,12 +8,12 @@ declare module '@zilliz/milvus2-sdk-node' {
       timeout?: number;
     });
     hasCollection(params: { collection_name: string }): Promise<{ value: boolean }>;
-    createCollection(params: any): Promise<any>;
-    createIndex(params: any): Promise<any>;
-    loadCollectionSync(params: { collection_name: string }): Promise<any>;
-    insert(params: any): Promise<any>;
-    delete(params: any): Promise<any>;
-    flushSync(params: { collection_names: string[] }): Promise<any>;
-    search(params: any): Promise<{ results: any[] }>;
+    createCollection(params: Record<string, unknown>): Promise<unknown>;
+    createIndex(params: Record<string, unknown>): Promise<unknown>;
+    loadCollectionSync(params: { collection_name: string }): Promise<unknown>;
+    insert(params: Record<string, unknown>): Promise<unknown>;
+    delete(params: Record<string, unknown>): Promise<unknown>;
+    flushSync(params: { collection_names: string[] }): Promise<unknown>;
+    search(params: Record<string, unknown>): Promise<{ results: Array<Record<string, unknown>> }>;
   }
 }

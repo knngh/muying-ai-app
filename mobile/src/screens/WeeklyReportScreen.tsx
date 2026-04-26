@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect } from 'react'
 import { ScrollView, StyleSheet, View } from 'react-native'
 import { useFocusEffect, useNavigation } from '@react-navigation/native'
+import type { StackNavigationProp } from '@react-navigation/stack'
 import dayjs from 'dayjs'
 import { Button, Chip, Text } from 'react-native-paper'
 import LinearGradient from 'react-native-linear-gradient'
@@ -15,6 +16,7 @@ import { ScreenContainer, StandardCard } from '../components/layout'
 import { getStageSummary } from '../utils/stage'
 import { markWeeklyReportSeen } from '../utils/weeklyReportRead'
 import { colors, fontSize, spacing, borderRadius } from '../theme'
+import type { RootStackParamList } from '../navigation/AppNavigator'
 
 const workflowSteps = [
   {
@@ -54,7 +56,7 @@ function buildWeeklyReportCalendarPrefill(report: WeeklyReport, highlight: strin
 }
 
 export default function WeeklyReportScreen() {
-  const navigation = useNavigation<any>()
+  const navigation = useNavigation<StackNavigationProp<RootStackParamList, 'WeeklyReport'>>()
   const user = useAppStore((state) => state.user)
   const { status, weeklyReports, refreshWeeklyReports, loading } = useMembershipStore()
   const stage = getStageSummary(user)
@@ -70,7 +72,7 @@ export default function WeeklyReportScreen() {
           latestReportId: weeklyReports[0]?.id ?? null,
         },
       })
-    }, [refreshWeeklyReports, status]),
+    }, [refreshWeeklyReports, status, weeklyReports]),
   )
 
   const latestReportDate = weeklyReports[0]?.createdAt

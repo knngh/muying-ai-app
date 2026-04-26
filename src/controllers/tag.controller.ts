@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import prisma from '../config/database';
-import { successResponse, paginatedResponse, AppError, ErrorCodes } from '../middlewares/error.middleware';
+import { successResponse, AppError, ErrorCodes } from '../middlewares/error.middleware';
 
 // 获取标签列表
 export const getTags = async (req: Request, res: Response, next: NextFunction) => {

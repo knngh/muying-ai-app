@@ -108,7 +108,7 @@ export default function HomeScreen() {
   const [postCheckInVisible, setPostCheckInVisible] = useState(false)
 
   const openCalendar = () => {
-    ;(navigation as any).navigate('Main', { screen: 'CalendarTab' })
+    navigation.navigate('Main', { screen: 'CalendarTab' })
   }
 
   const openWeeklyReport = () => {
@@ -144,7 +144,7 @@ export default function HomeScreen() {
       actionLabel: '直接去问',
       action: 'chat',
     }
-  }, [hasCheckedInToday, hasUnreadWeeklyReport, upcomingEvents, suggestedQuestion])
+  }, [hasCheckedInToday, hasUnreadWeeklyReport, upcomingEvents])
 
   const momentumItems = useMemo<HomeMomentumItem[]>(() => {
     const items: HomeMomentumItem[] = [
@@ -361,7 +361,7 @@ export default function HomeScreen() {
       return
     }
 
-    ;(navigation as any).navigate('Main', {
+    navigation.navigate('Main', {
       screen: 'Chat',
       params: {
         prefillQuestion: suggestedQuestion,
@@ -389,7 +389,7 @@ export default function HomeScreen() {
       }
       return
     }
-    ;(navigation as any).navigate('Main', { screen: entry.route })
+    navigation.navigate('Main', { screen: entry.route })
   }
 
   const handleQuickCheckInPress = async () => {
@@ -448,7 +448,7 @@ export default function HomeScreen() {
       },
     })
 
-    ;(navigation as any).navigate('Main', {
+    navigation.navigate('Main', {
       screen: 'Chat',
       params: {
         prefillQuestion: suggestedQuestion,

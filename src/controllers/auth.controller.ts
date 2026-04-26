@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
+import jwt, { type JwtPayload, type SignOptions } from 'jsonwebtoken';
 import prisma from '../config/database';
 import { successResponse, AppError, ErrorCodes } from '../middlewares/error.middleware';
 import {
@@ -14,12 +14,23 @@ import {
 } from '../utils/pregnancy';
 import { env } from '../config/env';
 
+function isUniqueConstraintError(error: unknown): error is { code: 'P2002'; meta?: { target?: unknown } } {
+  return typeof error === 'object'
+    && error !== null
+    && 'code' in error
+    && (error as { code?: unknown }).code === 'P2002';
+}
+
 // 生成 JWT Token
 const generateToken = (userId: string): string => {
+  const signOptions: SignOptions = {
+    expiresIn: env.JWT_EXPIRES_IN as SignOptions['expiresIn'],
+  };
+
   return jwt.sign(
     { userId },
     env.JWT_SECRET,
-    { expiresIn: env.JWT_EXPIRES_IN } as any
+    signOptions
   );
 };
 
@@ -69,8 +80,8 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
           createdAt: true
         }
       });
-    } catch (err: any) {
-      if (err.code === 'P2002') {
+    } catch (err: unknown) {
+      if (isUniqueConstraintError(err)) {
         // 唯一约束冲突，给出具体字段提示
         const target = err.meta?.target;
         if (Array.isArray(target) && target.includes('username')) {
@@ -227,14 +238,14 @@ export const refreshToken = async (req: Request, res: Response, next: NextFuncti
     const oldToken = authHeader.split(' ')[1];
     
     // 允许过期，但必须验证签名，避免伪造 token 刷新
-    let decoded: any;
+    let decoded: string | JwtPayload;
     try {
       decoded = jwt.verify(oldToken, env.JWT_SECRET, { ignoreExpiration: true });
     } catch {
       throw new AppError('Token 无效', ErrorCodes.TOKEN_INVALID, 401);
     }
 
-    if (!decoded || !decoded.userId) {
+    if (typeof decoded === 'string' || typeof decoded.userId !== 'string' || !/^\d+$/.test(decoded.userId)) {
       throw new AppError('Token 无效', ErrorCodes.TOKEN_INVALID, 401);
     }
 

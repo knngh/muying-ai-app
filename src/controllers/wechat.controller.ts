@@ -1,17 +1,21 @@
 import { Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcryptjs';
 import axios from 'axios';
-import jwt from 'jsonwebtoken';
+import jwt, { type SignOptions } from 'jsonwebtoken';
 import prisma from '../config/database';
 import { successResponse, AppError, ErrorCodes } from '../middlewares/error.middleware';
 import { calculateDueDateFromPregnancyWeek } from '../utils/pregnancy';
 import { env } from '../config/env';
 
 const generateToken = (userId: string): string => {
+  const signOptions: SignOptions = {
+    expiresIn: env.JWT_EXPIRES_IN as SignOptions['expiresIn'],
+  };
+
   return jwt.sign(
     { userId },
     env.JWT_SECRET,
-    { expiresIn: env.JWT_EXPIRES_IN } as any
+    signOptions
   );
 };
 

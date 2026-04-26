@@ -1,0 +1,366 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.hero,
+.calendarCard,
+.panelCard,
+.modalCard {
+  border: 1px solid rgba(154, 112, 82, 0.12);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 24px 60px rgba(130, 93, 69, 0.1);
+}
+
+.hero,
+.calendarCard,
+.panelCard,
+.modalCard {
+  padding: 22px;
+}
+
+.hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  background:
+    radial-gradient(circle at top left, rgba(255, 223, 201, 0.82), transparent 28%),
+    linear-gradient(135deg, rgba(255, 251, 246, 0.98), rgba(250, 240, 232, 0.98));
+}
+
+.eyebrow {
+  display: inline-block;
+  margin-bottom: 8px;
+  color: #ab5d43;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.hero h1,
+.monthHeader h2,
+.sectionHeader h2,
+.modalHeader h2 {
+  margin: 0;
+  color: #30231f;
+}
+
+.hero p {
+  margin: 10px 0 0;
+  color: #6d5a52;
+  line-height: 1.8;
+}
+
+.primaryButton,
+.secondaryButton,
+.textButton,
+.textButtonDanger,
+.dayCell {
+  border: none;
+  font: inherit;
+  cursor: pointer;
+}
+
+.primaryButton,
+.secondaryButton {
+  border-radius: 999px;
+  padding: 12px 18px;
+  font-weight: 700;
+}
+
+.primaryButton {
+  background: linear-gradient(135deg, #db785b, #c55c42);
+  color: #fff;
+  box-shadow: 0 18px 32px rgba(197, 92, 66, 0.24);
+}
+
+.secondaryButton {
+  background: rgba(246, 238, 231, 0.92);
+  color: #7c6257;
+}
+
+.primaryButton:disabled,
+.secondaryButton:disabled,
+.textButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  box-shadow: none;
+}
+
+.contentGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(320px, 0.8fr);
+  gap: 18px;
+}
+
+.monthHeader,
+.sectionHeader,
+.modalHeader,
+.eventTitleRow,
+.eventActions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.loadingBar {
+  margin: 14px 0;
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: rgba(255, 246, 223, 0.94);
+  color: #8b6723;
+}
+
+.weekHeader,
+.monthGrid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.weekHeader {
+  margin-top: 18px;
+  color: #8a766d;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.weekHeader span {
+  padding: 10px 0;
+}
+
+.monthGrid {
+  gap: 8px;
+}
+
+.dayCell {
+  min-height: 104px;
+  border-radius: 18px;
+  padding: 10px;
+  background: rgba(255, 250, 246, 0.9);
+  color: #30231f;
+  text-align: left;
+  border: 1px solid rgba(154, 112, 82, 0.1);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.dayCell:hover {
+  transform: translateY(-1px);
+  border-color: rgba(197, 92, 66, 0.18);
+  box-shadow: 0 14px 28px rgba(130, 93, 69, 0.1);
+}
+
+.dayCellMuted {
+  opacity: 0.42;
+}
+
+.dayCellToday {
+  outline: 3px solid rgba(219, 120, 91, 0.16);
+}
+
+.dayNumber {
+  display: block;
+  font-weight: 800;
+  margin-bottom: 8px;
+}
+
+.dayEvents {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.eventPill,
+.morePill,
+.typeBadge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(246, 238, 231, 0.92);
+  color: #725a50;
+}
+
+.eventType_checkup {
+  background: rgba(255, 237, 219, 0.95);
+  color: #9b5b16;
+}
+
+.eventType_vaccine {
+  background: rgba(232, 248, 232, 0.92);
+  color: #397049;
+}
+
+.eventType_reminder {
+  background: rgba(237, 244, 255, 0.92);
+  color: #45659a;
+}
+
+.eventType_exercise,
+.eventType_diet {
+  background: rgba(238, 246, 235, 0.95);
+  color: #526d3a;
+}
+
+.sidePanel,
+.eventList {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.eventItem {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 20px;
+  background: rgba(255, 250, 246, 0.86);
+  border: 1px solid rgba(154, 112, 82, 0.1);
+}
+
+.eventItem p {
+  margin: 6px 0 0;
+  color: #7b665d;
+  line-height: 1.6;
+}
+
+.completedTitle {
+  color: #9c8b82;
+  text-decoration: line-through;
+}
+
+.eventActions {
+  flex: 0 0 auto;
+  align-items: flex-start;
+  flex-direction: column;
+}
+
+.textButton,
+.textButtonDanger {
+  padding: 0;
+  background: none;
+  font-weight: 700;
+}
+
+.textButton {
+  color: #ab5d43;
+}
+
+.textButtonDanger {
+  color: #bd523a;
+}
+
+.emptyState {
+  min-height: 120px;
+  display: grid;
+  place-items: center;
+  color: #76645c;
+  text-align: center;
+}
+
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(42, 31, 25, 0.42);
+}
+
+.modalCard {
+  width: min(100%, 560px);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.formField {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.formField span,
+.switchRow {
+  color: #806a61;
+}
+
+.formField input,
+.formField select,
+.formField textarea {
+  width: 100%;
+  border: 1px solid rgba(154, 112, 82, 0.16);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.96);
+  color: #342722;
+  padding: 14px 16px;
+  font: inherit;
+}
+
+.formField textarea {
+  resize: vertical;
+}
+
+.switchRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.formError {
+  border-radius: 16px;
+  padding: 12px 14px;
+  background: rgba(255, 237, 233, 0.94);
+  color: #a44634;
+}
+
+@media (max-width: 980px) {
+  .contentGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .hero,
+  .monthHeader,
+  .eventItem,
+  .modalHeader {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .primaryButton,
+  .secondaryButton {
+    width: 100%;
+  }
+
+  .monthGrid {
+    gap: 5px;
+  }
+
+  .dayCell {
+    min-height: 86px;
+    padding: 8px;
+  }
+
+  .eventPill {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}

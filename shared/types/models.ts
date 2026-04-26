@@ -208,3 +208,49 @@ export interface PaginatedResponse<T> {
   list: T[]
   pagination: PaginationMeta
 }
+
+export interface AuthorityArticleTranslation {
+  slug: string
+  sourceUpdatedAt?: string
+  translatedTitle: string
+  translatedSummary: string
+  translatedContent: string
+  translationNotice: string
+  updatedAt: string
+  model?: string
+  provider?: string
+  isSourceChinese?: boolean
+}
+
+export interface AuthorityArticleTranslationResponse {
+  status: 'ready' | 'processing'
+  retryAfterMs?: number
+  translation?: AuthorityArticleTranslation
+}
+
+export type TranslationPendingError = Error & {
+  translationPending: true
+  retryAfterMs?: number
+}
+
+export interface RecentAIHitArticle {
+  slug: string
+  articleId: number
+  title: string
+  summary: string
+  source?: string
+  sourceOrg?: string
+  sourceLanguage?: 'zh' | 'en'
+  sourceLocale?: string
+  topic?: string
+  stage?: string
+  publishedAt?: string
+  sourceUpdatedAt?: string
+  createdAt: string
+  lastHitAt: string
+  qaId?: string
+  trigger?: 'hit_card' | 'knowledge_action'
+  matchReason?: 'entry_meta' | 'source_url' | 'source_title' | 'source_keyword'
+  originEntrySource?: string
+  originReportId?: string
+}

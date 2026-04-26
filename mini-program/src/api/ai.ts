@@ -92,9 +92,9 @@ export const aiApi = {
   getHistory: async (conversationId: string): Promise<ChatSession> => {
     return api.get<ChatSession>(`/ai/conversations/${conversationId}`)
   },
-  getConversations: async (): Promise<ChatSession[]> => {
-    const res = await api.get<{ conversations: ChatSession[] }>('/ai/conversations')
-    return res.conversations || []
+  getConversations: async (page = 1, pageSize = 20): Promise<ChatSession[]> => {
+    const res = await api.get<{ list: ChatSession[]; pagination: { total: number } }>('/ai/conversations', { page, pageSize })
+    return res.list || []
   },
   deleteConversation: async (conversationId: string) => {
     await api.delete(`/ai/conversations/${conversationId}`)

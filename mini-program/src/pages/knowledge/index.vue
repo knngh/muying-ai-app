@@ -176,7 +176,7 @@
       </picker>
 
       <view class="result-pill">
-        <text class="result-pill-text">共 {{ total }} 篇 · 中文源优先</text>
+        <text class="result-pill-text">{{ resultPillText }}</text>
       </view>
     </view>
 
@@ -189,11 +189,11 @@
     </view>
 
     <view class="article-list">
-      <view v-if="loading && articles.length === 0" class="state-box">
+      <view v-if="loading && displayedArticleGroups.length === 0" class="state-box">
         <text class="state-text">权威内容加载中...</text>
       </view>
 
-      <view v-else-if="!loading && articles.length === 0" class="state-box">
+      <view v-else-if="!loading && displayedArticleGroups.length === 0" class="state-box">
         <text class="state-text">当前筛选条件下暂无权威文章</text>
         <view class="state-btn" @tap="resetFilters">
           <text class="state-btn-text">恢复默认筛选</text>
@@ -201,38 +201,135 @@
       </view>
 
       <view
-        v-for="article in articles"
-        :key="article.slug"
+        v-for="group in displayedArticleGroups"
+        :key="group.article.slug"
         class="article-card"
-        @tap="goToDetail(article)"
+        @tap="goToDetail(group.article)"
       >
         <view class="article-header">
           <view class="badge-row">
-            <text class="source-badge">{{ formatSourceLabel(article.sourceOrg || article.source || '权威来源') }}</text>
-            <text :class="['tier-badge', `tier-badge--${getAuthorityRegionTag(article)}`]">{{ getAuthorityRegionLabel(article) }}</text>
-            <text v-if="article.topic" class="topic-badge">{{ article.topic }}</text>
+            <text class="source-badge">{{ formatSourceLabel(group.article.sourceOrg || group.article.source || '权威来源') }}</text>
+            <text :class="['tier-badge', `tier-badge--${getAuthorityRegionTag(group.article)}`]">{{ getAuthorityRegionLabel(group.article) }}</text>
+            <text v-if="group.article.topic" class="topic-badge">{{ group.article.topic }}</text>
           </view>
-          <text class="article-title">{{ getListDisplayTitle(article) }}</text>
+          <text class="article-title">{{ getListDisplayTitle(group.article) }}</text>
         </view>
 
-        <view v-if="getArticleContextLabel(article)" class="article-context-row">
-          <text class="article-context-chip">{{ getArticleContextLabel(article) }}</text>
+        <view v-if="getArticleContextLabel(group.article)" class="article-context-row">
+          <text class="article-context-chip">{{ getArticleContextLabel(group.article) }}</text>
         </view>
 
-        <text class="article-summary">{{ getListDisplaySummary(article) }}</text>
+        <view class="reading-meta-row">
+          <text class="reading-meta-pill">{{ getReadingMeta(group.article).estimatedMinutesLabel }}</text>
+          <text class="reading-meta-pill">{{ getReadingMeta(group.article).textLengthLabel }}</text>
+          <text class="reading-meta-pill">{{ getReadingMeta(group.article).sectionLabel }}</text>
+        </view>
+
+        <text class="article-summary">{{ getListDisplaySummary(group.article) }}</text>
+
+        <view v-if="getRepresentativeReason(group.article, group.variants)" class="representative-reason">
+          <text class="representative-reason-badge">{{ getRepresentativeReason(group.article, group.variants)?.badge }}</text>
+          <text class="representative-reason-text">{{ getRepresentativeReason(group.article, group.variants)?.description }}</text>
+        </view>
+
+        <view v-if="group.mergedCount > 0" class="variant-panel">
+          <view class="variant-toggle" @tap.stop="toggleVariantGroup(group.article.slug)">
+            <text class="variant-toggle-text">{{ isVariantGroupExpanded(group.article.slug) ? '收起同源版本' : `还有 ${group.mergedCount} 个同源版本` }}</text>
+          </view>
+
+          <view v-if="isVariantGroupExpanded(group.article.slug)" class="variant-list">
+            <view
+              v-if="getVariantRecommendation(group.article, group.variants)"
+              class="variant-recommendation"
+              @tap.stop="openVariantRecommendation(group.article, group.variants)"
+            >
+              <view class="variant-recommendation-copy">
+                <text class="variant-recommendation-label">{{ getVariantRecommendation(group.article, group.variants)?.actionLabel }}</text>
+                <text class="variant-recommendation-text">{{ getVariantRecommendation(group.article, group.variants)?.description }}</text>
+              </view>
+              <text class="variant-recommendation-action">直接查看</text>
+            </view>
+            <view v-if="group.variants.length > 1" class="variant-filter-row">
+              <view
+                v-for="option in variantFilterOptions"
+                :key="`${group.article.slug}-${option.value}`"
+                :class="['variant-filter-chip', getVariantFilterMode(group.article.slug) === option.value ? 'variant-filter-chip--active' : '']"
+                @tap.stop="setVariantFilterMode(group.article.slug, option.value)"
+              >
+                <text :class="['variant-filter-chip-text', getVariantFilterMode(group.article.slug) === option.value ? 'variant-filter-chip-text--active' : '']">
+                  {{ option.label }}
+                </text>
+              </view>
+            </view>
+            <view v-if="getFilteredVariants(group.article, group.variants, group.article.slug).length > 1" class="variant-sort-row">
+              <view
+                v-for="option in variantSortOptions"
+                :key="`${group.article.slug}-sort-${option.value}`"
+                :class="['variant-sort-chip', getVariantSortMode(group.article.slug) === option.value ? 'variant-sort-chip--active' : '']"
+                @tap.stop="setVariantSortMode(group.article.slug, option.value)"
+              >
+                <text :class="['variant-sort-chip-text', getVariantSortMode(group.article.slug) === option.value ? 'variant-sort-chip-text--active' : '']">
+                  {{ option.label }}
+                </text>
+              </view>
+            </view>
+            <view v-if="getVariantFilterFeedback(group.article, group.variants, group.article.slug)" class="variant-filter-feedback">
+              <text class="variant-filter-feedback-label">{{ getVariantFilterFeedback(group.article, group.variants, group.article.slug)?.label }}</text>
+              <text class="variant-filter-feedback-text">{{ getVariantFilterFeedback(group.article, group.variants, group.article.slug)?.description }}</text>
+            </view>
+            <view class="variant-source-digest">
+              <text class="variant-source-digest-label">{{ getVariantSourceDigest(group.article, group.variants, group.article.slug).summaryLabel }}</text>
+              <text class="variant-source-digest-text">{{ getVariantSourceDigest(group.article, group.variants, group.article.slug).description }}</text>
+            </view>
+            <view class="variant-reading-suggestion">
+              <text class="variant-reading-suggestion-label">{{ getVariantReadingSuggestion(group.article, group.variants, group.article.slug).label }}</text>
+              <text class="variant-reading-suggestion-text">{{ getVariantReadingSuggestion(group.article, group.variants, group.article.slug).description }}</text>
+            </view>
+            <view
+              v-for="variant in getVisibleVariants(group.article, group.variants, group.article.slug)"
+              :key="variant.slug"
+              class="variant-item"
+              @tap.stop="goToDetail(variant)"
+            >
+              <text class="variant-title">{{ getListDisplayTitle(variant) }}</text>
+              <text class="variant-meta">{{ getVariantPreview(variant).sourceLabel }}</text>
+              <view class="variant-hint-row">
+                <text
+                  v-for="badge in getVariantDifference(group.article, variant).badges"
+                  :key="`${variant.slug}-hint-${badge}`"
+                  class="variant-hint-badge"
+                >
+                  {{ badge }}
+                </text>
+              </view>
+              <view class="variant-chip-row">
+                <text
+                  v-for="chip in getVariantPreview(variant).chips"
+                  :key="`${variant.slug}-${chip}`"
+                  class="variant-chip"
+                >
+                  {{ chip }}
+                </text>
+              </view>
+            </view>
+            <text v-if="!getFilteredVariants(group.article, group.variants, group.article.slug).length" class="variant-empty">
+              当前同源版本里没有符合筛选条件的结果。
+            </text>
+          </view>
+        </view>
 
         <view class="article-meta">
-          <text v-if="article.audience" class="meta-item">{{ article.audience }}</text>
-          <text v-if="article.region" class="meta-item">{{ article.region }}</text>
-          <text class="meta-item">来源更新 {{ formatDate(article.sourceUpdatedAt || article.publishedAt || article.createdAt) }}</text>
+          <text v-if="group.article.audience" class="meta-item">{{ group.article.audience }}</text>
+          <text v-if="group.article.region" class="meta-item">{{ group.article.region }}</text>
+          <text class="meta-item">来源更新 {{ formatDate(group.article.sourceUpdatedAt || group.article.publishedAt || group.article.createdAt) }}</text>
         </view>
 
         <view class="reading-note">
-          <text class="reading-note-text">{{ getReadingHint(article) }}</text>
+          <text class="reading-note-text">{{ getReadingHint(group.article) }}</text>
         </view>
 
         <view class="article-footer">
-          <text class="verified-text">已校验来源 · 同步 {{ formatDate(article.lastSyncedAt || article.updatedAt || article.createdAt) }}</text>
+          <text class="verified-text">已校验来源 · 同步 {{ formatDate(group.article.lastSyncedAt || group.article.updatedAt || group.article.createdAt) }}</text>
           <text class="read-more">查看详情</text>
         </view>
       </view>
@@ -255,12 +352,23 @@ import { useKnowledgeStore, type RecentAIHitArticle } from '@/stores/knowledge'
 import type { Article } from '@/api/modules'
 import { getAuthorityRegionLabel, getAuthorityRegionTag } from '@/utils/authority-source'
 import {
+  buildKnowledgeSourceDigest,
+  buildKnowledgeVariantReadingSuggestion,
+  buildKnowledgeVariantFilterFeedback,
+  buildKnowledgeVariantRecommendation,
+  buildKnowledgeRepresentativeReason,
+  buildKnowledgeVariantDifference,
+  buildKnowledgeVariantPreview,
+  buildKnowledgeReadingMeta,
+  filterKnowledgeVariants,
   formatDate,
   formatSourceLabel,
-  getLocalizedFallbackTitle,
-  isGenericForeignTitle,
-  isMostlyChineseText,
-  stripHtmlTags,
+  getKnowledgeDisplaySummary,
+  getKnowledgeDisplayTitle,
+  getKnowledgeFallbackSummary,
+  getKnowledgeStageLabel,
+  groupKnowledgeArticles,
+  sortKnowledgeVariants,
 } from '@/utils/knowledge-format'
 import { trackMiniEvent } from '@/utils/analytics'
 
@@ -288,9 +396,27 @@ interface StageGuideItem {
   stage: string | null
 }
 
+type VariantFilterMode = 'all' | 'zh' | 'latest'
+type VariantSortMode = 'recommended' | 'recent' | 'zhFirst'
+
 const searchText = ref('')
 const selectedStageIndex = ref(0)
 const activeScenarioKey = ref('')
+const expandedVariantGroups = ref<string[]>([])
+const variantFilterModes = ref<Record<string, VariantFilterMode>>({})
+const variantSortModes = ref<Record<string, VariantSortMode>>({})
+
+const variantFilterOptions = [
+  { label: '全部版本', value: 'all' },
+  { label: '仅中文源', value: 'zh' },
+  { label: '最近版本', value: 'latest' },
+] as const
+
+const variantSortOptions = [
+  { label: '推荐顺序', value: 'recommended' },
+  { label: '最近更新', value: 'recent' },
+  { label: '中文优先', value: 'zhFirst' },
+] as const
 
 const sourceOptions = [
   { label: '全部', value: 'all' },
@@ -360,6 +486,8 @@ const scenarioOptions = [
 ] as const
 
 const articles = computed(() => knowledgeStore.articles)
+const displayedArticleGroups = computed(() => groupKnowledgeArticles(articles.value))
+const mergedArticleCount = computed(() => displayedArticleGroups.value.reduce((count, group) => count + group.mergedCount, 0))
 const loading = computed(() => knowledgeStore.loading)
 const total = computed(() => knowledgeStore.total)
 const selectedSource = computed(() => knowledgeStore.selectedSource)
@@ -382,6 +510,22 @@ const activeFilterText = computed(() => {
 
   return parts.join(' · ')
 })
+const resultPillText = computed(() => (
+  mergedArticleCount.value > 0
+    ? `当前展示 ${displayedArticleGroups.value.length} 篇 · 已合并 ${mergedArticleCount.value} 篇重复来源`
+    : `当前展示 ${displayedArticleGroups.value.length || total.value} 篇 · 中文源优先`
+))
+
+watch(displayedArticleGroups, (groups) => {
+  const validSlugs = new Set(groups.map(group => group.article.slug))
+  expandedVariantGroups.value = expandedVariantGroups.value.filter(slug => validSlugs.has(slug))
+  variantFilterModes.value = Object.fromEntries(
+    Object.entries(variantFilterModes.value).filter(([slug]) => validSlugs.has(slug)),
+  ) as Record<string, VariantFilterMode>
+  variantSortModes.value = Object.fromEntries(
+    Object.entries(variantSortModes.value).filter(([slug]) => validSlugs.has(slug)),
+  ) as Record<string, VariantSortMode>
+}, { immediate: true })
 
 function resolveStoredStage(): string | null {
   const storedWeek = Number.parseInt(String(uni.getStorageSync('userPregnancyWeek') || ''), 10)
@@ -446,18 +590,6 @@ const stageGuide = computed(() => {
     items: buildStageGuideItems(stage || null),
   }
 })
-const duplicateArticleKeyCounts = computed(() => {
-  const counts = new Map<string, number>()
-  articles.value.forEach((article) => {
-    const key = getArticleDuplicateKey(article)
-    if (!key) {
-      return
-    }
-    counts.set(key, (counts.get(key) || 0) + 1)
-  })
-  return counts
-})
-
 watch(articles, (list) => {
   if (list.length === 0) {
     return
@@ -735,80 +867,113 @@ function getReadingHint(article: Article): string {
   return '进入详情后会自动准备中文辅助阅读，适合先看摘要再决定是否打开机构原文。'
 }
 
+function getReadingMeta(article: Article) {
+  return buildKnowledgeReadingMeta(article)
+}
+
 function getStageLabel(stage?: string | null): string {
-  return stageOptions.find(item => item.value === (stage || ''))?.label || '当前阶段'
+  return getKnowledgeStageLabel(stage || undefined, stageOptions.find(item => item.value === (stage || ''))?.label || '当前阶段')
 }
 
 function getRecentAiHitDisplayTitle(item: RecentAIHitArticle): string {
-  if (!isGenericForeignTitle(item.title)) {
-    return item.title || '权威参考'
-  }
-
-  return getLocalizedFallbackTitle(item.topic, item.stage)
+  return getKnowledgeDisplayTitle({
+    title: item.title,
+    topic: item.topic,
+    stage: item.stage,
+  })
 }
 
 function getListDisplayTitle(article: Article): string {
-  if (isGenericForeignTitle(article.title)) {
-    return getLocalizedFallbackTitle(article.topic, article.stage)
-  }
-
-  return article.title
+  return getKnowledgeDisplayTitle(article)
 }
 
 function getListDisplaySummary(article: Article): string {
-  const summary = stripHtmlTags(article.summary || '').replace(/\s+/g, ' ').trim()
-  if (summary && isMostlyChineseText(summary)) {
-    return summary
-  }
-
-  const source = formatSourceLabel(article.sourceOrg || article.source || '权威来源')
-  const topic = article.topic || '当前主题'
-  const stage = getStageLabel(article.stage)
-
-  if (article.sourceLanguage === 'zh' || article.sourceLocale === 'zh-CN') {
-    return `${source}公开资料，重点围绕${topic}整理，建议结合来源更新时间继续阅读。`
-  }
-
-  return `${source}这篇内容聚焦${stage}的${topic}，进入详情后可查看中文辅助阅读和机构原文。`
-}
-
-function normalizeArticleKeyPart(value?: string) {
-  return (value || '')
-    .toLowerCase()
-    .replace(/[“”"']/g, '')
-    .replace(/[，。；：、]/g, ' ')
-    .replace(/[|()[\]{}]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
-function getArticleDuplicateKey(article: Article) {
-  const sourceKey = normalizeArticleKeyPart(article.sourceOrg || article.source)
-  const titleKey = normalizeArticleKeyPart(article.title)
-  if (!sourceKey || !titleKey) {
-    return ''
-  }
-  return `${sourceKey}::${titleKey}`
+  return getKnowledgeDisplaySummary(article, getKnowledgeFallbackSummary(article))
 }
 
 function getArticleContextLabel(article: Article) {
-  const duplicateKey = getArticleDuplicateKey(article)
-  const hasDuplicateTitle = duplicateKey ? (duplicateArticleKeyCounts.value.get(duplicateKey) || 0) > 1 : false
-  const parts: string[] = []
+  return article.audience ? `适用对象：${article.audience}` : ''
+}
 
-  if (article.audience) {
-    parts.push(`适用对象：${article.audience}`)
+function getRepresentativeReason(article: Article, variants: Article[]) {
+  return buildKnowledgeRepresentativeReason(article, variants)
+}
+
+function getVariantRecommendation(representative: Article, variants: Article[]) {
+  return buildKnowledgeVariantRecommendation(representative, variants)
+}
+
+function openVariantRecommendation(representative: Article, variants: Article[]) {
+  const recommendation = getVariantRecommendation(representative, variants)
+  if (!recommendation) {
+    return
   }
 
-  if (hasDuplicateTitle && article.topic) {
-    parts.push(`重点：${article.topic}`)
-  }
+  goToDetail(recommendation.article)
+}
 
-  if (hasDuplicateTitle && !parts.length) {
-    parts.push('同题不同页面，进入前先看适用对象')
+function toggleVariantGroup(slug: string) {
+  const expanded = new Set(expandedVariantGroups.value)
+  if (expanded.has(slug)) {
+    expanded.delete(slug)
+  } else {
+    expanded.add(slug)
   }
+  expandedVariantGroups.value = Array.from(expanded)
+}
 
-  return parts.join(' · ')
+function isVariantGroupExpanded(slug: string) {
+  return expandedVariantGroups.value.includes(slug)
+}
+
+function setVariantFilterMode(slug: string, mode: VariantFilterMode) {
+  variantFilterModes.value = {
+    ...variantFilterModes.value,
+    [slug]: mode,
+  }
+}
+
+function getVariantFilterMode(slug: string): VariantFilterMode {
+  return variantFilterModes.value[slug] || 'all'
+}
+
+function setVariantSortMode(slug: string, mode: VariantSortMode) {
+  variantSortModes.value = {
+    ...variantSortModes.value,
+    [slug]: mode,
+  }
+}
+
+function getVariantSortMode(slug: string): VariantSortMode {
+  return variantSortModes.value[slug] || 'recommended'
+}
+
+function getFilteredVariants(representative: Article, variants: Article[], slug: string) {
+  return filterKnowledgeVariants(representative, variants, getVariantFilterMode(slug))
+}
+
+function getVisibleVariants(representative: Article, variants: Article[], slug: string) {
+  return sortKnowledgeVariants(getFilteredVariants(representative, variants, slug), getVariantSortMode(slug))
+}
+
+function getVariantFilterFeedback(representative: Article, variants: Article[], slug: string) {
+  return buildKnowledgeVariantFilterFeedback(representative, variants, getVariantFilterMode(slug))
+}
+
+function getVariantSourceDigest(representative: Article, variants: Article[], slug: string) {
+  return buildKnowledgeSourceDigest([representative, ...getVisibleVariants(representative, variants, slug)])
+}
+
+function getVariantReadingSuggestion(representative: Article, variants: Article[], slug: string) {
+  return buildKnowledgeVariantReadingSuggestion([representative, ...getVisibleVariants(representative, variants, slug)])
+}
+
+function getVariantPreview(article: Article) {
+  return buildKnowledgeVariantPreview(article)
+}
+
+function getVariantDifference(representative: Article, variant: Article) {
+  return buildKnowledgeVariantDifference(representative, variant)
 }
 
 function buildSharePayload() {
@@ -1422,6 +1587,25 @@ onShareTimeline(() => {
   line-height: 1.7;
   color: #5d6b7b;
   margin-bottom: 18rpx;
+  text-align: justify;
+}
+
+.reading-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin-bottom: 16rpx;
+}
+
+.reading-meta-pill {
+  display: inline-flex;
+  padding: 8rpx 16rpx;
+  border-radius: 999rpx;
+  background: rgba(244, 250, 250, 0.94);
+  border: 1rpx solid rgba(80, 119, 130, 0.12);
+  font-size: 22rpx;
+  color: #4f6d77;
+  font-weight: 700;
 }
 
 .article-context-row {
@@ -1445,6 +1629,295 @@ onShareTimeline(() => {
   flex-wrap: wrap;
   gap: 14rpx;
   margin-bottom: 18rpx;
+}
+
+.variant-panel {
+  margin-bottom: 18rpx;
+}
+
+.representative-reason {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10rpx;
+  margin-bottom: 18rpx;
+}
+
+.representative-reason-badge {
+  display: inline-flex;
+  padding: 6rpx 14rpx;
+  border-radius: 999rpx;
+  background: rgba(243, 111, 69, 0.12);
+  font-size: 20rpx;
+  line-height: 1.4;
+  color: #d35b34;
+  font-weight: 700;
+}
+
+.representative-reason-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 22rpx;
+  line-height: 1.55;
+  color: #6d7887;
+}
+
+.variant-toggle {
+  padding: 16rpx 18rpx;
+  border-radius: 20rpx;
+  background: rgba(244, 250, 250, 0.94);
+  border: 1rpx solid rgba(80, 119, 130, 0.12);
+}
+
+.variant-toggle-text {
+  font-size: 23rpx;
+  font-weight: 700;
+  color: #4f6d77;
+}
+
+.variant-list {
+  display: grid;
+  gap: 12rpx;
+  margin-top: 12rpx;
+}
+
+.variant-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10rpx;
+}
+
+.variant-recommendation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+  padding: 18rpx;
+  border-radius: 20rpx;
+  background: rgba(255, 246, 223, 0.72);
+  border: 1rpx solid rgba(184, 138, 72, 0.16);
+}
+
+.variant-recommendation-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.variant-recommendation-label {
+  display: block;
+  font-size: 22rpx;
+  line-height: 1.45;
+  color: #8b6723;
+  font-weight: 700;
+}
+
+.variant-recommendation-text {
+  display: block;
+  margin-top: 6rpx;
+  font-size: 22rpx;
+  line-height: 1.55;
+  color: #6d7887;
+}
+
+.variant-recommendation-action {
+  flex-shrink: 0;
+  font-size: 22rpx;
+  line-height: 1.4;
+  color: #7d5f22;
+  font-weight: 700;
+}
+
+.variant-filter-feedback {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10rpx;
+  padding: 16rpx 18rpx;
+  border-radius: 20rpx;
+  background: rgba(244, 250, 250, 0.78);
+  border: 1rpx solid rgba(80, 119, 130, 0.1);
+}
+
+.variant-filter-feedback-label {
+  font-size: 21rpx;
+  line-height: 1.4;
+  color: #4f6d77;
+  font-weight: 700;
+}
+
+.variant-filter-feedback-text {
+  font-size: 21rpx;
+  line-height: 1.55;
+  color: #6d7887;
+}
+
+.variant-source-digest {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10rpx;
+  padding: 16rpx 18rpx;
+  border-radius: 20rpx;
+  background: rgba(255, 248, 240, 0.72);
+  border: 1rpx solid rgba(184, 138, 72, 0.12);
+}
+
+.variant-source-digest-label {
+  font-size: 21rpx;
+  line-height: 1.4;
+  color: #8b6723;
+  font-weight: 700;
+}
+
+.variant-source-digest-text {
+  font-size: 21rpx;
+  line-height: 1.55;
+  color: #6d7887;
+}
+
+.variant-reading-suggestion {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10rpx;
+  padding: 16rpx 18rpx;
+  border-radius: 20rpx;
+  background: rgba(241, 247, 255, 0.82);
+  border: 1rpx solid rgba(84, 126, 186, 0.12);
+}
+
+.variant-reading-suggestion-label {
+  font-size: 21rpx;
+  line-height: 1.4;
+  color: #456996;
+  font-weight: 700;
+}
+
+.variant-reading-suggestion-text {
+  font-size: 21rpx;
+  line-height: 1.55;
+  color: #6d7887;
+}
+
+.variant-sort-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10rpx;
+}
+
+.variant-sort-chip {
+  padding: 10rpx 16rpx;
+  border-radius: 999rpx;
+  background: rgba(241, 247, 255, 0.92);
+  border: 1rpx solid rgba(84, 126, 186, 0.14);
+}
+
+.variant-sort-chip--active {
+  background: rgba(84, 126, 186, 0.16);
+}
+
+.variant-sort-chip-text {
+  font-size: 21rpx;
+  line-height: 1.4;
+  color: #55759d;
+  font-weight: 700;
+}
+
+.variant-sort-chip-text--active {
+  color: #35547a;
+}
+
+.variant-filter-chip {
+  padding: 10rpx 16rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1rpx solid rgba(80, 119, 130, 0.12);
+}
+
+.variant-filter-chip--active {
+  background: rgba(79, 109, 119, 0.12);
+}
+
+.variant-filter-chip-text {
+  font-size: 21rpx;
+  line-height: 1.4;
+  color: #4f6d77;
+  font-weight: 700;
+}
+
+.variant-filter-chip-text--active {
+  color: #35535c;
+}
+
+.variant-item {
+  padding: 18rpx;
+  border-radius: 20rpx;
+  background: rgba(250, 252, 252, 0.98);
+  border: 1rpx solid rgba(80, 119, 130, 0.1);
+}
+
+.variant-title {
+  display: block;
+  font-size: 24rpx;
+  line-height: 1.55;
+  font-weight: 700;
+  color: #2c3948;
+}
+
+.variant-meta {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 21rpx;
+  line-height: 1.45;
+  color: #7a8697;
+}
+
+.variant-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10rpx;
+  margin-top: 12rpx;
+}
+
+.variant-hint-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10rpx;
+  margin-top: 12rpx;
+}
+
+.variant-hint-badge {
+  display: inline-flex;
+  padding: 6rpx 14rpx;
+  border-radius: 999rpx;
+  background: rgba(243, 111, 69, 0.12);
+  font-size: 20rpx;
+  line-height: 1.4;
+  color: #d35b34;
+  font-weight: 700;
+}
+
+.variant-chip {
+  display: inline-flex;
+  padding: 6rpx 14rpx;
+  border-radius: 999rpx;
+  background: rgba(244, 250, 250, 0.94);
+  border: 1rpx solid rgba(80, 119, 130, 0.12);
+  font-size: 20rpx;
+  line-height: 1.4;
+  color: #4f6d77;
+  font-weight: 700;
+}
+
+.variant-empty {
+  display: block;
+  padding: 18rpx;
+  border-radius: 20rpx;
+  background: rgba(250, 252, 252, 0.98);
+  border: 1rpx solid rgba(80, 119, 130, 0.1);
+  font-size: 22rpx;
+  line-height: 1.6;
+  color: #6d7887;
 }
 
 .reading-note {

@@ -4,6 +4,42 @@ import '../config/env';
 import { MilvusClient } from '@zilliz/milvus2-sdk-node';
 import { shouldPublishAuthorityVectorDocument } from '../utils/authority-vector-filter';
 
+type MilvusFieldParamEntry = {
+  key?: unknown
+  value?: unknown
+  dim?: unknown
+}
+
+type MilvusCollectionField = {
+  name?: unknown
+  dim?: unknown
+  dimension?: unknown
+  type_params?: unknown
+  params?: unknown
+  index_params?: unknown
+  element_type_params?: unknown
+}
+
+type MilvusCollectionSchema = {
+  schema?: {
+    fields?: unknown
+  }
+  fields?: unknown
+}
+
+type MilvusSearchResultRow = {
+  id?: unknown
+  question?: unknown
+  answer?: unknown
+  category?: unknown
+  source?: unknown
+  score?: unknown
+}
+
+type MilvusSearchResponse = {
+  results?: MilvusSearchResultRow[]
+}
+
 // Milvus 配置
 const RAW_MILVUS_ADDRESS = process.env.MILVUS_ADDRESS
   || process.env.ZILLIZ_PUBLIC_ENDPOINT
@@ -160,11 +196,11 @@ function parseRetryAfterMs(value: string | null): number | null {
   return Math.max(0, retryAt - Date.now());
 }
 
-function extractCollectionEmbeddingDim(collectionInfo: any): number | null {
+function extractCollectionEmbeddingDim(collectionInfo: MilvusCollectionSchema): number | null {
   const fields = Array.isArray(collectionInfo?.schema?.fields)
-    ? collectionInfo.schema.fields
-    : (Array.isArray(collectionInfo?.fields) ? collectionInfo.fields : []);
-  const embeddingField = fields.find((field: any) => field?.name === 'embedding');
+    ? collectionInfo.schema.fields as MilvusCollectionField[]
+    : (Array.isArray(collectionInfo?.fields) ? collectionInfo.fields as MilvusCollectionField[] : []);
+  const embeddingField = fields.find((field) => field?.name === 'embedding');
 
   if (!embeddingField) {
     return null;
@@ -190,7 +226,7 @@ function extractCollectionEmbeddingDim(collectionInfo: any): number | null {
       continue;
     }
 
-    for (const entry of group) {
+    for (const entry of group as MilvusFieldParamEntry[]) {
       const directDim = Number(entry?.dim);
       if (Number.isFinite(directDim) && directDim > 0) {
         return directDim;
@@ -217,7 +253,7 @@ async function ensureCollectionEmbeddingDim(client: MilvusClient): Promise<void>
   }
 
   const collectionInfo = await describeCollection.call(client, { collection_name: COLLECTION_NAME });
-  const collectionDim = extractCollectionEmbeddingDim(collectionInfo);
+  const collectionDim = extractCollectionEmbeddingDim(collectionInfo as MilvusCollectionSchema);
 
   if (collectionDim && collectionDim !== EMBEDDING_DIM) {
     throw new Error(
@@ -487,15 +523,15 @@ export async function searchKnowledge(
     top_k: topK,
     params: { nprobe: 10 },
     output_fields: ['id', 'question', 'answer', 'category', 'source'],
-  });
+  }) as MilvusSearchResponse;
   
-  return results.results.map((result: any) => ({
-    id: result.id,
-    question: result.question,
-    answer: result.answer,
-    category: result.category,
-    source: result.source,
-    score: result.score,
+  return (results.results || []).map((result) => ({
+    id: String(result.id ?? ''),
+    question: String(result.question ?? ''),
+    answer: String(result.answer ?? ''),
+    category: String(result.category ?? ''),
+    source: String(result.source ?? ''),
+    score: Number(result.score ?? 0),
   }));
 }
 

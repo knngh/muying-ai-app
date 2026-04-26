@@ -7,7 +7,12 @@ import type { Article } from '../../api/modules'
 import { StandardCard } from '../layout'
 import { Skeleton } from '../common'
 import { colors, fontSize, spacing, borderRadius, categoryColors } from '../../theme'
-import { isGenericForeignTitle, normalizePlainText } from '../../utils/knowledgeText'
+import {
+  formatSourceLabel,
+  getLocalizedFallbackTitle,
+  isGenericForeignTitle,
+  normalizePlainText,
+} from '../../utils/knowledgeText'
 
 interface ArticleListProps {
   articles: Article[]
@@ -16,70 +21,16 @@ interface ArticleListProps {
   onPress: (slug: string) => void
 }
 
-function normalizeSourceLabel(label?: string) {
-  const value = (label || '').trim()
-  if (!value) return '权威内容'
-
-  const lower = value.toLowerCase()
-  if (/american academy of pediatrics|healthychildren\.org|\baap\b/.test(lower)) return 'AAP'
-  if (/mayo clinic|mayoclinic\.org/.test(lower)) return 'Mayo Clinic'
-  if (/msd manuals?|msdmanuals\.cn|merck manual/.test(lower)) return 'MSD Manuals'
-  if (/national health service|\bnhs\b|nhs\.uk/.test(lower)) return 'NHS'
-  if (/world health organization|\bwho\b|who\.int/.test(lower)) return 'WHO'
-  if (/centers? for disease control|\bcdc\b|cdc\.gov/.test(lower)) return 'CDC'
-  if (/american college of obstetricians and gynecologists|\bacog\b|acog\.org/.test(lower)) return 'ACOG'
-  return value
-}
-
-function normalizeContentLabel(label?: string) {
-  const value = (label || '').trim()
-  if (!value) return ''
-
-  const lower = value.toLowerCase()
-  const mapped = {
-    pregnancy: '孕期',
-    policy: '指南/政策',
-    parenting: '养育',
-    nutrition: '营养',
-    vaccine: '疫苗',
-    child: '儿童',
-    toddler: '幼儿',
-    infant: '婴儿',
-    breastfeeding: '喂养',
-  }[lower]
-
-  return mapped || value
-}
-
-function formatArticleStage(stage?: string) {
-  if (!stage) return '全阶段'
-
-  const stageMap: Record<string, string> = {
-    preparation: '备孕期',
-    'first-trimester': '孕早期',
-    'second-trimester': '孕中期',
-    'third-trimester': '孕晚期',
-    newborn: '新生儿期',
-    postpartum: '产后恢复',
-    '0-6-months': '0-6个月',
-    '6-12-months': '6-12个月',
-    '1-3-years': '1-3岁',
-    '3-years-plus': '3岁以上',
-  }
-
-  return stageMap[stage] || stage
-}
-
 function getDisplayTitle(article: Article) {
   if (!isGenericForeignTitle(article.title)) {
     return article.title
   }
 
-  const topic = normalizeContentLabel(article.topic)
-  const category = article.category ? normalizeContentLabel(article.category.name) : ''
-  const stage = formatArticleStage(article.stage)
-  const primary = topic || category || (stage !== '全阶段' ? stage : '权威')
-  return `${primary}参考`
+  return getLocalizedFallbackTitle({
+    topic: article.topic,
+    stage: article.stage,
+    categoryName: article.category?.name,
+  })
 }
 
 function ArticleListInner({ articles, loading, readingTopic, onPress }: ArticleListProps) {
@@ -113,7 +64,9 @@ function ArticleListInner({ articles, loading, readingTopic, onPress }: ArticleL
           const tagColor = item.category
             ? categoryColors[item.category.name] || colors.primary
             : colors.primary
-          const sourceText = normalizeSourceLabel(item.sourceOrg || item.source || item.author || '权威内容')
+          const articleChipStyle = [styles.articleChip, { backgroundColor: `${tagColor}18` }]
+          const articleChipTextStyle = [styles.articleChipText, { color: tagColor }]
+          const sourceText = formatSourceLabel(item.sourceOrg || item.source || item.author || '权威内容')
           const dateText = item.publishedAt
             ? new Date(item.publishedAt).toLocaleDateString('zh-CN')
             : ''
@@ -133,8 +86,8 @@ function ArticleListInner({ articles, loading, readingTopic, onPress }: ArticleL
                   {item.category ? (
                     <Chip
                       compact
-                      style={[styles.articleChip, { backgroundColor: `${tagColor}18` }]}
-                      textStyle={[styles.articleChipText, { color: tagColor }]}
+                      style={articleChipStyle}
+                      textStyle={articleChipTextStyle}
                     >
                       {item.category.name}
                     </Chip>

@@ -1,18 +1,20 @@
-import { useState, useRef, useEffect } from 'react'
-import { Card, Input, Button, Space, Typography, Alert, Spin, Empty, List, Popconfirm } from 'antd'
-import { SendOutlined, ClearOutlined, QuestionCircleOutlined, WarningOutlined, HistoryOutlined, DeleteOutlined } from '@ant-design/icons'
+import { useState, useRef, useEffect, type KeyboardEvent } from 'react'
 import { useChatStore } from '@/stores/chatStore'
 import { ChatMessage } from '@/components/ChatMessage'
 import { getDisclaimer } from '@/api/ai'
 import styles from './Chat.module.css'
 
-const { TextArea } = Input
-const { Title, Text } = Typography
+const quickQuestions = [
+  '孕早期有哪些注意事项？',
+  '宝宝发烧怎么办？',
+  '孕期营养应该怎么补充？',
+  '新生儿护理要点有哪些？',
+]
 
 export function Chat() {
   const [inputValue, setInputValue] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  
+
   const {
     messages,
     conversations,
@@ -30,186 +32,150 @@ export function Chat() {
     initialize()
   }, [initialize])
 
-  // 自动滚动到底部
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  // 发送消息
   const handleSend = async () => {
     if (!inputValue.trim() || loading) return
-    
+
     const content = inputValue.trim()
     setInputValue('')
     await sendMessage(content)
   }
 
-  // 按键处理
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
+  const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault()
       handleSend()
     }
   }
 
-  // 快捷问题
-  const quickQuestions = [
-    '孕早期有哪些注意事项？',
-    '宝宝发烧怎么办？',
-    '孕期营养应该怎么补充？',
-    '新生儿护理要点有哪些？',
-  ]
+  const handleDeleteConversation = (conversationId: string) => {
+    if (window.confirm('删除这段对话？')) {
+      deleteConversation(conversationId)
+    }
+  }
 
   return (
     <div className={styles.chatContainer}>
-      {/* 头部 */}
-      <Card className={styles.header}>
-        <Space>
-          <QuestionCircleOutlined style={{ fontSize: 24, color: '#1890ff' }} />
-          <div>
-            <Title level={4} style={{ margin: 0 }}>AI 智能问答</Title>
-            <Text type="secondary">把此刻的担心告诉我，我会陪您一起梳理</Text>
-          </div>
-        </Space>
-      </Card>
+      <section className={styles.header}>
+        <div className={styles.headerIcon} aria-hidden="true">?</div>
+        <div>
+          <h1>AI 智能问答</h1>
+          <p>把此刻的担心告诉我，我会陪您一起梳理。</p>
+        </div>
+      </section>
 
-      {/* 免责声明 */}
-      <Alert
-        type="warning"
-        icon={<WarningOutlined />}
-        message="重要提示"
-        description={getDisclaimer()}
-        showIcon
-        className={styles.disclaimer}
-      />
+      <section className={styles.disclaimer}>
+        <strong>重要提示</strong>
+        <p>{getDisclaimer()}</p>
+      </section>
 
-      {/* 消息列表 */}
-      <Card className={styles.messagesCard}>
+      <section className={styles.messagesCard}>
         <div className={styles.historyBar}>
-          <Space align="center">
-            <HistoryOutlined />
-            <Text strong>最近对话</Text>
-          </Space>
+          <div className={styles.historyHeader}>
+            <div>
+              <span className={styles.historyEyebrow}>History</span>
+              <strong>最近对话</strong>
+            </div>
+            {loadingHistory ? <span className={styles.inlineLoading}>加载中...</span> : null}
+          </div>
 
-          <List
-            className={styles.historyList}
-            loading={loadingHistory}
-            locale={{ emptyText: '还没有历史对话' }}
-            dataSource={conversations}
-            renderItem={(item) => (
-              <List.Item
-                className={styles.historyItem}
-                actions={[
-                  <Popconfirm
-                    key="delete"
-                    title="删除这段对话？"
-                    okText="删除"
-                    cancelText="取消"
-                    onConfirm={() => deleteConversation(item.id)}
+          {conversations.length > 0 ? (
+            <div className={styles.historyList}>
+              {conversations.map((item) => (
+                <div key={item.id} className={styles.historyItem}>
+                  <button
+                    type="button"
+                    className={styles.historyButton}
+                    onClick={() => loadHistory(item.id)}
                   >
-                    <Button type="text" size="small" icon={<DeleteOutlined />} />
-                  </Popconfirm>,
-                ]}
-              >
-                <button
-                  type="button"
-                  className={styles.historyButton}
-                  onClick={() => loadHistory(item.id)}
-                >
-                  <span className={styles.historyTitle}>{item.title || '新的对话'}</span>
-                  <span className={styles.historySummary}>{item.summary || '暂无摘要'}</span>
-                </button>
-              </List.Item>
-            )}
-          />
+                    <span className={styles.historyTitle}>{item.title || '新的对话'}</span>
+                    <span className={styles.historySummary}>{item.summary || '暂无摘要'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.deleteButton}
+                    onClick={() => handleDeleteConversation(item.id)}
+                    aria-label="删除对话"
+                  >
+                    删除
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className={styles.historyEmpty}>{loadingHistory ? '正在加载历史对话' : '还没有历史对话'}</div>
+          )}
         </div>
 
         {messages.length === 0 ? (
           <div className={styles.emptyState}>
-            <Empty
-              image={Empty.PRESENTED_IMAGE_SIMPLE}
-              description={
-                <Space direction="vertical" size="small">
-                  <Text>您好，我是母婴 AI 助手</Text>
-                  <Text type="secondary">您可以直接说说现在最担心的情况，我会尽力给您温和、清晰的参考建议</Text>
-                  <div className={styles.quickQuestions}>
-                    <Text type="secondary">快捷问题：</Text>
-                    <Space wrap>
-                      {quickQuestions.map((q, i) => (
-                        <Button
-                          key={i}
-                          size="small"
-                          onClick={() => {
-                            setInputValue(q)
-                          }}
-                        >
-                          {q}
-                        </Button>
-                      ))}
-                    </Space>
-                  </div>
-                </Space>
-              }
-            />
+            <div className={styles.emptyCard}>
+              <strong>您好，我是母婴 AI 助手</strong>
+              <p>您可以直接说说现在最担心的情况，我会尽力给您温和、清晰的参考建议。</p>
+              <div className={styles.quickQuestions}>
+                <span>快捷问题：</span>
+                <div>
+                  {quickQuestions.map((question) => (
+                    <button
+                      key={question}
+                      type="button"
+                      onClick={() => setInputValue(question)}
+                    >
+                      {question}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
         ) : (
           <div className={styles.messagesList}>
-            {messages.map(msg => (
-              <ChatMessage key={msg.id} message={msg} />
+            {messages.map((message) => (
+              <ChatMessage key={message.id} message={message} />
             ))}
-            {loading && (
+            {loading ? (
               <div className={styles.loading}>
-                <Spin tip="AI 正在思考..." />
+                <span className={styles.loadingDot} />
+                <span>AI 正在思考...</span>
               </div>
-            )}
+            ) : null}
             <div ref={messagesEndRef} />
           </div>
         )}
-        
-        {error && (
-          <Alert
-            type="error"
-            message={error}
-            showIcon
-            style={{ marginTop: 16 }}
-          />
-        )}
-      </Card>
 
-      {/* 输入区域 */}
-      <Card className={styles.inputCard}>
-        <Space.Compact style={{ width: '100%' }}>
-          <TextArea
+        {error ? <div className={styles.errorAlert}>{error}</div> : null}
+      </section>
+
+      <section className={styles.inputCard}>
+        <div className={styles.inputRow}>
+          <textarea
             value={inputValue}
-            onChange={e => setInputValue(e.target.value)}
-            onKeyPress={handleKeyPress}
+            onChange={(event) => setInputValue(event.target.value)}
+            onKeyDown={handleKeyDown}
             placeholder="请输入您的问题...（按 Enter 发送，Shift+Enter 换行）"
-            autoSize={{ minRows: 1, maxRows: 4 }}
             className={styles.input}
             disabled={loading}
+            rows={1}
           />
-          <Button
-            type="primary"
-            icon={<SendOutlined />}
+          <button
+            type="button"
             onClick={handleSend}
-            loading={loading}
-            disabled={!inputValue.trim()}
+            disabled={loading || !inputValue.trim()}
             className={styles.sendButton}
           >
-            发送
-          </Button>
-        </Space.Compact>
-        
-        <div className={styles.actions}>
-          <Button 
-            type="text" 
-            icon={<ClearOutlined />} 
-            onClick={clearMessages}
-          >
-            新对话
-          </Button>
+            {loading ? '发送中' : '发送'}
+          </button>
         </div>
-      </Card>
+
+        <div className={styles.actions}>
+          <button type="button" onClick={clearMessages}>
+            新对话
+          </button>
+        </div>
+      </section>
     </div>
   )
 }

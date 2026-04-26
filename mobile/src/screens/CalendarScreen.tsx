@@ -9,6 +9,8 @@ import {
   View,
 } from 'react-native'
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native'
+import type { RouteProp } from '@react-navigation/native'
+import type { StackNavigationProp } from '@react-navigation/stack'
 import { Calendar, type DateData } from 'react-native-calendars'
 import dayjs from 'dayjs'
 import { Button, Card, Chip, Modal, Portal, Snackbar, Switch, Text, TextInput } from 'react-native-paper'
@@ -24,6 +26,7 @@ import { getStageSummary, type CalendarSuggestion } from '../utils/stage'
 import { calculatePregnancyWeekFromDueDate } from '../utils'
 import { buildWeekPriorityPlan } from '../utils/aiAssist'
 import { borderRadius, colors, fontSize, spacing } from '../theme'
+import type { RootStackParamList } from '../navigation/AppNavigator'
 
 type EventType = 'checkup' | 'vaccine' | 'reminder' | 'exercise' | 'diet' | 'other'
 
@@ -102,9 +105,29 @@ function isPointInsideRect(x: number, y: number, rect: Rect) {
 }
 
 function getSuggestionWindow(suggestion: CalendarSuggestion) {
+  const today = dayjs().startOf('day')
+  const start = suggestion.windowStartDate
+    ? dayjs(suggestion.windowStartDate).startOf('day')
+    : today.add(suggestion.minOffsetDays, 'day')
+  const rawEnd = suggestion.windowEndDate
+    ? dayjs(suggestion.windowEndDate).startOf('day')
+    : today.add(suggestion.maxOffsetDays, 'day')
+  const end = rawEnd.isBefore(start, 'day') ? start : rawEnd
+  const preferred = suggestion.focusDate
+    ? dayjs(suggestion.focusDate).startOf('day')
+    : suggestion.preferredOffsetDays !== undefined
+      ? today.add(suggestion.preferredOffsetDays, 'day')
+      : start.add(Math.floor(end.diff(start, 'day') / 2), 'day')
+  const focus = preferred.isBefore(start, 'day')
+    ? start
+    : preferred.isAfter(end, 'day')
+      ? end
+      : preferred
+
   return {
-    start: dayjs().startOf('day').add(suggestion.minOffsetDays, 'day'),
-    end: dayjs().startOf('day').add(suggestion.maxOffsetDays, 'day'),
+    start,
+    end,
+    focus,
   }
 }
 
@@ -116,19 +139,34 @@ function isDateWithinSuggestionWindow(dateString: string, suggestion: CalendarSu
 
 function formatSuggestionRange(suggestion: CalendarSuggestion) {
   const { start, end } = getSuggestionWindow(suggestion)
+  if (start.isSame(end, 'day')) {
+    return start.format('M月D日')
+  }
   return `${start.format('M月D日')} - ${end.format('M月D日')}`
+}
+
+function formatSuggestionDropText(suggestion: CalendarSuggestion) {
+  const { start, end } = getSuggestionWindow(suggestion)
+  if (start.isSame(end, 'day')) {
+    return `建议放到 ${start.format('M月D日')}`
+  }
+  return `可拖入 ${formatSuggestionRange(suggestion)} 任意日期`
 }
 
 function resolveSuggestionFocusDate(suggestion: CalendarSuggestion, referenceDate: string) {
   const target = dayjs(referenceDate).startOf('day')
-  const { start, end } = getSuggestionWindow(suggestion)
+  const { start, end, focus } = getSuggestionWindow(suggestion)
 
   if (target.isBefore(start, 'day')) {
-    return start.format('YYYY-MM-DD')
+    return focus.format('YYYY-MM-DD')
   }
 
   if (target.isAfter(end, 'day')) {
-    return end.format('YYYY-MM-DD')
+    return focus.format('YYYY-MM-DD')
+  }
+
+  if (suggestion.focusDate || suggestion.windowStartDate || suggestion.windowEndDate || suggestion.preferredOffsetDays !== undefined) {
+    return focus.format('YYYY-MM-DD')
   }
 
   return target.format('YYYY-MM-DD')
@@ -150,6 +188,44 @@ function getCalendarFetchRange(currentMonth: string, todayString: string) {
   return {
     start: (currentMonthStart.isBefore(todayMonthStart) ? currentMonthStart : todayMonthStart).format('YYYY-MM-DD'),
     end: (currentMonthEnd.isAfter(todayMonthEnd) ? currentMonthEnd : todayMonthEnd).format('YYYY-MM-DD'),
+  }
+}
+
+function getStandardSchedulePriority(status: StandardSchedulePlan['items'][number]['status']) {
+  if (status === 'due') return 0
+  if (status === 'upcoming') return 1
+  if (status === 'overdue') return 2
+  if (status === 'scheduled') return 3
+  return 4
+}
+
+function mapStandardScheduleItemToSuggestion(item: StandardSchedulePlan['items'][number]): CalendarSuggestion {
+  const eventDate = dayjs(item.eventDate).startOf('day')
+  const today = dayjs().startOf('day')
+  const isOverdue = item.status === 'overdue'
+  const isDue = item.status === 'due'
+  const focusDate = (isOverdue || isDue ? today : eventDate).format('YYYY-MM-DD')
+  const formattedEventDate = eventDate.format('M月D日')
+  const windowLabel = isOverdue
+    ? `${item.dateLabel} · 原建议 ${formattedEventDate}`
+    : isDue
+      ? `${item.dateLabel} · 建议今天`
+      : `${item.dateLabel} · ${formattedEventDate}`
+
+  return {
+    title: item.title,
+    description: isOverdue
+      ? `${item.description} 原建议日期 ${formattedEventDate}，现在适合尽快补齐。`
+      : item.description,
+    eventType: item.eventType === 'vaccine' ? 'vaccine' : item.eventType === 'checkup' ? 'checkup' : 'reminder',
+    windowLabel,
+    minOffsetDays: 0,
+    maxOffsetDays: 0,
+    reminderLabel: '默认前一晚 20:00 提醒',
+    windowStartDate: focusDate,
+    windowEndDate: focusDate,
+    focusDate,
+    sourceLabel: item.sourceLabel,
   }
 }
 
@@ -209,15 +285,14 @@ function DraggableSuggestionCard({
       }),
     [findDropDate, measureDateCells, onDragStart, onDropOnDate, onHoverDateChange, pan, resetPosition, suggestion],
   )
+  const suggestionCardWrapStyle = [
+    styles.suggestionCardWrap,
+    draggingRef.current && styles.suggestionCardWrapDragging,
+    { transform: pan.getTranslateTransform() },
+  ]
 
   return (
-    <Animated.View
-      style={[
-        styles.suggestionCardWrap,
-        draggingRef.current && styles.suggestionCardWrapDragging,
-        { transform: pan.getTranslateTransform() },
-      ]}
-    >
+    <Animated.View style={suggestionCardWrapStyle}>
       <View style={styles.suggestionCard}>
         <View style={styles.suggestionCardBody}>
           <View style={styles.suggestionCardTopBlock}>
@@ -262,7 +337,7 @@ function DraggableSuggestionCard({
             <View style={styles.suggestionInfoBar}>
               <MaterialCommunityIcons name="calendar-range" size={15} color={colors.techDark} />
               <Text numberOfLines={2} style={styles.suggestionRangeText}>
-                可拖入 {formatSuggestionRange(suggestion)} 任意日期
+                {formatSuggestionDropText(suggestion)}
               </Text>
             </View>
 
@@ -288,7 +363,7 @@ function DraggableSuggestionCard({
           }}
           style={[styles.suggestionActionButton, !selectedDateAllowed && styles.suggestionActionButtonSecondary]}
         >
-          <Text style={[styles.suggestionAction, !selectedDateAllowed && styles.suggestionActionSecondary]}>
+          <Text numberOfLines={1} style={[styles.suggestionAction, !selectedDateAllowed && styles.suggestionActionSecondary]}>
             {actionLabel}
           </Text>
         </TouchableOpacity>
@@ -298,8 +373,8 @@ function DraggableSuggestionCard({
 }
 
 export default function CalendarScreen() {
-  const navigation = useNavigation<any>()
-  const route = useRoute<any>()
+  const navigation = useNavigation<StackNavigationProp<RootStackParamList, 'Calendar'>>()
+  const route = useRoute<RouteProp<RootStackParamList, 'Calendar'>>()
   const user = useAppStore((state) => state.user)
   const {
     events = [],
@@ -404,7 +479,6 @@ export default function CalendarScreen() {
     () => todayEvents.filter((event) => !event.isCompleted),
     [todayEvents],
   )
-  const resolvedCheckInStreak = checkinStatus?.currentStreak ?? checkInStreak
   const hasCheckedInToday = checkinStatus?.checkedInToday ?? todayEvents.some((event) => event.isCompleted)
 
   const completedForSelectedDate = eventsForSelectedDate.filter((event) => event.isCompleted).length
@@ -457,8 +531,28 @@ export default function CalendarScreen() {
       accent: colors.gold,
     },
   ]
+  const calendarSuggestions = useMemo(() => {
+    const pendingStandardItems = (standardSchedule?.items || [])
+      .filter((item) => item.status !== 'completed' && item.status !== 'scheduled')
+      .sort((left, right) => (
+        getStandardSchedulePriority(left.status) - getStandardSchedulePriority(right.status)
+        || left.eventDate.localeCompare(right.eventDate)
+      ))
+
+    if (!pendingStandardItems.length) {
+      return stage.calendarSuggestions
+    }
+
+    return pendingStandardItems.slice(0, 3).map(mapStandardScheduleItemToSuggestion)
+  }, [stage.calendarSuggestions, standardSchedule])
   const visibleStandardScheduleItems = useMemo(
-    () => (standardSchedule?.items || []).slice(0, 3),
+    () => (standardSchedule?.items || [])
+      .slice()
+      .sort((left, right) => (
+        getStandardSchedulePriority(left.status) - getStandardSchedulePriority(right.status)
+        || left.eventDate.localeCompare(right.eventDate)
+      ))
+      .slice(0, 3),
     [standardSchedule],
   )
   const currentWeekDiary = useMemo(
@@ -473,7 +567,7 @@ export default function CalendarScreen() {
       eventStates.set(key, Boolean(previous) || event.isCompleted)
     })
 
-    const suggestionTodos = stage.calendarSuggestions.map((suggestion) => ({
+    const suggestionTodos = calendarSuggestions.map((suggestion) => ({
       type: suggestion.eventType,
       title: suggestion.title,
       desc: suggestion.description,
@@ -492,15 +586,15 @@ export default function CalendarScreen() {
       : []
 
     return [...weeklyCustomTodos, ...suggestionTodos]
-  }, [calendarEvents, currentPregnancyWeek, customTodos, stage.calendarSuggestions, todoProgress])
+  }, [calendarEvents, calendarSuggestions, currentPregnancyWeek, customTodos, todoProgress])
   const aiWeekPriority = useMemo(() => buildWeekPriorityPlan({
     week: currentPregnancyWeek,
     summary: stage.reminder,
-    tips: stage.calendarSuggestions.map(item => item.description),
+    tips: calendarSuggestions.map(item => item.description),
     todos: aiTodoCandidates,
     completedCount: aiTodoCandidates.filter(item => item.completed).length,
     hasDiary: Boolean(currentWeekDiary),
-  }), [aiTodoCandidates, currentPregnancyWeek, currentWeekDiary, stage.calendarSuggestions, stage.reminder])
+  }), [aiTodoCandidates, calendarSuggestions, currentPregnancyWeek, currentWeekDiary, stage.reminder])
 
   const measureDateCell = useCallback((dateString: string) => {
     requestAnimationFrame(() => {
@@ -722,13 +816,7 @@ export default function CalendarScreen() {
   }, [currentMonth, setCurrentMonth])
 
   useEffect(() => {
-    const params = route.params as {
-      prefillTitle?: string
-      prefillDescription?: string
-      prefillEventType?: EventType
-      targetDate?: string
-      source?: 'chat' | 'weekly_report'
-    } | undefined
+    const params = route.params
 
     if (!params?.prefillTitle && !params?.prefillDescription) {
       return
@@ -847,9 +935,11 @@ export default function CalendarScreen() {
             <View style={styles.dayMetaRow}>
               {dotColors.length > 0 ? (
                 <View style={styles.eventDots}>
-                  {dotColors.map((color, index) => (
-                    <View key={`${dateString}-${index}`} style={[styles.eventDot, { backgroundColor: color }]} />
-                  ))}
+                  {dotColors.map((color, index) => {
+                    const eventDotStyle = [styles.eventDot, { backgroundColor: color }]
+
+                    return <View key={`${dateString}-${index}`} style={eventDotStyle} />
+                  })}
                 </View>
               ) : (
                 <View />
@@ -953,36 +1043,42 @@ export default function CalendarScreen() {
         </StandardCard>
 
         <View style={styles.statsRow}>
-          {statCards.map((item) => (
-            <View key={item.label} style={styles.statCard}>
-              <LinearGradient colors={item.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.statCardGradient}>
-                <View style={styles.statCardGlow} />
-                <View style={styles.statCardTop}>
-                  <View
-                    style={[
-                      styles.statIconShell,
-                      item.tone === 'green' && styles.statIconShellGreen,
-                      item.tone === 'tech' && styles.statIconShellTech,
-                      item.tone === 'gold' && styles.statIconShellGold,
-                    ]}
-                  >
-                    <MaterialCommunityIcons name={item.icon} size={17} color={item.accent} />
-                  </View>
-                  <View style={[styles.statBadge, { borderColor: `${item.accent}22`, backgroundColor: `${item.accent}12` }]}>
-                    <Text style={[styles.statBadgeText, { color: item.accent }]}>{item.badge}</Text>
-                  </View>
-                </View>
+          {statCards.map((item) => {
+            const statBadgeStyle = [styles.statBadge, { borderColor: `${item.accent}22`, backgroundColor: `${item.accent}12` }]
+            const statBadgeTextStyle = [styles.statBadgeText, { color: item.accent }]
+            const statNoteDotStyle = [styles.statNoteDot, { backgroundColor: item.accent }]
 
-                <Text numberOfLines={1} style={styles.statLabel}>{item.label}</Text>
-                <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.88} style={styles.statValue}>{item.value}</Text>
+            return (
+              <View key={item.label} style={styles.statCard}>
+                <LinearGradient colors={item.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.statCardGradient}>
+                  <View style={styles.statCardGlow} />
+                  <View style={styles.statCardTop}>
+                    <View
+                      style={[
+                        styles.statIconShell,
+                        item.tone === 'green' && styles.statIconShellGreen,
+                        item.tone === 'tech' && styles.statIconShellTech,
+                        item.tone === 'gold' && styles.statIconShellGold,
+                      ]}
+                    >
+                      <MaterialCommunityIcons name={item.icon} size={17} color={item.accent} />
+                    </View>
+                    <View style={statBadgeStyle}>
+                      <Text style={statBadgeTextStyle}>{item.badge}</Text>
+                    </View>
+                  </View>
 
-                <View style={styles.statNoteRow}>
-                  <View style={[styles.statNoteDot, { backgroundColor: item.accent }]} />
-                  <Text numberOfLines={1} ellipsizeMode="tail" style={styles.statNote}>{item.note}</Text>
-                </View>
-              </LinearGradient>
-            </View>
-          ))}
+                  <Text numberOfLines={1} style={styles.statLabel}>{item.label}</Text>
+                  <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.88} style={styles.statValue}>{item.value}</Text>
+
+                  <View style={styles.statNoteRow}>
+                    <View style={statNoteDotStyle} />
+                    <Text numberOfLines={1} ellipsizeMode="tail" style={styles.statNote}>{item.note}</Text>
+                  </View>
+                </LinearGradient>
+              </View>
+            )
+          })}
         </View>
 
         <Card style={styles.stageCard}>
@@ -1161,7 +1257,7 @@ export default function CalendarScreen() {
         </View>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.suggestionScrollContent}>
-          {stage.calendarSuggestions.map((suggestion) => (
+          {calendarSuggestions.map((suggestion) => (
             <DraggableSuggestionCard
               key={suggestion.title}
               suggestion={suggestion}
@@ -1252,24 +1348,26 @@ export default function CalendarScreen() {
         ) : (
           eventsForSelectedDate.map((event) => {
             const typeConfig = EVENT_TYPE_CONFIG[event.eventType] ?? EVENT_TYPE_CONFIG.other
+            const eventCardStyle = [
+              styles.eventCard,
+              { borderLeftColor: typeConfig.color, borderLeftWidth: 4 },
+              event.isCompleted && styles.eventCardCompleted,
+            ]
+            const eventIconShellStyle = [styles.eventIconShell, { backgroundColor: `${typeConfig.color}20` }]
+            const typeChipStyle = [styles.typeChip, { backgroundColor: `${typeConfig.color}20` }]
+            const typeChipTextStyle = [styles.typeChipText, { color: typeConfig.color }]
+
             return (
-              <Card
-                key={event.id}
-                style={[
-                  styles.eventCard,
-                  { borderLeftColor: typeConfig.color, borderLeftWidth: 4 },
-                  event.isCompleted && styles.eventCardCompleted,
-                ]}
-              >
+              <Card key={event.id} style={eventCardStyle}>
                 <Card.Content style={styles.eventCardContent}>
                   <View style={styles.eventHeader}>
                     <View style={styles.eventLead}>
-                      <View style={[styles.eventIconShell, { backgroundColor: `${typeConfig.color}20` }]}>
+                      <View style={eventIconShellStyle}>
                         <MaterialCommunityIcons name={typeConfig.icon} size={16} color={typeConfig.color} />
                       </View>
                       <View style={styles.eventHeaderText}>
                         <View style={styles.eventMetaTopRow}>
-                          <Chip compact style={[styles.typeChip, { backgroundColor: `${typeConfig.color}20` }]} textStyle={[styles.typeChipText, { color: typeConfig.color }]}>
+                          <Chip compact style={typeChipStyle} textStyle={typeChipTextStyle}>
                             {typeConfig.label}
                           </Chip>
                           <View
@@ -1395,23 +1493,28 @@ export default function CalendarScreen() {
             <Text style={styles.fieldLabel}>类型</Text>
 
             <View style={styles.typePicker}>
-              {EVENT_TYPES.map((type) => (
-                <TouchableOpacity
-                  key={type}
-                  onPress={() => setFormType(type)}
-                  style={[
-                    styles.typeOption,
-                    {
-                      backgroundColor: formType === type ? EVENT_TYPE_CONFIG[type].color : colors.surface,
-                      borderColor: formType === type ? EVENT_TYPE_CONFIG[type].color : colors.border,
-                    },
-                  ]}
-                >
-                  <Text style={[styles.typeOptionText, formType === type && styles.typeOptionTextSelected]}>
-                    {EVENT_TYPE_CONFIG[type].label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+              {EVENT_TYPES.map((type) => {
+                const typeOptionColor = formType === type ? EVENT_TYPE_CONFIG[type].color : colors.surface
+                const typeOptionStyle = [
+                  styles.typeOption,
+                  {
+                    backgroundColor: typeOptionColor,
+                    borderColor: formType === type ? EVENT_TYPE_CONFIG[type].color : colors.border,
+                  },
+                ]
+
+                return (
+                  <TouchableOpacity
+                    key={type}
+                    onPress={() => setFormType(type)}
+                    style={typeOptionStyle}
+                  >
+                    <Text style={[styles.typeOptionText, formType === type && styles.typeOptionTextSelected]}>
+                      {EVENT_TYPE_CONFIG[type].label}
+                    </Text>
+                  </TouchableOpacity>
+                )
+              })}
             </View>
 
             <View style={styles.reminderRow}>
@@ -2104,7 +2207,7 @@ const styles = StyleSheet.create({
     zIndex: 20,
   },
   suggestionCard: {
-    minHeight: 258,
+    height: 276,
     borderRadius: borderRadius.xl,
     padding: spacing.sm,
     backgroundColor: colors.surfaceRaised,

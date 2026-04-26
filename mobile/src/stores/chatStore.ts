@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { normalizeApiError } from '../api'
 import { v4 as uuidv4 } from '../utils'
-import type { AIEntryMeta, AIMessage } from '../api/ai'
+import type { AIEntryMeta, AIMessage, ChatResponse } from '../api/ai'
 import { aiApi, getEmergencyWarning } from '../api/ai'
 import { wsManager } from '../utils/websocket'
 import { sessionStorage } from '../utils/storage'
@@ -252,16 +252,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
           httpFallbackFired = true
           wsManager.cancelRequest(requestId, true)
           try {
-            const response = await aiApi.chat({
+            const response: ChatResponse = await aiApi.chat({
               messages: get().messages.map(m => ({ role: m.role, content: m.content })),
               conversationId: get().conversationId || undefined,
               context,
               clientRequestId: requestId,
-            }) as any
+            })
             const assistantMessage: AIMessage = {
               id: uuidv4(),
               role: 'assistant',
-              content: response.message?.content || response.response || '',
+              content: response.response || '',
               entryMeta: entryMeta || undefined,
               sources: response.sources,
               actionCards: response.actionCards,

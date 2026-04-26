@@ -1,8 +1,8 @@
 import axios, { InternalAxiosRequestConfig } from 'axios'
-import { config } from '../config'
+import { config as appConfig } from '../config'
 import { sessionStorage } from '../utils/storage'
 
-const BASE_URL = config.apiBaseUrl
+const BASE_URL = appConfig.apiBaseUrl
 
 export type ApiErrorType = 'business' | 'http' | 'network' | 'timeout' | 'unknown'
 
@@ -39,7 +39,7 @@ const refreshClient = axios.create({
 
 // Token 刷新队列
 let isRefreshing = false
-let failedQueue: Array<{ resolve: (token: string) => void; reject: (error: unknown) => void }> = []
+let failedQueue: Array<{ resolve: (_token: string) => void; reject: (_error: unknown) => void }> = []
 
 const processQueue = (error: unknown, token: string | null = null) => {
   failedQueue.forEach(({ resolve, reject }) => {

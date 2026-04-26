@@ -2,10 +2,14 @@ import React, { useMemo } from 'react'
 import { ScrollView, StyleSheet, View } from 'react-native'
 import { Button, Chip, Text } from 'react-native-paper'
 import { useNavigation } from '@react-navigation/native'
+import type { CompositeNavigationProp } from '@react-navigation/native'
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs'
+import type { StackNavigationProp } from '@react-navigation/stack'
 import dayjs from 'dayjs'
 import LinearGradient from 'react-native-linear-gradient'
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons'
 import { ScreenContainer, StandardCard } from '../components/layout'
+import type { RootStackParamList, TabParamList } from '../navigation/AppNavigator'
 import { useAppStore } from '../stores/appStore'
 import { useMembershipStore } from '../stores/membershipStore'
 import { getStageSummary } from '../utils/stage'
@@ -21,6 +25,11 @@ type TimelineRow = {
   value: string
   detail: string
 }
+
+type FamilyProfileNavigationProp = CompositeNavigationProp<
+  BottomTabNavigationProp<TabParamList, 'Profile'>,
+  StackNavigationProp<RootStackParamList, 'FamilyProfile'>
+>
 
 function formatDate(value?: string | null): string {
   return value ? dayjs(value).format('YYYY-MM-DD') : '未设置'
@@ -74,7 +83,7 @@ function getChildAgeLabel(
 }
 
 export default function FamilyProfileScreen() {
-  const navigation = useNavigation<any>()
+  const navigation = useNavigation<FamilyProfileNavigationProp>()
   const user = useAppStore((state) => state.user)
   const { status, currentPlanCode, plans } = useMembershipStore()
   const stage = useMemo(() => getStageSummary(user), [user])
@@ -89,7 +98,6 @@ export default function FamilyProfileScreen() {
     { label: '账户状态', value: stage.profileStatusLabel },
     { label: '会员状态', value: memberStatusLabel },
   ]), [
-    activePlan?.name,
     memberStatusLabel,
     stage.lifecycleLabel,
     stage.profileStatusLabel,

@@ -1,3 +1,6 @@
+import type { Request, Response } from 'express';
+import jwt from 'jsonwebtoken';
+
 const mockFindUnique = jest.fn();
 const mockTransaction = jest.fn();
 const mockCacheGet = jest.fn();
@@ -28,8 +31,10 @@ jest.mock('../src/services/analytics.service', () => ({
 }));
 
 import { AppError, ErrorCodes } from '../src/middlewares/error.middleware';
+import { authMiddleware, optionalAuthMiddleware } from '../src/middlewares/auth.middleware';
 import { paymentCallbackAccessMiddleware } from '../src/middlewares/payment-callback.middleware';
 import { createAnalyticsEventBody } from '../src/schemas/analytics.schema';
+import { refreshToken } from '../src/controllers/auth.controller';
 import { confirmWechatPayment, getPaymentOrder } from '../src/services/subscription.service';
 
 describe('MVP 安全回归测试', () => {
@@ -116,15 +121,64 @@ describe('MVP 安全回归测试', () => {
       headers: {
         authorization: 'Bearer fake-token',
       },
-      header(name: string) {
+      header(_name: string) {
         return undefined;
       },
-    } as any, {} as any, next);
+    } as unknown as Request, {} as Response, next);
 
     expect(next).toHaveBeenCalledWith(expect.objectContaining<AppError>({
       code: ErrorCodes.NO_PERMISSION,
       statusCode: 401,
       message: '支付回调签名缺失',
     }));
+  });
+
+  it('刷新 token 时拒绝签名有效但 userId 非数字的载荷', async () => {
+    const token = jwt.sign({ userId: 'not-a-number' }, process.env.JWT_SECRET || 'dev-jwt-secret');
+    const next = jest.fn();
+
+    await refreshToken({
+      headers: {
+        authorization: `Bearer ${token}`,
+      },
+    } as Request, {} as Response, next);
+
+    expect(next).toHaveBeenCalledWith(expect.objectContaining<AppError>({
+      code: ErrorCodes.TOKEN_INVALID,
+      statusCode: 401,
+      message: 'Token 无效',
+    }));
+  });
+
+  it('必需认证拒绝签名有效但 userId 非数字的载荷', async () => {
+    const token = jwt.sign({ userId: 'not-a-number' }, process.env.JWT_SECRET || 'dev-jwt-secret');
+    const next = jest.fn();
+
+    await authMiddleware({
+      headers: {
+        authorization: `Bearer ${token}`,
+      },
+    } as Request, {} as Response, next);
+
+    expect(next).toHaveBeenCalledWith(expect.objectContaining<AppError>({
+      code: ErrorCodes.TOKEN_INVALID,
+      statusCode: 401,
+      message: 'Token 无效',
+    }));
+  });
+
+  it('可选认证忽略签名有效但 userId 非数字的载荷', async () => {
+    const token = jwt.sign({ userId: 'not-a-number' }, process.env.JWT_SECRET || 'dev-jwt-secret');
+    const req = {
+      headers: {
+        authorization: `Bearer ${token}`,
+      },
+    } as Request;
+    const next = jest.fn();
+
+    await optionalAuthMiddleware(req, {} as Response, next);
+
+    expect(req.userId).toBeUndefined();
+    expect(next).toHaveBeenCalledWith();
   });
 });
