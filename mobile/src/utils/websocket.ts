@@ -11,6 +11,7 @@ import type {
   UncertaintyInfo,
   SourceReliability,
   AIActionCard,
+  AIServiceDisclosure,
 } from '../../../shared/types'
 
 type WsServerMessage = {
@@ -36,6 +37,7 @@ type WsServerMessage = {
     model?: string
     provider?: string
     route?: string
+    aiDisclosure?: AIServiceDisclosure
   }
 }
 type MessageHandler = (msg: WsServerMessage) => void

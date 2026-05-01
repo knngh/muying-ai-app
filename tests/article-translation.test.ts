@@ -1,6 +1,7 @@
 import {
   extractJsonObject,
   hasTranslationPromptLeak,
+  isPlaceholderTranslationText,
   sanitizeTranslationText,
 } from '../src/utils/article-translation';
 
@@ -16,6 +17,12 @@ describe('article translation sanitization', () => {
 
     expect(sanitizeTranslationText(input, 'content')).toBe('');
     expect(hasTranslationPromptLeak(input)).toBe(true);
+  });
+
+  test('returns empty string for placeholder translation output', () => {
+    expect(sanitizeTranslationText('...', 'content')).toBe('');
+    expect(sanitizeTranslationText('…', 'summary')).toBe('');
+    expect(isPlaceholderTranslationText('待翻译')).toBe(true);
   });
 
   test('extracts json object from fenced response payload', () => {

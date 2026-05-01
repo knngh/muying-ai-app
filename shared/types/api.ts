@@ -113,4 +113,5 @@ export interface AuthChangePasswordPayload {
 
 export interface ArticleTranslationOptions {
   maxAttempts?: number
+  waitForReady?: boolean
 }

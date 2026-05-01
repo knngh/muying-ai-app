@@ -1,6 +1,6 @@
 import type { TranslationPendingError } from '../types'
 
-export const AUTHORITY_TRANSLATION_REQUEST_TIMEOUT_MS = 45000
+export const AUTHORITY_TRANSLATION_REQUEST_TIMEOUT_MS = 18000
 
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => {

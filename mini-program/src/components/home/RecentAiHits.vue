@@ -2,8 +2,8 @@
   <view v-if="articles.length" class="recent-ai-card">
     <view class="section-head">
       <view>
-        <text class="section-title">最近权威线索</text>
-        <text class="section-caption section-caption--block">回到最近命中的权威内容继续阅读</text>
+        <text class="section-title">继续阅读</text>
+        <text class="section-caption section-caption--block">回到最近看过的权威内容继续阅读</text>
       </view>
       <view class="recent-ai-link" @tap="$emit('navigate', '/pages/knowledge/index')">
         <text class="recent-ai-link-text">去知识库</text>
@@ -75,15 +75,15 @@ defineEmits<{
 </script>
 
 <style scoped>
-.recent-ai-card { margin-top: 22rpx; padding: 30rpx; border-radius: 30rpx; background: rgba(255, 255, 255, 0.86); box-shadow: 0 14rpx 34rpx rgba(31, 42, 55, 0.05); }
+.recent-ai-card { margin-top: 22rpx; padding: 30rpx; border-radius: 30rpx; background: rgba(255, 255, 255, 0.86); box-shadow: 0 14rpx 34rpx rgba(31, 42, 55, 0.03); }
 .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 18rpx; }
-.section-title { font-size: 32rpx; font-weight: 800; color: #24303d; }
+.section-title { font-size: 32rpx; font-weight: 800; color: #444; }
 .section-caption--block { display: block; margin-top: 6rpx; font-size: 22rpx; color: #8a96a3; }
 .recent-ai-link { flex-shrink: 0; padding: 10rpx 18rpx; border-radius: 999rpx; background: rgba(31, 143, 116, 0.1); }
 .recent-ai-link-text { font-size: 22rpx; font-weight: 700; color: #16735d; }
-.recent-ai-item { display: flex; align-items: center; justify-content: space-between; gap: 18rpx; margin-top: 22rpx; padding: 22rpx 24rpx; border-radius: 24rpx; background: linear-gradient(145deg, #fff7f0 0%, #fffcf8 100%); }
+.recent-ai-item { display: flex; align-items: center; justify-content: space-between; gap: 18rpx; margin-top: 22rpx; padding: 22rpx 24rpx; border-radius: 24rpx; background: linear-gradient(145deg, #fdf5f0 0%, #fffcf8 100%); }
 .recent-ai-copy { flex: 1; }
-.recent-ai-title { display: block; font-size: 28rpx; line-height: 1.55; font-weight: 700; color: #24303d; }
+.recent-ai-title { display: block; font-size: 28rpx; line-height: 1.55; font-weight: 700; color: #444; }
 .recent-ai-meta { display: block; margin-top: 10rpx; font-size: 22rpx; line-height: 1.55; color: #7a8697; }
 .recent-ai-action { flex-shrink: 0; font-size: 24rpx; font-weight: 700; color: #f36f45; }
 .recent-ai-chip-panel { margin-top: 18rpx; padding: 18rpx; border-radius: 24rpx; background: rgba(255, 255, 255, 0.82); }

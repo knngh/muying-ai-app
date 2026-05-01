@@ -18,6 +18,7 @@ export interface AIMessage {
   model?: string
   provider?: string
   route?: string
+  aiDisclosure?: AIServiceDisclosure
   degraded?: boolean
   createdAt: string
 }
@@ -27,6 +28,20 @@ export type TriageCategory = 'normal' | 'caution' | 'emergency' | 'out_of_scope'
 export type SourceReliability = 'authoritative' | 'mixed' | 'medical_platform_only' | 'dataset_only' | 'none'
 export type AIActionCardType = 'calendar' | 'knowledge' | 'archive' | 'follow_up'
 export type AIActionCardPriority = 'primary' | 'secondary'
+
+export interface AIServiceDisclosure {
+  provider: string
+  providerName: string
+  companyName: string
+  modelName: string
+  serviceName: string
+  serviceType: string
+  publicNotice: string
+  disclaimer: string
+  filingCode?: string
+  complaintEmail?: string
+  updatedAt?: string
+}
 
 export interface AIEntryMeta {
   entrySource?: string
@@ -125,6 +140,7 @@ export interface AskResponse {
   model?: string
   provider?: string
   route?: string
+  aiDisclosure?: AIServiceDisclosure
   degraded?: boolean
 }
 
@@ -152,6 +168,7 @@ export interface ChatResponse {
   model?: string
   provider?: string
   route?: string
+  aiDisclosure?: AIServiceDisclosure
   degraded?: boolean
 }
 
@@ -189,5 +206,6 @@ export interface WsServerMessage {
     model?: string
     provider?: string
     route?: string
+    aiDisclosure?: AIServiceDisclosure
   }
 }

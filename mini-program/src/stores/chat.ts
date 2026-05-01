@@ -128,8 +128,27 @@ export const useChatStore = defineStore('chat', {
           if (type === 'emergency') {
             const lastMsg = this.messages[this.messages.length - 1]
             if (lastMsg && lastMsg.role === 'assistant') {
+              lastMsg.content = data.content || getEmergencyWarning()
               lastMsg.isEmergency = true
+              lastMsg.sources = data.sources
+              lastMsg.triageCategory = data.triageCategory
+              lastMsg.riskLevel = data.riskLevel
+              lastMsg.structuredAnswer = data.structuredAnswer
+              lastMsg.uncertainty = data.uncertainty
+              lastMsg.sourceReliability = data.sourceReliability
+              lastMsg.followUpQuestions = data.followUpQuestions
+              lastMsg.degraded = data.degraded
+              lastMsg.model = data.model
+              lastMsg.provider = data.provider
+              lastMsg.route = data.route
+              lastMsg.aiDisclosure = data.aiDisclosure
             }
+            if (data.conversationId) {
+              this.currentConversationId = data.conversationId
+            }
+            this.isStreaming = false
+            this.streamingContent = ''
+            this.loadConversations()
           }
 
           if (type === 'done') {
@@ -145,6 +164,8 @@ export const useChatStore = defineStore('chat', {
               lastMsg.degraded = data.degraded
               lastMsg.model = data.model
               lastMsg.provider = data.provider
+              lastMsg.route = data.route
+              lastMsg.aiDisclosure = data.aiDisclosure
             }
             if (data.conversationId) {
               this.currentConversationId = data.conversationId

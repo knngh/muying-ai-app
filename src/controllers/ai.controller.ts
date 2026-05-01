@@ -22,6 +22,7 @@ import {
   isResumeContinuationContext,
 } from '../services/ai-context.service';
 import { buildAIActionCards } from '../services/ai-action-card.service';
+import { buildAIServiceDisclosure } from '../services/ai-disclosure.service';
 import { logger, genRequestId } from '../utils/logger';
 
 const DEFAULT_MODEL_ID = getDefaultModel();
@@ -37,6 +38,8 @@ function buildTrustedResponsePayload(
   conversationId?: string,
 ) {
   const actionCards = buildAIActionCards(result);
+  const resolvedModel = result.model || model || DEFAULT_MODEL_ID;
+  const aiDisclosure = buildAIServiceDisclosure(resolvedModel, result.provider);
   return {
     answer: result.answer,
     message: {
@@ -56,9 +59,10 @@ function buildTrustedResponsePayload(
     sourceReliability: result.sourceReliability,
     degraded: result.degraded,
     actionCards,
-    model: result.model || model || DEFAULT_MODEL_ID,
+    model: resolvedModel,
     provider: result.provider,
     route: result.route,
+    aiDisclosure,
     conversationId,
   };
 }
@@ -77,6 +81,8 @@ function streamTrustedResult(
   conversationId: string | undefined,
 ) {
   const actionCards = buildAIActionCards(result);
+  const resolvedModel = result.model || model || DEFAULT_MODEL_ID;
+  const aiDisclosure = buildAIServiceDisclosure(resolvedModel, result.provider);
   setSseHeaders(res);
 
   for (const chunk of chunkTrustedAnswer(result.answer)) {
@@ -95,9 +101,10 @@ function streamTrustedResult(
     sourceReliability: result.sourceReliability,
     degraded: result.degraded,
     actionCards,
-    model: result.model || model || DEFAULT_MODEL_ID,
+    model: resolvedModel,
     provider: result.provider,
     route: result.route,
+    aiDisclosure,
     conversationId,
   })}\n\n`);
   res.end();
@@ -394,6 +401,7 @@ export const getModels = async (req: Request, res: Response, next: NextFunction)
       models,
       taskBindings: getTaskModelBindings(),
       default: DEFAULT_MODEL_ID,
+      aiDisclosure: buildAIServiceDisclosure(DEFAULT_MODEL_ID, 'minimax'),
     }));
   } catch (error) {
     next(error);
@@ -429,7 +437,7 @@ export const searchKnowledge = async (req: Request, res: Response, next: NextFun
 
     const results = (await searchQAWithRewrite(searchQuery, { category, limit })).map((item) => ({
       id: item.id,
-      question: item.question,
+      question: item.sourceReference.title || item.question,
       answer: item.answer,
       category: item.category,
       tags: item.tags,

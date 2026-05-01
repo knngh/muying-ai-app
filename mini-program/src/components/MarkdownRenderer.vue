@@ -27,7 +27,7 @@ const htmlContent = computed(() => {
 <style scoped>
 .markdown-content {
   font-size: 28rpx;
-  color: #333;
+  color: #444;
   line-height: 1.7;
   word-break: break-word;
 }

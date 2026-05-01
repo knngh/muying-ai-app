@@ -27,7 +27,7 @@ withDefaults(defineProps<{
   display: flex;
   gap: 20rpx;
   padding: 24rpx;
-  background: #fff;
+  background: #fffcf8;
   border-radius: 16rpx;
 }
 .skeleton-avatar {

@@ -3,6 +3,8 @@ import { articleApi } from '@/api/modules'
 import { isTranslationPendingError } from '@/api/modules'
 import type { Article, AuthorityArticleTranslation, PaginatedResponse } from '@/api/modules'
 import type { RecentAIHitArticle } from '../../../shared/types'
+import { buildTranslationPendingError } from '../../../shared/utils/translation-request'
+import { sanitizeTranslationText } from '../../../shared/utils/article-translation'
 import {
   buildRecentAIHitArticle,
   mergeRecentAIHitArticles,
@@ -26,6 +28,111 @@ const MAX_PERSISTED_TRANSLATIONS = 12
 let knowledgeListRequestId = 0
 const translationInFlight = new Map<string, Promise<AuthorityArticleTranslation>>()
 const articleDetailInFlight = new Map<string, Promise<Article>>()
+const TRANSLATION_NAVIGATION_PATTERNS = [
+  /turn (?:on|off) (?:more accessible mode|animations)/i,
+  /skip ribbon commands/i,
+  /skip to main content/i,
+  /log in\s*\|\s*register/i,
+  /find a pediatrician/i,
+  /ages\s*&?\s*stages/i,
+  /healthy living/i,
+  /safety\s*&?\s*prevention/i,
+  /family life/i,
+  /health issues/i,
+  /tips\s*&?\s*tools/i,
+  /healthy children\s*>/i,
+  /page content/i,
+  /年龄与阶段/u,
+  /健康生活/u,
+  /安全与预防/u,
+  /家庭生活/u,
+  /健康问题/u,
+  /提示与工具/u,
+  /查找儿科医生/u,
+  /关于\s*(?:AAP|美国儿科学会)/iu,
+]
+
+function isLikelySlowTranslationError(error: unknown): boolean {
+  const message = error instanceof Error
+    ? error.message
+    : typeof (error as { message?: unknown })?.message === 'string'
+      ? String((error as { message: string }).message)
+      : ''
+
+  return /timeout|timed out|超时|request:fail|abort/i.test(message)
+}
+
+function normalizeTranslationCacheText(input: string | null | undefined): string {
+  return (input || '').replace(/\s+/g, ' ').trim()
+}
+
+function isLikelyNavigationCachedTranslation(translation: AuthorityArticleTranslation): boolean {
+  const text = normalizeTranslationCacheText([
+    translation.translatedTitle,
+    translation.translatedSummary,
+    translation.translatedContent,
+  ].filter(Boolean).join(' '))
+
+  if (!text) {
+    return true
+  }
+
+  const navigationHitCount = TRANSLATION_NAVIGATION_PATTERNS.reduce((total, pattern) => (
+    total + (pattern.test(text) ? 1 : 0)
+  ), 0)
+
+  if (navigationHitCount >= 8) {
+    return true
+  }
+
+  const lower = text.toLowerCase()
+  const pageContentIndex = lower.lastIndexOf('page content')
+  if (navigationHitCount >= 5 && pageContentIndex >= 0 && pageContentIndex >= lower.length - 320) {
+    return true
+  }
+
+  const chineseNavHitCount = (text.match(/(年龄与阶段|健康生活|安全与预防|家庭生活|健康问题|提示与工具|新闻|查找儿科医生)/gu) || []).length
+  return chineseNavHitCount >= 5 && text.length < 2200
+}
+
+function normalizeCachedTranslation(translation: AuthorityArticleTranslation | null | undefined): AuthorityArticleTranslation | null {
+  if (!translation) {
+    return null
+  }
+
+  const normalized: AuthorityArticleTranslation = {
+    ...translation,
+    translatedTitle: sanitizeTranslationText(translation.translatedTitle, 'title'),
+    translatedSummary: sanitizeTranslationText(translation.translatedSummary, 'summary'),
+    translatedContent: sanitizeTranslationText(translation.translatedContent, 'content'),
+  }
+
+  if (!normalized.translatedContent || isLikelyNavigationCachedTranslation(normalized)) {
+    return null
+  }
+
+  return normalized
+}
+
+function hasTranslationNormalizationChanges(
+  original: AuthorityArticleTranslation,
+  normalized: AuthorityArticleTranslation,
+): boolean {
+  return original.translatedTitle !== normalized.translatedTitle
+    || original.translatedSummary !== normalized.translatedSummary
+    || original.translatedContent !== normalized.translatedContent
+}
+
+function isTranslationSourceVersionMismatch(
+  translation: AuthorityArticleTranslation,
+  expectedSourceUpdatedAt?: string,
+): boolean {
+  return Boolean(
+    expectedSourceUpdatedAt
+      && translation.sourceUpdatedAt
+      && translation.sourceUpdatedAt !== expectedSourceUpdatedAt,
+  )
+}
 
 function loadPersistedTranslations() {
   const stored = uni.getStorageSync(TRANSLATION_CACHE_STORAGE_KEY) as Array<{ slug: string; translation: AuthorityArticleTranslation }> | null
@@ -38,13 +145,27 @@ function loadPersistedTranslations() {
 
   const cache: Record<string, AuthorityArticleTranslation> = {}
   const order: string[] = []
+  let removedInvalidCache = false
   stored.forEach((item) => {
     if (!item?.slug || !item?.translation) {
+      removedInvalidCache = true
       return
     }
-    cache[item.slug] = item.translation
+    const normalized = normalizeCachedTranslation(item.translation)
+    if (!normalized) {
+      removedInvalidCache = true
+      return
+    }
+    cache[item.slug] = normalized
     order.push(item.slug)
   })
+
+  if (removedInvalidCache) {
+    uni.setStorageSync(
+      TRANSLATION_CACHE_STORAGE_KEY,
+      order.map(slug => ({ slug, translation: cache[slug] })),
+    )
+  }
 
   return { cache, order }
 }
@@ -194,13 +315,17 @@ export const useKnowledgeStore = defineStore('knowledge', {
       }
     },
 
-    async fetchArticleDetail(slug: string) {
-      if (this.currentArticle?.slug === slug) {
-        return
+    async fetchArticleDetail(slug: string): Promise<Article | null> {
+      if (this.currentArticle?.slug === slug && (this.currentArticle.content || this.currentArticle.summary)) {
+        return this.currentArticle
       }
 
       this.loading = true
       this.error = null
+      if (this.currentArticle?.slug !== slug) {
+        this.currentArticle = null
+      }
+
       try {
         const inFlight = articleDetailInFlight.get(slug)
         const request = inFlight || articleApi.getBySlug(slug) as Promise<Article>
@@ -209,9 +334,12 @@ export const useKnowledgeStore = defineStore('knowledge', {
         }
 
         this.currentArticle = await request
+        return this.currentArticle
       } catch (error: unknown) {
         const err = error as { message?: string }
         this.error = err.message || '获取文章详情失败'
+        this.currentArticle = null
+        return null
       } finally {
         articleDetailInFlight.delete(slug)
         this.loading = false
@@ -219,7 +347,7 @@ export const useKnowledgeStore = defineStore('knowledge', {
     },
 
     async fetchTranslation(slug: string) {
-      const cachedTranslation = this.translationCache[slug]
+      const cachedTranslation = this.getCachedTranslation(slug)
       if (cachedTranslation) {
         return cachedTranslation
       }
@@ -229,14 +357,29 @@ export const useKnowledgeStore = defineStore('knowledge', {
         return inFlightRequest
       }
 
-      const request = (articleApi.getTranslation(slug) as Promise<AuthorityArticleTranslation>)
+      const request = articleApi.getTranslation(slug, {
+        maxAttempts: 1,
+        waitForReady: true,
+      }) as Promise<AuthorityArticleTranslation>
       translationInFlight.set(slug, request)
 
       try {
         const translation = await request
-        this.cacheTranslation(slug, translation)
-        return translation
+        const normalized = this.cacheTranslation(slug, translation)
+        if (!normalized) {
+          this.markTranslationFailed(slug)
+          throw new Error('翻译内容暂不可用')
+        }
+        return normalized
       } catch (error) {
+        if (isTranslationPendingError(error)) {
+          throw error
+        }
+
+        if (isLikelySlowTranslationError(error)) {
+          throw buildTranslationPendingError(5000, 'MiniMax 正在生成中文阅读版，请稍后自动刷新')
+        }
+
         if (!isTranslationPendingError(error)) {
           this.markTranslationFailed(slug)
         }
@@ -249,18 +392,18 @@ export const useKnowledgeStore = defineStore('knowledge', {
     },
 
     async warmupTranslation(slug: string) {
-      if (this.translationCache[slug]) {
-        return this.translationCache[slug]
+      const cachedTranslation = this.getCachedTranslation(slug)
+      if (cachedTranslation) {
+        return cachedTranslation
       }
 
       try {
         const translation = await articleApi.kickoffTranslation(slug)
         if (translation) {
-          this.cacheTranslation(slug, translation)
-          return translation
+          return this.cacheTranslation(slug, translation)
         }
       } catch (error) {
-        if (!isTranslationPendingError(error)) {
+        if (!isTranslationPendingError(error) && !isLikelySlowTranslationError(error)) {
           this.markTranslationFailed(slug)
         }
       }
@@ -272,7 +415,7 @@ export const useKnowledgeStore = defineStore('knowledge', {
       const queue = candidates
         .filter((item) => item.contentType === 'authority')
         .filter((item) => !isChineseKnowledgeVariant(item))
-        .filter((item) => !this.translationCache[item.slug] && !this.translationFailed[item.slug])
+        .filter((item) => !this.getCachedTranslation(item.slug, item.sourceUpdatedAt || item.publishedAt || item.createdAt) && !this.translationFailed[item.slug])
         .filter((item) => !translationInFlight.has(item.slug))
         .slice(0, limit)
 
@@ -285,15 +428,37 @@ export const useKnowledgeStore = defineStore('knowledge', {
       }))
     },
 
-    getCachedTranslation(slug: string) {
-      return this.translationCache[slug] || null
+    getCachedTranslation(slug: string, expectedSourceUpdatedAt?: string) {
+      const cachedTranslation = normalizeCachedTranslation(this.translationCache[slug])
+      if (!cachedTranslation || isTranslationSourceVersionMismatch(cachedTranslation, expectedSourceUpdatedAt)) {
+        if (this.translationCache[slug]) {
+          this.evictCachedTranslation(slug)
+        }
+        return null
+      }
+
+      if (hasTranslationNormalizationChanges(this.translationCache[slug], cachedTranslation)) {
+        this.translationCache = {
+          ...this.translationCache,
+          [slug]: cachedTranslation,
+        }
+        this.persistTranslationCache()
+      }
+
+      return cachedTranslation
     },
 
     cacheTranslation(slug: string, translation: AuthorityArticleTranslation) {
+      const normalized = normalizeCachedTranslation(translation)
+      if (!normalized) {
+        this.evictCachedTranslation(slug)
+        return null
+      }
+
       const nextOrder = [slug, ...this.translationCacheOrder.filter(item => item !== slug)].slice(0, MAX_PERSISTED_TRANSLATIONS)
       this.translationCache = {
         ...this.translationCache,
-        [slug]: translation,
+        [slug]: normalized,
       }
       this.translationCacheOrder = nextOrder
       this.persistTranslationCache()
@@ -303,6 +468,20 @@ export const useKnowledgeStore = defineStore('knowledge', {
         delete rest[slug]
         this.translationFailed = rest
       }
+
+      return normalized
+    },
+
+    evictCachedTranslation(slug: string) {
+      if (!this.translationCache[slug]) {
+        return
+      }
+
+      const rest = { ...this.translationCache }
+      delete rest[slug]
+      this.translationCache = rest
+      this.translationCacheOrder = this.translationCacheOrder.filter(item => item !== slug)
+      this.persistTranslationCache()
     },
 
     markTranslationFailed(slug: string) {

@@ -20,7 +20,7 @@
     {
       "path": "pages/chat/index",
       "style": {
-        "navigationBarTitleText": "AI 助手",
+        "navigationBarTitleText": "服务",
         "enableShareAppMessage": true
       }
     },
@@ -60,7 +60,7 @@
     { "path": "pages/profile/favorites", "style": { "navigationBarTitleText": "我的收藏" } },
     { "path": "pages/community/index", "style": { "navigationBarTitleText": "社区" } },
     { "path": "pages/community/detail", "style": { "navigationBarTitleText": "帖子详情" } },
-    { "path": "pages/weekly-report/index", "style": { "navigationBarTitleText": "AI 周报" } },
+    { "path": "pages/weekly-report/index", "style": { "navigationBarTitleText": "周报" } },
     { "path": "pages/membership/index", "style": { "navigationBarTitleText": "会员中心" } },
     { "path": "pages/webview/index", "style": { "navigationBarTitleText": "来源原文" } }
   ],
@@ -72,7 +72,7 @@
   },
   "tabBar": {
     "color": "#999999",
-    "selectedColor": "#ff6b9d",
+    "selectedColor": "#16806a",
     "backgroundColor": "#ffffff",
     "borderStyle": "white",
     "list": [
@@ -87,12 +87,6 @@
         "text": "日历",
         "iconPath": "static/tab-calendar.png",
         "selectedIconPath": "static/tab-calendar-active.png"
-      },
-      {
-        "pagePath": "pages/chat/index",
-        "text": "AI助手",
-        "iconPath": "static/tab-chat.png",
-        "selectedIconPath": "static/tab-chat-active.png"
       },
       {
         "pagePath": "pages/knowledge/index",

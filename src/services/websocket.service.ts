@@ -10,6 +10,7 @@ import { consumeAiQuota } from './subscription.service';
 import { chunkTrustedAnswer, generateTrustedAIResponse } from './trusted-ai.service';
 import { isResumeContinuationContext } from './ai-context.service';
 import { buildAIActionCards } from './ai-action-card.service';
+import { buildAIServiceDisclosure, type AIServiceDisclosure } from './ai-disclosure.service';
 // WebSocket 消息协议类型（与 shared/types/ai.ts 保持一致）
 interface AuthenticatedUpgradeRequest extends IncomingMessage {
   _userId?: string
@@ -74,6 +75,7 @@ interface WsServerMessage {
     model?: string
     provider?: string
     route?: string
+    aiDisclosure?: AIServiceDisclosure
     followUpQuestions?: string[]
     degraded?: boolean
   }
@@ -259,6 +261,7 @@ function sendTrustedResult(
   conversationId?: string,
 ) {
   const actionCards = buildAIActionCards(result);
+  const aiDisclosure = buildAIServiceDisclosure(result.model, result.provider);
   for (const chunk of chunkTrustedAnswer(result.answer)) {
     sendMessage(ws, {
       type: 'chunk',
@@ -290,6 +293,7 @@ function sendTrustedResult(
       model: result.model,
       provider: result.provider,
       route: result.route,
+      aiDisclosure,
     },
   });
 }

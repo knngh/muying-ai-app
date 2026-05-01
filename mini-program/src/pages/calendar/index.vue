@@ -170,33 +170,33 @@
         </view>
       </view>
 
-      <view class="ai-priority-card">
-        <view class="ai-priority-head">
-          <view class="ai-priority-copy">
-            <text class="ai-priority-kicker">本周重点待办</text>
-            <text class="ai-priority-title">{{ aiWeekPriority.title }}</text>
-            <text class="ai-priority-subtitle">{{ aiWeekPriority.subtitle }}</text>
+      <view class="week-priority-card">
+        <view class="week-priority-head">
+          <view class="week-priority-copy">
+            <text class="week-priority-kicker">本周重点待办</text>
+            <text class="week-priority-title">{{ weekPriority.title }}</text>
+            <text class="week-priority-subtitle">{{ weekPriority.subtitle }}</text>
           </view>
-          <view class="ai-priority-badge">
-            <text class="ai-priority-badge-text">{{ aiWeekPriority.items.length }}</text>
+          <view class="week-priority-badge">
+            <text class="week-priority-badge-text">{{ weekPriority.items.length }}</text>
           </view>
         </view>
 
         <view
-          v-for="item in aiWeekPriority.items"
+          v-for="item in weekPriority.items"
           :key="`${item.label}-${item.title}`"
-          class="ai-priority-item"
-          :class="{ 'ai-priority-item--done': item.completed }"
+          class="week-priority-item"
+          :class="{ 'week-priority-item--done': item.completed }"
         >
-          <view class="ai-priority-item-head">
-            <text class="ai-priority-item-title">{{ item.title }}</text>
-            <text class="ai-priority-item-label">{{ item.label }}</text>
+          <view class="week-priority-item-head">
+            <text class="week-priority-item-title">{{ item.title }}</text>
+            <text class="week-priority-item-label">{{ item.label }}</text>
           </view>
-          <text class="ai-priority-item-desc">{{ item.desc }}</text>
-          <text class="ai-priority-item-reason">{{ item.reason }}</text>
+          <text class="week-priority-item-desc">{{ item.desc }}</text>
+          <text class="week-priority-item-reason">{{ item.reason }}</text>
         </view>
 
-        <text class="ai-priority-reminder">{{ aiWeekPriority.reminder }}</text>
+        <text class="week-priority-reminder">{{ weekPriority.reminder }}</text>
       </view>
 
       <view class="info-card todo-card">
@@ -523,7 +523,7 @@ const defaultTodoList = computed(() =>
 )
 const todoList = computed(() => [...customTodoList.value, ...defaultTodoList.value])
 const completedTodoCount = computed(() => todoList.value.filter(todo => todo.completed).length)
-const aiWeekPriority = computed(() => buildWeekPriorityPlan({
+const weekPriority = computed(() => buildWeekPriorityPlan({
   week: currentSelectedWeek.value,
   summary: currentWeekData.value.summary,
   tips: parsedContent.value.tips || [],
@@ -854,16 +854,17 @@ onShareTimeline(() => {
 <style scoped>
 .calendar-timeline-page {
   min-height: 100vh;
-  background-color: #f7f9fa;
+  background: linear-gradient(180deg, #f9f0f5 0%, #fff7f2 100%);
   padding-bottom: 120rpx;
 }
 
 /* 顶部 Hero Section */
 .hero-section {
-  background: linear-gradient(180deg, #ffe5ec 0%, #fff0f5 60%, #f7f9fa 100%);
+  background: linear-gradient(180deg, #ffffff 0%, #fdf5f0 72%, #fff7f2 100%);
   padding-top: 100rpx;
   position: relative;
   overflow: hidden;
+  border-bottom: 1rpx solid rgba(31, 42, 55, 0.06);
 }
 
 .header-nav {
@@ -872,9 +873,10 @@ onShareTimeline(() => {
 }
 
 .hero-title {
-  font-size: 44rpx;
-  font-weight: 800;
-  color: #333;
+  font-size: 46rpx;
+  font-weight: 900;
+  color: #444;
+  letter-spacing: 1rpx;
 }
 
 /* 宝宝动态展示区 */
@@ -883,19 +885,13 @@ onShareTimeline(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 300rpx;
+  height: 248rpx;
   position: relative;
   margin-bottom: 40rpx;
 }
 
 .breathing-glow {
-  position: absolute;
-  width: 200rpx;
-  height: 200rpx;
-  background: radial-gradient(circle, rgba(255,107,157,0.3) 0%, rgba(255,255,255,0) 70%);
-  border-radius: 50%;
-  animation: pulse 3s infinite ease-in-out;
-  z-index: 1;
+  display: none;
 }
 
 @keyframes pulse {
@@ -906,16 +902,15 @@ onShareTimeline(() => {
 
 .baby-visual {
   z-index: 2;
-  font-size: 100rpx;
-  background: #ffffff;
-  width: 160rpx;
-  height: 160rpx;
-  border-radius: 50%;
+  font-size: 82rpx;
+  background: #fffcf8;
+  width: 140rpx;
+  height: 140rpx;
+  border-radius: 42rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 8rpx 30rpx rgba(255, 107, 157, 0.2);
-  animation: float 4s infinite ease-in-out;
+  box-shadow: 0 10rpx 28rpx rgba(31, 42, 55, 0.03);
 }
 
 @keyframes float {
@@ -933,10 +928,10 @@ onShareTimeline(() => {
   background: rgba(255, 255, 255, 0.8);
   padding: 10rpx 30rpx;
   border-radius: 40rpx;
-  box-shadow: 0 4rpx 10rpx rgba(0,0,0,0.02);
+  border: 1rpx solid rgba(31, 42, 55, 0.06);
 }
 
-.size-text { font-size: 28rpx; color: #ff6b9d; font-weight: bold; }
+.size-text { font-size: 28rpx; color: #16806a; font-weight: bold; }
 .size-desc { font-size: 22rpx; color: #888; margin-top: 4rpx; }
 
 /* 时间轴 */
@@ -956,28 +951,27 @@ onShareTimeline(() => {
 
 .week-circle {
   width: 70rpx; height: 70rpx; border-radius: 35rpx;
-  background-color: #ffffff; color: #666; display: flex;
+  background-color: #fffcf8; color: #666; display: flex;
   justify-content: center; align-items: center; font-size: 28rpx;
   font-weight: bold; margin-bottom: 8rpx; box-shadow: 0 4rpx 10rpx rgba(0,0,0,0.05);
 }
 .timeline-item.active .week-circle {
-  background: linear-gradient(135deg, #ff6b9d 0%, #ff9a9e 100%);
-  color: #fff; box-shadow: 0 8rpx 20rpx rgba(255, 107, 157, 0.4);
+  background: linear-gradient(135deg, #16806a 0%, #2f7cf6 100%);
+  color: #fff; box-shadow: 0 8rpx 20rpx rgba(22, 128, 106, 0.24);
 }
 
 .week-label { font-size: 22rpx; color: #999; }
-.timeline-item.active .week-label { color: #ff6b9d; font-weight: bold; }
+.timeline-item.active .week-label { color: #16806a; font-weight: bold; }
 
 .week-command-card {
   position: relative;
   z-index: 12;
   margin: -4rpx 28rpx 20rpx;
-  padding: 28rpx;
-  border-radius: 32rpx;
-  background:
-    radial-gradient(circle at top right, rgba(72, 126, 255, 0.16), transparent 36%),
-    linear-gradient(145deg, #ffffff 0%, #f8fbff 100%);
-  box-shadow: 0 18rpx 44rpx rgba(70, 86, 115, 0.1);
+  padding: 32rpx;
+  border-radius: 30rpx;
+  background: #fffcf8;
+  border: 1rpx solid rgba(31, 42, 55, 0.06);
+  box-shadow: 0 12rpx 30rpx rgba(31, 42, 55, 0.02);
 }
 
 .week-command-head {
@@ -996,7 +990,7 @@ onShareTimeline(() => {
   font-size: 22rpx;
   font-weight: 700;
   letter-spacing: 2rpx;
-  color: #5572a5;
+  color: #16806a;
 }
 
 .week-command-title {
@@ -1022,8 +1016,7 @@ onShareTimeline(() => {
   padding: 18rpx 16rpx;
   border-radius: 24rpx;
   text-align: center;
-  background: linear-gradient(135deg, #ff7c98 0%, #ff9f70 100%);
-  box-shadow: 0 12rpx 24rpx rgba(255, 124, 152, 0.22);
+  background: linear-gradient(135deg, #16806a 0%, #2f7cf6 100%);
 }
 
 .week-command-badge-text {
@@ -1049,9 +1042,8 @@ onShareTimeline(() => {
 }
 
 .week-command-item--active {
-  background: #fff6f8;
-  border-color: rgba(255, 107, 157, 0.28);
-  box-shadow: 0 10rpx 24rpx rgba(255, 107, 157, 0.1);
+  background: #edf8f4;
+  border-color: rgba(22, 128, 106, 0.18);
 }
 
 .week-command-item-label {
@@ -1080,20 +1072,20 @@ onShareTimeline(() => {
 
 /* Tabs */
 .tabs-container {
-  display: flex; justify-content: space-around; background-color: #fff;
-  border-radius: 40rpx 40rpx 0 0; padding: 30rpx 40rpx 0; margin-top: -20rpx;
-  position: relative; z-index: 10; box-shadow: 0 -4rpx 20rpx rgba(0,0,0,0.02);
+  display: flex; justify-content: space-around; background-color: #fffcf8;
+  border-radius: 28rpx 28rpx 0 0; padding: 28rpx 32rpx 0; margin-top: -10rpx;
+  position: relative; z-index: 10; border-top: 1rpx solid rgba(31, 42, 55, 0.06);
 }
 .tab-item { position: relative; padding-bottom: 20rpx; }
 .tab-text { font-size: 32rpx; color: #888; font-weight: 500; transition: color 0.3s; }
-.tab-item.active .tab-text { color: #333; font-weight: bold; }
+.tab-item.active .tab-text { color: #444; font-weight: bold; }
 .tab-line {
   position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
-  width: 40rpx; height: 8rpx; border-radius: 4rpx; background: #ff6b9d;
+  width: 40rpx; height: 8rpx; border-radius: 4rpx; background: #16806a;
 }
 
 /* 内容区 */
-.content-section { padding: 30rpx; background-color: #f7f9fa; }
+.content-section { padding: 28rpx; background-color: transparent; }
 .week-overview-card {
   display: flex;
   align-items: center;
@@ -1102,11 +1094,11 @@ onShareTimeline(() => {
   margin-bottom: 22rpx;
   padding: 28rpx 30rpx;
   border-radius: 24rpx;
-  background: linear-gradient(135deg, #fff7f1 0%, #ffffff 100%);
-  box-shadow: 0 8rpx 24rpx rgba(180, 112, 72, 0.08);
+  background: linear-gradient(135deg, #fff2ed 0%, #fffcf8 100%);
+  box-shadow: 0 8rpx 24rpx rgba(180, 112, 72, 0.04);
 }
 .week-overview-card--soft {
-  background: linear-gradient(135deg, #eef6ff 0%, #ffffff 100%);
+  background: linear-gradient(135deg, #f9ebf1 0%, #ffffff 100%);
 }
 .week-overview-copy { flex: 1; }
 .week-overview-title {
@@ -1126,7 +1118,7 @@ onShareTimeline(() => {
   flex-shrink: 0;
   padding: 16rpx 22rpx;
   border-radius: 999rpx;
-  background: #ffffff;
+  background: #fffcf8;
   border: 2rpx solid #ffd9bf;
 }
 .week-overview-btn-text {
@@ -1134,28 +1126,29 @@ onShareTimeline(() => {
   font-weight: 700;
   color: #b4633d;
 }
-.ai-priority-card {
+.week-priority-card {
   margin-bottom: 24rpx;
   padding: 28rpx 30rpx;
   border-radius: 26rpx;
-  background: linear-gradient(140deg, #eef6ff 0%, #ffffff 100%);
-  box-shadow: 0 12rpx 30rpx rgba(84, 117, 176, 0.1);
+  background: #fffcf8;
+  border: 1rpx solid rgba(31, 42, 55, 0.06);
+  box-shadow: 0 10rpx 26rpx rgba(31, 42, 55, 0.04);
 }
-.ai-priority-head {
+.week-priority-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 22rpx;
 }
-.ai-priority-copy { flex: 1; }
-.ai-priority-kicker {
+.week-priority-copy { flex: 1; }
+.week-priority-kicker {
   display: block;
   font-size: 22rpx;
   font-weight: 700;
   letter-spacing: 2rpx;
-  color: #5474b0;
+  color: #16806a;
 }
-.ai-priority-title {
+.week-priority-title {
   display: block;
   margin-top: 10rpx;
   font-size: 32rpx;
@@ -1163,90 +1156,89 @@ onShareTimeline(() => {
   font-weight: 800;
   color: #27313d;
 }
-.ai-priority-subtitle {
+.week-priority-subtitle {
   display: block;
   margin-top: 10rpx;
   font-size: 24rpx;
   line-height: 1.65;
   color: #6f7f93;
 }
-.ai-priority-badge {
+.week-priority-badge {
   flex-shrink: 0;
   min-width: 92rpx;
   padding: 16rpx 14rpx;
   border-radius: 22rpx;
   text-align: center;
-  background: linear-gradient(135deg, #6d8fff 0%, #8cb4ff 100%);
-  box-shadow: 0 10rpx 22rpx rgba(109, 143, 255, 0.2);
+  background: #16806a;
 }
-.ai-priority-badge-text {
+.week-priority-badge-text {
   font-size: 28rpx;
   font-weight: 800;
   color: #fff;
 }
-.ai-priority-item {
+.week-priority-item {
   margin-top: 20rpx;
   padding: 22rpx 24rpx;
   border-radius: 22rpx;
   background: #f8fbff;
 }
-.ai-priority-item--done {
+.week-priority-item--done {
   background: #f1f7f3;
 }
-.ai-priority-item-head {
+.week-priority-item-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16rpx;
 }
-.ai-priority-item-title {
+.week-priority-item-title {
   flex: 1;
   font-size: 27rpx;
   line-height: 1.45;
   font-weight: 700;
   color: #2b3542;
 }
-.ai-priority-item-label {
+.week-priority-item-label {
   flex-shrink: 0;
   padding: 6rpx 14rpx;
   border-radius: 999rpx;
-  background: rgba(84, 116, 176, 0.12);
+  background: rgba(22, 128, 106, 0.1);
   font-size: 21rpx;
   font-weight: 700;
-  color: #5474b0;
+  color: #16806a;
 }
-.ai-priority-item-desc,
-.ai-priority-item-reason,
-.ai-priority-reminder {
+.week-priority-item-desc,
+.week-priority-item-reason,
+.week-priority-reminder {
   display: block;
   margin-top: 10rpx;
   font-size: 24rpx;
   line-height: 1.7;
 }
-.ai-priority-item-desc { color: #59697c; }
-.ai-priority-item-reason { color: #7d8c9b; }
-.ai-priority-reminder {
+.week-priority-item-desc { color: #59697c; }
+.week-priority-item-reason { color: #7d8c9b; }
+.week-priority-reminder {
   margin-top: 18rpx;
   color: #5a6d83;
 }
 .summary-card {
-  background: linear-gradient(135deg, #ffffff 0%, #fff5f8 100%);
+  background: #fffcf8;
   padding: 40rpx 30rpx; border-radius: 24rpx; margin-bottom: 30rpx;
-  position: relative; box-shadow: 0 4rpx 20rpx rgba(255, 107, 157, 0.1);
+  position: relative; border: 1rpx solid rgba(31, 42, 55, 0.06);
 }
 .quote-mark {
-  font-size: 80rpx; color: rgba(255, 107, 157, 0.2); position: absolute;
+  font-size: 80rpx; color: rgba(22, 128, 106, 0.14); position: absolute;
   font-family: Georgia, serif; line-height: 1;
 }
 .quote-mark { left: 20rpx; top: 10rpx; }
 .quote-mark.right { right: 20rpx; bottom: -20rpx; transform: rotate(180deg); }
 .summary-text { font-size: 30rpx; color: #444; line-height: 1.6; text-indent: 2em; position: relative; z-index: 2; }
 
-.info-card { background-color: #fff; border-radius: 24rpx; padding: 30rpx; margin-bottom: 30rpx; box-shadow: 0 4rpx 15rpx rgba(0,0,0,0.03); }
+.info-card { background-color: #fffcf8; border-radius: 30rpx; padding: 30rpx; margin-bottom: 30rpx; border: 1rpx solid rgba(31, 42, 55, 0.04); box-shadow: 0 8rpx 24rpx rgba(31, 42, 55, 0.03); }
 .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20rpx; }
 .header-left { display: flex; align-items: center; }
 .card-icon { font-size: 36rpx; margin-right: 12rpx; }
-.card-title { font-size: 32rpx; font-weight: bold; color: #333; }
+.card-title { font-size: 32rpx; font-weight: bold; color: #444; }
 .card-body { font-size: 28rpx; color: #555; line-height: 1.7; }
 .card-text { white-space: pre-wrap; display: block; margin-bottom: 12rpx; }
 .todo-header-actions { display: flex; align-items: center; gap: 16rpx; }
@@ -1261,7 +1253,7 @@ onShareTimeline(() => {
 .todo-login-hint { display: block; margin-bottom: 16rpx; font-size: 24rpx; color: #8c8c8c; }
 
 .tip-item { display: flex; margin-bottom: 12rpx; align-items: flex-start; }
-.tip-dot { width: 10rpx; height: 10rpx; background-color: #ff9a9e; border-radius: 50%; margin-top: 16rpx; margin-right: 16rpx; flex-shrink: 0; }
+.tip-dot { width: 10rpx; height: 10rpx; background-color: #16806a; border-radius: 50%; margin-top: 16rpx; margin-right: 16rpx; flex-shrink: 0; }
 .tip-text { flex: 1; }
 
 .todo-item {
@@ -1275,7 +1267,7 @@ onShareTimeline(() => {
 .todo-item--pending { opacity: 0.72; }
 .todo-check {
   width: 40rpx; height: 40rpx; border-radius: 20rpx; border: 2rpx solid #d7dbe2;
-  background: #fff; display: flex; align-items: center; justify-content: center;
+  background: #fffcf8; display: flex; align-items: center; justify-content: center;
   margin-right: 20rpx; margin-top: 8rpx; flex-shrink: 0;
 }
 .todo-check--done { border-color: #5dbb7f; background: #5dbb7f; }
@@ -1288,7 +1280,7 @@ onShareTimeline(() => {
 .type-custom { background-color: #eef1ff; color: #6274ff; }
 .todo-state { font-size: 22rpx; color: #5dbb7f; }
 .todo-state--muted { color: #8b96a3; }
-.todo-title { display: block; font-size: 28rpx; font-weight: bold; color: #333; margin-bottom: 8rpx; }
+.todo-title { display: block; font-size: 28rpx; font-weight: bold; color: #444; margin-bottom: 8rpx; }
 .todo-desc { font-size: 24rpx; color: #777; }
 .todo-item--done .todo-title { color: #7e8b84; text-decoration: line-through; }
 .todo-item--done .todo-desc { color: #98a49d; }
@@ -1305,29 +1297,29 @@ onShareTimeline(() => {
 .diary-empty { display: flex; flex-direction: column; align-items: center; padding: 100rpx 0; }
 .empty-emoji { font-size: 80rpx; margin-bottom: 20rpx; }
 .empty-text { font-size: 28rpx; color: #999; margin-bottom: 40rpx; }
-.add-diary-btn { background: linear-gradient(135deg, #ff6b9d 0%, #ff9a9e 100%); color: white; border-radius: 40rpx; padding: 0 60rpx; height: 80rpx; line-height: 80rpx; font-size: 30rpx; box-shadow: 0 8rpx 20rpx rgba(255, 107, 157, 0.3); }
+.add-diary-btn { background: linear-gradient(135deg, #16806a 0%, #2f7cf6 100%); color: white; border-radius: 40rpx; padding: 0 60rpx; height: 80rpx; line-height: 80rpx; font-size: 30rpx; box-shadow: 0 8rpx 20rpx rgba(22, 128, 106, 0.24); }
 
-.diary-card { background-color: #fff; border-radius: 24rpx; padding: 40rpx; box-shadow: 0 4rpx 20rpx rgba(0,0,0,0.04); }
+.diary-card { background-color: #fffcf8; border-radius: 24rpx; padding: 40rpx; box-shadow: 0 4rpx 20rpx rgba(0,0,0,0.04); }
 .diary-header { display: flex; justify-content: space-between; margin-bottom: 20rpx; border-bottom: 2rpx dashed #eee; padding-bottom: 15rpx; }
 .diary-header-actions { display: flex; align-items: center; gap: 14rpx; }
 .diary-date { font-size: 24rpx; color: #999; }
-.edit-btn { font-size: 24rpx; color: #ff6b9d; }
+.edit-btn { font-size: 24rpx; color: #16806a; }
 .diary-header-divider { font-size: 22rpx; color: #c2c8d0; }
 .delete-btn { font-size: 24rpx; color: #ff7875; }
-.diary-content { font-size: 30rpx; color: #333; line-height: 1.8; }
+.diary-content { font-size: 30rpx; color: #444; line-height: 1.8; }
 
 .fab-button {
   position: fixed; bottom: 60rpx; right: 40rpx; width: 100rpx; height: 100rpx;
-  background: linear-gradient(135deg, #ff6b9d 0%, #ff9a9e 100%); border-radius: 50%;
-  display: flex; justify-content: center; align-items: center; box-shadow: 0 8rpx 20rpx rgba(255, 107, 157, 0.4); z-index: 100;
+  background: linear-gradient(135deg, #16806a 0%, #2f7cf6 100%); border-radius: 50%;
+  display: flex; justify-content: center; align-items: center; box-shadow: 0 8rpx 20rpx rgba(22, 128, 106, 0.28); z-index: 100;
 }
 .fab-icon { font-size: 40rpx; }
 
 .modal-mask { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 999; }
-.modal-content { width: 85%; background-color: #fff; border-radius: 30rpx; padding: 40rpx; }
+.modal-content { width: 85%; background-color: #fffcf8; border-radius: 30rpx; padding: 40rpx; }
 .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30rpx; }
 .modal-title { font-size: 34rpx; font-weight: bold; }
 .close-icon { font-size: 44rpx; color: #999; padding: 10rpx; }
 .diary-textarea { width: 100%; height: 300rpx; background-color: #f7f9fa; border-radius: 16rpx; padding: 20rpx; font-size: 28rpx; box-sizing: border-box; margin-bottom: 30rpx; }
-.save-btn { background: linear-gradient(135deg, #ff6b9d 0%, #ff9a9e 100%); color: white; border-radius: 40rpx; height: 80rpx; line-height: 80rpx; font-size: 32rpx; }
+.save-btn { background: linear-gradient(135deg, #16806a 0%, #2f7cf6 100%); color: white; border-radius: 40rpx; height: 80rpx; line-height: 80rpx; font-size: 32rpx; }
 </style>

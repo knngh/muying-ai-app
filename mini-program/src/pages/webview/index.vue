@@ -22,7 +22,7 @@ onLoad((options) => {
 <style scoped>
 .webview-page {
   height: 100vh;
-  background: #fff;
+  background: #fffcf8;
 }
 
 .empty-state {

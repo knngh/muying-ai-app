@@ -244,6 +244,27 @@ function isBlockedAuthorityUrl(url: string, source: AuthoritySourceConfig): bool
       || /\/(ask|yyk|jbk|ypk|doctor|hospital|disease|topic|topics|search|register|login|apps)(?:\/|$)/.test(normalized);
   }
 
+  if (source.id === 'yilianmeiti-maternal-child') {
+    return /\/(ask|question|video|audio|zys|zyy|zyp|zjb|zxk|site|search|usercenter)(?:\/|$)/.test(normalized)
+      || /^https?:\/\/(?:zys|zyy|zyp|zjb|zxk|usercenter|img01)\.yilianmeiti\.com\//.test(normalized);
+  }
+
+  if (source.id === 'ncwch-maternal-child-health') {
+    return /\/(?:category|content\/redirect|search)(?:[/?#]|$)/.test(normalized);
+  }
+
+  if (source.id === 'mchscn-monitoring') {
+    return /\/(?:news|picturenews|textnews|specification|workguide|aboutus|questionnaire|sharedresource|continuingeducation|grassrootsexchanges|releaseofmonitoringresults|preventionandcontroldefects)-\d+\.html(?:$|[?#])/i.test(normalized);
+  }
+
+  if (source.id === 'cnsoc-dietary-guidelines') {
+    return /\/(?:index\.html|[^/]*newslist_|article\/(?:wyly|gywm|lxwm|2021b)\.html)(?:$|[?#])/i.test(normalized);
+  }
+
+  if (source.id === 'chinanutri-maternal-child') {
+    return /\/(?:gzdt|dqjs|tzgg_6537|kytd|rcpy|djgz|xxgk)\//i.test(normalized);
+  }
+
   if (source.id === 'nhc-fys' || source.id === 'nhc-rkjt') {
     return /\/video\//.test(normalized) || /\.(mp4|mp3|avi|wmv)($|[?#])/i.test(normalized);
   }
@@ -269,6 +290,8 @@ function isAuthorityUrlMatched(url: string, source: AuthoritySourceConfig, ancho
     source_id: source.id,
     source_org: source.org,
     source_url: url,
+    title: anchorText,
+    question: anchorText,
   })) {
     return false;
   }
@@ -318,6 +341,33 @@ function isAuthorityUrlMatched(url: string, source: AuthoritySourceConfig, ancho
   if (source.id === 'familydoctor-maternal') {
     return /familydoctor\.com\.cn\/(?:baby\/)?a\/\d{6}\/\d+\.html(?:$|[?#])/i.test(url)
       && /(备孕|怀孕|孕期|产后|分娩|母乳|喂养|辅食|新生儿|婴儿|婴幼儿|宝宝|儿童|儿科|发热|发烧|腹泻|咳嗽|黄疸|湿疹|疫苗|接种|营养|成长|发育)/.test(normalized);
+  }
+
+  if (source.id === 'yilianmeiti-maternal-child') {
+    return /yilianmeiti\.com\/article\/\d+\.html(?:$|[?#])/i.test(url)
+      && /(备孕|怀孕|孕期|孕早期|孕中期|孕晚期|孕妇|产检|产后|分娩|母乳|哺乳|喂养|辅食|新生儿|婴儿|婴幼儿|宝宝|儿童|孩子|儿科|小儿|发热|发烧|腹泻|呕吐|咳嗽|黄疸|湿疹|疫苗|接种|营养|成长|发育)/.test(normalized);
+  }
+
+  if (source.id === 'ncwch-maternal-child-health') {
+    return /ncwchnhc\.org\.cn\/content\/content\.html\?id=\d+(?:$|[&#])/i.test(url)
+      && /(孕产|孕前|孕期|孕妇|产后|分娩|母乳|哺乳|婴幼儿|新生儿|儿童|妇幼|托育|喂养|营养|体重管理|出生缺陷|科普|指南|指导原则)/.test(normalized);
+  }
+
+  if (source.id === 'mchscn-monitoring') {
+    return !isIndexLikeAuthorityUrl(url)
+      && /mchscn\.cn\/[A-Za-z]+-\d+\/\d+\.html(?:$|[?#])/i.test(url)
+      && /(孕产|孕妇|产妇|儿童|出生缺陷|妇幼|监测|防治|表卡|项目数|技术规范|工作指南|通讯|培训)/.test(normalized);
+  }
+
+  if (source.id === 'cnsoc-dietary-guidelines') {
+    return /dg\.cnsoc\.org\/article\/04\/[^/?#]+\.html(?:$|[?#])/i.test(url)
+      && /(婴幼儿|儿童|孕妇|乳母|母乳|喂养|辅食|膳食|营养|指南|核心信息)/.test(normalized);
+  }
+
+  if (source.id === 'chinanutri-maternal-child') {
+    return !isIndexLikeAuthorityUrl(url)
+      && /chinanutri\.cn\/(?:xwzx_238\/xyxw|yyjkzxpt\/yyjkkpzx|jkyy|yyjk)\/\d{6}\/t\d{8}_\d+\.(?:html?|shtml)(?:$|[?#])/i.test(url)
+      && /(婴幼儿|新生儿|儿童|孕妇|孕产|乳母|母乳|喂养|辅食|膳食|营养|维生素|生长|发育|五健|健康提示|指南)/.test(normalized);
   }
 
   if (source.id === 'nhc-fys') {

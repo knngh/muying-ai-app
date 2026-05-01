@@ -17,6 +17,7 @@ import { getStageSummary } from '../utils/stage'
 import { markWeeklyReportSeen } from '../utils/weeklyReportRead'
 import { colors, fontSize, spacing, borderRadius } from '../theme'
 import type { RootStackParamList } from '../navigation/AppNavigator'
+import { config } from '../config'
 
 const workflowSteps = [
   {
@@ -29,11 +30,13 @@ const workflowSteps = [
     title: '能落地的直接进日历',
     description: '把提醒从“看见”转成“安排”，否则这页很容易只读不执行。',
   },
-  {
-    icon: 'message-question-outline',
-    title: '复杂点继续提问',
-    description: '把看不懂或拿不准的提醒继续追问，接住后续几天的安排。',
-  },
+  ...(config.enablePublicAiFeatures
+    ? [{
+        icon: 'message-question-outline',
+        title: '复杂点继续提问',
+        description: '把看不懂或拿不准的提醒继续追问，接住后续几天的安排。',
+      }]
+    : []),
   {
     icon: 'timeline-text-outline',
     title: '最后沉到成长档案',
@@ -110,6 +113,10 @@ export default function WeeklyReportScreen() {
   }, [navigation, status])
 
   const handleAskAi = useCallback((report: WeeklyReport, highlight: string, index: number) => {
+    if (!config.enablePublicAiFeatures) {
+      return
+    }
+
     const question = buildWeeklyReportQuestion(report, highlight)
 
     void trackAppEvent('app_weekly_report_ask_ai_click', {
@@ -277,15 +284,17 @@ export default function WeeklyReportScreen() {
                     >
                       安排今天
                     </Button>
-                    <Button
-                      mode="contained-tonal"
-                      compact
-                      onPress={() => handleAskAi(report, item, index)}
-                      style={[styles.reportLineAction, styles.reportLineActionFilled]}
-                      textColor={colors.ink}
-                    >
-                      继续追问
-                    </Button>
+                    {config.enablePublicAiFeatures ? (
+                      <Button
+                        mode="contained-tonal"
+                        compact
+                        onPress={() => handleAskAi(report, item, index)}
+                        style={[styles.reportLineAction, styles.reportLineActionFilled]}
+                        textColor={colors.ink}
+                      >
+                        继续追问
+                      </Button>
+                    ) : null}
                   </View>
                 </View>
               ))}

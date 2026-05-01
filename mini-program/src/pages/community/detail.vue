@@ -176,36 +176,36 @@ onLoad((query) => {
 </script>
 
 <style scoped>
-.detail-page { min-height: 100vh; background: #fff; padding-bottom: 120rpx; }
+.detail-page { min-height: 100vh; background: #fffcf8; padding-bottom: 120rpx; }
 .post-detail { padding: 24rpx; }
 .post-header { display: flex; align-items: center; gap: 16rpx; margin-bottom: 24rpx; }
-.post-avatar { width: 72rpx; height: 72rpx; border-radius: 50%; background: #ff6b9d; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 28rpx; font-weight: 600; }
+.post-avatar { width: 72rpx; height: 72rpx; border-radius: 50%; background: #16806a; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 28rpx; font-weight: 600; }
 .post-author-info { flex: 1; }
-.post-author-name { display: block; font-size: 28rpx; font-weight: 600; color: #333; }
+.post-author-name { display: block; font-size: 28rpx; font-weight: 600; color: #444; }
 .post-time { display: block; font-size: 22rpx; color: #bbb; margin-top: 4rpx; }
-.post-title { display: block; font-size: 34rpx; font-weight: 700; color: #333; margin-bottom: 20rpx; line-height: 1.4; }
+.post-title { display: block; font-size: 34rpx; font-weight: 700; color: #444; margin-bottom: 20rpx; line-height: 1.4; }
 .post-content { display: block; font-size: 28rpx; color: #555; line-height: 1.8; white-space: pre-wrap; }
 .post-tags { display: flex; gap: 8rpx; margin-top: 20rpx; flex-wrap: wrap; }
-.post-tag { font-size: 22rpx; color: #1890ff; background: #e6f7ff; padding: 4rpx 12rpx; border-radius: 8rpx; }
+.post-tag { font-size: 22rpx; color: #16806a; background: rgba(22, 128, 106, 0.1); padding: 4rpx 12rpx; border-radius: 8rpx; }
 .post-actions { display: flex; gap: 32rpx; padding: 24rpx 0; border-top: 1rpx solid #f0f0f0; border-bottom: 1rpx solid #f0f0f0; margin-top: 24rpx; }
 .action-item { font-size: 26rpx; color: #666; }
-.action-item.liked { color: #ff6b9d; }
+.action-item.liked { color: #16806a; }
 .comments-section { margin-top: 24rpx; }
-.comments-title { display: block; font-size: 30rpx; font-weight: 700; color: #333; margin-bottom: 20rpx; }
+.comments-title { display: block; font-size: 30rpx; font-weight: 700; color: #444; margin-bottom: 20rpx; }
 .comments-empty { text-align: center; padding: 40rpx; color: #bbb; font-size: 26rpx; }
 .comment-item { padding: 20rpx 0; border-bottom: 1rpx solid #f5f5f5; }
 .comment-header { display: flex; align-items: center; gap: 12rpx; margin-bottom: 12rpx; }
-.comment-avatar { width: 48rpx; height: 48rpx; border-radius: 50%; background: #e8f4fd; display: flex; align-items: center; justify-content: center; color: #1890ff; font-size: 20rpx; }
+.comment-avatar { width: 48rpx; height: 48rpx; border-radius: 50%; background: rgba(22, 128, 106, 0.1); display: flex; align-items: center; justify-content: center; color: #16806a; font-size: 20rpx; }
 .comment-info { flex: 1; }
-.comment-author { font-size: 24rpx; font-weight: 600; color: #333; }
+.comment-author { font-size: 24rpx; font-weight: 600; color: #444; }
 .comment-time { font-size: 20rpx; color: #bbb; margin-left: 12rpx; }
 .comment-content { display: block; font-size: 26rpx; color: #555; line-height: 1.6; }
 .reply-item { margin-top: 12rpx; padding: 12rpx 16rpx; background: #f5f7fa; border-radius: 12rpx; }
-.reply-author { font-size: 22rpx; color: #1890ff; font-weight: 600; }
+.reply-author { font-size: 22rpx; color: #16806a; font-weight: 600; }
 .reply-content { font-size: 24rpx; color: #666; margin-top: 4rpx; }
-.comment-reply-btn { display: inline-block; margin-top: 8rpx; font-size: 22rpx; color: #1890ff; }
-.comment-bar { position: fixed; bottom: 0; left: 0; right: 0; display: flex; gap: 12rpx; padding: 16rpx 24rpx; background: #fff; border-top: 1rpx solid #f0f0f0; align-items: center; }
+.comment-reply-btn { display: inline-block; margin-top: 8rpx; font-size: 22rpx; color: #16806a; }
+.comment-bar { position: fixed; bottom: 0; left: 0; right: 0; display: flex; gap: 12rpx; padding: 16rpx 24rpx; background: #fffcf8; border-top: 1rpx solid #f0f0f0; align-items: center; }
 .comment-input { flex: 1; background: #f5f7fa; border-radius: 32rpx; padding: 16rpx 24rpx; font-size: 28rpx; }
 .comment-send { padding: 12rpx 28rpx; border-radius: 24rpx; background: #e8e8e8; color: #999; font-size: 28rpx; }
-.comment-send.active { background: #ff6b9d; color: #fff; }
+.comment-send.active { background: #16806a; color: #fff; }
 </style>

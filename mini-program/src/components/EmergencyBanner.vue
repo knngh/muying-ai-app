@@ -62,7 +62,7 @@ function onCallTap() {
   line-height: 1.4;
 }
 .emergency-action {
-  background: #fff;
+  background: #fffcf8;
   color: #ff4d4f;
   font-size: 24rpx;
   font-weight: 600;

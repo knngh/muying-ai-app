@@ -21,6 +21,7 @@ import {
   type FeatureEntry,
 } from '../components/home'
 import { useHomeData } from '../hooks/useHomeData'
+import { config } from '../config'
 import { trackAppEvent } from '../services/analytics'
 import { buildHomeChatContext } from '../utils/aiEntryContext'
 import { colors, fontSize, spacing, borderRadius } from '../theme'
@@ -32,7 +33,9 @@ type HomeNavProp = CompositeNavigationProp<
 
 const featureEntries: FeatureEntry[] = [
   { title: '知识库', subtitle: '权威内容与中文阅读', icon: 'book-open-page-variant-outline', route: 'Knowledge', type: 'tab' },
-  { title: '阅读问答', subtitle: '围绕阶段问题继续提问', icon: 'message-question-outline', route: 'Chat', type: 'tab' },
+  ...(config.enablePublicAiFeatures
+    ? [{ title: '阅读问答', subtitle: '围绕阶段问题继续提问', icon: 'message-question-outline', route: 'Chat', type: 'tab' } as FeatureEntry]
+    : []),
   { title: '孕期档案', subtitle: '集中查看孕周与关键节点', icon: 'file-document-outline', route: 'PregnancyProfile', type: 'stack' },
   { title: '周度报告', subtitle: '每周阶段重点总结', icon: 'chart-box-outline', route: 'WeeklyReport', type: 'stack' },
 ]
@@ -139,9 +142,11 @@ export default function HomeScreen() {
     }
 
     return {
-      title: '签到完成，再补一个关键问题',
-      description: '继续问一个当前阶段最常见的问题，更容易把今天这次打开用完整。',
-      actionLabel: '直接去问',
+      title: config.enablePublicAiFeatures ? '签到完成，再补一个关键问题' : '签到完成，接着查一个阶段重点',
+      description: config.enablePublicAiFeatures
+        ? '继续问一个当前阶段最常见的问题，更容易把今天这次打开用完整。'
+        : '继续打开知识库看一个当前阶段最常见主题，更容易把今天这次打开用完整。',
+      actionLabel: config.enablePublicAiFeatures ? '直接去问' : '去知识库',
       action: 'chat',
     }
   }, [hasCheckedInToday, hasUnreadWeeklyReport, upcomingEvents])
@@ -170,7 +175,7 @@ export default function HomeScreen() {
         title: hasUnreadWeeklyReport ? '还有新周报没看' : '本周周报已跟进',
         description: hasUnreadWeeklyReport
           ? `${weeklyReport.stageLabel} 的阶段提醒已经生成，现在看最容易接着安排本周重点。`
-          : '本周重点已经同步过，后续可以继续补待办或阅读问答。',
+          : '本周重点已经同步过，后续可以继续补待办或看权威资料。',
         done: !hasUnreadWeeklyReport,
         actionLabel: hasUnreadWeeklyReport ? '查看周报' : '再去回顾',
         action: 'weekly_report',
@@ -249,9 +254,11 @@ export default function HomeScreen() {
     if (reasons.length === 0) {
       reasons.push({
         key: 'chat',
-        icon: 'message-question-outline',
-        title: '留一个下次还会打开的问题',
-        description: '把当前阶段最想确认的一件事先记住，下次回来会更有目标。',
+        icon: config.enablePublicAiFeatures ? 'message-question-outline' : 'book-open-page-variant-outline',
+        title: config.enablePublicAiFeatures ? '留一个下次还会打开的问题' : '留一个下次还会打开的主题',
+        description: config.enablePublicAiFeatures
+          ? '把当前阶段最想确认的一件事先记住，下次回来会更有目标。'
+          : '把当前阶段最想确认的一件事放到知识库继续看，下次回来会更有目标。',
       })
     }
 
@@ -279,7 +286,7 @@ export default function HomeScreen() {
 
     return {
       title: '本周节奏已经跟上，继续把陪伴沉淀下来',
-      description: '签到、周报、待办和阅读问答都已经接起来了，后面更适合做长期积累。',
+      description: '签到、周报、待办和权威资料都已经接起来了，后面更适合做长期积累。',
       badge: `${weeklyCompletionRate}%`,
       actionLabel: '看看成长档案',
       action: 'growth_archive',
@@ -304,25 +311,25 @@ export default function HomeScreen() {
     }
 
     const highlights = [
-      '连续追问不中断',
+      config.enablePublicAiFeatures ? '连续追问不中断' : '权威资料持续回看',
       weeklyReport.id === 'preview-weekly-report' || weeklyReport.id === 'fallback' ? '完整周报可持续沉淀' : '阶段周报继续累计',
       '成长档案长期回看',
     ]
 
     if (!hasCheckedInToday) {
       return {
-        title: '把签到、周报和问答串成连续陪伴',
-        description: `现在还是基础模式，阅读问答今日还剩 ${remainingAiText}。开通后，今天的签到和后续周报会接成一条完整时间线。`,
+        title: '把签到、周报和档案串成连续陪伴',
+        description: '现在还是基础模式。开通后，今天的签到、后续周报和成长档案会接成一条完整时间线。',
         highlights,
       }
     }
 
     return {
       title: '别让这周记录停在预览版',
-      description: `你已经开始形成节奏了，但周报、连续追问和成长档案还没有完全打通。现在升级，后面的每次打开都会更有反馈。`,
+      description: '你已经开始形成节奏了，但周报和成长档案还没有完全打通。现在升级，后面的每次打开都会更有反馈。',
       highlights,
     }
-  }, [hasCheckedInToday, remainingAiText, status, weeklyReport.id])
+  }, [hasCheckedInToday, status, weeklyReport.id])
 
   const handleHomeAction = async (action: HomeAction) => {
     if (action === 'checkin') {
@@ -358,6 +365,11 @@ export default function HomeScreen() {
         source: 'home_retention',
         focus: 'timeline',
       })
+      return
+    }
+
+    if (!config.enablePublicAiFeatures) {
+      navigation.navigate('Main', { screen: 'Knowledge' })
       return
     }
 
@@ -448,6 +460,11 @@ export default function HomeScreen() {
       },
     })
 
+    if (!config.enablePublicAiFeatures) {
+      navigation.navigate('Main', { screen: 'Knowledge' })
+      return
+    }
+
     navigation.navigate('Main', {
       screen: 'Chat',
       params: {
@@ -482,10 +499,12 @@ export default function HomeScreen() {
     const target = momentumNextStep ?? {
       key: 'todo',
       action: 'chat' as HomeAction,
-      actionLabel: '直接去问',
+      actionLabel: config.enablePublicAiFeatures ? '直接去问' : '去知识库',
       title: '本周节奏已经跟上',
-      description: '可以顺手再问一个问题，增加本周再次打开的理由。',
-      icon: 'message-question-outline',
+      description: config.enablePublicAiFeatures
+        ? '可以顺手再问一个问题，增加本周再次打开的理由。'
+        : '可以顺手再查一个阶段主题，增加本周再次打开的理由。',
+      icon: config.enablePublicAiFeatures ? 'message-question-outline' : 'book-open-page-variant-outline',
       done: true,
     }
 
@@ -953,29 +972,31 @@ export default function HomeScreen() {
           />
         </ContentSection>
 
-        <ContentSection style={styles.compactSection}>
-          <StandardCard style={styles.questionCard}>
-            <View style={styles.questionCardRow}>
-              <View style={styles.questionLead}>
-                <View style={styles.questionIconShell}>
-                  <MaterialCommunityIcons name="message-question-outline" size={18} color={colors.techDark} />
+        {config.enablePublicAiFeatures ? (
+          <ContentSection style={styles.compactSection}>
+            <StandardCard style={styles.questionCard}>
+              <View style={styles.questionCardRow}>
+                <View style={styles.questionLead}>
+                  <View style={styles.questionIconShell}>
+                    <MaterialCommunityIcons name="message-question-outline" size={18} color={colors.techDark} />
+                  </View>
+                  <View style={styles.questionTextWrap}>
+                    <Text style={styles.questionEyebrow}>建议你现在问</Text>
+                    <Text style={styles.questionTitle}>{suggestedQuestion}</Text>
+                  </View>
                 </View>
-                <View style={styles.questionTextWrap}>
-                  <Text style={styles.questionEyebrow}>建议你现在问</Text>
-                  <Text style={styles.questionTitle}>{suggestedQuestion}</Text>
-                </View>
+                <Button
+                  mode="contained-tonal"
+                  onPress={handleSuggestedQuestionPress}
+                  style={styles.questionActionButton}
+                  textColor={colors.ink}
+                >
+                  直接问
+                </Button>
               </View>
-              <Button
-                mode="contained-tonal"
-                onPress={handleSuggestedQuestionPress}
-                style={styles.questionActionButton}
-                textColor={colors.ink}
-              >
-                直接问
-              </Button>
-            </View>
-          </StandardCard>
-        </ContentSection>
+            </StandardCard>
+          </ContentSection>
+        ) : null}
 
         {statusTags.length > 0 ? (
           <ContentSection>

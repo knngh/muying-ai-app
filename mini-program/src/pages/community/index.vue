@@ -201,36 +201,36 @@ onShow(() => { loadPosts(true) })
 
 <style scoped>
 .community-page { min-height: 100vh; background: #f5f7fa; }
-.sort-tabs { display: flex; padding: 16rpx 24rpx; gap: 16rpx; background: #fff; border-bottom: 1rpx solid #f0f0f0; }
+.sort-tabs { display: flex; padding: 16rpx 24rpx; gap: 16rpx; background: #fffcf8; border-bottom: 1rpx solid #f0f0f0; }
 .sort-tab { padding: 12rpx 24rpx; border-radius: 24rpx; font-size: 26rpx; color: #666; background: #f5f7fa; }
-.sort-tab.active { background: #ff6b9d; color: #fff; }
-.compose-btn { margin-left: auto; background: #ff6b9d; color: #fff; }
+.sort-tab.active { background: #16806a; color: #fff; }
+.compose-btn { margin-left: auto; background: #16806a; color: #fff; }
 .post-list { height: calc(100vh - 100rpx); }
 .empty-state { padding: 120rpx 40rpx; text-align: center; }
 .empty-text { color: #999; font-size: 28rpx; }
-.post-card { margin: 16rpx 24rpx; padding: 24rpx; background: #fff; border-radius: 20rpx; box-shadow: 0 4rpx 16rpx rgba(0, 0, 0, 0.04); }
+.post-card { margin: 16rpx 24rpx; padding: 24rpx; background: #fffcf8; border-radius: 20rpx; box-shadow: 0 4rpx 16rpx rgba(31, 42, 55, 0.02); }
 .post-header { display: flex; align-items: center; gap: 16rpx; margin-bottom: 16rpx; }
-.post-avatar { width: 64rpx; height: 64rpx; border-radius: 50%; background: #ff6b9d; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 24rpx; font-weight: 600; flex-shrink: 0; }
+.post-avatar { width: 64rpx; height: 64rpx; border-radius: 50%; background: #16806a; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 24rpx; font-weight: 600; flex-shrink: 0; }
 .post-author-info { flex: 1; }
-.post-author-name { display: block; font-size: 26rpx; font-weight: 600; color: #333; }
+.post-author-name { display: block; font-size: 26rpx; font-weight: 600; color: #444; }
 .post-time { display: block; font-size: 22rpx; color: #bbb; margin-top: 4rpx; }
 .post-pin-badge { background: #ff4d4f; color: #fff; font-size: 20rpx; padding: 4rpx 12rpx; border-radius: 8rpx; }
-.post-title { display: block; font-size: 30rpx; font-weight: 700; color: #333; margin-bottom: 12rpx; line-height: 1.4; }
+.post-title { display: block; font-size: 30rpx; font-weight: 700; color: #444; margin-bottom: 12rpx; line-height: 1.4; }
 .post-content-preview { display: block; font-size: 26rpx; color: #666; line-height: 1.6; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .post-tags { display: flex; gap: 8rpx; margin-top: 12rpx; flex-wrap: wrap; }
-.post-tag { font-size: 22rpx; color: #1890ff; background: #e6f7ff; padding: 4rpx 12rpx; border-radius: 8rpx; }
+.post-tag { font-size: 22rpx; color: #16806a; background: rgba(22, 128, 106, 0.1); padding: 4rpx 12rpx; border-radius: 8rpx; }
 .post-footer { display: flex; gap: 24rpx; margin-top: 16rpx; padding-top: 16rpx; border-top: 1rpx solid #f5f5f5; }
 .post-stat { font-size: 22rpx; color: #999; }
 .loading-more, .no-more { text-align: center; padding: 24rpx; color: #bbb; font-size: 24rpx; }
 .compose-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.4); z-index: 100; display: flex; align-items: flex-end; }
-.compose-panel { width: 100%; background: #fff; border-radius: 32rpx 32rpx 0 0; padding: 32rpx; }
+.compose-panel { width: 100%; background: #fffcf8; border-radius: 32rpx 32rpx 0 0; padding: 32rpx; }
 .compose-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24rpx; }
-.compose-title { font-size: 32rpx; font-weight: 700; color: #333; }
+.compose-title { font-size: 32rpx; font-weight: 700; color: #444; }
 .compose-close { font-size: 28rpx; color: #999; }
 .compose-input { width: 100%; padding: 20rpx; border: 1rpx solid #e8e8e8; border-radius: 12rpx; font-size: 28rpx; margin-bottom: 16rpx; }
 .compose-textarea { width: 100%; height: 300rpx; padding: 20rpx; border: 1rpx solid #e8e8e8; border-radius: 12rpx; font-size: 26rpx; }
 .compose-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 24rpx; }
 .compose-anon { display: flex; align-items: center; gap: 8rpx; font-size: 26rpx; color: #666; }
-.compose-submit { background: #ff6b9d; color: #fff; padding: 16rpx 40rpx; border-radius: 24rpx; font-size: 28rpx; font-weight: 600; }
+.compose-submit { background: #16806a; color: #fff; padding: 16rpx 40rpx; border-radius: 24rpx; font-size: 28rpx; font-weight: 600; }
 .compose-submit.disabled { opacity: 0.5; }
 </style>

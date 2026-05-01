@@ -8,6 +8,7 @@ import { buildAuthorityDisplayTags } from '../utils/authority-metadata';
 import { shouldFilterAuthoritySourceUrl } from '../utils/authority-source-url';
 import { inferAuthorityStages } from '../utils/authority-stage';
 import { shouldUseAuthorityVectorSupplement } from '../utils/authority-vector-filter';
+import { getDatasetKnowledgeDropReason, isOutOfScopeKnowledgeQuery } from '../utils/knowledge-content-guard';
 import { detectAudience, detectTopic, sanitizeAuthorityTitle } from './authority-adapters/base.adapter';
 import {
   dedupeSearchQueries,
@@ -118,7 +119,41 @@ const AUTHORITATIVE_SOURCE_PATTERNS = [
   /中国疾控/u,
   /中国疾病预防控制中心/u,
   /国家疾病预防控制局/u,
+  /国家卫生健康委妇幼健康中心/u,
+  /全国妇幼卫生监测办公室/u,
+  /中国出生缺陷监测中心/u,
+  /中国营养学会/u,
   /中国政府网/u,
+  /ncwchnhc\.org\.cn/i,
+  /mchscn\.cn/i,
+  /cnsoc\.org/i,
+  /chinanutri\.cn/i,
+];
+
+const CHINESE_AUTHORITY_SOURCE_PATTERNS = [
+  /中国政府网/u,
+  /国家卫生健康委员会/u,
+  /国家卫健委/u,
+  /国家疾病预防控制局/u,
+  /国家疾控局/u,
+  /中国疾病预防控制中心/u,
+  /中国疾控/u,
+  /妇幼健康司/u,
+  /国家卫生健康委妇幼健康中心/u,
+  /全国妇幼卫生监测办公室/u,
+  /中国出生缺陷监测中心/u,
+  /中国营养学会/u,
+  /gov\.cn/i,
+  /nhc\.gov\.cn/i,
+  /chinacdc\.cn/i,
+  /ndcpa\.gov\.cn/i,
+  /ncwchnhc\.org\.cn/i,
+  /mchscn\.cn/i,
+  /cnsoc\.org/i,
+  /chinanutri\.cn/i,
+  /msdmanuals\.cn/i,
+  /\/zh(?:[-_/]|$)/i,
+  /chinese/i,
 ];
 
 const CATEGORY_AUDIENCE_MAP: Partial<Record<QAPair['category'], string>> = {
@@ -255,6 +290,7 @@ const GENERIC_SEGMENTS = new Set([
   '出现',
   '轻微',
 ]);
+const CHINESE_SEGMENT_NOISE_PATTERN = /[的了呢吗吧啊呀和与或及]/u;
 
 const GENERIC_FOLLOW_UP_TAGS = new Set([
   '母婴',
@@ -551,7 +587,10 @@ function getChineseSegments(text: string): string[] {
     }
   }
 
-  return Array.from(segments).filter(segment => !GENERIC_SEGMENTS.has(segment));
+  return Array.from(segments).filter(segment => (
+    !GENERIC_SEGMENTS.has(segment)
+    && !CHINESE_SEGMENT_NOISE_PATTERN.test(segment)
+  ));
 }
 
 function extractSearchTerms(query: string): string[] {
@@ -818,7 +857,10 @@ async function rerankKnowledgeResultsWithSiliconFlow(
         result.question,
         formatKnowledgeRerankExcerpt(result.answer),
         result.category,
-        result.sourceReference.sourceOrg || result.source || '知识库',
+        `来源机构：${result.sourceReference.sourceOrg || result.source || '知识库'}`,
+        `地区：${result.sourceReference.region || result.region || '未知'}`,
+        `来源层级：${result.sourceReference.sourceClass || 'unknown'}`,
+        `来源类型：${result.sourceReference.sourceType || 'unknown'}`,
       ].join('\n')),
       top_n: candidateResults.length,
       return_documents: false,
@@ -870,6 +912,9 @@ async function rerankKnowledgeResultsWithLLMFallback(
     question: result.question,
     category: result.category,
     source: result.sourceReference.sourceOrg || result.source || '知识库',
+    region: result.sourceReference.region || result.region || 'unknown',
+    source_class: result.sourceReference.sourceClass || 'unknown',
+    source_type: result.sourceReference.sourceType || 'unknown',
     authoritative: result.sourceReference.authoritative === true,
     relevance_hint: result.sourceReference.relevance,
     excerpt: formatKnowledgeRerankExcerpt(result.answer),
@@ -882,6 +927,7 @@ async function rerankKnowledgeResultsWithLLMFallback(
         '你是母婴知识检索重排助手。',
         '任务是根据用户问题，对候选资料按相关性从高到低排序。',
         '优先考虑：问题意图匹配、孕周/阶段匹配、症状与处理场景匹配、来源权威性。',
+        '用户问题为中文时，在相关性接近的候选中优先中国官方/中文权威来源；中文来源不足时再使用英文权威来源补充。',
         '不要扩展候选，不要解释，不要总结。',
         '输出必须是 JSON 对象，格式为 {"ranked_ids":["id1","id2"]}。',
         '只输出候选里已有的 id。',
@@ -1252,6 +1298,10 @@ function isPolicyLikeResult(qa: Pick<QAPair, 'question' | 'answer' | 'tags' | 'c
     || /政策|纲要|指导|全指导|practice update|committee opinion|clinical practice update/i.test(rawText);
 }
 
+function hasKnowledgeSearchDomainIntent(query: string): boolean {
+  return /怀孕|孕妇|孕期|孕周|产检|胎儿|胎动|胎心|宫缩|破水|预产期|分娩|顺产|剖宫产|产后|月子|哺乳|母乳|备孕|孕前|叶酸|排卵|宝宝|婴儿|新生儿|幼儿|小孩|孩子|月龄|辅食|喂奶|吃奶|奶量|配方奶|疫苗|接种|预防针|育儿|托育|生育|发烧|发热|高烧|咳嗽|腹泻|拉肚子|呕吐|黄疸|湿疹|出血|见红|流血|腹痛|水肿|浮肿|脚肿/u.test(query);
+}
+
 function hasMedicalSymptomIntent(query: string): boolean {
   return /出血|见红|流血|腹痛|宫缩|阵痛|水肿|浮肿|脚肿|腿肿|肿胀|发烧|发热|高烧|胎动|胎心|破水|呕吐|腹泻|黄疸|湿疹|咳嗽/u.test(query);
 }
@@ -1405,6 +1455,50 @@ function buildSourceTitle(qa: QAPair, signals?: QuerySignals): string {
 function isAuthoritativeSource(qa: QAPair): boolean {
   const sourceText = `${qa.source_org || ''} ${qa.source || ''} ${qa.source_url || ''} ${qa.url || ''}`;
   return AUTHORITATIVE_SOURCE_PATTERNS.some((pattern) => pattern.test(sourceText));
+}
+
+function isChineseAuthoritySourceRecord(qa: Pick<QAPair, 'region' | 'source_org' | 'source' | 'source_url' | 'url' | 'source_class'>): boolean {
+  const region = (qa.region || '').toUpperCase();
+  if (region === 'CN') {
+    return true;
+  }
+
+  const sourceText = `${qa.source_org || ''} ${qa.source || ''} ${qa.source_url || ''} ${qa.url || ''}`;
+  return CHINESE_AUTHORITY_SOURCE_PATTERNS.some((pattern) => pattern.test(sourceText));
+}
+
+function isChineseSourceReference(source: SourceReference): boolean {
+  const region = (source.region || '').toUpperCase();
+  if (region === 'CN') {
+    return true;
+  }
+
+  const sourceText = `${source.sourceOrg || ''} ${source.source || ''} ${source.url || ''}`;
+  return CHINESE_AUTHORITY_SOURCE_PATTERNS.some((pattern) => pattern.test(sourceText));
+}
+
+function getChineseSourcePriorityBoost(qa: QAPair, query: string): number {
+  if (!isLikelyChineseQuery(query)) {
+    return 0;
+  }
+
+  let boost = 0;
+  const isChineseSource = isChineseAuthoritySourceRecord(qa);
+  const hasAuthority = hasAuthorityEvidence(qa);
+
+  if (isChineseSource) {
+    boost += 10;
+  }
+
+  if (isChineseSource && hasAuthority) {
+    boost += 12;
+  }
+
+  if (isChineseSource && qa.source_class === 'official') {
+    boost += 8;
+  }
+
+  return boost;
 }
 
 function inferRiskLevelDefault(qa: QAPair): KnowledgeRiskLevel {
@@ -1616,7 +1710,7 @@ function selectAuthorityPreferredResults(
 ): KnowledgeSearchResult[] {
   const head = results.slice(0, limit);
   if (query && hasMedicalSymptomIntent(query)) {
-    return head;
+    return selectChineseAuthorityPreferredHead(results, limit, query);
   }
 
   const authoritativeInHead = head.filter((result) => result.sourceReference.authoritative);
@@ -1650,6 +1744,49 @@ function selectAuthorityPreferredResults(
   return selected.slice(0, limit);
 }
 
+function selectChineseAuthorityPreferredHead(
+  results: KnowledgeSearchResult[],
+  limit: number,
+  query: string,
+): KnowledgeSearchResult[] {
+  const head = results.slice(0, limit);
+  if (!isLikelyChineseQuery(query) || results.length <= limit) {
+    return head;
+  }
+
+  const selected = [...head];
+  const weakestHeadScore = selected[selected.length - 1]?.score ?? 0;
+  const promotable = results
+    .slice(limit)
+    .filter((result) => (
+      isChineseSourceReference(result.sourceReference)
+      && result.sourceReference.authoritative
+      && !isPolicyLikeResult(result)
+      && result.score >= weakestHeadScore - 10
+    ));
+
+  for (const candidate of promotable) {
+    if (selected.some((item) => item.id === candidate.id)) {
+      continue;
+    }
+
+    const replacementIndex = selected
+      .map((item, index) => ({ item, index }))
+      .reverse()
+      .find(({ item }) => (
+        !isChineseSourceReference(item.sourceReference)
+        && !item.sourceReference.authoritative
+        && item.score <= candidate.score + 10
+      ))?.index;
+
+    if (replacementIndex !== undefined) {
+      selected.splice(replacementIndex, 1, candidate);
+    }
+  }
+
+  return selected.slice(0, limit);
+}
+
 function calculateScore(
   qa: QAPair,
   query: string,
@@ -1664,15 +1801,19 @@ function calculateScore(
   const normalizedSource = normalizeText(qa.source || '');
   const rawTagText = (qa.tags || []).join(' ');
   const rawText = [qa.question, qa.answer, rawTagText, qa.category].join(' ');
+  const searchableFields = [normalizedQuestion, normalizedAnswer, normalizedTags, normalizedCategory, normalizedSource];
 
   let score = 0;
+  let matchedMeaningfulTermCount = 0;
 
   if (normalizedQuery && normalizedQuestion.includes(normalizedQuery)) {
     score += 40;
+    matchedMeaningfulTermCount += 1;
   }
 
   if (normalizedQuery && normalizedAnswer.includes(normalizedQuery)) {
     score += 16;
+    matchedMeaningfulTermCount += 1;
   }
 
   for (const term of terms) {
@@ -1681,21 +1822,32 @@ function calculateScore(
     const tagWeight = Math.min(12, 2 + term.length);
     const categoryWeight = Math.min(10, 1 + term.length);
     const sourceWeight = Math.min(6, Math.max(1, Math.floor(term.length / 2)));
+    const isMeaningfulTerm = term.length >= 2 && !STOP_TERMS.has(term) && !GENERIC_SEGMENTS.has(term);
+    let matchedTerm = false;
 
     if (normalizedQuestion.includes(term)) {
       score += questionWeight;
+      matchedTerm = true;
     }
     if (normalizedAnswer.includes(term)) {
       score += answerWeight;
+      matchedTerm = true;
     }
     if (normalizedTags.includes(term)) {
       score += tagWeight;
+      matchedTerm = true;
     }
     if (normalizedCategory.includes(term)) {
       score += categoryWeight;
+      matchedTerm = true;
     }
     if (normalizedSource.includes(term)) {
       score += sourceWeight;
+      matchedTerm = true;
+    }
+
+    if (matchedTerm && isMeaningfulTerm) {
+      matchedMeaningfulTermCount += 1;
     }
   }
 
@@ -1730,6 +1882,18 @@ function calculateScore(
     }
   }
 
+  const hasCategoryIntentMatch = signals.preferredCategories.has(qa.category);
+  const hasSignalKeywordMatch = signals.matchedGroups.some(group => group.keywords.some(keyword => rawText.includes(keyword)));
+  const hasWholeQueryMatch = Boolean(normalizedQuery && searchableFields.some(field => field.includes(normalizedQuery)));
+  const hasDomainIntent = hasKnowledgeSearchDomainIntent(query);
+  if (!hasDomainIntent && !hasWholeQueryMatch) {
+    return -100;
+  }
+
+  if (!hasWholeQueryMatch && matchedMeaningfulTermCount === 0 && !hasCategoryIntentMatch && !hasSignalKeywordMatch) {
+    return -100;
+  }
+
   if (qa.is_verified) {
     score += 2;
   }
@@ -1743,6 +1907,8 @@ function calculateScore(
   } else {
     score -= 18;
   }
+
+  score += getChineseSourcePriorityBoost(qa, query);
 
   if ((qa.tags || []).length > 0) {
     score += 1;
@@ -2083,9 +2249,11 @@ export function loadKnowledgeBase(): void {
     }
 
     const rawData = fs.readFileSync(dataPath, 'utf-8');
-    qaData = JSON.parse(rawData) as QAPair[];
+    const parsedData = JSON.parse(rawData) as QAPair[];
+    qaData = parsedData.filter((item) => !getDatasetKnowledgeDropReason(item));
     isLoaded = true;
-    console.log(`📚 知识库加载成功: ${qaData.length} 条数据 (路径: ${dataPath})`);
+    const filteredCount = parsedData.length - qaData.length;
+    console.log(`📚 知识库加载成功: ${qaData.length} 条数据 (过滤 ${filteredCount} 条，路径: ${dataPath})`);
   } catch (error) {
     console.error('❌ 知识库加载失败:', error);
     isLoaded = true;
@@ -2143,6 +2311,10 @@ export function searchQA(
 
   const normalizedQuery = normalizeText(sanitizeQuery(query));
   if (!normalizedQuery) {
+    return [];
+  }
+
+  if (isOutOfScopeKnowledgeQuery(query)) {
     return [];
   }
 

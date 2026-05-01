@@ -180,6 +180,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             model: msg.data.model,
             provider: msg.data.provider,
             route: msg.data.route,
+            aiDisclosure: msg.data.aiDisclosure,
             createdAt: new Date().toISOString(),
           }
           set(state => ({
@@ -201,6 +202,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             content: msg.data.content || getEmergencyWarning(),
             isEmergency: true,
             entryMeta: entryMeta || undefined,
+            sources: msg.data.sources,
             actionCards: msg.data.actionCards,
             followUpQuestions: msg.data.followUpQuestions,
             triageCategory: msg.data.triageCategory,
@@ -212,6 +214,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             model: msg.data.model,
             provider: msg.data.provider,
             route: msg.data.route,
+            aiDisclosure: msg.data.aiDisclosure,
             createdAt: new Date().toISOString(),
           }
           set(state => ({
@@ -276,6 +279,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
               model: response.model,
               provider: response.provider,
               route: response.route,
+              aiDisclosure: response.aiDisclosure,
               createdAt: new Date().toISOString(),
             }
             set(state => ({

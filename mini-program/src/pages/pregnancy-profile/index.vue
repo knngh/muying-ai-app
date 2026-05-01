@@ -1,8 +1,8 @@
 <template>
   <view class="pregnancy-archive-page">
     <view v-if="initializing" class="loading-shell">
-      <text class="loading-title">正在整理孕期档案</text>
-      <text class="loading-subtitle">同步你的孕周、关键节点和本周记录。</text>
+      <text class="loading-title">正在为您准备时光档案</text>
+      <text class="loading-subtitle">整理您的孕期进度、珍贵节点与每周点滴。</text>
     </view>
 
     <template v-else>
@@ -15,8 +15,8 @@
       </view>
 
       <view v-else-if="!isPregnancyReady" class="empty-card">
-        <text class="empty-title">先补充预产期，再生成你的孕期档案</text>
-        <text class="empty-subtitle">档案页会围绕当前孕周、关键产检节点和本周记录形成一个集中入口。</text>
+        <text class="empty-title">先完善预产期，开启专属时光档案</text>
+        <text class="empty-subtitle">时光档案会根据您的孕周，智能串联关键产检节点与成长记录。</text>
         <view class="empty-action" hover-class="empty-action--hover" @tap="openProfile">
           <text class="empty-action-text">去完善资料</text>
         </view>
@@ -71,7 +71,7 @@
 
         <view class="section-card spotlight-card">
           <view class="section-header">
-            <text class="section-title">本阶段重点</text>
+            <text class="section-title">现阶段重点关注</text>
           </view>
           <text class="spotlight-title">{{ phaseSummary.focusTitle }}</text>
           <text class="spotlight-text">{{ phaseSummary.focusText }}</text>
@@ -80,7 +80,7 @@
 
         <view class="section-card">
           <view class="section-header">
-            <text class="section-title">本周快照</text>
+            <text class="section-title">本周点滴剪影</text>
             <text v-if="loadingSnapshot" class="section-meta">同步中...</text>
           </view>
 
@@ -135,7 +135,7 @@
 
         <view class="section-card">
           <view class="section-header">
-            <text class="section-title">我的记录</text>
+            <text class="section-title">我的珍贵记录</text>
             <text class="section-meta">来自孕周日历</text>
           </view>
 
@@ -143,33 +143,33 @@
             <text class="diary-date">{{ weeklyDiaryDate }}</text>
             <text class="diary-content">{{ weeklyDiaryPreview }}</text>
           </view>
-          <view v-if="hasWeeklyDiary" class="ai-record-card">
-            <view class="ai-record-head">
+          <view v-if="hasWeeklyDiary" class="record-insight-card">
+            <view class="record-insight-head">
               <view>
-                <text class="ai-record-kicker">记录自动整理</text>
-                <text class="ai-record-title">这条记录已整理成重点</text>
+                <text class="record-insight-kicker">记录自动整理</text>
+                <text class="record-insight-title">这条记录已整理成重点</text>
               </view>
-              <text class="ai-record-count">{{ diaryAiAnalysis.tags.length }} 个标签</text>
+              <text class="record-insight-count">{{ diaryInsight.tags.length }} 个标签</text>
             </view>
-            <view class="ai-record-tags">
+            <view class="record-insight-tags">
               <text
-                v-for="tag in diaryAiAnalysis.tags"
+                v-for="tag in diaryInsight.tags"
                 :key="tag"
-                class="ai-record-tag"
+                class="record-insight-tag"
               >
                 {{ tag }}
               </text>
             </view>
-            <text class="ai-record-summary">{{ diaryAiAnalysis.summary }}</text>
+            <text class="record-insight-summary">{{ diaryInsight.summary }}</text>
             <view
-              v-for="item in diaryAiAnalysis.highlights"
+              v-for="item in diaryInsight.highlights"
               :key="item"
-              class="ai-record-highlight"
+              class="record-insight-highlight"
             >
-              <text class="ai-record-dot"></text>
-              <text class="ai-record-highlight-text">{{ item }}</text>
+              <text class="record-insight-dot"></text>
+              <text class="record-insight-highlight-text">{{ item }}</text>
             </view>
-            <text class="ai-record-prompt">{{ diaryAiAnalysis.prompt }}</text>
+            <text class="record-insight-prompt">{{ diaryInsight.prompt }}</text>
           </view>
           <view v-else class="diary-empty">
             <text class="diary-empty-title">这周还没有留下记录</text>
@@ -318,7 +318,7 @@ const totalTodoCount = computed(() => (currentWeekGuide.value?.content?.todo?.le
 const hasWeeklyDiary = computed(() => snapshot.value.hasWeeklyDiary ?? false)
 const weeklyDiaryDate = computed(() => snapshot.value.weeklyDiaryDate || '')
 const weeklyDiaryPreview = computed(() => snapshot.value.weeklyDiaryPreview || '')
-const diaryAiAnalysis = computed(() => analyzeDiaryEntry(weeklyDiaryPreview.value))
+const diaryInsight = computed(() => analyzeDiaryEntry(weeklyDiaryPreview.value))
 const milestoneList = computed(() => profileData.value?.milestones || [])
 const nextMilestoneText = computed(() => profileData.value?.nextMilestoneText || fallbackNextMilestoneText)
 
@@ -407,8 +407,8 @@ onShareTimeline(() => {
   min-height: 100vh;
   padding: 32rpx 24rpx 48rpx;
   background:
-    radial-gradient(circle at top right, rgba(255, 216, 188, 0.42), transparent 28%),
-    linear-gradient(180deg, #fff7f1 0%, #fffdf9 48%, #f7fafc 100%);
+    radial-gradient(circle at top right, rgba(22, 128, 106, 0.12), transparent 28%),
+    linear-gradient(180deg, #f7f8fb 0%, #eef3f7 100%);
   box-sizing: border-box;
 }
 
@@ -433,7 +433,7 @@ onShareTimeline(() => {
   display: block;
   font-size: 36rpx;
   font-weight: 700;
-  color: #24303d;
+  color: #444;
 }
 
 .loading-subtitle,
@@ -452,7 +452,7 @@ onShareTimeline(() => {
   margin-top: 36rpx;
   padding: 18rpx 32rpx;
   border-radius: 999rpx;
-  background: #f37e56;
+  background: #16806a;
 }
 
 .empty-action--hover,
@@ -470,7 +470,7 @@ onShareTimeline(() => {
 .hero-card {
   overflow: hidden;
   padding: 36rpx;
-  background: linear-gradient(135deg, #fff0e7 0%, #ffd9c8 58%, #fff8f3 100%);
+  background: linear-gradient(135deg, #ffffff 0%, #edf8f4 60%, #eef5ff 100%);
 }
 
 .hero-top {
@@ -489,7 +489,7 @@ onShareTimeline(() => {
   font-size: 22rpx;
   font-weight: 700;
   letter-spacing: 2rpx;
-  color: #ba6a45;
+  color: #16806a;
 }
 
 .hero-title {
@@ -498,7 +498,7 @@ onShareTimeline(() => {
   font-size: 52rpx;
   line-height: 1.12;
   font-weight: 800;
-  color: #2d2823;
+  color: #444;
 }
 
 .hero-subtitle {
@@ -506,7 +506,7 @@ onShareTimeline(() => {
   margin-top: 16rpx;
   font-size: 26rpx;
   line-height: 1.7;
-  color: #6d6258;
+  color: #657284;
 }
 
 .hero-badge {
@@ -519,7 +519,7 @@ onShareTimeline(() => {
 .hero-badge-text {
   font-size: 22rpx;
   font-weight: 700;
-  color: #cf6f48;
+  color: #16806a;
 }
 
 .hero-tags {
@@ -532,12 +532,12 @@ onShareTimeline(() => {
 .hero-tag {
   padding: 10rpx 18rpx;
   border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.78);
 }
 
 .hero-tag-text {
   font-size: 22rpx;
-  color: #7a5d4a;
+  color: #4f6172;
 }
 
 .hero-stats {
@@ -559,14 +559,14 @@ onShareTimeline(() => {
   display: block;
   font-size: 30rpx;
   font-weight: 700;
-  color: #2f2a26;
+  color: #444;
 }
 
 .hero-stat-label {
   display: block;
   margin-top: 12rpx;
   font-size: 22rpx;
-  color: #7c7067;
+  color: #7c8793;
 }
 
 .hero-divider {
@@ -589,7 +589,7 @@ onShareTimeline(() => {
 .progress-value {
   font-size: 24rpx;
   font-weight: 700;
-  color: #7b5f4d;
+  color: #16806a;
 }
 
 .progress-track {
@@ -602,7 +602,7 @@ onShareTimeline(() => {
 .progress-fill {
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, #f5875c 0%, #ec6d4b 100%);
+  background: linear-gradient(90deg, #16806a 0%, #2f7cf6 100%);
 }
 
 .section-card {
@@ -612,7 +612,7 @@ onShareTimeline(() => {
 }
 
 .spotlight-card {
-  background: linear-gradient(135deg, #fff8ef 0%, #fffdfb 100%);
+  background: linear-gradient(135deg, #f4fbf8 0%, #ffffff 100%);
 }
 
 .section-header {
@@ -623,9 +623,9 @@ onShareTimeline(() => {
 }
 
 .section-title {
-  font-size: 32rpx;
-  font-weight: 700;
-  color: #283442;
+  font-size: 34rpx;
+  font-weight: 800;
+  color: #444;
 }
 
 .section-meta {
@@ -636,9 +636,9 @@ onShareTimeline(() => {
 .spotlight-title {
   display: block;
   margin-top: 20rpx;
-  font-size: 30rpx;
+  font-size: 32rpx;
   font-weight: 700;
-  color: #ce6b45;
+  color: #16806a;
 }
 
 .spotlight-text,
@@ -655,8 +655,8 @@ onShareTimeline(() => {
 
 .spotlight-note {
   padding-top: 16rpx;
-  border-top: 2rpx solid rgba(227, 205, 188, 0.5);
-  color: #7d6b5f;
+  border-top: 2rpx solid rgba(213, 221, 229, 0.7);
+  color: #5d6c7d;
 }
 
 .snapshot-grid {
@@ -669,7 +669,7 @@ onShareTimeline(() => {
   flex: 1;
   padding: 24rpx 20rpx;
   border-radius: 24rpx;
-  background: #fff8f4;
+  background: #f7f9fc;
 }
 
 .snapshot-value {
@@ -690,7 +690,7 @@ onShareTimeline(() => {
   margin-top: 22rpx;
   padding: 22rpx 24rpx;
   border-radius: 24rpx;
-  background: linear-gradient(135deg, #eef6fb 0%, #f7fbff 100%);
+  background: linear-gradient(135deg, #eef8f5 0%, #f7fbff 100%);
 }
 
 .snapshot-banner-text {
@@ -730,7 +730,7 @@ onShareTimeline(() => {
 }
 
 .milestone-dot--active {
-  background: #f37e56;
+  background: #2f7cf6;
 }
 
 .milestone-dot--upcoming {
@@ -752,7 +752,7 @@ onShareTimeline(() => {
 }
 
 .milestone-item--active .milestone-content {
-  background: #fff6f1;
+  background: #eef8f5;
 }
 
 .milestone-head {
@@ -782,8 +782,8 @@ onShareTimeline(() => {
 }
 
 .milestone-chip--active {
-  background: rgba(243, 126, 86, 0.16);
-  color: #d46640;
+  background: rgba(47, 124, 246, 0.12);
+  color: #2f6fd4;
 }
 
 .milestone-chip--upcoming {
@@ -804,7 +804,7 @@ onShareTimeline(() => {
   margin-top: 22rpx;
   padding: 26rpx;
   border-radius: 24rpx;
-  background: #fff8f3;
+  background: #f7f9fc;
 }
 
 .diary-empty-title {
@@ -814,21 +814,21 @@ onShareTimeline(() => {
   color: #364150;
 }
 
-.ai-record-card {
+.record-insight-card {
   margin-top: 18rpx;
   padding: 26rpx;
   border-radius: 24rpx;
   background: linear-gradient(135deg, #eef8f5 0%, #fbfffd 100%);
 }
 
-.ai-record-head {
+.record-insight-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 18rpx;
 }
 
-.ai-record-kicker {
+.record-insight-kicker {
   display: block;
   font-size: 21rpx;
   font-weight: 700;
@@ -836,7 +836,7 @@ onShareTimeline(() => {
   color: #1f8f74;
 }
 
-.ai-record-title {
+.record-insight-title {
   display: block;
   margin-top: 10rpx;
   font-size: 28rpx;
@@ -844,7 +844,7 @@ onShareTimeline(() => {
   color: #2c3945;
 }
 
-.ai-record-count {
+.record-insight-count {
   flex-shrink: 0;
   padding: 8rpx 16rpx;
   border-radius: 999rpx;
@@ -854,24 +854,24 @@ onShareTimeline(() => {
   color: #1f8f74;
 }
 
-.ai-record-tags {
+.record-insight-tags {
   display: flex;
   flex-wrap: wrap;
   gap: 12rpx;
   margin-top: 20rpx;
 }
 
-.ai-record-tag {
+.record-insight-tag {
   padding: 8rpx 16rpx;
   border-radius: 999rpx;
-  background: #fff;
+  background: #fffcf8;
   font-size: 22rpx;
   font-weight: 700;
   color: #267a66;
 }
 
-.ai-record-summary,
-.ai-record-prompt {
+.record-insight-summary,
+.record-insight-prompt {
   display: block;
   margin-top: 18rpx;
   font-size: 24rpx;
@@ -879,14 +879,14 @@ onShareTimeline(() => {
   color: #526878;
 }
 
-.ai-record-highlight {
+.record-insight-highlight {
   display: flex;
   align-items: flex-start;
   gap: 12rpx;
   margin-top: 14rpx;
 }
 
-.ai-record-dot {
+.record-insight-dot {
   width: 10rpx;
   height: 10rpx;
   margin-top: 13rpx;
@@ -895,14 +895,14 @@ onShareTimeline(() => {
   flex-shrink: 0;
 }
 
-.ai-record-highlight-text {
+.record-insight-highlight-text {
   flex: 1;
   font-size: 24rpx;
   line-height: 1.7;
   color: #61707f;
 }
 
-.ai-record-prompt {
+.record-insight-prompt {
   color: #7d8b96;
 }
 
@@ -920,12 +920,12 @@ onShareTimeline(() => {
   padding: 20rpx 18rpx;
   border-radius: 999rpx;
   border: 2rpx solid rgba(215, 221, 228, 0.9);
-  background: #fff;
+  background: #fffcf8;
 }
 
 .action-button--primary {
-  background: #ef7a54;
-  border-color: #ef7a54;
+  background: #16806a;
+  border-color: #16806a;
 }
 
 .action-button-text {

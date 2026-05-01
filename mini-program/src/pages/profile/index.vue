@@ -350,7 +350,7 @@ onShow(() => {
 <style scoped>
 .profile-page {
   min-height: 100vh;
-  background-color: #f5f5f5;
+  background: linear-gradient(180deg, #f9f0f5 0%, #fff7f2 100%);
   padding-bottom: 60rpx;
 }
 
@@ -366,12 +366,12 @@ onShow(() => {
 .loading-text,
 .empty-text {
   font-size: 28rpx;
-  color: #999999;
+  color: #7a8592;
 }
 
 .login-btn {
   margin-top: 32rpx;
-  background-color: #1890ff;
+  background-color: #16806a;
   border-radius: 32rpx;
   padding: 16rpx 48rpx;
 }
@@ -382,7 +382,7 @@ onShow(() => {
 }
 
 .profile-content {
-  padding: 0;
+  padding: 24rpx 28rpx 0;
 }
 
 /* Avatar Section */
@@ -390,8 +390,11 @@ onShow(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  background-color: #ffffff;
-  padding: 48rpx 32rpx 40rpx;
+  padding: 44rpx 32rpx 38rpx;
+  border-radius: 28rpx;
+  background: linear-gradient(180deg, #ffffff 0%, #fdf5f0 100%);
+  border: 1rpx solid rgba(31, 42, 55, 0.06);
+  box-shadow: 0 12rpx 30rpx rgba(31, 42, 55, 0.02);
 }
 
 .profile-avatar {
@@ -406,27 +409,29 @@ onShow(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: rgba(24, 144, 255, 0.15);
+  background-color: rgba(22, 128, 106, 0.12);
 }
 
 .profile-avatar-text {
   font-size: 60rpx;
   font-weight: bold;
-  color: #1890ff;
+  color: #16806a;
 }
 
 .profile-nickname {
   font-size: 36rpx;
   font-weight: bold;
-  color: #333333;
+  color: #444;
   margin-bottom: 8rpx;
 }
 
 /* Info Section */
 .info-section {
-  background-color: #ffffff;
-  margin-top: 20rpx;
-  padding: 0 32rpx;
+  margin-top: 22rpx;
+  padding: 0 28rpx;
+  border-radius: 24rpx;
+  background-color: rgba(255, 255, 255, 0.94);
+  border: 1rpx solid rgba(31, 42, 55, 0.06);
 }
 
 .info-row {
@@ -443,12 +448,13 @@ onShow(() => {
 
 .info-label {
   font-size: 28rpx;
-  color: #666666;
+  color: #6d7887;
 }
 
 .info-value {
   font-size: 28rpx;
-  color: #333333;
+  color: #444;
+  font-weight: 700;
 }
 
 /* Checkin */
@@ -456,33 +462,33 @@ onShow(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin: 20rpx 32rpx 0;
+  margin-top: 22rpx;
   padding: 28rpx 32rpx;
-  background: linear-gradient(135deg, #ff6b9d, #ff8a65);
-  border-radius: 20rpx;
+  background: linear-gradient(135deg, #16806a 0%, #2f7cf6 100%);
+  border-radius: 24rpx;
 }
 .checkin-info { display: flex; flex-direction: column; gap: 8rpx; }
 .checkin-streak { font-size: 30rpx; font-weight: 700; color: #fff; }
 .checkin-total { font-size: 22rpx; color: rgba(255, 255, 255, 0.8); }
-.checkin-btn { background: #fff; padding: 14rpx 36rpx; border-radius: 24rpx; }
+.checkin-btn { background: #fffcf8; padding: 14rpx 36rpx; border-radius: 24rpx; }
 .checkin-btn.disabled { opacity: 0.6; }
-.checkin-btn-text { font-size: 28rpx; font-weight: 600; color: #ff6b9d; }
+.checkin-btn-text { font-size: 28rpx; font-weight: 700; color: #16806a; }
 
 /* Nav buttons */
-.nav-btn { background-color: #ffffff; border: 1rpx solid #d9e6ec; border-radius: 12rpx; padding: 24rpx 0; text-align: center; }
-.nav-btn-text { color: #1890ff; font-size: 30rpx; font-weight: 500; }
+.nav-btn { background-color: #fffcf8; border: 1rpx solid #d9e6ec; border-radius: 18rpx; padding: 24rpx 0; text-align: center; }
+.nav-btn-text { color: #16806a; font-size: 30rpx; font-weight: 700; }
 
 /* Actions */
 .action-section {
-  padding: 40rpx 32rpx;
+  padding: 24rpx 0 40rpx;
   display: flex;
   flex-direction: column;
-  gap: 24rpx;
+  gap: 18rpx;
 }
 
 .edit-btn {
-  background-color: #1890ff;
-  border-radius: 12rpx;
+  background-color: #16806a;
+  border-radius: 18rpx;
   padding: 24rpx 0;
   text-align: center;
 }
@@ -490,21 +496,21 @@ onShow(() => {
 .edit-btn-text {
   color: #ffffff;
   font-size: 30rpx;
-  font-weight: 500;
+  font-weight: 700;
 }
 
 .logout-btn {
-  background-color: #ffffff;
+  background-color: #fffcf8;
   border: 1rpx solid #ff4d4f;
-  border-radius: 12rpx;
+  border-radius: 18rpx;
   padding: 24rpx 0;
   text-align: center;
 }
 
 .trust-btn {
-  background-color: #ffffff;
+  background-color: #fffcf8;
   border: 1rpx solid #d9e6ec;
-  border-radius: 12rpx;
+  border-radius: 18rpx;
   padding: 24rpx 0;
   text-align: center;
 }
@@ -512,13 +518,13 @@ onShow(() => {
 .trust-btn-text {
   color: #365c68;
   font-size: 30rpx;
-  font-weight: 500;
+  font-weight: 700;
 }
 
 .logout-btn-text {
   color: #ff4d4f;
   font-size: 30rpx;
-  font-weight: 500;
+  font-weight: 700;
 }
 
 /* Modal */
@@ -537,7 +543,7 @@ onShow(() => {
 
 .modal-content {
   width: 680rpx;
-  background-color: #ffffff;
+  background-color: #fffcf8;
   border-radius: 28rpx;
   max-height: 80vh;
   overflow-y: auto;
@@ -557,7 +563,7 @@ onShow(() => {
 .modal-title {
   font-size: 34rpx;
   font-weight: bold;
-  color: #333333;
+  color: #444333;
   text-align: center;
 }
 
@@ -623,7 +629,7 @@ onShow(() => {
   width: 100%;
   height: 84rpx;
   box-sizing: border-box;
-  background: #ffffff;
+  background: #fffcf8;
   display: block;
   line-height: 84rpx;
   vertical-align: middle;
@@ -638,7 +644,7 @@ onShow(() => {
   height: 84rpx;
   display: flex;
   align-items: center;
-  background: #ffffff;
+  background: #fffcf8;
 }
 
 .form-hint {
@@ -671,7 +677,7 @@ onShow(() => {
 }
 
 .modal-btn--confirm {
-  background-color: #1890ff;
+  background-color: #16806a;
 }
 
 .modal-btn-text {

@@ -245,6 +245,73 @@ describe('authority index discovery', () => {
     expect(matched).toBe(true);
   });
 
+  test('extracts Yilianmeiti maternal-child article URLs from category pages and skips media/hospital links', () => {
+    const source = getAuthoritySourceConfig('yilianmeiti-maternal-child');
+    expect(source).toBeDefined();
+
+    const html = `
+      <div class="article-box">
+        <a href="https://www.yilianmeiti.com/article/2934661.html">哺乳期可以喝酒吗？酒精对宝宝的影响要知道</a>
+        <a href="https://www.yilianmeiti.com/article/2934874.html">孕早期必看！前三个月这些事千万不能做</a>
+        <a href="https://www.yilianmeiti.com/article/2933000.html">更年期阴道干涩怎么改善？这些方法要知道</a>
+        <a href="https://www.yilianmeiti.com/video/d/199003.html">外阴白斑癌变风险大揭秘</a>
+        <a href="https://zyy.yilianmeiti.com/19067/">乌鲁木齐儿童医院</a>
+      </div>
+    `;
+
+    const links = __authoritySyncTestUtils.extractIndexLinks(html, source!, source!.entryUrls[0]!);
+
+    expect(links).toContain('https://www.yilianmeiti.com/article/2934661.html');
+    expect(links).toContain('https://www.yilianmeiti.com/article/2934874.html');
+    expect(links).not.toContain('https://www.yilianmeiti.com/article/2933000.html');
+    expect(links).not.toContain('https://www.yilianmeiti.com/video/d/199003.html');
+    expect(links).not.toContain('https://zyy.yilianmeiti.com/19067/');
+  });
+
+  test('matches Yilianmeiti article pages by article path and maternal-child keywords', () => {
+    const source = getAuthoritySourceConfig('yilianmeiti-maternal-child');
+    expect(source).toBeDefined();
+
+    const matched = __authoritySyncTestUtils.isAuthorityUrlMatched(
+      'https://www.yilianmeiti.com/article/2528524.html',
+      source!,
+      '孩子从昨天晚上发烧了',
+    );
+    const unrelated = __authoritySyncTestUtils.isAuthorityUrlMatched(
+      'https://www.yilianmeiti.com/article/2933000.html',
+      source!,
+      '更年期阴道干涩怎么改善？这些方法要知道',
+    );
+
+    expect(matched).toBe(true);
+    expect(unrelated).toBe(false);
+  });
+
+  test('rejects Chinese source section pages during URL matching', () => {
+    const mchscn = getAuthoritySourceConfig('mchscn-monitoring');
+    const cnsoc = getAuthoritySourceConfig('cnsoc-dietary-guidelines');
+    const chinanutri = getAuthoritySourceConfig('chinanutri-maternal-child');
+    expect(mchscn).toBeDefined();
+    expect(cnsoc).toBeDefined();
+    expect(chinanutri).toBeDefined();
+
+    expect(__authoritySyncTestUtils.isAuthorityUrlMatched(
+      'https://www.mchscn.cn/MaternalSafetyMonitoring-26.html',
+      mchscn!,
+      '孕产妇安全监测',
+    )).toBe(false);
+    expect(__authoritySyncTestUtils.isAuthorityUrlMatched(
+      'http://dg.cnsoc.org/index.html',
+      cnsoc!,
+      '中国居民膳食指南',
+    )).toBe(false);
+    expect(__authoritySyncTestUtils.isAuthorityUrlMatched(
+      'https://www.chinanutri.cn/xwzx_238/gzdt/202603/t20260325_315897.html',
+      chinanutri!,
+      '营养所工会举办妇女节活动',
+    )).toBe(false);
+  });
+
   test('normalizes Youlai pregnancy guide content into authority document text', () => {
     const source = getAuthoritySourceConfig('youlai-pregnancy-guide');
     expect(source).toBeDefined();
@@ -350,6 +417,140 @@ describe('authority index discovery', () => {
     expect(document?.contentText).toContain('婴儿成长过程中需要注意什么');
     expect(document?.metadataJson.sourceClass).toBe('medical_platform');
     expect(document?.contentText.length).toBeGreaterThan(180);
+  });
+
+  test('normalizes Yilianmeiti article pages into medical platform authority documents', () => {
+    const source = getAuthoritySourceConfig('yilianmeiti-maternal-child');
+    expect(source).toBeDefined();
+
+    const raw = {
+      sourceId: source!.id,
+      url: 'https://www.yilianmeiti.com/article/2528524.html',
+      httpStatus: 200,
+      contentType: 'text/html; charset=utf-8',
+      contentHash: 'test',
+      fetchedAt: '2026-04-26T00:00:00.000Z',
+      rawBody: `
+        <title>孩子从昨天晚上发烧了_医联媒体</title>
+        <meta name="description" content="孩子发烧的原因有很多，最常见的是感染，如感冒、流感、肺炎等。">
+        <h1>孩子从昨天晚上发烧了</h1>
+        <div class="cop-doctor">
+          <strong>李兰娜</strong><em>广州市妇女儿童医疗中心 小儿内科</em>
+        </div>
+        <div class="detail">
+          <p>孩子发烧的原因有很多，最常见的是感染，如感冒、流感、肺炎等。</p>
+          <p>观察孩子的症状：除了发烧，孩子是否还有其他症状，如咳嗽、流鼻涕、喉咙痛、呕吐、腹泻等。</p>
+          <p>给孩子多喝水：发烧会使孩子失去大量的水分，因此家长应该给孩子多喝水，以补充水分和防止脱水。</p>
+          <p>给孩子穿轻便、透气的衣服。体温超过38.5℃时，可在医生建议下使用退烧药，不要自行增加剂量。</p>
+          <p>护理过程中应记录体温变化、精神状态、进食饮水和尿量，避免反复包裹捂汗，也不要混用多种退热药。</p>
+          <p>婴幼儿、基础疾病儿童或三个月以下宝宝出现发热时，应更谨慎评估，必要时尽快到儿科门诊处理。</p>
+          <p>如果发烧持续时间过长、症状加重或出现抽搐、昏迷等异常情况，应该及时带孩子去看医生。</p>
+        </div>
+        <div class="customer"></div>
+        <script type="application/ld+json">{"pubDate":"2024-11-19T17:16:44"}</script>
+      `,
+    };
+
+    const document = normalizeAuthorityDocument(source!, raw);
+
+    expect(document).not.toBeNull();
+    expect(document?.title).toBe('孩子从昨天晚上发烧了');
+    expect(document?.audience).toBe('婴幼儿家长');
+    expect(document?.topic).toBe('common-symptoms');
+    expect(document?.riskLevelDefault).toBe('red');
+    expect(document?.publishStatus).toBe('review');
+    expect(document?.updatedAt).toBe('2024-11-19T17:16:44');
+    expect(document?.contentText).toContain('观察孩子的症状');
+    expect(document?.metadataJson.sourceClass).toBe('medical_platform');
+  });
+
+  test('normalizes NCWCH detail pages from article content instead of page navigation', () => {
+    const source = getAuthoritySourceConfig('ncwch-maternal-child-health');
+    expect(source).toBeDefined();
+
+    const raw = {
+      sourceId: source!.id,
+      url: 'https://www.ncwchnhc.org.cn/content/content.html?id=7313481602116358144',
+      httpStatus: 200,
+      contentType: 'text/html; charset=utf-8',
+      contentHash: 'test',
+      fetchedAt: '2026-04-27T00:00:00.000Z',
+      rawBody: `
+        <title>科普知识-国家卫生健康委妇幼健康中心</title>
+        <article>
+          <h2 data-diy-id="7313481602116358144">体重管理指导原则（2024年版）—孕前、孕期及产后女性体重管理</h2>
+          <div id="content" class="clearfix">
+            <p>孕前体重管理应通过合理膳食和适量运动，将体重调整到适宜范围。</p>
+            <p>孕期体重管理需要结合孕早期、孕中期和孕晚期能量需求，定期监测体重增长。</p>
+            <p>产后体重管理应支持母乳喂养，膳食多样，不过量进补，并循序渐进恢复运动。</p>
+            <p>家庭和基层妇幼保健机构可结合身高、体重、体质指数和孕周变化进行连续指导，帮助女性降低妊娠期并发症和产后体重滞留风险。</p>
+          </div><p><br></p>
+        </article>
+      `,
+    };
+
+    const document = normalizeAuthorityDocument(source!, raw);
+
+    expect(document).not.toBeNull();
+    expect(document?.title).toBe('体重管理指导原则（2024年版）—孕前、孕期及产后女性体重管理');
+    expect(document?.contentText).toContain('孕期体重管理');
+    expect(document?.contentText).not.toContain('中心介绍');
+  });
+
+  test('rejects Chinese navigation documents even when page chrome contains maternal-child words', () => {
+    const source = getAuthoritySourceConfig('mchscn-monitoring');
+    expect(source).toBeDefined();
+
+    const raw = {
+      sourceId: source!.id,
+      url: 'https://www.mchscn.cn/MaternalSafetyMonitoring-26.html',
+      httpStatus: 200,
+      contentType: 'text/html; charset=utf-8',
+      contentHash: 'test',
+      fetchedAt: '2026-04-27T00:00:00.000Z',
+      rawBody: `
+        <title>孕产妇安全监测_中国妇幼健康监测</title>
+        <div class="nav">首页 新闻中心 技术规范 工作指南 监测结果 通讯专栏 继续教育 基层交流 共享资源 关于我们</div>
+        <div class="news-list">
+          <a href="/MaternalSafetyMonitoring-26/682.html">孕产妇死亡监测表卡及项目数标注（2025）</a>
+          <a href="/MaternalSafetyMonitoring-26/657.html">孕产妇安全监测表卡及项目数标注</a>
+        </div>
+      `,
+    };
+
+    expect(normalizeAuthorityDocument(source!, raw)).toBeNull();
+  });
+
+  test('keeps image-only Chinese guidance pages as OCR candidates without publishing them', () => {
+    const source = getAuthoritySourceConfig('cnsoc-dietary-guidelines');
+    expect(source).toBeDefined();
+
+    const raw = {
+      sourceId: source!.id,
+      url: 'http://dg.cnsoc.org/article/04/gc5cUak3RhSGheqSaRljnA.html',
+      httpStatus: 200,
+      contentType: 'text/html; charset=utf-8',
+      contentHash: 'test',
+      fetchedAt: '2026-04-27T00:00:00.000Z',
+      rawBody: `
+        <title>《中国婴幼儿喂养指南（2022）》核心信息_中国居民膳食指南</title>
+        <div class="right-con news-show">
+          <h1>《中国婴幼儿喂养指南（2022）》核心信息</h1>
+          <div class="con">
+            <p><strong>0~6月龄婴儿母乳喂养指南</strong></p>
+            <p><img title="1.jpg" src="/upload/1.jpg" alt="婴儿母乳喂养指南图示"></p>
+            <p><img title="2.jpg" src="/upload/2.jpg" alt="7~24月龄婴幼儿喂养指南图示"></p>
+          </div>
+        </div>
+      `,
+    };
+
+    const document = normalizeAuthorityDocument(source!, raw);
+
+    expect(document).not.toBeNull();
+    expect(document?.publishStatus).toBe('rejected');
+    expect(document?.metadataJson.ocrCandidate).toBe(true);
+    expect(Number(document?.metadataJson.imageCount)).toBeGreaterThan(0);
   });
 
   test('infers multiple stage buckets for general pregnancy authority content', () => {

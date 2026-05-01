@@ -2,28 +2,13 @@
   <view class="knowledge-page">
     <view class="hero">
       <text class="hero-title">权威知识库</text>
-      <text class="hero-subtitle">优先展示中国政府网、国家卫健委、中国疾控、国家疾控局及 WHO、CDC、AAP、ACOG、NHS 等公开资料，减少经验帖干扰。</text>
+      <text class="hero-subtitle">优先展示中国政府网、国家卫健委、中国疾控、国家疾控局及 WHO、CDC、AAP、ACOG、NHS 等公开资料。</text>
       <view class="hero-pills">
         <view class="hero-pill">
           <text class="hero-pill-text">中国权威源优先</text>
         </view>
         <view class="hero-pill">
           <text class="hero-pill-text">国际原文支持中文辅助阅读</text>
-        </view>
-      </view>
-
-      <view class="reading-path">
-        <view class="reading-path-item">
-          <text class="reading-path-index">01</text>
-          <text class="reading-path-text">先选当前阶段</text>
-        </view>
-        <view class="reading-path-item">
-          <text class="reading-path-index">02</text>
-          <text class="reading-path-text">再按场景缩小范围</text>
-        </view>
-        <view class="reading-path-item">
-          <text class="reading-path-index">03</text>
-          <text class="reading-path-text">最后查看原文来源</text>
         </view>
       </view>
     </view>
@@ -38,14 +23,6 @@
       />
       <view class="search-btn" @tap="handleSearch">
         <text class="search-btn-text">搜索</text>
-      </view>
-    </view>
-
-    <view class="assistant-offline-card">
-      <text class="assistant-offline-title">当前能力范围</text>
-      <text class="assistant-offline-desc">当前小程序优先提供权威知识检索、阶段筛选和中文辅助阅读。阅读问答能力暂不在小程序上线，后续会在安全提示和来源能力更稳定后再开放。</text>
-      <view class="assistant-offline-link" @tap="openTrustCenter">
-        <text class="assistant-offline-link-text">查看内容可信说明</text>
       </view>
     </view>
 
@@ -67,64 +44,6 @@
           <text class="stage-guide-title">{{ item.title }}</text>
           <text class="stage-guide-desc">{{ item.desc }}</text>
           <text class="stage-guide-action">筛选这个方向</text>
-        </view>
-      </view>
-    </view>
-
-    <view v-if="!recentAiHitArticles.length" class="cold-start-card">
-      <text class="cold-start-title">还没有最近权威线索</text>
-      <text class="cold-start-desc">可以先从上面的阶段常查或下面的场景卡片进入。看过文章后，首页和知识库会保留继续阅读入口。</text>
-    </view>
-
-    <view v-if="recentAiHitArticles.length" class="recent-ai-section">
-      <view class="section-head">
-        <view>
-          <text class="section-title">最近权威线索</text>
-          <text class="section-caption section-caption--block">从最近命中的权威内容继续看</text>
-        </view>
-        <text class="recent-ai-count">{{ recentAiHitArticles.length }} 条</text>
-      </view>
-
-      <scroll-view class="recent-ai-scroll" scroll-x>
-        <view class="recent-ai-row">
-          <view
-            v-for="item in recentAiHitArticles"
-            :key="item.slug"
-            class="recent-ai-card"
-            @tap="handleOpenRecentAiHit(item)"
-          >
-            <text class="recent-ai-card-kicker">{{ formatRecentHitTime(item.lastHitAt) }}</text>
-            <text class="recent-ai-card-title">{{ item.title }}</text>
-            <text class="recent-ai-card-meta">{{ formatSourceLabel(item.sourceOrg || item.source || '权威来源') }}</text>
-            <text v-if="item.topic" class="recent-ai-card-topic">{{ item.topic }}</text>
-          </view>
-        </view>
-      </scroll-view>
-
-      <view v-if="recentAiHitTopics.length || recentAiHitSources.length" class="recent-ai-chip-panel">
-        <view v-if="recentAiHitTopics.length" class="recent-ai-chip-row">
-          <text class="recent-ai-chip-label">按主题继续</text>
-          <view
-            v-for="item in recentAiHitTopics"
-            :key="`topic-${item.displayName}`"
-            class="recent-ai-topic-chip"
-            @tap="handleOpenRecentAiTopic(item)"
-          >
-            <text class="recent-ai-chip-name">{{ item.displayName }}</text>
-            <text class="recent-ai-chip-count">{{ item.count }} 次</text>
-          </view>
-        </view>
-        <view v-if="recentAiHitSources.length" class="recent-ai-chip-row">
-          <text class="recent-ai-chip-label">按机构继续</text>
-          <view
-            v-for="item in recentAiHitSources"
-            :key="`source-${item.displayName}`"
-            class="recent-ai-source-chip"
-            @tap="handleOpenRecentAiSource(item)"
-          >
-            <text class="recent-ai-chip-name">{{ item.displayName }}</text>
-            <text class="recent-ai-chip-count">{{ item.count }} 次</text>
-          </view>
         </view>
       </view>
     </view>
@@ -348,7 +267,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { onReachBottom, onShareAppMessage, onShareTimeline, onShow } from '@dcloudio/uni-app'
-import { useKnowledgeStore, type RecentAIHitArticle } from '@/stores/knowledge'
+import { useKnowledgeStore } from '@/stores/knowledge'
 import type { Article } from '@/api/modules'
 import { getAuthorityRegionLabel, getAuthorityRegionTag } from '@/utils/authority-source'
 import {
@@ -371,23 +290,8 @@ import {
   isChineseKnowledgeArticle,
   sortKnowledgeVariants,
 } from '@/utils/knowledge-format'
-import { trackMiniEvent } from '@/utils/analytics'
 
 const knowledgeStore = useKnowledgeStore()
-
-interface RecentAIHitTopic {
-  topic: string
-  displayName: string
-  count: number
-  sample: RecentAIHitArticle
-}
-
-interface RecentAIHitSource {
-  source: string
-  displayName: string
-  count: number
-  sample: RecentAIHitArticle
-}
 
 interface StageGuideItem {
   key: string
@@ -492,12 +396,6 @@ const mergedArticleCount = computed(() => displayedArticleGroups.value.reduce((c
 const loading = computed(() => knowledgeStore.loading)
 const total = computed(() => knowledgeStore.total)
 const selectedSource = computed(() => knowledgeStore.selectedSource)
-const recentAiHitArticles = computed(() => knowledgeStore.recentAiHitArticles.slice(0, 3).map(item => ({
-  ...item,
-  title: getRecentAiHitDisplayTitle(item),
-})))
-const recentAiHitTopics = computed(() => buildRecentAIHitTopics(knowledgeStore.recentAiHitArticles))
-const recentAiHitSources = computed(() => buildRecentAIHitSources(knowledgeStore.recentAiHitArticles))
 const selectedStageLabel = computed(() => stageOptions[selectedStageIndex.value]?.label || '全部阶段')
 const activeFilterText = computed(() => {
   const parts: string[] = []
@@ -591,14 +489,6 @@ const stageGuide = computed(() => {
     items: buildStageGuideItems(stage || null),
   }
 })
-watch(articles, (list) => {
-  if (list.length === 0) {
-    return
-  }
-
-  void knowledgeStore.prefetchTranslations(list, 1)
-}, { immediate: true })
-
 function syncLocalFiltersFromStore() {
   searchText.value = knowledgeStore.keyword
   syncStageIndex(knowledgeStore.selectedStage)
@@ -610,13 +500,11 @@ async function loadArticles(reset = true) {
 }
 
 onMounted(async () => {
-  knowledgeStore.hydrateRecentAiHitArticles()
   syncLocalFiltersFromStore()
   await loadArticles(true)
 })
 
 onShow(async () => {
-  knowledgeStore.hydrateRecentAiHitArticles()
   syncLocalFiltersFromStore()
   if (articles.value.length === 0) {
     await loadArticles(true)
@@ -631,10 +519,6 @@ function handleSearch() {
     source: selectedSource.value,
     stage: stageOptions[selectedStageIndex.value]?.value || null,
   })
-}
-
-function openTrustCenter() {
-  uni.navigateTo({ url: '/pages/trust-center/index' })
 }
 
 function handleSourceChange(source: string) {
@@ -696,150 +580,6 @@ function resetFilters() {
   void knowledgeStore.fetchArticles({ reset: true, page: 1 })
 }
 
-function formatRecentHitTime(value?: string) {
-  if (!value) return '刚刚命中'
-
-  const diffMs = Date.now() - new Date(value).getTime()
-  if (Number.isNaN(diffMs) || diffMs < 0) return '刚刚命中'
-
-  const diffMinutes = Math.floor(diffMs / 60000)
-  if (diffMinutes < 1) return '刚刚命中'
-  if (diffMinutes < 60) return `${diffMinutes} 分钟前命中`
-
-  const diffHours = Math.floor(diffMinutes / 60)
-  if (diffHours < 24) return `${diffHours} 小时前命中`
-
-  const diffDays = Math.floor(diffHours / 24)
-  return `${diffDays} 天前命中`
-}
-
-function buildRecentAIHitTopics(items: RecentAIHitArticle[]): RecentAIHitTopic[] {
-  const topicMap = new Map<string, RecentAIHitTopic>()
-  items.forEach((item) => {
-    const displayName = (item.topic || '').trim()
-    if (!displayName) return
-
-    const key = displayName.toLowerCase()
-    const existing = topicMap.get(key)
-    if (existing) {
-      existing.count += 1
-      return
-    }
-
-    topicMap.set(key, {
-      topic: item.topic || displayName,
-      displayName,
-      count: 1,
-      sample: item,
-    })
-  })
-
-  return Array.from(topicMap.values())
-    .sort((left, right) => right.count - left.count || left.displayName.localeCompare(right.displayName, 'zh-CN'))
-    .slice(0, 4)
-}
-
-function buildRecentAIHitSources(items: RecentAIHitArticle[]): RecentAIHitSource[] {
-  const sourceMap = new Map<string, RecentAIHitSource>()
-  items.forEach((item) => {
-    const rawSource = (item.sourceOrg || item.source || '').trim()
-    const displayName = formatSourceLabel(rawSource)
-    if (!displayName) return
-
-    const key = displayName.toLowerCase()
-    const existing = sourceMap.get(key)
-    if (existing) {
-      existing.count += 1
-      return
-    }
-
-    sourceMap.set(key, {
-      source: rawSource || displayName,
-      displayName,
-      count: 1,
-      sample: item,
-    })
-  })
-
-  return Array.from(sourceMap.values())
-    .sort((left, right) => right.count - left.count || left.displayName.localeCompare(right.displayName, 'zh-CN'))
-    .slice(0, 4)
-}
-
-function handleOpenRecentAiHit(item: RecentAIHitArticle) {
-  trackMiniEvent('app_knowledge_recent_ai_hit_click', {
-    page: 'KnowledgePage',
-    properties: {
-      entrySource: item.originEntrySource || null,
-      articleSlug: item.slug,
-      articleId: item.articleId,
-      qaId: item.qaId || null,
-      trigger: item.trigger || null,
-      matchReason: item.matchReason || null,
-      reportId: item.originReportId || null,
-    },
-  })
-
-  const shouldWarmTranslation = isChineseKnowledgeArticle(item) ? '0' : '1'
-  const params = [
-    `slug=${encodeURIComponent(item.slug)}`,
-    `translation=${shouldWarmTranslation}`,
-    'source=chat_hit',
-    `trigger=${encodeURIComponent(item.trigger || '')}`,
-    `matchReason=${encodeURIComponent(item.matchReason || '')}`,
-    `originEntrySource=${encodeURIComponent(item.originEntrySource || '')}`,
-    `originReportId=${encodeURIComponent(item.originReportId || '')}`,
-    `qaId=${encodeURIComponent(item.qaId || '')}`,
-  ].join('&')
-  uni.navigateTo({ url: `/pages/knowledge-detail/index?${params}` })
-}
-
-function handleOpenRecentAiTopic(item: RecentAIHitTopic) {
-  trackMiniEvent('app_knowledge_recent_ai_topic_click', {
-    page: 'KnowledgePage',
-    properties: {
-      topic: item.topic,
-      displayName: item.displayName,
-      hitCount: item.count,
-      entrySource: item.sample.originEntrySource || null,
-      articleSlug: item.sample.slug,
-      reportId: item.sample.originReportId || null,
-      qaId: item.sample.qaId || null,
-    },
-  })
-
-  activeScenarioKey.value = ''
-  searchText.value = item.displayName
-  void knowledgeStore.applyFilters({
-    keyword: item.displayName,
-    source: selectedSource.value,
-    stage: stageOptions[selectedStageIndex.value]?.value || null,
-  })
-}
-
-function handleOpenRecentAiSource(item: RecentAIHitSource) {
-  trackMiniEvent('app_knowledge_recent_ai_source_click', {
-    page: 'KnowledgePage',
-    properties: {
-      sourceOrg: item.source,
-      displayName: item.displayName,
-      hitCount: item.count,
-      entrySource: item.sample.originEntrySource || null,
-      articleSlug: item.sample.slug,
-      reportId: item.sample.originReportId || null,
-      qaId: item.sample.qaId || null,
-    },
-  })
-
-  activeScenarioKey.value = ''
-  searchText.value = item.source
-  void knowledgeStore.applyFilters({
-    keyword: item.source,
-    source: 'all',
-    stage: stageOptions[selectedStageIndex.value]?.value || null,
-  })
-}
-
 function applyStageGuide(item: StageGuideItem) {
   activeScenarioKey.value = ''
   searchText.value = item.keyword
@@ -852,12 +592,8 @@ function applyStageGuide(item: StageGuideItem) {
 }
 
 function goToDetail(article: Article) {
-  if (!isChineseKnowledgeArticle(article)) {
-    void knowledgeStore.prefetchTranslations([article], 1)
-  }
-
   const shouldWarmTranslation = isChineseKnowledgeArticle(article) ? '0' : '1'
-  uni.navigateTo({ url: `/pages/knowledge-detail/index?slug=${article.slug}&translation=${shouldWarmTranslation}` })
+  uni.navigateTo({ url: `/pages/knowledge-detail/index?slug=${encodeURIComponent(article.slug)}&translation=${shouldWarmTranslation}` })
 }
 
 function getReadingHint(article: Article): string {
@@ -874,14 +610,6 @@ function getReadingMeta(article: Article) {
 
 function getStageLabel(stage?: string | null): string {
   return getKnowledgeStageLabel(stage || undefined, stageOptions.find(item => item.value === (stage || ''))?.label || '当前阶段')
-}
-
-function getRecentAiHitDisplayTitle(item: RecentAIHitArticle): string {
-  return getKnowledgeDisplayTitle({
-    title: item.title,
-    topic: item.topic,
-    stage: item.stage,
-  })
 }
 
 function getListDisplayTitle(article: Article): string {
@@ -1004,27 +732,33 @@ onShareTimeline(() => {
 <style scoped>
 .knowledge-page {
   min-height: 100vh;
-  background: linear-gradient(180deg, #fffaf6 0%, #f7f9fc 28%, #f4f7fb 100%);
+  background: linear-gradient(180deg, #f9f0f5 0%, #fff7f2 100%);
   padding-bottom: 40rpx;
 }
 
 .hero {
-  padding: 48rpx 28rpx 28rpx;
+  margin: 24rpx 28rpx 22rpx;
+  padding: 34rpx 30rpx;
+  border-radius: 28rpx;
+  background: linear-gradient(180deg, #ffffff 0%, #fdf5f0 100%);
+  border: 1rpx solid rgba(31, 42, 55, 0.06);
 }
 
 .hero-title {
   display: block;
   font-size: 44rpx;
-  font-weight: 700;
-  color: #1f2a37;
+  line-height: 1.25;
+  font-weight: 900;
+  color: #444;
   margin-bottom: 12rpx;
+  letter-spacing: 1rpx;
 }
 
 .hero-subtitle {
   display: block;
   font-size: 26rpx;
   line-height: 1.6;
-  color: #5d6b7b;
+  color: #5f6d7c;
 }
 
 .hero-pills {
@@ -1032,36 +766,6 @@ onShareTimeline(() => {
   flex-wrap: wrap;
   gap: 14rpx;
   margin-top: 20rpx;
-}
-
-.reading-path {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12rpx;
-  margin-top: 22rpx;
-}
-
-.reading-path-item {
-  padding: 16rpx 14rpx;
-  border-radius: 22rpx;
-  background: rgba(255, 255, 255, 0.74);
-  box-shadow: 0 8rpx 24rpx rgba(31, 42, 55, 0.05);
-}
-
-.reading-path-index {
-  display: block;
-  font-size: 20rpx;
-  font-weight: 800;
-  color: #f36f45;
-}
-
-.reading-path-text {
-  display: block;
-  margin-top: 8rpx;
-  font-size: 22rpx;
-  line-height: 1.45;
-  color: #3d4a58;
-  font-weight: 700;
 }
 
 .hero-pill {
@@ -1079,10 +783,9 @@ onShareTimeline(() => {
 .search-bar {
   display: flex;
   align-items: center;
-  padding: 0 28rpx 24rpx;
+  padding: 0 28rpx 22rpx;
 }
 
-.assistant-offline-card,
 .cold-start-card {
   margin: 0 28rpx 24rpx;
   padding: 24rpx;
@@ -1091,37 +794,20 @@ onShareTimeline(() => {
   border: 1rpx solid rgba(243, 111, 69, 0.12);
 }
 
-.assistant-offline-title,
 .cold-start-title {
   display: block;
   font-size: 28rpx;
   line-height: 1.45;
   font-weight: 800;
-  color: #24303d;
+  color: #444;
 }
 
-.assistant-offline-desc,
 .cold-start-desc {
   display: block;
   margin-top: 12rpx;
   font-size: 23rpx;
   line-height: 1.7;
   color: #6d7887;
-}
-
-.assistant-offline-link {
-  margin-top: 18rpx;
-  align-self: flex-start;
-  display: inline-flex;
-  padding: 12rpx 20rpx;
-  border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.72);
-}
-
-.assistant-offline-link-text {
-  color: #b05a3c;
-  font-size: 24rpx;
-  font-weight: 700;
 }
 
 .stage-guide-panel {
@@ -1146,8 +832,8 @@ onShareTimeline(() => {
 .stage-guide-card {
   padding: 22rpx;
   border-radius: 24rpx;
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 10rpx 28rpx rgba(31, 42, 55, 0.05);
+  background: rgba(255, 255, 255, 0.94);
+  border: 1rpx solid rgba(31, 42, 55, 0.06);
 }
 
 .stage-guide-title {
@@ -1155,7 +841,7 @@ onShareTimeline(() => {
   font-size: 27rpx;
   font-weight: 800;
   line-height: 1.45;
-  color: #24303d;
+  color: #444;
 }
 
 .stage-guide-desc {
@@ -1180,6 +866,7 @@ onShareTimeline(() => {
   padding: 0 24rpx;
   background: rgba(255, 255, 255, 0.92);
   border-radius: 38rpx;
+  border: 1rpx solid rgba(31, 42, 55, 0.08);
   font-size: 28rpx;
   box-sizing: border-box;
 }
@@ -1188,7 +875,7 @@ onShareTimeline(() => {
   margin-left: 16rpx;
   padding: 16rpx 28rpx;
   border-radius: 36rpx;
-  background: #f36f45;
+  background: #16806a;
 }
 
 .search-btn-text {
@@ -1232,7 +919,7 @@ onShareTimeline(() => {
   padding: 20rpx;
   border-radius: 26rpx;
   background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 10rpx 28rpx rgba(31, 42, 55, 0.05);
+  box-shadow: 0 10rpx 28rpx rgba(31, 42, 55, 0.02);
   box-sizing: border-box;
 }
 
@@ -1249,7 +936,7 @@ onShareTimeline(() => {
   font-size: 26rpx;
   line-height: 1.5;
   font-weight: 700;
-  color: #24303d;
+  color: #444;
 }
 
 .recent-ai-card-meta,
@@ -1325,7 +1012,7 @@ onShareTimeline(() => {
 .section-title {
   font-size: 28rpx;
   font-weight: 800;
-  color: #24303d;
+  color: #444;
 }
 
 .section-caption {
@@ -1350,12 +1037,12 @@ onShareTimeline(() => {
   padding: 20rpx;
   border-radius: 26rpx;
   background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 10rpx 28rpx rgba(31, 42, 55, 0.05);
+  border: 1rpx solid rgba(31, 42, 55, 0.06);
   box-sizing: border-box;
 }
 
 .scenario-card--active {
-  background: linear-gradient(135deg, #1f8f74 0%, #15725d 100%);
+  background: linear-gradient(135deg, #e8a1a6 0%, #c7656e 100%);
 }
 
 .scenario-title {
@@ -1410,7 +1097,7 @@ onShareTimeline(() => {
 }
 
 .source-chip--active {
-  background: #1f8f74;
+  background: #e8a1a6;
 }
 
 .source-chip-text {
@@ -1511,7 +1198,7 @@ onShareTimeline(() => {
   margin-top: 20rpx;
   padding: 16rpx 30rpx;
   border-radius: 999rpx;
-  background: #1f8f74;
+  background: #e8a1a6;
 }
 
 .state-btn-text {
@@ -1523,9 +1210,10 @@ onShareTimeline(() => {
 .article-card {
   margin-bottom: 22rpx;
   padding: 28rpx;
-  border-radius: 28rpx;
+  border-radius: 24rpx;
   background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 10rpx 30rpx rgba(31, 42, 55, 0.06);
+  border: 1rpx solid rgba(31, 42, 55, 0.06);
+  box-shadow: 0 8rpx 24rpx rgba(31, 42, 55, 0.02);
 }
 
 .article-header {
@@ -1579,7 +1267,7 @@ onShareTimeline(() => {
   font-size: 34rpx;
   font-weight: 700;
   line-height: 1.5;
-  color: #1f2a37;
+  color: #444;
 }
 
 .article-summary {

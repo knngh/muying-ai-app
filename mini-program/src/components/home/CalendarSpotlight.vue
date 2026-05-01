@@ -25,9 +25,9 @@ defineEmits<{
 </script>
 
 <style scoped>
-.calendar-spotlight { margin: 22rpx 32rpx 0; padding: 26rpx 28rpx; border-radius: 30rpx; background: linear-gradient(135deg, #2f7cf6 0%, #5a99ff 100%); box-shadow: 0 18rpx 38rpx rgba(59, 122, 232, 0.2); display: flex; align-items: center; justify-content: space-between; gap: 20rpx; }
+.calendar-spotlight { margin: 22rpx 32rpx 0; padding: 26rpx 28rpx; border-radius: 30rpx; background: linear-gradient(135deg, #e8a1a6 0%, #d88188 100%); box-shadow: 0 18rpx 38rpx rgba(216, 129, 136, 0.2); display: flex; align-items: center; justify-content: space-between; gap: 20rpx; }
 .calendar-spotlight-copy { flex: 1; }
-.calendar-spotlight-kicker { display: block; font-size: 22rpx; font-weight: 700; letter-spacing: 2rpx; color: rgba(235, 244, 255, 0.72); }
+.calendar-spotlight-kicker { display: block; font-size: 22rpx; font-weight: 700; letter-spacing: 2rpx; color: rgba(255, 255, 255, 0.72); }
 .calendar-spotlight-title { display: block; margin-top: 10rpx; font-size: 36rpx; line-height: 1.3; font-weight: 800; color: #ffffff; }
 .calendar-spotlight-desc { display: block; margin-top: 14rpx; font-size: 24rpx; line-height: 1.65; color: rgba(245, 249, 255, 0.88); }
 .calendar-spotlight-side { flex-shrink: 0; min-width: 128rpx; padding: 18rpx 18rpx 16rpx; border-radius: 24rpx; background: rgba(255, 255, 255, 0.16); text-align: center; }

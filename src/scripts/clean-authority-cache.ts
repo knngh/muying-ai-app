@@ -1,7 +1,17 @@
 import '../config/env';
 import fs from 'fs';
 import path from 'path';
-import { sanitizeAuthorityTitle } from '../services/authority-adapters/base.adapter';
+import { getAuthoritySourceConfig, inferAuthorityLocaleDefaults, type AuthoritySourceConfig } from '../config/authority-sources';
+import {
+  containsDeathRelatedTerms,
+  detectAudience,
+  detectTopic,
+  isHighRiskOrClickbaitTitle,
+  isLikelyEnglishNavigationShell,
+  sanitizeAuthorityTitle,
+} from '../services/authority-adapters/base.adapter';
+import { buildAuthorityDisplayTags } from '../utils/authority-metadata';
+import { inferAuthorityStages } from '../utils/authority-stage';
 import { shouldFilterAuthoritySourceUrl } from '../utils/authority-source-url';
 
 interface AuthorityCacheRecord {
@@ -17,8 +27,13 @@ interface AuthorityCacheRecord {
   answer?: string;
   summary?: string;
   category?: string;
+  tags?: string[];
+  target_stage?: string[];
   topic?: string;
   audience?: string;
+  region?: string;
+  source_language?: 'zh' | 'en';
+  source_locale?: string;
   source_updated_at?: string;
   published_at?: string;
   updated_at?: string;
@@ -45,6 +60,18 @@ const GENERIC_TITLE_KEYS = new Set([
 ]);
 
 const AUTHORITY_CHROME_PATTERNS = [
+  /turn on more accessible mode/giu,
+  /turn off more accessible mode/giu,
+  /skip ribbon commands/giu,
+  /skip to main content/giu,
+  /turn off animations/giu,
+  /turn on animations/giu,
+  /our sponsors/giu,
+  /log in\s*\|\s*register/giu,
+  /donate menu/giu,
+  /find a pediatrician/giu,
+  /healthy children\s*>/giu,
+  /page content/giu,
   /长者版/gu,
   /无障碍/gu,
   /\b(?:邮箱|EN)\b/gu,
@@ -209,6 +236,68 @@ function isAapSource(record: AuthorityCacheRecord): boolean {
   return /\baap\b|healthychildren\.org/i.test(`${getSourceName(record)} ${getUrl(record)}`);
 }
 
+function buildAuthorityFallbackSourceConfig(record: AuthorityCacheRecord): AuthoritySourceConfig {
+  const sourceOrg = getSourceName(record);
+  const localeDefaults = inferAuthorityLocaleDefaults(record.source_id, record.region);
+  return {
+    id: record.source_id || sourceOrg,
+    org: sourceOrg,
+    baseUrl: getUrl(record),
+    allowedDomains: [],
+    discoveryType: 'index_page',
+    entryUrls: [],
+    region: (record.region as AuthoritySourceConfig['region']) || 'GLOBAL',
+    language: localeDefaults.sourceLanguage,
+    locale: localeDefaults.sourceLocale,
+    audience: [record.audience || '母婴家庭'],
+    topics: [record.topic || record.category || 'general'],
+    enabled: true,
+    fetchIntervalMinutes: 360,
+    maxPagesPerRun: 1,
+    parserId: record.source_id || sourceOrg,
+  };
+}
+
+function normalizeAuthorityMetadata(record: AuthorityCacheRecord): AuthorityCacheRecord {
+  const sourceConfig = getAuthoritySourceConfig(record.source_id || '') || buildAuthorityFallbackSourceConfig(record);
+  const sourceUrl = getUrl(record);
+  const title = sanitizeAuthorityTitle(record.question || record.title || '') || record.question || record.title || '';
+  const inferredAudience = detectAudience({
+    sourceUrl,
+    title,
+    summary: record.summary,
+    contentText: record.answer,
+  }, sourceConfig);
+  const inferredTopic = detectTopic({
+    sourceUrl,
+    title,
+    summary: record.summary,
+    contentText: record.answer,
+  }, sourceConfig);
+  const inferredStages = inferAuthorityStages({
+    title,
+    summary: record.summary,
+    contentText: record.answer,
+    audience: inferredAudience,
+    topic: inferredTopic,
+  });
+
+  return {
+    ...record,
+    question: title,
+    category: inferredTopic || record.category,
+    audience: inferredAudience,
+    topic: inferredTopic || record.topic,
+    target_stage: inferredStages.length > 0 ? inferredStages : (record.target_stage || []),
+    tags: buildAuthorityDisplayTags({
+      topic: inferredTopic || record.topic,
+      audience: inferredAudience,
+      tags: [],
+      sourceOrg: record.source_org || record.source,
+    }),
+  };
+}
+
 function extractAapArticleBody(content: string): string {
   if (!content) {
     return '';
@@ -220,7 +309,10 @@ function extractAapArticleBody(content: string): string {
     normalized = pageContentMatch[1].trim();
   }
 
-  return normalized.replace(/\b(?:Article Body|Last Updated|Follow Us)\b[\s\S]*$/i, '').trim();
+  return normalized
+    .replace(/\b(?:Article Body|Last Updated|Follow Us)\b[\s\S]*$/i, '')
+    .replace(/^[a-z][a-z0-9-]{2,}[~;]\s*/i, '')
+    .trim();
 }
 
 function normalizeRecord(record: AuthorityCacheRecord, index: number): WorkingRecord {
@@ -248,11 +340,18 @@ function normalizeRecord(record: AuthorityCacheRecord, index: number): WorkingRe
     summary = cleanedSummary;
   }
 
-  return {
+  if (answer && summary && (countAuthorityChromeMatches(summary) >= 4 || isLikelyEnglishNavigationShell(summary))) {
+    summary = answer.slice(0, 300);
+  }
+
+  const normalized = normalizeAuthorityMetadata({
     ...record,
     question,
     answer,
     summary,
+  });
+  return {
+    ...normalized,
     __index: index,
   };
 }
@@ -297,6 +396,15 @@ function getRecordQualityScore(record: AuthorityCacheRecord): number {
 function getDropReason(record: AuthorityCacheRecord): string | null {
   if (shouldFilterAuthoritySourceUrl(record)) {
     return 'filtered_source_url';
+  }
+
+  const sensitivityReason = isHighRiskOrClickbaitTitle(record.question || record.title || '');
+  if (sensitivityReason) {
+    return sensitivityReason;
+  }
+
+  if (containsDeathRelatedTerms(`${record.summary || ''} ${record.answer || ''}`)) {
+    return 'death_related_term';
   }
 
   if (isLowValueTitle(record)) {

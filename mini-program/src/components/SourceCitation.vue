@@ -72,7 +72,7 @@ function onSourceTap(source: SourceReference) {
 }
 .source-title {
   font-size: 24rpx;
-  color: #333;
+  color: #444;
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;

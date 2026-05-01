@@ -72,6 +72,22 @@ describe('authority source url filtering', () => {
     })).toBe(false);
   });
 
+  test('filters gov.cn support policy pages but keeps health guidance pages', () => {
+    expect(shouldFilterAuthoritySourceUrl({
+      source_id: 'govcn-jiedu-muying',
+      source_org: '中国政府网政策解读',
+      question: '国家育儿补贴方案六大热点问答',
+      source_url: 'https://www.gov.cn/zhengce/202507/content_7034137.htm',
+    })).toBe(true);
+
+    expect(shouldFilterAuthoritySourceUrl({
+      source_id: 'govcn-jiedu-muying',
+      source_org: '中国政府网政策解读',
+      question: '《婴幼儿早期发展服务指南（试行）》文件解读',
+      source_url: 'https://www.gov.cn/zhengce/202502/content_7002879.htm',
+    })).toBe(false);
+  });
+
   test('filters DXY category pages but keeps concrete article pages', () => {
     expect(shouldFilterAuthoritySourceUrl({
       source_id: 'dxy-maternal',
@@ -105,6 +121,61 @@ describe('authority source url filtering', () => {
     expect(shouldFilterAuthoritySourceUrl({
       source_id: 'familydoctor-maternal',
       source_url: 'https://www.familydoctor.com.cn/baby/a/202604/3948358.html',
+    })).toBe(false);
+  });
+
+  test('filters Yilianmeiti category/media pages but keeps concrete article pages', () => {
+    expect(shouldFilterAuthoritySourceUrl({
+      source_id: 'yilianmeiti-maternal-child',
+      source_url: 'https://www.yilianmeiti.com/3/',
+    })).toBe(true);
+
+    expect(shouldFilterAuthoritySourceUrl({
+      source_id: 'yilianmeiti-maternal-child',
+      source_url: 'https://www.yilianmeiti.com/video/d/199003.html',
+    })).toBe(true);
+
+    expect(shouldFilterAuthoritySourceUrl({
+      source_id: 'yilianmeiti-maternal-child',
+      source_url: 'https://www.yilianmeiti.com/article/2528524.html',
+    })).toBe(false);
+  });
+
+  test('filters newly added Chinese source landing pages but keeps detail pages', () => {
+    expect(shouldFilterAuthoritySourceUrl({
+      source_id: 'ncwch-maternal-child-health',
+      source_url: 'https://www.ncwchnhc.org.cn/content/redirect?id=7390950695819546624',
+    })).toBe(true);
+    expect(shouldFilterAuthoritySourceUrl({
+      source_id: 'ncwch-maternal-child-health',
+      source_url: 'https://www.ncwchnhc.org.cn/content/content.html?id=7313481602116358144',
+    })).toBe(false);
+
+    expect(shouldFilterAuthoritySourceUrl({
+      source_id: 'mchscn-monitoring',
+      source_url: 'https://www.mchscn.cn/MaternalSafetyMonitoring-26.html',
+    })).toBe(true);
+    expect(shouldFilterAuthoritySourceUrl({
+      source_id: 'mchscn-monitoring',
+      source_url: 'https://www.mchscn.cn/MaternalSafetyMonitoring-26/682.html',
+    })).toBe(false);
+
+    expect(shouldFilterAuthoritySourceUrl({
+      source_id: 'cnsoc-dietary-guidelines',
+      source_url: 'http://dg.cnsoc.org/index.html',
+    })).toBe(true);
+    expect(shouldFilterAuthoritySourceUrl({
+      source_id: 'cnsoc-dietary-guidelines',
+      source_url: 'http://dg.cnsoc.org/article/04/gc5cUak3RhSGheqSaRljnA.html',
+    })).toBe(false);
+
+    expect(shouldFilterAuthoritySourceUrl({
+      source_id: 'chinanutri-maternal-child',
+      source_url: 'https://www.chinanutri.cn/xwzx_238/gzdt/202603/t20260325_315897.html',
+    })).toBe(true);
+    expect(shouldFilterAuthoritySourceUrl({
+      source_id: 'chinanutri-maternal-child',
+      source_url: 'https://www.chinanutri.cn/xwzx_238/xyxw/202603/t20260316_315502.html',
     })).toBe(false);
   });
 });

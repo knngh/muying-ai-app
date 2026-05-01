@@ -72,9 +72,9 @@ onShow(() => { loadFavorites() })
 .favorites-page { min-height: 100vh; background: #f5f7fa; padding: 24rpx; }
 .empty-state { display: flex; flex-direction: column; align-items: center; padding: 120rpx 0; }
 .empty-text { font-size: 28rpx; color: #999; margin-bottom: 24rpx; }
-.empty-action { background: #ff6b9d; color: #fff; padding: 16rpx 40rpx; border-radius: 24rpx; font-size: 28rpx; }
-.fav-card { background: #fff; padding: 24rpx; border-radius: 16rpx; margin-bottom: 16rpx; box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.04); }
+.empty-action { background: #16806a; color: #fff; padding: 16rpx 40rpx; border-radius: 24rpx; font-size: 28rpx; }
+.fav-card { background: #fffcf8; padding: 24rpx; border-radius: 16rpx; margin-bottom: 16rpx; box-shadow: 0 4rpx 12rpx rgba(31, 42, 55, 0.02); }
 .fav-content { display: flex; flex-direction: column; gap: 8rpx; }
-.fav-title { font-size: 28rpx; font-weight: 600; color: #333; line-height: 1.5; }
+.fav-title { font-size: 28rpx; font-weight: 600; color: #444; line-height: 1.5; }
 .fav-meta { font-size: 22rpx; color: #999; }
 </style>

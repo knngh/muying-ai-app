@@ -57,113 +57,6 @@
         </view>
       </view>
 
-      <view class="ai-assist-box">
-        <view class="ai-assist-head">
-          <view>
-            <text class="ai-assist-kicker">阅读助手</text>
-            <text class="ai-assist-title">先抓住这 3 个重点</text>
-          </view>
-          <text class="ai-assist-badge">{{ aiAssist.focusLabel }}</text>
-        </view>
-
-        <view class="ai-assist-grid">
-          <view class="ai-assist-chip">
-            <text class="ai-assist-chip-label">适合谁看</text>
-            <text class="ai-assist-chip-value">{{ aiAssist.audienceLabel }}</text>
-          </view>
-          <view class="ai-assist-chip">
-            <text class="ai-assist-chip-label">主题焦点</text>
-            <text class="ai-assist-chip-value">{{ aiAssist.focusLabel }}</text>
-          </view>
-        </view>
-
-        <view class="ai-assist-points">
-          <view
-            v-for="item in aiAssist.points"
-            :key="item"
-            class="ai-assist-point"
-          >
-            <text class="ai-assist-point-dot"></text>
-            <text class="ai-assist-point-text">{{ item }}</text>
-          </view>
-        </view>
-
-        <view v-if="aiAssist.terms.length" class="ai-terms-box">
-          <text class="ai-terms-title">术语解释</text>
-          <view
-            v-for="term in aiAssist.terms"
-            :key="term.term"
-            class="ai-term-item"
-          >
-            <text class="ai-term-name">{{ term.term }}</text>
-            <text class="ai-term-desc">{{ term.explanation }}</text>
-          </view>
-        </view>
-
-        <text class="ai-assist-note">{{ aiAssist.safetyNote }}</text>
-      </view>
-
-      <view class="pathway-box">
-        <text class="pathway-title">继续这样读更高效</text>
-        <view class="pathway-actions">
-          <view class="pathway-action" @tap="openTopicFeed">
-            <text class="pathway-action-title">看同主题资料</text>
-            <text class="pathway-action-desc">{{ topicFeedDescription }}</text>
-          </view>
-          <view class="pathway-action" @tap="openStageFeed">
-            <text class="pathway-action-title">按当前阶段继续筛</text>
-            <text class="pathway-action-desc">{{ stageFeedDescription }}</text>
-          </view>
-        </view>
-      </view>
-
-      <view class="read-guide-box">
-        <text class="read-guide-title">建议这样阅读</text>
-        <text
-          v-for="item in detailHighlights"
-          :key="item"
-          class="read-guide-item"
-        >
-          {{ item }}
-        </text>
-      </view>
-
-      <view class="reading-meta-box">
-        <text class="reading-meta-kicker">阅读速览</text>
-        <view class="reading-meta-head">
-          <text class="reading-meta-title">先判断篇幅和结构</text>
-          <text class="reading-meta-mode">{{ readingMeta.contentModeLabel }}</text>
-        </view>
-        <view class="reading-meta-grid">
-          <view class="reading-meta-item">
-            <text class="reading-meta-item-label">建议阅读</text>
-            <text class="reading-meta-item-value">{{ readingMeta.estimatedMinutesLabel }}</text>
-          </view>
-          <view class="reading-meta-item">
-            <text class="reading-meta-item-label">正文体量</text>
-            <text class="reading-meta-item-value">{{ readingMeta.textLengthLabel }}</text>
-          </view>
-          <view class="reading-meta-item">
-            <text class="reading-meta-item-label">结构信息</text>
-            <text class="reading-meta-item-value">{{ readingMeta.sectionLabel }}</text>
-          </view>
-        </view>
-      </view>
-
-      <view class="reading-path-box">
-        <text class="reading-path-kicker">{{ readingPath.kicker }}</text>
-        <text class="reading-path-title">{{ readingPath.title }}</text>
-        <text class="reading-path-desc">{{ readingPath.description }}</text>
-        <view
-          v-for="item in readingPath.items"
-          :key="item.title"
-          class="reading-path-item"
-        >
-          <text class="reading-path-item-title">{{ item.title }}</text>
-          <text class="reading-path-item-desc">{{ item.description }}</text>
-        </view>
-      </view>
-
       <view v-if="displayedSummaryText" class="summary-box">
         <text class="summary-label">{{ showingTranslation ? '中文摘要' : '核心摘要' }}</text>
         <text class="summary-text">{{ displayedSummaryText }}</text>
@@ -280,12 +173,9 @@ import type { AuthorityArticleTranslation } from '@/api/modules'
 import type { Article } from '@/api/modules'
 import { useKnowledgeStore } from '@/stores/knowledge'
 import { getAuthorityRegionLabel, getAuthorityRegionTag, isChineseAuthoritySource } from '@/utils/authority-source'
-import { buildKnowledgeAiAssist } from '@/utils/ai-assist'
 import { trackMiniEvent } from '@/utils/analytics'
 import {
   addArticleHeadingAnchors,
-  buildKnowledgeReadingMeta,
-  buildKnowledgeReadingPath,
   extractArticleOutline,
   formatDate,
   formatRichArticleContent,
@@ -332,6 +222,9 @@ const readingProgress = ref(0)
 const showBackToTop = ref(false)
 const contentHeightPx = ref(1)
 const viewportHeightPx = ref(uni.getSystemInfoSync().windowHeight || 1)
+let translationRetryTimer: ReturnType<typeof setTimeout> | null = null
+let translationRetryCount = 0
+const MAX_TRANSLATION_RETRY_COUNT = 12
 let openSourceType: '' | 'chat_hit' = ''
 let openAiHitContext: {
   qaId?: string
@@ -365,8 +258,6 @@ const displayedSummary = computed(() => {
 })
 
 const displayedSummaryText = computed(() => normalizePlainText(displayedSummary.value))
-const readingMeta = computed(() => buildKnowledgeReadingMeta(article.value))
-const readingPath = computed(() => buildKnowledgeReadingPath(article.value))
 
 const displayedSourceUrl = computed(() => sanitizeAuthoritySourceUrl(
   article.value?.sourceUrl,
@@ -440,12 +331,11 @@ const translationDescriptionText = computed(() => {
     return translationNoticeText.value
   }
 
-  return '打开文章后会优先准备中文阅读版，生成一次后后续直接读取缓存。'
+  return '打开文章后会由 MiniMax 优先生成中文阅读版，生成一次后后续直接读取缓存。'
 })
 
 const authorityRegionLabel = computed(() => getAuthorityRegionLabel(article.value))
 const authorityRegionTag = computed(() => getAuthorityRegionTag(article.value))
-const aiAssist = computed(() => buildKnowledgeAiAssist(article.value))
 const authorityCalloutText = computed(() => {
   if (isChineseAuthoritySource(article.value)) {
     return '这篇内容来自中国权威机构公开资料，默认展示中文原文与同步时间。'
@@ -526,36 +416,6 @@ const topicFocusLabel = computed(() => (
 ))
 
 const normalizedStageValue = computed(() => normalizeArticleStage(article.value))
-const stageLabel = computed(() => stageLabelMap[normalizedStageValue.value] || '')
-const topicFeedDescription = computed(() => (
-  article.value?.topic
-    ? `围绕${topicFocusLabel.value}继续连着读`
-    : '回到知识库看相近主题'
-))
-const stageFeedDescription = computed(() => (
-  stageLabel.value
-    ? `直接回到${stageLabel.value}的文章列表`
-    : '回到知识库按阶段缩小范围'
-))
-
-const detailHighlights = computed(() => {
-  const highlights: string[] = []
-
-  if (isChineseAuthoritySource(article.value)) {
-    highlights.push('先看中文原文和来源更新时间，适合直接核对政策、指南和官方口径。')
-  } else {
-    highlights.push('先看摘要，再决定是否切换中文辅助阅读或打开机构原文。')
-  }
-
-  if (article.value?.audience) {
-    highlights.push(`当前更适合 ${article.value.audience} 人群参考，使用前先确认是否与你的阶段一致。`)
-  } else {
-    highlights.push('使用前先确认适用阶段和对象，避免把通用建议直接套用到个体情况。')
-  }
-
-  highlights.push('如果内容涉及症状恶化、紧急情况或个体治疗方案，请结合线下医生意见判断。')
-  return highlights
-})
 
 const translationReadyText = computed(() => {
   if (!showTranslationEntry.value) return ''
@@ -632,15 +492,19 @@ function openTrustCenter() {
 
 function normalizeTranslationError(err: unknown): string {
   if (isTranslationPendingError(err)) {
-    return '中文辅助阅读正在准备中，请稍后自动刷新或再点一次'
+    return 'MiniMax 正在生成中文阅读版，完成后会自动切换'
   }
 
   const message = err instanceof Error ? err.message : '翻译失败，请稍后重试'
   if (/timeout|超时|timed out/i.test(message)) {
-    return '译文生成时间较长，请稍后再试'
+    return 'MiniMax 正在生成中文阅读版，完成后会自动刷新'
   }
 
   return message
+}
+
+function getArticleTranslationVersion(articleItem: Article): string | undefined {
+  return articleItem.sourceUpdatedAt || articleItem.publishedAt || articleItem.createdAt || undefined
 }
 
 async function toggleTranslation() {
@@ -660,9 +524,13 @@ async function toggleTranslation() {
     try {
       translation.value = await ensureTranslationLoaded(currentSlug)
     } catch (err: unknown) {
+      if (isTranslationPendingError(err)) {
+        scheduleTranslationRetry(currentSlug, err.retryAfterMs)
+        return
+      }
       const message = normalizeTranslationError(err)
       translationError.value = message
-      uni.showToast({ title: '翻译失败', icon: 'none' })
+      uni.showToast({ title: message.includes('MiniMax 正在生成') ? '正在生成译文' : '翻译失败', icon: 'none' })
       return
     } finally {
       translating.value = false
@@ -673,6 +541,8 @@ async function toggleTranslation() {
 }
 
 async function loadArticleDetail(slug: string) {
+  clearTranslationRetryTimer()
+  translationRetryCount = 0
   readingProgress.value = 0
   showBackToTop.value = false
   contentHeightPx.value = Math.max(viewportHeightPx.value, 1)
@@ -687,8 +557,22 @@ async function loadArticleDetail(slug: string) {
     void prefetchTranslation()
   }
 
-  await articleDetailTask
+  const loadedArticle = await articleDetailTask
+  if (!loadedArticle || currentSlug !== slug) {
+    handleMissingKnowledgeArticle(slug)
+    return
+  }
+
   await syncRelatedArticles()
+
+  const currentCachedTranslation = knowledgeStore.getCachedTranslation(slug, getArticleTranslationVersion(loadedArticle))
+  if (currentCachedTranslation) {
+    translation.value = currentCachedTranslation
+  } else if (translation.value) {
+    translation.value = null
+    showingTranslation.value = false
+  }
+
   persistRecentKnowledge()
   syncContinueReading()
   await measurePageMetrics()
@@ -710,6 +594,36 @@ async function loadArticleDetail(slug: string) {
 
   if (!translation.value && !isLikelyChineseSource.value) {
     void prefetchTranslation()
+  }
+}
+
+function removeStoredKnowledgeArticle(slug: string) {
+  const storedRecent = uni.getStorageSync(RECENT_KNOWLEDGE_STORAGE_KEY) as RecentKnowledgeItem[] | null
+  if (Array.isArray(storedRecent)) {
+    uni.setStorageSync(
+      RECENT_KNOWLEDGE_STORAGE_KEY,
+      storedRecent.filter(item => item.slug !== slug),
+    )
+  }
+
+  const storedAiHits = uni.getStorageSync('knowledgeRecentAiHitArticles') as Array<{ slug?: string }> | null
+  if (Array.isArray(storedAiHits)) {
+    uni.setStorageSync(
+      'knowledgeRecentAiHitArticles',
+      storedAiHits.filter(item => item.slug !== slug),
+    )
+  }
+}
+
+function handleMissingKnowledgeArticle(slug: string) {
+  removeStoredKnowledgeArticle(slug)
+
+  if (/不存在|下线|not found/i.test(error.value || '')) {
+    uni.showToast({ title: '内容已更新，正在刷新知识库', icon: 'none' })
+    void knowledgeStore.fetchArticles({ reset: true, page: 1 })
+    setTimeout(() => {
+      uni.switchTab({ url: '/pages/knowledge/index' })
+    }, 800)
   }
 }
 
@@ -747,41 +661,72 @@ async function ensureTranslationLoaded(slug: string): Promise<AuthorityArticleTr
   const result = await knowledgeStore.fetchTranslation(slug)
   if (currentSlug === slug) {
     translation.value = result
+    clearTranslationRetryTimer()
+    translationRetryCount = 0
   }
   return result
 }
 
+function clearTranslationRetryTimer() {
+  if (translationRetryTimer) {
+    clearTimeout(translationRetryTimer)
+    translationRetryTimer = null
+  }
+}
+
+function scheduleTranslationRetry(slug: string, retryAfterMs?: number) {
+  if (slug !== currentSlug || translation.value || isLikelyChineseSource.value) {
+    return
+  }
+
+  if (translationRetryCount >= MAX_TRANSLATION_RETRY_COUNT) {
+    translationError.value = 'MiniMax 翻译仍在后台生成，完成后再次打开会直接读取缓存'
+    return
+  }
+
+  clearTranslationRetryTimer()
+  translationRetryCount += 1
+  const delay = Math.min(Math.max(retryAfterMs || 5000, 4000), 15000)
+  translationRetryTimer = setTimeout(() => {
+    if (slug === currentSlug && !translation.value && !isLikelyChineseSource.value) {
+      void prefetchTranslation()
+    }
+  }, delay)
+}
+
 async function prefetchTranslation() {
-  const shouldWaitForReady = autoShowTranslation.value || shouldWarmTranslation.value
   if (
     !currentSlug
     || translation.value
-    || (isLikelyChineseSource.value && !shouldWaitForReady)
+    || isLikelyChineseSource.value
   ) {
     return
   }
 
-  if (shouldWaitForReady) {
-    translating.value = true
-    translationError.value = ''
-  }
+  const slug = currentSlug
+  translating.value = true
+  translationError.value = ''
 
   try {
-    const result = shouldWaitForReady
-      ? await knowledgeStore.fetchTranslation(currentSlug)
-      : await knowledgeStore.warmupTranslation(currentSlug)
+    const result = await knowledgeStore.fetchTranslation(slug)
 
-    if (result && currentSlug === result.slug && autoShowTranslation.value && !result.isSourceChinese) {
+    if (result && currentSlug === result.slug && !result.isSourceChinese) {
       translation.value = result
-      showingTranslation.value = true
+      clearTranslationRetryTimer()
+      translationRetryCount = 0
+      if (autoShowTranslation.value) {
+        showingTranslation.value = true
+      }
     }
   } catch (err) {
-    if (!isTranslationPendingError(err)) {
-      translationError.value = normalizeTranslationError(err)
+    if (isTranslationPendingError(err)) {
+      scheduleTranslationRetry(slug, err.retryAfterMs)
+      return
     }
+    translationError.value = normalizeTranslationError(err)
     return
   } finally {
-    if (shouldWaitForReady) {
+    if (currentSlug === slug) {
       translating.value = false
     }
   }
@@ -902,28 +847,6 @@ function syncContinueReading() {
   continueReadingItems.value = uniqueItems.slice(0, 3)
 }
 
-function openTopicFeed() {
-  const keyword = article.value?.topic
-    ? topicFocusLabel.value
-    : article.value?.title || ''
-
-  void knowledgeStore.applyFilters({
-    keyword,
-    source: 'all',
-    stage: normalizedStageValue.value || null,
-  })
-  uni.switchTab({ url: '/pages/knowledge/index' })
-}
-
-function openStageFeed() {
-  void knowledgeStore.applyFilters({
-    keyword: '',
-    source: 'all',
-    stage: normalizedStageValue.value || null,
-  })
-  uni.switchTab({ url: '/pages/knowledge/index' })
-}
-
 function openContinueReading(slug: string) {
   const target = continueReadingItems.value.find(item => item.slug === slug)
   if (!slug || slug === currentSlug || !target) {
@@ -1017,10 +940,6 @@ watch(
 .article-header,
 .authority-callout,
 .context-board,
-.pathway-box,
-.read-guide-box,
-.reading-meta-box,
-.reading-path-box,
 .summary-box,
 .source-box,
 .outline-box,
@@ -1028,7 +947,7 @@ watch(
 .article-content,
 .disclaimer-box,
 .continue-reading-box {
-  background: #fff;
+  background: #fffcf8;
   border-radius: 28rpx;
   margin-bottom: 20rpx;
   padding: 28rpx;
@@ -1085,7 +1004,7 @@ watch(
   font-size: 40rpx;
   line-height: 1.45;
   font-weight: 700;
-  color: #1f2a37;
+  color: #444;
   margin-bottom: 18rpx;
 }
 
@@ -1118,7 +1037,7 @@ watch(
   display: block;
   font-size: 24rpx;
   font-weight: 700;
-  color: #24303d;
+  color: #444;
 }
 
 .authority-callout-text {
@@ -1201,321 +1120,7 @@ watch(
   font-size: 27rpx;
   line-height: 1.5;
   font-weight: 700;
-  color: #24303d;
-}
-
-.pathway-title {
-  display: block;
-  font-size: 28rpx;
-  font-weight: 700;
-  color: #24303d;
-}
-
-.pathway-actions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16rpx;
-  margin-top: 18rpx;
-}
-
-.pathway-action {
-  min-height: 148rpx;
-  padding: 22rpx;
-  border-radius: 24rpx;
-  background: linear-gradient(145deg, #f8fbff 0%, #eef5ff 100%);
-}
-
-.pathway-action-title {
-  display: block;
-  font-size: 26rpx;
-  font-weight: 800;
-  color: #26415c;
-}
-
-.pathway-action-desc {
-  display: block;
-  margin-top: 10rpx;
-  font-size: 22rpx;
-  line-height: 1.55;
-  color: #61758a;
-}
-
-.read-guide-title {
-  display: block;
-  font-size: 24rpx;
-  font-weight: 700;
-  color: #24303d;
-}
-
-.read-guide-item {
-  display: block;
-  margin-top: 12rpx;
-  font-size: 25rpx;
-  line-height: 1.7;
-  color: #5d6b7b;
-}
-
-.reading-meta-box {
-  background: linear-gradient(145deg, #f7fbfc 0%, #ffffff 100%);
-  border: 1rpx solid rgba(80, 119, 130, 0.14);
-}
-
-.reading-meta-kicker {
-  display: block;
-  font-size: 22rpx;
-  font-weight: 700;
-  letter-spacing: 2rpx;
-  color: #507782;
-}
-
-.reading-meta-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20rpx;
-  margin-top: 10rpx;
-}
-
-.reading-meta-title {
-  font-size: 30rpx;
-  line-height: 1.35;
-  font-weight: 800;
-  color: #24303d;
-}
-
-.reading-meta-mode {
-  flex-shrink: 0;
-  padding: 10rpx 18rpx;
-  border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.88);
-  font-size: 22rpx;
-  font-weight: 700;
-  color: #406672;
-}
-
-.reading-meta-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16rpx;
-  margin-top: 22rpx;
-}
-
-.reading-meta-item {
-  padding: 20rpx 22rpx;
-  border-radius: 22rpx;
-  background: rgba(255, 255, 255, 0.84);
-}
-
-.reading-meta-item-label {
-  display: block;
-  font-size: 22rpx;
-  color: #7b95a0;
-}
-
-.reading-meta-item-value {
-  display: block;
-  margin-top: 10rpx;
-  font-size: 26rpx;
-  line-height: 1.45;
-  font-weight: 800;
-  color: #2c3f4d;
-}
-
-.reading-path-kicker {
-  display: block;
-  font-size: 22rpx;
-  font-weight: 700;
-  letter-spacing: 2rpx;
-  color: #c56e46;
-}
-
-.reading-path-title {
-  display: block;
-  margin-top: 10rpx;
-  font-size: 31rpx;
-  line-height: 1.35;
-  font-weight: 800;
-  color: #24303d;
-}
-
-.reading-path-desc {
-  display: block;
-  margin-top: 12rpx;
-  font-size: 24rpx;
-  line-height: 1.7;
-  color: #69798a;
-}
-
-.reading-path-item + .reading-path-item {
-  margin-top: 14rpx;
-}
-
-.reading-path-item {
-  margin-top: 18rpx;
-  padding: 20rpx 22rpx;
-  border-radius: 22rpx;
-  background: rgba(247, 249, 252, 0.92);
-}
-
-.reading-path-item-title {
-  display: block;
-  font-size: 25rpx;
-  font-weight: 700;
-  color: #25303c;
-}
-
-.reading-path-item-desc {
-  display: block;
-  margin-top: 10rpx;
-  font-size: 24rpx;
-  line-height: 1.68;
-  color: #627180;
-}
-
-.ai-assist-box {
-  margin-bottom: 24rpx;
-  padding: 28rpx;
-  border-radius: 28rpx;
-  background: linear-gradient(135deg, #fff7f2 0%, #fffdf9 100%);
-  box-shadow: 0 14rpx 32rpx rgba(214, 130, 76, 0.1);
-}
-
-.ai-assist-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 18rpx;
-}
-
-.ai-assist-kicker {
-  display: block;
-  font-size: 22rpx;
-  font-weight: 700;
-  letter-spacing: 2rpx;
-  color: #c56e46;
-}
-
-.ai-assist-title {
-  display: block;
-  margin-top: 10rpx;
-  font-size: 32rpx;
-  font-weight: 800;
-  color: #24303d;
-}
-
-.ai-assist-badge {
-  flex-shrink: 0;
-  padding: 12rpx 18rpx;
-  border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.88);
-  font-size: 22rpx;
-  font-weight: 700;
-  color: #b25d35;
-}
-
-.ai-assist-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14rpx;
-  margin-top: 22rpx;
-}
-
-.ai-assist-chip {
-  padding: 18rpx 20rpx;
-  border-radius: 20rpx;
-  background: rgba(255, 255, 255, 0.82);
-}
-
-.ai-assist-chip-label {
-  display: block;
-  font-size: 22rpx;
-  color: #8b7f77;
-}
-
-.ai-assist-chip-value {
-  display: block;
-  margin-top: 10rpx;
-  font-size: 25rpx;
-  line-height: 1.5;
-  font-weight: 700;
-  color: #33404d;
-}
-
-.ai-assist-points {
-  margin-top: 22rpx;
-}
-
-.ai-assist-point {
-  display: flex;
-  align-items: flex-start;
-  gap: 14rpx;
-}
-
-.ai-assist-point + .ai-assist-point {
-  margin-top: 14rpx;
-}
-
-.ai-assist-point-dot {
-  width: 12rpx;
-  height: 12rpx;
-  margin-top: 12rpx;
-  border-radius: 50%;
-  background: #ef7a54;
-  flex-shrink: 0;
-}
-
-.ai-assist-point-text {
-  flex: 1;
-  font-size: 25rpx;
-  line-height: 1.72;
-  color: #4b5968;
-}
-
-.ai-terms-box {
-  margin-top: 24rpx;
-  padding-top: 22rpx;
-  border-top: 2rpx solid rgba(232, 206, 189, 0.6);
-}
-
-.ai-terms-title {
-  display: block;
-  font-size: 24rpx;
-  font-weight: 700;
-  color: #24303d;
-}
-
-.ai-term-item + .ai-term-item {
-  margin-top: 14rpx;
-}
-
-.ai-term-item {
-  margin-top: 16rpx;
-  padding: 18rpx 20rpx;
-  border-radius: 20rpx;
-  background: rgba(255, 255, 255, 0.78);
-}
-
-.ai-term-name {
-  display: block;
-  font-size: 24rpx;
-  font-weight: 700;
-  color: #d36d43;
-}
-
-.ai-term-desc {
-  display: block;
-  margin-top: 8rpx;
-  font-size: 24rpx;
-  line-height: 1.7;
-  color: #617181;
-}
-
-.ai-assist-note {
-  display: block;
-  margin-top: 22rpx;
-  font-size: 22rpx;
-  line-height: 1.7;
-  color: #7d6c61;
+  color: #444;
 }
 
 .summary-label,
@@ -1577,7 +1182,7 @@ watch(
   font-size: 30rpx;
   line-height: 1.35;
   font-weight: 800;
-  color: #24303d;
+  color: #444;
 }
 
 .outline-item + .outline-item {
@@ -1614,7 +1219,7 @@ watch(
 .content-text {
   font-size: 30rpx;
   line-height: 1.85;
-  color: #24303d;
+  color: #444;
   text-align: justify;
   text-align-last: left;
 }
@@ -1630,7 +1235,7 @@ watch(
 .translation-title {
   font-size: 28rpx;
   font-weight: 700;
-  color: #24303d;
+  color: #444;
 }
 
 .translation-desc {
@@ -1651,7 +1256,7 @@ watch(
   display: block;
   font-size: 28rpx;
   font-weight: 700;
-  color: #24303d;
+  color: #444;
 }
 
 .continue-reading-desc {

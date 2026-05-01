@@ -35,9 +35,9 @@ defineProps<{
 
 <style scoped>
 .hero-section { padding: 116rpx 32rpx 0; }
-.hero-copy { padding: 44rpx 36rpx 34rpx; border-radius: 40rpx; background: linear-gradient(145deg, rgba(255, 247, 241, 0.95) 0%, rgba(255, 255, 255, 0.9) 100%); box-shadow: 0 18rpx 46rpx rgba(225, 131, 85, 0.12); }
+.hero-copy { padding: 44rpx 36rpx 34rpx; border-radius: 40rpx; background: linear-gradient(145deg, rgba(255, 247, 242, 0.95) 0%, rgba(255, 255, 255, 0.95) 100%); box-shadow: 0 18rpx 46rpx rgba(225, 131, 85, 0.08); }
 .eyebrow { display: block; margin-bottom: 16rpx; font-size: 22rpx; font-weight: 700; letter-spacing: 2rpx; color: #b25d35; }
-.hero-title { display: block; font-size: 50rpx; line-height: 1.24; font-weight: 800; color: #1f2a37; }
+.hero-title { display: block; font-size: 50rpx; line-height: 1.24; font-weight: 800; color: #444; }
 .hero-subtitle { display: block; margin-top: 18rpx; font-size: 27rpx; line-height: 1.7; color: #566476; }
 .hero-badges { display: flex; gap: 18rpx; margin-top: 24rpx; }
 .hero-badge { flex: 1; padding: 24rpx 26rpx; border-radius: 26rpx; background: rgba(255, 255, 255, 0.78); box-shadow: 0 10rpx 28rpx rgba(31, 42, 55, 0.06); }

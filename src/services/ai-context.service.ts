@@ -159,6 +159,7 @@ export function buildAnswerPolicy(question: string, userContext: unknown): strin
     '- 以用户当前问题和本轮补充信息为优先。',
     '- 用户历史档案仅作辅助参考，可能不是最新状态。',
     '- 不能把模型记忆当成最终依据，优先使用检索到的参考资料。',
+    '- 中文问题优先采用中国官方/中文权威来源；中文来源不足时，再用英文权威来源补充，并说明参考边界。',
   ];
 
   if (explicitStage) {

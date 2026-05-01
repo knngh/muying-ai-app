@@ -42,7 +42,7 @@
         小程序当前不要求上传身份证件、真实姓名或其他敏感身份材料。不登录也可以先浏览知识库和孕周日历；需要保存记录、待办或阶段信息时才会使用登录状态。
       </text>
       <text class="section-text">
-        阅读问答能力暂不在小程序上线，后续会在安全提示、来源引用和风险分级更稳定后再开放。
+        当前版本以资料检索、译文阅读和个人记录为主，后续能力会在来源引用和风险提示更稳定后再开放。
       </text>
     </view>
   </view>
@@ -113,7 +113,7 @@ onShareTimeline(() => ({ title: sharePayload.title, query: '' }))
 }
 
 .section-card {
-  background: #ffffff;
+  background: #fffcf8;
   border: 1rpx solid #edf1f3;
 }
 

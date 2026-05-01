@@ -62,24 +62,25 @@ export const articleApi = {
   getTranslationStatus: (slug: string) => api.get<AuthorityArticleTranslationResponse>(
     `/articles/${slug}/translation`,
     undefined,
-    { timeout: 12000 },
+    { timeout: AUTHORITY_TRANSLATION_REQUEST_TIMEOUT_MS },
   ),
   kickoffTranslation: async (slug: string) => {
     const response = await api.get<AuthorityArticleTranslationResponse>(
       `/articles/${slug}/translation`,
       undefined,
-      { timeout: 12000 },
+      { timeout: AUTHORITY_TRANSLATION_REQUEST_TIMEOUT_MS },
     )
     return response.status === 'ready' ? (response.translation || null) : null
   },
   getTranslation: async (slug: string, options?: ArticleTranslationOptions) => {
     const maxAttempts = Math.max(1, options?.maxAttempts || 3)
+    const waitForReady = options?.waitForReady ?? true
     let pendingRetryAfterMs: number | undefined
 
     for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
       const response = await api.get<AuthorityArticleTranslationResponse>(
         `/articles/${slug}/translation`,
-        { wait: '1' },
+        waitForReady ? { wait: '1' } : undefined,
         { timeout: AUTHORITY_TRANSLATION_REQUEST_TIMEOUT_MS },
       )
       if (response.status === 'ready' && response.translation) {

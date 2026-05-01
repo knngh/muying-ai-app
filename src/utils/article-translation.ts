@@ -17,6 +17,14 @@ export function hasTranslationPromptLeak(input: string): boolean {
   return TRANSLATION_PROMPT_LEAK_PATTERN.test(input);
 }
 
+export function isPlaceholderTranslationText(input: string): boolean {
+  const normalized = normalizeWhitespace(input)
+    .replace(/[\s\u00a0]+/g, '')
+    .trim();
+
+  return /^(?:[.。．]{2,}|…+|省略|待翻译|翻译内容|译文内容|中文译文|中文翻译|placeholder)$/iu.test(normalized);
+}
+
 export function sanitizeTranslationText(
   input: string | null | undefined,
   type: 'title' | 'summary' | 'content',
@@ -46,6 +54,10 @@ export function sanitizeTranslationText(
     .replace(/^(?:以下(?:是|为)|下面(?:是|为)|这是)(?:本篇|这篇|当前)?(?:文章|原文|内容)?(?:的)?(?:中文)?(?:辅助)?(?:翻译|译文|中文版)?\s*[：:。.]?\s*/u, '')
     .replace(labelPattern, '')
     .trim();
+
+  if (isPlaceholderTranslationText(normalized)) {
+    return '';
+  }
 
   return normalized;
 }

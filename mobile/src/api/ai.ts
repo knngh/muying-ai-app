@@ -24,6 +24,7 @@ export const aiApi = {
       model?: AskResponse['model']
       provider?: AskResponse['provider']
       route?: AskResponse['route']
+      aiDisclosure?: AskResponse['aiDisclosure']
     }>('/ai/ask', {
       question: data.question,
       context: data.context,
@@ -48,6 +49,7 @@ export const aiApi = {
       model: res.model,
       provider: res.provider,
       route: res.route,
+      aiDisclosure: res.aiDisclosure,
     } as AskResponse
   },
   chat: async (data: {
@@ -74,6 +76,7 @@ export const aiApi = {
       model?: ChatResponse['model']
       provider?: ChatResponse['provider']
       route?: ChatResponse['route']
+      aiDisclosure?: ChatResponse['aiDisclosure']
     }>('/ai/chat', data)
 
     return {
@@ -93,6 +96,7 @@ export const aiApi = {
       model: res.model,
       provider: res.provider,
       route: res.route,
+      aiDisclosure: res.aiDisclosure,
     } as ChatResponse
   },
   getHistory: async (conversationId: string): Promise<ChatSession> => {
@@ -146,5 +150,5 @@ export function getEmergencyWarning(): string {
 }
 
 export function getDisclaimer(): string {
-  return '本功能提供母婴一般知识信息参考，不替代专业医疗建议。'
+  return '本功能提供母婴健康信息参考，不提供诊断、治疗或用药决策，不能替代医生面诊。'
 }

@@ -6,4 +6,5 @@ export const config = {
   enableDemoAccounts: __DEV__,
   enableMockPayments: false,
   enableDebugLogs: __DEV__,
+  enablePublicAiFeatures: true,
 }

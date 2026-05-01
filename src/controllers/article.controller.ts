@@ -7,7 +7,12 @@ import { getAuthoritySourceConfig, inferAuthorityLocaleDefaults } from '../confi
 import { successResponse, paginatedResponse, AppError, ErrorCodes } from '../middlewares/error.middleware';
 import { cache, CacheKeys, CacheTTL } from '../services/cache.service';
 import { callTaskModelDetailed, type AITaskModelRole } from '../services/ai-gateway.service';
-import { detectAudience, detectTopic, sanitizeAuthorityTitle } from '../services/authority-adapters/base.adapter';
+import {
+  detectAudience,
+  detectTopic,
+  isLikelyEnglishNavigationShell,
+  sanitizeAuthorityTitle,
+} from '../services/authority-adapters/base.adapter';
 import { textToRichParagraphHtml } from '../utils/article-format';
 import { awardBehaviorPoints } from '../services/checkin.service';
 import {
@@ -95,14 +100,17 @@ const AUTHORITY_CACHE_PATHS = [
   path.join(process.cwd(), 'data', 'authority-knowledge-cache.json'),
   path.join(__dirname, '../../data/authority-knowledge-cache.json'),
 ];
+const AUTHORITY_TRANSLATION_CACHE_PATH = process.env.AUTHORITY_TRANSLATION_CACHE_PATH || '';
 const AUTHORITY_TRANSLATION_CACHE_PATHS = [
-  '/tmp/authority-translation-cache.json',
+  AUTHORITY_TRANSLATION_CACHE_PATH,
   path.join(process.cwd(), 'data', 'authority-translation-cache.json'),
   path.join(__dirname, '../../data/authority-translation-cache.json'),
-];
+  '/tmp/authority-translation-cache.json',
+].filter(Boolean);
 
 let authorityCacheMemo: { path: string; mtimeMs: number; records: AuthorityCacheRecord[] } | null = null;
 let authorityTranslationCacheMemo: Record<string, AuthorityTranslationCacheRecord> | null = null;
+let authorityTranslationCacheMemoSignature = '';
 let translationCacheWriteQueue: Promise<void> = Promise.resolve();
 const authorityTranslationInFlight = new Map<string, Promise<AuthorityTranslationCacheRecord>>();
 const authorityTranslationInFlightTimestamps = new Map<string, number>();
@@ -117,8 +125,28 @@ function cleanupStaleInFlightTranslations() {
     }
   }
 }
-const AUTHORITY_TRANSLATION_WAIT_TIMEOUT_MS = Math.max(10000, Number(process.env.AUTHORITY_TRANSLATION_WAIT_TIMEOUT_MS || 35000));
-const AUTHORITY_TRANSLATION_TASK_ROLES: AITaskModelRole[] = ['minimax_render', 'glm_classify', 'kimi_reason'];
+const AUTHORITY_TRANSLATION_WAIT_TIMEOUT_MS = Math.min(
+  18000,
+  Math.max(1000, Number.parseInt(process.env.AUTHORITY_TRANSLATION_WAIT_TIMEOUT_MS || '16000', 10) || 16000),
+);
+const AUTHORITY_TRANSLATION_PROVIDER_TIMEOUT_MS = Math.min(
+  45000,
+  Math.max(3000, Number.parseInt(process.env.AUTHORITY_TRANSLATION_PROVIDER_TIMEOUT_MS || '45000', 10) || 45000),
+);
+function resolveAuthorityTranslationTaskRoles(): AITaskModelRole[] {
+  const configured = (process.env.AUTHORITY_TRANSLATION_TASK_ROLES || 'minimax_render')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+  const supported = new Set<AITaskModelRole>(['minimax_render', 'glm_classify', 'kimi_reason']);
+  const roles = configured.filter((item): item is AITaskModelRole => supported.has(item as AITaskModelRole));
+  return roles.length > 0 ? roles : ['minimax_render'];
+}
+const AUTHORITY_TRANSLATION_TASK_ROLES: AITaskModelRole[] = resolveAuthorityTranslationTaskRoles();
+const AUTHORITY_TRANSLATION_LIST_PREWARM_LIMIT = Math.max(
+  0,
+  Number.parseInt(process.env.AUTHORITY_TRANSLATION_LIST_PREWARM_LIMIT || '0', 10) || 0,
+);
 const AUTHORITY_TRANSLATION_SOURCE_CHAR_LIMIT = Math.max(
   1800,
   Number.parseInt(process.env.AUTHORITY_TRANSLATION_SOURCE_CHAR_LIMIT || '3200', 10) || 3200,
@@ -191,6 +219,18 @@ function toRichTextHtml(text: string): string {
 }
 
 const AUTHORITY_CHROME_PATTERNS = [
+  /turn on more accessible mode/giu,
+  /turn off more accessible mode/giu,
+  /skip ribbon commands/giu,
+  /skip to main content/giu,
+  /turn off animations/giu,
+  /turn on animations/giu,
+  /our sponsors/giu,
+  /log in\s*\|\s*register/giu,
+  /donate menu/giu,
+  /find a pediatrician/giu,
+  /healthy children\s*>/giu,
+  /page content/giu,
   /长者版/gu,
   /无障碍/gu,
   /\b(?:邮箱|EN)\b/gu,
@@ -276,6 +316,10 @@ function isAuthorityRecordLowValue(record: Pick<AuthorityCacheRecord, 'question'
   const title = normalizeAuthorityText(record.question || '');
   const rawSummary = normalizeAuthorityText(record.summary || '');
   const rawAnswer = normalizeAuthorityText(record.answer || '');
+
+  if (isLikelyEnglishNavigationShell(`${rawSummary} ${rawAnswer}`)) {
+    return true;
+  }
 
   // Completely empty records have no value
   if (!rawAnswer && !rawSummary) {
@@ -434,6 +478,7 @@ function normalizeAapCachedContent(content: string): string {
 
   normalized = normalized
     .replace(/\b(?:Article Body|Last Updated|Follow Us)\b[\s\S]*$/i, '')
+    .replace(/^[a-z][a-z0-9-]{2,}[~;]\s*/i, '')
     .trim();
 
   return normalized;
@@ -464,6 +509,14 @@ function normalizeAuthorityCacheRecord(record: AuthorityCacheRecord): AuthorityC
     normalizedSummary = cleanedSummary;
   }
 
+  if (
+    normalizedAnswer
+    && normalizedSummary
+    && (countAuthorityChromeMatches(normalizedSummary) >= 4 || isLikelyEnglishNavigationShell(normalizedSummary))
+  ) {
+    normalizedSummary = normalizedAnswer.slice(0, 300);
+  }
+
   // Auto-generate summary from content when missing or too short
   if ((!normalizedSummary || normalizedSummary.length < 20) && normalizedAnswer) {
     const sentenceMatch = normalizedAnswer.match(/^(.{20,180}?[。！？.!?])/u);
@@ -481,7 +534,20 @@ function normalizeAuthorityCacheRecord(record: AuthorityCacheRecord): AuthorityC
 }
 
 function resolveWritableTranslationCachePath(): string {
-  return AUTHORITY_TRANSLATION_CACHE_PATHS[0];
+  if (AUTHORITY_TRANSLATION_CACHE_PATH) {
+    return AUTHORITY_TRANSLATION_CACHE_PATH;
+  }
+
+  const durablePath = path.join(process.cwd(), 'data', 'authority-translation-cache.json');
+  if (fs.existsSync(durablePath)) {
+    return durablePath;
+  }
+
+  const existingDurablePath = AUTHORITY_TRANSLATION_CACHE_PATHS.find((candidate) => (
+    candidate !== '/tmp/authority-translation-cache.json'
+    && fs.existsSync(candidate)
+  ));
+  return existingDurablePath || durablePath;
 }
 
 function loadAuthorityCacheRecords(): AuthorityCacheRecord[] {
@@ -539,22 +605,46 @@ function incrementAuthorityViewCountBySlug(slug: string): number | null {
 }
 
 function loadAuthorityTranslationCache(): Record<string, AuthorityTranslationCacheRecord> {
-  if (authorityTranslationCacheMemo) {
+  const signature = AUTHORITY_TRANSLATION_CACHE_PATHS.map((cachePath) => {
+    try {
+      const stat = fs.statSync(cachePath);
+      return `${cachePath}:${stat.mtimeMs}:${stat.size}`;
+    } catch {
+      return `${cachePath}:missing`;
+    }
+  }).join('|');
+
+  if (authorityTranslationCacheMemo && authorityTranslationCacheMemoSignature === signature) {
     return authorityTranslationCacheMemo;
   }
 
-  const cachePath = AUTHORITY_TRANSLATION_CACHE_PATHS.find((candidate) => fs.existsSync(candidate));
-  if (!cachePath) {
+  const cachePaths = AUTHORITY_TRANSLATION_CACHE_PATHS.filter((candidate) => fs.existsSync(candidate));
+  if (cachePaths.length === 0) {
     authorityTranslationCacheMemo = {};
+    authorityTranslationCacheMemoSignature = signature;
     return authorityTranslationCacheMemo;
   }
 
+  const merged: Record<string, AuthorityTranslationCacheRecord> = {};
   try {
-    const raw = fs.readFileSync(cachePath, 'utf-8');
-    const parsed = JSON.parse(raw) as Record<string, AuthorityTranslationCacheRecord>;
-    authorityTranslationCacheMemo = parsed && typeof parsed === 'object' ? parsed : {};
+    for (const cachePath of cachePaths) {
+      const raw = fs.readFileSync(cachePath, 'utf-8');
+      const parsed = JSON.parse(raw) as Record<string, AuthorityTranslationCacheRecord>;
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        continue;
+      }
+
+      for (const [slug, translation] of Object.entries(parsed)) {
+        if (!merged[slug]) {
+          merged[slug] = translation;
+        }
+      }
+    }
+    authorityTranslationCacheMemo = merged;
+    authorityTranslationCacheMemoSignature = signature;
   } catch {
     authorityTranslationCacheMemo = {};
+    authorityTranslationCacheMemoSignature = signature;
   }
 
   return authorityTranslationCacheMemo;
@@ -562,10 +652,35 @@ function loadAuthorityTranslationCache(): Record<string, AuthorityTranslationCac
 
 function saveAuthorityTranslationCache(data: Record<string, AuthorityTranslationCacheRecord>): void {
   authorityTranslationCacheMemo = data;
+  authorityTranslationCacheMemoSignature = '';
   translationCacheWriteQueue = translationCacheWriteQueue.then(() => {
     const cachePath = resolveWritableTranslationCachePath();
+    let diskCache: Record<string, AuthorityTranslationCacheRecord> = {};
+    if (fs.existsSync(cachePath)) {
+      try {
+        const parsed = JSON.parse(fs.readFileSync(cachePath, 'utf-8')) as Record<string, AuthorityTranslationCacheRecord>;
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          diskCache = parsed;
+        }
+      } catch {
+        diskCache = {};
+      }
+    }
+    const merged = {
+      ...diskCache,
+      ...data,
+    };
+    authorityTranslationCacheMemo = merged;
     fs.mkdirSync(path.dirname(cachePath), { recursive: true });
-    fs.writeFileSync(cachePath, JSON.stringify(data, null, 2), 'utf-8');
+    fs.writeFileSync(cachePath, JSON.stringify(merged, null, 2), 'utf-8');
+    authorityTranslationCacheMemoSignature = AUTHORITY_TRANSLATION_CACHE_PATHS.map((candidate) => {
+      try {
+        const stat = fs.statSync(candidate);
+        return `${candidate}:${stat.mtimeMs}:${stat.size}`;
+      } catch {
+        return `${candidate}:missing`;
+      }
+    }).join('|');
   }).catch((err) => {
     console.error('[Authority Translation] Cache write failed:', err);
   });
@@ -862,10 +977,11 @@ async function translateAuthorityRecord(slug: string, record: AuthorityCacheReco
         '请把英文医学健康文章准确翻译成简体中文，保持谨慎、克制、忠实原文。',
         '不要补充原文没有的建议，不要改写成诊断结论，不要省略重要风险提示。',
         '如果正文是节选，只翻译已提供内容，不要自行补全未提供段落。',
+        '标签内必须填写真实完整译文，禁止使用省略号、占位符或“待翻译”等空内容。',
         '输出必须严格使用以下标签，不要输出任何额外说明：',
-        '<translated_title>...</translated_title>',
-        '<translated_summary>...</translated_summary>',
-        '<translated_content>...</translated_content>',
+        '<translated_title>译后的标题</translated_title>',
+        '<translated_summary>译后的摘要</translated_summary>',
+        '<translated_content>译后的正文</translated_content>',
       ].join('\n'),
     },
     {
@@ -889,6 +1005,7 @@ async function translateAuthorityRecord(slug: string, record: AuthorityCacheReco
       result = await callTaskModelDetailed(taskRole, translationMessages, {
         temperature: 0.2,
         maxTokens: AUTHORITY_TRANSLATION_MAX_TOKENS,
+        timeoutMs: AUTHORITY_TRANSLATION_PROVIDER_TIMEOUT_MS,
       });
     } catch (error) {
       lastError = error;
@@ -1379,8 +1496,12 @@ async function getAuthorityRelatedArticlesByNumericId(id: number, limit: number)
 
 async function prewarmAuthorityTranslationsForArticles(
   articles: Array<ReturnType<typeof mapAuthorityRecordToArticle>>,
-  limit = 5,
+  limit = AUTHORITY_TRANSLATION_LIST_PREWARM_LIMIT,
 ): Promise<void> {
+  if (limit <= 0) {
+    return;
+  }
+
   const englishArticles = articles
     .filter((article) => !isChineseAuthorityArticle(article))
     .slice(0, limit);
@@ -1928,8 +2049,7 @@ export const getAuthorityArticleTranslation = async (req: Request, res: Response
       })));
     }
 
-    const shouldImplicitlyWaitForInFlight = authorityTranslationInFlight.has(slug);
-    if (shouldWaitForTranslation || shouldImplicitlyWaitForInFlight) {
+    if (shouldWaitForTranslation) {
       const translation = await waitForAuthorityTranslation(slug, authorityRecord);
       if (translation) {
         return res.json(successResponse(buildAuthorityTranslationResponse('ready', {

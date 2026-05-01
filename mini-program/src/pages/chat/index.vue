@@ -1,5 +1,14 @@
 <template>
   <view class="chat-page">
+    <view v-if="!chatFeatureEnabled" class="chat-offline">
+      <text class="chat-offline-title">该功能暂未开放</text>
+      <text class="chat-offline-desc">当前小程序先保留权威知识库、孕周日历和基础档案。需要查资料时，请优先使用知识库和原文来源。</text>
+      <view class="chat-offline-action" @tap="openKnowledge">
+        <text class="chat-offline-action-text">去知识库</text>
+      </view>
+    </view>
+
+    <template v-else>
     <!-- 紧急警告横幅 -->
     <EmergencyBanner
       :visible="hasEmergency"
@@ -49,9 +58,9 @@
       <!-- 欢迎消息 -->
       <view v-if="!chatStore.messages.length" class="welcome">
         <view class="welcome-icon">
-          <text class="welcome-emoji">AI</text>
+          <text class="welcome-emoji">问</text>
         </view>
-        <text class="welcome-title">贝护妈妈 AI 助手</text>
+        <text class="welcome-title">贝护妈妈服务</text>
         <text class="welcome-desc">您可以向我咨询母婴健康相关问题</text>
         <view class="welcome-hints">
           <view
@@ -107,6 +116,7 @@
         <text>{{ chatStore.isStreaming ? '停止' : '发送' }}</text>
       </view>
     </view>
+    </template>
   </view>
 </template>
 
@@ -120,6 +130,7 @@ import EmergencyBanner from '@/components/EmergencyBanner.vue'
 import dayjs from 'dayjs'
 
 const chatStore = useChatStore()
+const chatFeatureEnabled = false
 
 const inputText = ref('')
 const showHistory = ref(false)
@@ -127,6 +138,10 @@ const scrollTarget = ref('')
 const keyboardHeight = ref(0)
 
 const disclaimerText = getDisclaimer()
+
+function openKnowledge() {
+  uni.switchTab({ url: '/pages/knowledge/index' })
+}
 
 const quickHints = [
   '怀孕初期应该注意什么？',
@@ -208,6 +223,10 @@ function onKeyboardHeight(e: { detail: { height: number } }) {
 }
 
 onMounted(() => {
+  if (!chatFeatureEnabled) {
+    return
+  }
+
   const token = uni.getStorageSync('token')
   if (token) {
     wsManager.connect()
@@ -225,7 +244,46 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background: #fff;
+  background: linear-gradient(180deg, #f9f0f5 0%, #fff7f2 100%);
+}
+
+.chat-offline {
+  margin: 96rpx 28rpx 0;
+  padding: 40rpx 34rpx;
+  border-radius: 28rpx;
+  background: #fffcf8;
+  border: 1rpx solid rgba(31, 42, 55, 0.06);
+  box-shadow: 0 12rpx 30rpx rgba(31, 42, 55, 0.02);
+}
+
+.chat-offline-title {
+  display: block;
+  font-size: 38rpx;
+  line-height: 1.35;
+  font-weight: 900;
+  color: #444;
+}
+
+.chat-offline-desc {
+  display: block;
+  margin-top: 18rpx;
+  font-size: 26rpx;
+  line-height: 1.72;
+  color: #5f6d7c;
+}
+
+.chat-offline-action {
+  display: inline-flex;
+  margin-top: 28rpx;
+  padding: 18rpx 30rpx;
+  border-radius: 999rpx;
+  background: #16806a;
+}
+
+.chat-offline-action-text {
+  font-size: 26rpx;
+  font-weight: 800;
+  color: #ffffff;
 }
 
 /* 历史对话侧栏 */
@@ -245,7 +303,7 @@ onUnmounted(() => {
   bottom: 0;
   width: 75%;
   max-width: 600rpx;
-  background: #fff;
+  background: #fffcf8;
   display: flex;
   flex-direction: column;
 }
@@ -259,11 +317,11 @@ onUnmounted(() => {
 .history-title {
   font-size: 32rpx;
   font-weight: 600;
-  color: #333;
+  color: #444;
 }
 .history-new {
   font-size: 26rpx;
-  color: #ff6b9d;
+  color: #16806a;
   font-weight: 500;
 }
 .history-list {
@@ -283,7 +341,7 @@ onUnmounted(() => {
   border-bottom: 1rpx solid #f5f5f5;
 }
 .history-item.active {
-  background: #fff0f5;
+  background: #edf8f4;
 }
 .history-item-content {
   flex: 1;
@@ -291,7 +349,7 @@ onUnmounted(() => {
 }
 .history-item-title {
   font-size: 28rpx;
-  color: #333;
+  color: #444;
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -327,7 +385,7 @@ onUnmounted(() => {
   width: 120rpx;
   height: 120rpx;
   border-radius: 50%;
-  background: linear-gradient(135deg, #ff6b9d, #ff8a65);
+  background: linear-gradient(135deg, #16806a, #2f7cf6);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -341,7 +399,7 @@ onUnmounted(() => {
 .welcome-title {
   font-size: 36rpx;
   font-weight: 600;
-  color: #333;
+  color: #444;
   margin-bottom: 12rpx;
 }
 .welcome-desc {
@@ -360,7 +418,7 @@ onUnmounted(() => {
   padding: 24rpx;
   border-radius: 16rpx;
   font-size: 28rpx;
-  color: #333;
+  color: #444;
   line-height: 1.5;
 }
 .welcome-disclaimer {
@@ -378,7 +436,7 @@ onUnmounted(() => {
   align-items: center;
   padding: 16rpx 24rpx;
   border-top: 1rpx solid #f0f0f0;
-  background: #fff;
+  background: #fffcf8;
   gap: 12rpx;
 }
 .input-actions-left {
@@ -409,7 +467,7 @@ onUnmounted(() => {
 .input-field {
   width: 100%;
   font-size: 28rpx;
-  color: #333;
+  color: #444;
 }
 .send-btn {
   flex-shrink: 0;
@@ -421,7 +479,7 @@ onUnmounted(() => {
   transition: all 0.2s;
 }
 .send-btn.active {
-  background: #ff6b9d;
+  background: #16806a;
   color: #fff;
 }
 .send-btn.streaming {

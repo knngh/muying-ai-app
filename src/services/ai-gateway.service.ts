@@ -518,6 +518,7 @@ async function requestProvider(
     temperature?: number;
     maxTokens?: number;
     stream?: boolean;
+    timeoutMs?: number;
   } = {}
 ): Promise<Response> {
   const request: ChatRequest = {
@@ -528,16 +529,20 @@ async function requestProvider(
     stream: options.stream ?? false,
   };
 
+  const timeoutMs = options.timeoutMs && Number.isFinite(options.timeoutMs)
+    ? Math.max(1000, options.timeoutMs)
+    : AI_PROVIDER_TIMEOUT_MS;
+
   try {
     return await fetch(provider.url, {
       method: 'POST',
       headers: buildGatewayHeaders(provider, options.stream),
       body: JSON.stringify(request),
-      signal: AbortSignal.timeout(AI_PROVIDER_TIMEOUT_MS),
+      signal: AbortSignal.timeout(timeoutMs),
     });
   } catch (error) {
     if (error instanceof Error && error.name === 'TimeoutError') {
-      throw new Error(`AI Gateway timeout after ${AI_PROVIDER_TIMEOUT_MS}ms`);
+      throw new Error(`AI Gateway timeout after ${timeoutMs}ms`);
     }
 
     throw error;
@@ -550,6 +555,7 @@ async function callProvider(
   options: {
     temperature?: number;
     maxTokens?: number;
+    timeoutMs?: number;
   } = {}
 ): Promise<string> {
   const response = await requestProvider(provider, messages, options);
@@ -701,6 +707,7 @@ export async function callAIGatewayDetailed(
     model?: string;
     temperature?: number;
     maxTokens?: number;
+    timeoutMs?: number;
   } = {}
 ): Promise<AIGatewayTextResult> {
   const providers = resolveProviderChain(messages, { model: options.model });
@@ -731,6 +738,7 @@ export async function callTaskModelDetailed(
   options: {
     temperature?: number;
     maxTokens?: number;
+    timeoutMs?: number;
   } = {}
 ): Promise<AIGatewayTextResult> {
   const providers = resolveTaskProviderChain(taskRole);

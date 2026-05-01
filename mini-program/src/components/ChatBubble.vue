@@ -2,7 +2,7 @@
   <view class="chat-bubble" :class="[message.role, { emergency: message.isEmergency }]">
     <!-- 头像 -->
     <view class="bubble-avatar" :class="message.role">
-      <text>{{ message.role === 'user' ? '我' : 'AI' }}</text>
+      <text>{{ message.role === 'user' ? '我' : '答' }}</text>
     </view>
 
     <view class="bubble-body">
@@ -89,12 +89,12 @@ const disclaimerText = getDisclaimer()
   flex-shrink: 0;
 }
 .bubble-avatar.user {
-  background: #ff6b9d;
+  background: #16806a;
   color: #fff;
 }
 .bubble-avatar.assistant {
-  background: #e8f4fd;
-  color: #1890ff;
+  background: #edf8f4;
+  color: #16806a;
 }
 .bubble-body {
   flex: 1;
@@ -111,7 +111,7 @@ const disclaimerText = getDisclaimer()
   border-top-left-radius: 4rpx;
 }
 .bubble-content.user {
-  background: #ff6b9d;
+  background: #16806a;
   border-top-right-radius: 4rpx;
 }
 .user-text {
@@ -158,8 +158,8 @@ const disclaimerText = getDisclaimer()
   gap: 8rpx;
 }
 .follow-up-item {
-  background: #e8f4fd;
-  color: #1890ff;
+  background: rgba(22, 128, 106, 0.1);
+  color: #16806a;
   font-size: 24rpx;
   padding: 12rpx 20rpx;
   border-radius: 12rpx;

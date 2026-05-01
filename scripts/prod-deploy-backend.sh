@@ -91,7 +91,7 @@ REMOTE_COMMANDS=(
 )
 
 if [[ "${WITH_INSTALL}" == "true" ]]; then
-  REMOTE_COMMANDS+=("npm install")
+  REMOTE_COMMANDS+=("npm install --include=dev")
 fi
 
 if [[ "${WITH_DB_PUSH}" == "true" ]]; then

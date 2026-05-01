@@ -25,15 +25,31 @@ function getRouteLabel(route?: string): string | undefined {
 export default function TrustPanel({ message }: TrustPanelProps) {
   const reliabilityLabel = getReliabilityLabel(message.sourceReliability)
   const routeLabel = getRouteLabel(message.route)
+  const disclosure = message.aiDisclosure
 
   const hasChips = reliabilityLabel || message.riskLevel || routeLabel
   const hasConclusion = message.structuredAnswer?.conclusion
   const hasUncertainty = message.uncertainty?.message
+  const hasDisclosure = Boolean(disclosure)
 
-  if (!hasChips && !hasConclusion && !hasUncertainty) return null
+  if (!hasChips && !hasConclusion && !hasUncertainty && !hasDisclosure) return null
 
   return (
     <View style={styles.trustPanel}>
+      {hasDisclosure ? (
+        <View style={styles.disclosureCard}>
+          <Text style={styles.disclosureTitle}>AI 服务公示</Text>
+          <Text style={styles.disclosureText}>
+            {disclosure!.serviceName} · {disclosure!.providerName} · {disclosure!.companyName}
+          </Text>
+          <Text style={styles.disclosureMeta}>
+            模型：{disclosure!.modelName}
+            {disclosure!.filingCode ? ` · 备案/上线编号：${disclosure!.filingCode}` : ''}
+          </Text>
+          <Text style={styles.disclosureHint}>{disclosure!.disclaimer}</Text>
+        </View>
+      ) : null}
+
       {hasChips ? (
         <View style={styles.trustChipRow}>
           {reliabilityLabel ? (
@@ -73,6 +89,37 @@ export default function TrustPanel({ message }: TrustPanelProps) {
 const styles = StyleSheet.create({
   trustPanel: {
     marginTop: spacing.sm,
+  },
+  disclosureCard: {
+    marginBottom: spacing.sm,
+    padding: spacing.sm,
+    borderRadius: borderRadius.lg,
+    backgroundColor: 'rgba(255,255,255,0.64)',
+    borderWidth: 1,
+    borderColor: 'rgba(94,126,134,0.12)',
+  },
+  disclosureTitle: {
+    fontSize: fontSize.sm,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  disclosureText: {
+    marginTop: 4,
+    fontSize: fontSize.sm,
+    lineHeight: 18,
+    color: colors.textSecondary,
+  },
+  disclosureMeta: {
+    marginTop: 2,
+    fontSize: fontSize.xs,
+    lineHeight: 17,
+    color: colors.textLight,
+  },
+  disclosureHint: {
+    marginTop: spacing.xs,
+    fontSize: fontSize.xs,
+    lineHeight: 17,
+    color: colors.textLight,
   },
   trustChipRow: {
     flexDirection: 'row',

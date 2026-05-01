@@ -113,18 +113,25 @@ export const tagApi = {
 export const articleApi = {
   getList: (params?: ArticleListParams) => api.get<PaginatedResponse<Article>>('/articles', { params }),
   getBySlug: (slug: string) => api.get<Article>(`/articles/${slug}`),
-  getTranslationStatus: (slug: string) => api.get<AuthorityArticleTranslationResponse>(`/articles/${slug}/translation`),
+  getTranslationStatus: (slug: string) => api.get<AuthorityArticleTranslationResponse>(
+    `/articles/${slug}/translation`,
+    { timeout: AUTHORITY_TRANSLATION_REQUEST_TIMEOUT_MS },
+  ),
   kickoffTranslation: async (slug: string) => {
-    const response = await api.get<AuthorityArticleTranslationResponse>(`/articles/${slug}/translation`)
+    const response = await api.get<AuthorityArticleTranslationResponse>(
+      `/articles/${slug}/translation`,
+      { timeout: AUTHORITY_TRANSLATION_REQUEST_TIMEOUT_MS },
+    )
     return response.status === 'ready' ? (response.translation || null) : null
   },
   getTranslation: async (slug: string, options?: ArticleTranslationOptions) => {
     const maxAttempts = Math.max(1, options?.maxAttempts || 3)
+    const waitForReady = options?.waitForReady ?? true
     let pendingRetryAfterMs: number | undefined
 
     for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
       const response = await api.get<AuthorityArticleTranslationResponse>(`/articles/${slug}/translation`, {
-        params: { wait: '1' },
+        params: waitForReady ? { wait: '1' } : undefined,
         timeout: AUTHORITY_TRANSLATION_REQUEST_TIMEOUT_MS,
       })
       if (response.status === 'ready' && response.translation) {

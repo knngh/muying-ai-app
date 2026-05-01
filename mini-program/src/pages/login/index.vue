@@ -330,7 +330,7 @@ onMounted(async () => {
 <style scoped>
 .login-page {
   min-height: 100vh;
-  background: linear-gradient(180deg, #fff0f5 0%, #ffffff 40%);
+  background: linear-gradient(180deg, #f5fbf8 0%, #ffffff 42%);
   padding: 0 48rpx;
 }
 
@@ -345,7 +345,7 @@ onMounted(async () => {
 .login-logo {
   font-size: 52rpx;
   font-weight: bold;
-  color: #ff6b9d;
+  color: #16806a;
   margin-bottom: 16rpx;
 }
 
@@ -355,7 +355,7 @@ onMounted(async () => {
 }
 
 .login-form {
-  background-color: #ffffff;
+  background-color: #fffcf8;
   border-radius: 24rpx;
   padding: 50rpx 40rpx;
   box-shadow: 0 8rpx 32rpx rgba(0, 0, 0, 0.08);
@@ -386,7 +386,7 @@ onMounted(async () => {
   flex: 1;
   padding: 18rpx 16rpx;
   border-radius: 18rpx;
-  background: #ffffff;
+  background: #fffcf8;
   text-align: center;
 }
 
@@ -401,7 +401,7 @@ onMounted(async () => {
   margin-bottom: 20rpx;
   font-size: 32rpx;
   font-weight: bold;
-  color: #333;
+  color: #444;
 }
 
 .form-desc {
@@ -419,7 +419,7 @@ onMounted(async () => {
 
 .auth-mode-tabs {
   display: flex;
-  background: #fff5f8;
+  background: #eef5f2;
   border-radius: 18rpx;
   padding: 8rpx;
   margin-bottom: 36rpx;
@@ -434,8 +434,8 @@ onMounted(async () => {
 }
 
 .auth-mode-tab--active {
-  background: #ffffff;
-  box-shadow: 0 6rpx 20rpx rgba(255, 107, 157, 0.16);
+  background: #fffcf8;
+  box-shadow: 0 6rpx 20rpx rgba(22, 128, 106, 0.14);
 }
 
 .auth-mode-tab text {
@@ -445,13 +445,13 @@ onMounted(async () => {
 }
 
 .auth-mode-text--active {
-  color: #ff6b9d !important;
+  color: #16806a !important;
   font-weight: 700 !important;
 }
 
 .form-label {
   font-size: 28rpx;
-  color: #333333;
+  color: #444333;
   font-weight: 600;
   margin-bottom: 16rpx;
   display: block;
@@ -476,7 +476,7 @@ onMounted(async () => {
 
 .picker-value {
   font-size: 30rpx;
-  color: #333333;
+  color: #444333;
   width: 100%;
 }
 
@@ -489,7 +489,7 @@ onMounted(async () => {
   background-color: #fcfcfc;
   box-sizing: border-box;
   font-size: 30rpx;
-  color: #333333;
+  color: #444333;
 }
 
 .picker-value .placeholder {
@@ -505,8 +505,8 @@ onMounted(async () => {
 }
 
 .primary-btn {
-  background: linear-gradient(135deg, #ff6b9d 0%, #ff8f70 100%);
-  box-shadow: 0 8rpx 20rpx rgba(255, 107, 157, 0.28);
+  background: linear-gradient(135deg, #16806a 0%, #2f7cf6 100%);
+  box-shadow: 0 8rpx 20rpx rgba(22, 128, 106, 0.24);
 }
 
 .primary-btn--hover {

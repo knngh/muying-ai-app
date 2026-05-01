@@ -10,6 +10,7 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import LinearGradient from "react-native-linear-gradient";
 import MaterialCommunityIcons from "react-native-vector-icons/MaterialCommunityIcons";
 import { setNavigationReset, updateCachedToken } from "../api/index";
+import { config } from "../config";
 import { useAppStore } from "../stores/appStore";
 import { useChatStore } from "../stores/chatStore";
 import { useMembershipStore } from "../stores/membershipStore";
@@ -333,16 +334,18 @@ function TabNavigator() {
         component={KnowledgeScreen}
         options={{ tabBarLabel: TAB_VISUALS.Knowledge.label }}
       />
-      <Tab.Screen
-        name="Chat"
-        component={ChatScreen}
-        options={{ tabBarLabel: TAB_VISUALS.Chat.label }}
-        listeners={{
-          tabPress: () => {
-            useChatStore.getState().startFreshSession();
-          },
-        }}
-      />
+      {config.enablePublicAiFeatures ? (
+        <Tab.Screen
+          name="Chat"
+          component={ChatScreen}
+          options={{ tabBarLabel: TAB_VISUALS.Chat.label }}
+          listeners={{
+            tabPress: () => {
+              useChatStore.getState().startFreshSession();
+            },
+          }}
+        />
+      ) : null}
       <Tab.Screen
         name="Profile"
         component={ProfileScreen}

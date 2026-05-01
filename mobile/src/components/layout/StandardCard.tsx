@@ -45,14 +45,14 @@ export const StandardCard: React.FC<StandardCardProps> = ({
 const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surfaceGlass,
-    borderRadius: borderRadius.lg,
+    borderRadius: borderRadius.md,
     overflow: "hidden",
     marginBottom: spacing.sm,
-    borderWidth: 1.5,
-    borderColor: "rgba(255, 255, 255, 0.5)",
-    shadowColor: "rgba(110, 120, 140, 0.15)",
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 1,
-    shadowRadius: 28,
+    borderWidth: 1,
+    borderColor: colors.border,
+    shadowColor: colors.shadowSoft,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
   },
 });

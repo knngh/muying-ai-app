@@ -8,7 +8,7 @@ import {
 
 describe('translation request helpers', () => {
   test('exports the shared translation timeout budget', () => {
-    expect(AUTHORITY_TRANSLATION_REQUEST_TIMEOUT_MS).toBe(45000)
+    expect(AUTHORITY_TRANSLATION_REQUEST_TIMEOUT_MS).toBe(18000)
   })
 
   test('builds a translation pending error with retry metadata', () => {
