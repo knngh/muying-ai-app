@@ -29,6 +29,7 @@ import {
 } from '../api/modules'
 import { ScreenContainer, StandardCard } from '../components/layout'
 import { useKnowledgeStore } from '../stores/knowledgeStore'
+import { config } from '../config'
 import { trackAppEvent } from '../services/analytics'
 import { colors, spacing, fontSize, categoryColors, borderRadius } from '../theme'
 import { buildSafeArticleHtml, getSafeRemoteImageSource, shouldAllowWebViewNavigation } from '../utils/security'
@@ -426,7 +427,7 @@ export default function KnowledgeDetailScreen() {
   }
 
   const handleAskAi = () => {
-    if (!article) return
+    if (!article || !config.enablePublicAiFeatures) return
 
     const question = buildKnowledgeDetailQuestion({
       title: displayedTitle || article.title,
@@ -795,17 +796,19 @@ export default function KnowledgeDetailScreen() {
             <Text style={styles.aiHitContextText}>
               {buildAiHitContextText(aiContext?.trigger, aiContext?.matchReason, aiContext?.originEntrySource)}
             </Text>
-            <Button
-              mode="contained-tonal"
-              icon="message-question-outline"
-              onPress={handleAskAi}
-              style={styles.aiHitContextButton}
-              contentStyle={styles.quickActionContent}
-              buttonColor="rgba(54,92,104,0.14)"
-              textColor={colors.techDark}
-            >
-              继续追问这篇文章
-            </Button>
+            {config.enablePublicAiFeatures ? (
+              <Button
+                mode="contained-tonal"
+                icon="message-question-outline"
+                onPress={handleAskAi}
+                style={styles.aiHitContextButton}
+                contentStyle={styles.quickActionContent}
+                buttonColor="rgba(54,92,104,0.14)"
+                textColor={colors.techDark}
+              >
+                继续追问这篇文章
+              </Button>
+            ) : null}
           </View>
         ) : null}
 
@@ -859,17 +862,19 @@ export default function KnowledgeDetailScreen() {
         </View>
 
         <View style={styles.quickActionRow}>
-          <Button
-            mode="contained-tonal"
-            icon="message-question-outline"
-            onPress={handleAskAi}
-            style={styles.quickActionButton}
-            contentStyle={styles.quickActionContent}
-            buttonColor="rgba(54,92,104,0.14)"
-            textColor={colors.techDark}
-          >
-            继续提问
-          </Button>
+          {config.enablePublicAiFeatures ? (
+            <Button
+              mode="contained-tonal"
+              icon="message-question-outline"
+              onPress={handleAskAi}
+              style={styles.quickActionButton}
+              contentStyle={styles.quickActionContent}
+              buttonColor="rgba(54,92,104,0.14)"
+              textColor={colors.techDark}
+            >
+              继续提问
+            </Button>
+          ) : null}
           {displayedSourceUrl ? (
             <Button
               mode="contained-tonal"

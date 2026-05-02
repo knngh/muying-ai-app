@@ -1,5 +1,5 @@
 import api from './index'
-import type { AIActionCard, AIEntryMeta, AIMessage, AskResponse, ChatResponse, ChatSession, SourceReference } from '../../../shared/types'
+import type { AIActionCard, AIEntryMeta, AIMessage, AskResponse, ChatResponse, ChatSession, PaginatedResponse, SourceReference } from '../../../shared/types'
 
 export type { AIActionCard, AIEntryMeta, AIMessage, AskResponse, ChatResponse, ChatSession, SourceReference }
 
@@ -103,7 +103,8 @@ export const aiApi = {
     return api.get<ChatSession>(`/ai/conversations/${conversationId}`)
   },
   getConversations: async (): Promise<ChatSession[]> => {
-    const res = await api.get<{ conversations: ChatSession[] }>('/ai/conversations')
+    const res = await api.get<PaginatedResponse<ChatSession> | { conversations: ChatSession[] }>('/ai/conversations')
+    if ('list' in res) return res.list || []
     return res.conversations || []
   },
   deleteConversation: async (conversationId: string) => {

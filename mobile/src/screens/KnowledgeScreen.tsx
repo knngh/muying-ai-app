@@ -22,6 +22,7 @@ import type { StackNavigationProp } from '@react-navigation/stack'
 import type { RootStackParamList } from '../navigation/AppNavigator'
 import { ScreenContainer } from '../components/layout'
 import type { ApiError } from '../api'
+import { config } from '../config'
 import { trackAppEvent } from '../services/analytics'
 import { useAppStore } from '../stores/appStore'
 import { useKnowledgeStore, type RecentAIHitArticle } from '../stores/knowledgeStore'
@@ -484,7 +485,9 @@ export default function KnowledgeScreen() {
   const emptyTitle = hasNetworkError ? '知识库暂时连不上服务' : '当前筛选下还没有文章'
   const emptyText = hasNetworkError
     ? '当前设备到接口服务的连接异常或超时，不是内容为空。请优先检查当前网络、DNS、证书链路，再重新进入知识库。'
-    : '可以先放宽筛选范围，或直接继续提问；新同步的权威内容也会继续补入这里。'
+    : config.enablePublicAiFeatures
+      ? '可以先放宽筛选范围，或直接继续提问；新同步的权威内容也会继续补入这里。'
+      : '可以先放宽筛选范围，或换一个阶段主题继续检索；新同步的权威内容也会继续补入这里。'
   const errorBannerText = hasNetworkError
     ? `当前设备访问 ${resolvedErrorDetail?.requestUrl || '/articles'} 失败。请优先检查 beihu.me 域名解析、移动网络连通性与 HTTPS 证书配置。`
     : hasHttpError
@@ -589,6 +592,11 @@ export default function KnowledgeScreen() {
   }, [search, setKeyword])
 
   const handleAskRecentAiArticle = useCallback((item: RecentAIHitArticle) => {
+    if (!config.enablePublicAiFeatures) {
+      handleOpenRecentAiHit(item)
+      return
+    }
+
     const title = getRecentAiHitDisplayTitle(item)
     const sourceOrg = item.sourceOrg || item.source || ''
     const summary = normalizePlainText(item.summary)
@@ -631,9 +639,15 @@ export default function KnowledgeScreen() {
         source: 'knowledge_recent_ai',
       },
     })
-  }, [navigation, stageSummary.lifecycleKey])
+  }, [handleOpenRecentAiHit, navigation, stageSummary.lifecycleKey])
 
   const handleAskRecentAiTopic = useCallback((item: RecentAIHitTopic) => {
+    if (!config.enablePublicAiFeatures) {
+      setKeyword(item.displayName)
+      void search(item.displayName)
+      return
+    }
+
     const question = buildRecentTopicQuestion(item.displayName, stageSummary.lifecycleLabel)
 
     void trackAppEvent('app_knowledge_recent_ai_ask_click', {
@@ -664,9 +678,15 @@ export default function KnowledgeScreen() {
         source: 'knowledge_recent_ai',
       },
     })
-  }, [navigation, stageSummary.lifecycleKey, stageSummary.lifecycleLabel])
+  }, [navigation, search, setKeyword, stageSummary.lifecycleKey, stageSummary.lifecycleLabel])
 
   const handleAskRecentAiSource = useCallback((item: RecentAIHitSource) => {
+    if (!config.enablePublicAiFeatures) {
+      setKeyword(item.query)
+      void search(item.query)
+      return
+    }
+
     const question = buildRecentSourceQuestion(item.displayName, stageSummary.lifecycleLabel)
 
     void trackAppEvent('app_knowledge_recent_ai_ask_click', {
@@ -697,7 +717,7 @@ export default function KnowledgeScreen() {
         source: 'knowledge_recent_ai',
       },
     })
-  }, [navigation, stageSummary.lifecycleKey, stageSummary.lifecycleLabel])
+  }, [navigation, search, setKeyword, stageSummary.lifecycleKey, stageSummary.lifecycleLabel])
 
   const toggleVariantGroup = useCallback((slug: string) => {
     setExpandedVariantGroups((current) => ({
@@ -1013,47 +1033,49 @@ export default function KnowledgeScreen() {
               </TouchableOpacity>
             ))}
           </ScrollView>
-          <View style={styles.recentAiAskRow}>
-            {recentAiHitArticles[0] ? (
-              <Button
-                mode="contained-tonal"
-                compact
-                icon="message-question-outline"
-                buttonColor="rgba(54,92,104,0.14)"
-                textColor={colors.techDark}
-                style={styles.recentAiAskButton}
-                onPress={() => handleAskRecentAiArticle(recentAiHitArticles[0])}
-              >
-                围绕最近文章继续提问
-              </Button>
-            ) : null}
-            {recentAiHitTopics[0] ? (
-              <Button
-                mode="contained-tonal"
-                compact
-                icon="message-question-outline"
-                buttonColor="rgba(197,108,71,0.12)"
-                textColor={colors.primaryDark}
-                style={styles.recentAiAskButton}
-                onPress={() => handleAskRecentAiTopic(recentAiHitTopics[0])}
-              >
-                围绕最近主题继续提问
-              </Button>
-            ) : null}
-            {recentAiHitSources[0] ? (
-              <Button
-                mode="contained-tonal"
-                compact
-                icon="message-question-outline"
-                buttonColor="rgba(184,138,72,0.14)"
-                textColor={colors.gold}
-                style={styles.recentAiAskButton}
-                onPress={() => handleAskRecentAiSource(recentAiHitSources[0])}
-              >
-                围绕最近机构继续提问
-              </Button>
-            ) : null}
-          </View>
+          {config.enablePublicAiFeatures ? (
+            <View style={styles.recentAiAskRow}>
+              {recentAiHitArticles[0] ? (
+                <Button
+                  mode="contained-tonal"
+                  compact
+                  icon="message-question-outline"
+                  buttonColor="rgba(54,92,104,0.14)"
+                  textColor={colors.techDark}
+                  style={styles.recentAiAskButton}
+                  onPress={() => handleAskRecentAiArticle(recentAiHitArticles[0])}
+                >
+                  围绕最近文章继续提问
+                </Button>
+              ) : null}
+              {recentAiHitTopics[0] ? (
+                <Button
+                  mode="contained-tonal"
+                  compact
+                  icon="message-question-outline"
+                  buttonColor="rgba(197,108,71,0.12)"
+                  textColor={colors.primaryDark}
+                  style={styles.recentAiAskButton}
+                  onPress={() => handleAskRecentAiTopic(recentAiHitTopics[0])}
+                >
+                  围绕最近主题继续提问
+                </Button>
+              ) : null}
+              {recentAiHitSources[0] ? (
+                <Button
+                  mode="contained-tonal"
+                  compact
+                  icon="message-question-outline"
+                  buttonColor="rgba(184,138,72,0.14)"
+                  textColor={colors.gold}
+                  style={styles.recentAiAskButton}
+                  onPress={() => handleAskRecentAiSource(recentAiHitSources[0])}
+                >
+                  围绕最近机构继续提问
+                </Button>
+              ) : null}
+            </View>
+          ) : null}
           {recentAiHitTopics.length > 0 ? (
             <View style={styles.recentAiTopicBox}>
               <Text style={styles.recentAiTopicTitle}>按命中主题继续看</Text>
@@ -1383,15 +1405,17 @@ export default function KnowledgeScreen() {
                 >
                   放宽筛选
                 </Button>
-                <Button
-                  mode="outlined"
-                  compact
-                  textColor={colors.techDark}
-                  onPress={() => navigation.navigate('Main', { screen: 'Chat' })}
-                  style={styles.emptySecondaryButton}
-                >
-                  继续提问
-                </Button>
+                {config.enablePublicAiFeatures ? (
+                  <Button
+                    mode="outlined"
+                    compact
+                    textColor={colors.techDark}
+                    onPress={() => navigation.navigate('Main', { screen: 'Chat' })}
+                    style={styles.emptySecondaryButton}
+                  >
+                    继续提问
+                  </Button>
+                ) : null}
               </View>
             </View>
           ) : null
