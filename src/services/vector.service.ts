@@ -450,6 +450,7 @@ export async function publishAuthorityDocumentsToVectorStore(documents: Array<{
     .map((document) => {
       if (!shouldPublishAuthorityVectorDocument({
         title: document.title,
+        answer: document.contentText,
         topic: document.topic,
         category: document.category,
         sourceOrg: document.sourceOrg,

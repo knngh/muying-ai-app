@@ -12,8 +12,22 @@ import {
   type AuthorityDocumentAdapter,
 } from './base.adapter';
 
+function normalizeCnHealthContentText(text: string): string {
+  return text
+    .replace(/([年月日])\s*(\d)\s+(\d)(?=\s*[年月日号])/gu, '$1$2$3')
+    .replace(/(\d)\s+(\d)(?=\s*年)/gu, '$1$2')
+    .replace(/([\u4e00-\u9fff])\s+([\u4e00-\u9fff])/gu, '$1$2')
+    .replace(/(\d)\s+([年月日])/gu, '$1$2')
+    .replace(/([年月日])\s+([上下]午)/gu, '$1$2')
+    .replace(/([\u4e00-\u9fff\d])\s+([，。！？、；：])/gu, '$1$2')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function extractCnHealthContent(rawBody: string): string {
   const candidates = [
+    rawBody.match(/<div[^>]+id=["']xw_box["'][^>]*>([\s\S]*?)<\/div>\s*<\/div>\s*<\/div>/i)?.[1],
+    rawBody.match(/<div[^>]+id=["']xw_box["'][^>]*>([\s\S]*?)<\/div>/i)?.[1],
     rawBody.match(/<div[^>]+id=["']detailContent["'][\s\S]*?>([\s\S]*?)<\/div>/i)?.[1],
     rawBody.match(/<div[^>]+id=["']UCAP-CONTENT["'][\s\S]*?>([\s\S]*?)<\/div>/i)?.[1],
     rawBody.match(/<div[^>]+class=["'][^"']*(pages_content|TRS_Editor|trs_editor_view|article-content|wp_articlecontent)[^"']*["'][\s\S]*?>([\s\S]*?)<\/div>/i)?.[2],
@@ -24,16 +38,23 @@ function extractCnHealthContent(rawBody: string): string {
   ].filter(Boolean) as string[];
 
   for (const candidate of candidates) {
-    const text = stripHtml(candidate);
+    const text = normalizeCnHealthContentText(stripHtml(candidate));
     if (text.length >= 120) {
       return text;
     }
   }
 
-  return stripHtml(rawBody);
+  return normalizeCnHealthContentText(stripHtml(rawBody));
 }
 
 function extractSourceSpecificCnContentCandidates(source: AuthoritySourceConfig, rawBody: string): Array<string | undefined> {
+  if (source.id === 'nhc-fys' || source.id === 'nhc-rkjt') {
+    return [
+      rawBody.match(/<div[^>]+id=["']xw_box["'][^>]*>([\s\S]*?)<\/div>\s*<\/div>\s*<\/div>/i)?.[1],
+      rawBody.match(/<div[^>]+id=["']xw_box["'][^>]*>([\s\S]*?)<\/div>/i)?.[1],
+    ];
+  }
+
   if (source.id === 'ncwch-maternal-child-health') {
     return [
       rawBody.match(/<div[^>]+id=["']content["'][^>]*>([\s\S]*?)<\/div>\s*<p>/i)?.[1],
@@ -68,7 +89,7 @@ function extractSourceSpecificCnContent(source: AuthoritySourceConfig, rawBody: 
   const candidates = extractSourceSpecificCnContentCandidates(source, rawBody);
 
   for (const candidate of candidates.filter(Boolean) as string[]) {
-    const text = stripHtml(candidate);
+    const text = normalizeCnHealthContentText(stripHtml(candidate));
     if (text.length >= 80) {
       return text;
     }
@@ -98,11 +119,17 @@ function normalizeCnHealthTitle(title: string): string {
 }
 
 function extractSourceSpecificCnTitle(source: AuthoritySourceConfig, rawBody: string): string {
-  const candidates: Array<string | undefined> = [];
+  const candidates: Array<string | undefined> = [
+    extractMetaContent(rawBody, 'ArticleTitle'),
+  ];
 
   if (source.id === 'ncwch-maternal-child-health') {
     candidates.push(
       rawBody.match(/<article[\s\S]*?<h2[^>]*>([\s\S]*?)<\/h2>/i)?.[1],
+    );
+  } else if (source.id === 'nhc-fys' || source.id === 'nhc-rkjt') {
+    candidates.push(
+      rawBody.match(/<div[^>]+class=["'][^"']*\btit\b[^"']*["'][^>]*>([\s\S]*?)<\/div>/i)?.[1],
     );
   } else if (source.id === 'mchscn-monitoring') {
     candidates.push(

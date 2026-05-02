@@ -25,6 +25,7 @@ import { inferAuthorityStages } from '../utils/authority-stage';
 import { matchesAuthorityStageFilters } from '../utils/authority-stage-filter';
 import { logger } from '../utils/logger';
 import { shouldFilterAuthoritySourceUrl } from '../utils/authority-source-url';
+import { getAuthorityKnowledgeDropReason, isOutOfScopeKnowledgeQuery } from '../utils/knowledge-content-guard';
 import { matchesExpandedSearch } from '../utils/search-query-expansion';
 import { rewriteSearchQueries } from '../services/knowledge.service';
 import {
@@ -264,6 +265,61 @@ function normalizeAuthorityText(text: string): string {
     .replace(/\s+/g, ' ')
     .trim()
     .replace(/^-->\s*/, '');
+}
+
+type AuthorityReadableLength = {
+  count: number;
+  unit: '字' | '词';
+};
+
+function countAuthorityReadableLength(input?: string): AuthorityReadableLength {
+  const plainText = normalizeAuthorityText(input || '')
+    .replace(/https?:\/\/\S+|www\.\S+/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!plainText) {
+    return { count: 0, unit: '字' };
+  }
+
+  const cjkChars = countMatches(plainText, /[\u3400-\u4dbf\u4e00-\u9fff]/gu);
+  const latinWords = countMatches(plainText, /[A-Za-z]+(?:[-'][A-Za-z]+)*/g);
+  const numberGroups = countMatches(plainText, /\b\d+(?:[.,]\d+)*\b/g);
+
+  if (cjkChars > 0) {
+    return {
+      count: cjkChars + latinWords + numberGroups,
+      unit: '字',
+    };
+  }
+
+  if (latinWords > 0 || numberGroups > 0) {
+    return {
+      count: latinWords + numberGroups,
+      unit: '词',
+    };
+  }
+
+  return {
+    count: plainText.replace(/[^\p{L}\p{N}]/gu, '').length,
+    unit: '字',
+  };
+}
+
+function resolveAuthorityReadingTime(record: AuthorityCacheRecord, readableLength: AuthorityReadableLength): number {
+  const storedReadTime = typeof record.read_time === 'number'
+    ? record.read_time
+    : Number.parseFloat(String(record.read_time || ''));
+  if (Number.isFinite(storedReadTime) && storedReadTime > 0) {
+    return Math.max(1, Math.ceil(storedReadTime));
+  }
+
+  if (readableLength.count <= 0) {
+    return 0;
+  }
+
+  const speed = readableLength.unit === '词' ? 220 : 600;
+  return Math.max(1, Math.ceil(readableLength.count / speed));
 }
 
 function countAuthorityChromeMatches(text: string): number {
@@ -736,6 +792,7 @@ async function getAuthorityRecords(): Promise<AuthorityCacheRecord[]> {
   if (cacheRecords.length > 0) {
     return cacheRecords
       .filter((record) => !shouldFilterAuthoritySourceUrl(record))
+      .filter((record) => !getAuthorityKnowledgeDropReason(record))
       .filter((record) => !isInvalidAuthoritySourceUrl(record))
       .filter((record) => !isAuthorityRecordLowValue(record));
   }
@@ -778,6 +835,7 @@ async function getAuthorityRecords(): Promise<AuthorityCacheRecord[]> {
   return rows
     .map((row) => mapAuthorityDbRowToRecord(row))
     .filter((record) => !shouldFilterAuthoritySourceUrl(record))
+    .filter((record) => !getAuthorityKnowledgeDropReason(record))
     .filter((record) => !isInvalidAuthoritySourceUrl(record))
     .filter((record) => !isAuthorityRecordLowValue(record));
 }
@@ -1348,6 +1406,7 @@ function mapAuthorityRecordToArticle(record: AuthorityCacheRecord, index: number
       articleCount: 0,
       createdAt: record.created_at || record.published_at || new Date().toISOString(),
     }));
+  const readableLength = countAuthorityReadableLength(record.answer || record.summary || '');
 
   return {
     id: hashStringToPositiveInt(record.id || slug),
@@ -1370,6 +1429,9 @@ function mapAuthorityRecordToArticle(record: AuthorityCacheRecord, index: number
     viewCount: record.view_count || 0,
     likeCount: record.like_count || 0,
     collectCount: 0,
+    readingTime: resolveAuthorityReadingTime(record, readableLength),
+    readableTextLength: readableLength.count,
+    readableTextUnit: readableLength.unit,
     stage: targetStages[0],
     targetStages,
     difficulty: record.difficulty || 'authoritative',
@@ -1384,6 +1446,7 @@ function mapAuthorityRecordToArticle(record: AuthorityCacheRecord, index: number
     isFavorited: false,
     source: record.source,
     sourceOrg,
+    sourceClass: record.source_class || 'official',
     sourceUrl: record.source_url || record.url,
     sourceLanguage,
     sourceLocale,
@@ -1545,7 +1608,11 @@ function getAuthorityArticleDateBucket(article: ReturnType<typeof mapAuthorityRe
 }
 
 function getAuthorityArticleSourcePriority(article: ReturnType<typeof mapAuthorityRecordToArticle>): number {
-  return isChineseAuthorityArticle(article) ? 0 : 1;
+  if (article.sourceClass === 'medical_platform') {
+    return 0;
+  }
+
+  return isChineseAuthorityArticle(article) ? 1 : 2;
 }
 
 function getAuthorityArticlePathname(article: ReturnType<typeof mapAuthorityRecordToArticle>): string {
@@ -1626,6 +1693,10 @@ async function filterAuthorityArticles(
 ) {
   const keyword = typeof filters.keyword === 'string' ? filters.keyword.trim().toLowerCase() : '';
   const source = typeof filters.source === 'string' ? filters.source.trim().toLowerCase() : '';
+  if (keyword && isOutOfScopeKnowledgeQuery(keyword)) {
+    return [];
+  }
+
   const translationCache = keyword ? loadAuthorityTranslationCache() : null;
   const searchQueries = keyword
     ? Array.from(new Set([keyword, ...(await rewriteSearchQueries(keyword))].map((item) => item.trim()).filter(Boolean)))

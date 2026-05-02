@@ -23,6 +23,8 @@ describe('shared knowledge text helpers', () => {
   test('maps authority source labels to consistent Chinese names', () => {
     expect(formatSourceLabel('HealthyChildren.org')).toBe('美国儿科学会');
     expect(formatSourceLabel('CDC')).toBe('美国疾控中心');
+    expect(formatSourceLabel('https://www.haodf.com/neirong/wenzhang/9394363019.html')).toBe('好大夫在线');
+    expect(formatSourceLabel('https://www.dayi.org.cn/qa/153633.html')).toBe('中国医药信息查询平台');
   });
 
   test('builds localized fallback titles from topic and stage context', () => {
@@ -88,6 +90,53 @@ describe('shared knowledge text helpers', () => {
     expect(summaryMeta.contentMode).toBe('summary');
     expect(summaryMeta.sectionCount).toBe(0);
     expect(summaryMeta.sectionLabel).toBe('摘要阅读');
+    expect(summaryMeta.textLengthLabel).toMatch(/^摘要约 /u);
+
+    const emptyMeta = buildKnowledgeReadingMeta({
+      summary: '',
+      content: '',
+    });
+
+    expect(emptyMeta.estimatedMinutes).toBe(0);
+    expect(emptyMeta.estimatedMinutesLabel).toBe('待同步');
+    expect(emptyMeta.textLength).toBe(0);
+    expect(emptyMeta.textLengthLabel).toBe('正文待同步');
+    expect(emptyMeta.sectionLabel).toBe('等待正文');
+  });
+
+  test('uses list metadata for authority articles whose body is omitted', () => {
+    const meta = buildKnowledgeReadingMeta({
+      summary: '这是列表摘要，不能用来代表全文阅读时间。',
+      content: '',
+      readingTime: 4,
+      readableTextLength: 1808,
+      readableTextUnit: '字',
+    });
+
+    expect(meta.contentMode).toBe('body');
+    expect(meta.estimatedMinutes).toBe(4);
+    expect(meta.estimatedMinutesLabel).toBe('约 4 分钟');
+    expect(meta.textLengthLabel).toBe('约 1800 字');
+    expect(meta.sectionLabel).toBe('连续阅读');
+  });
+
+  test('counts readable English words instead of raw html character length', () => {
+    const meta = buildKnowledgeReadingMeta({
+      content: '<p>Safe sleep guidance for babies and families.</p><p>https://example.org/a/b</p>',
+    });
+
+    expect(meta.textLengthLabel).toBe('约 7 词');
+  });
+
+  test('estimates English reading time from word count metadata', () => {
+    const meta = buildKnowledgeReadingMeta({
+      content: '',
+      readableTextLength: 440,
+      readableTextUnit: '词',
+    });
+
+    expect(meta.textLengthLabel).toBe('约 440 词');
+    expect(meta.estimatedMinutesLabel).toBe('约 2 分钟');
   });
 
   test('builds compact variant preview for merged article versions', () => {
@@ -120,6 +169,16 @@ describe('shared knowledge text helpers', () => {
     expect(getKnowledgeSourceSignal({
       sourceOrg: 'MSD Manuals',
       sourceUrl: 'https://www.msdmanuals.cn/home/children',
+    })).toBe('中文源');
+
+    expect(getKnowledgeSourceSignal({
+      sourceOrg: '好大夫在线',
+      sourceUrl: 'https://www.haodf.com/neirong/wenzhang/9394363019.html',
+    })).toBe('中文源');
+
+    expect(getKnowledgeSourceSignal({
+      sourceOrg: '中国医药信息查询平台',
+      sourceUrl: 'https://www.dayi.org.cn/qa/153633.html',
     })).toBe('中文源');
   });
 

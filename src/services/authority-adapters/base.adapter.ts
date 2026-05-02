@@ -1,5 +1,6 @@
 import type { AuthorityRawDocument, NormalizedAuthorityDocument } from '../authority-sync.service';
 import { OFFICIAL_AUTHORITY_SOURCE_IDS, type AuthoritySourceConfig } from '../../config/authority-sources';
+import { getMedicalPlatformQualityDropReason } from '../../utils/medical-platform-quality';
 
 export interface AuthorityDocumentAdapter {
   id: string;
@@ -123,7 +124,7 @@ export function detectTopic(input: string | DetectionInput, source: AuthoritySou
     return 'feeding';
   }
 
-  if (/\/(pregnancy|prenatal|postpartum|womens-health|fertility|contraception)\//.test(sourceUrl) || /pregnan|prenatal|postpartum|孕|产后/u.test(primary)) {
+  if (/\/(pregnancy|prenatal|postpartum|womens-health|fertility|contraception)\//.test(sourceUrl) || /pregnan|prenatal|postpartum|孕|妊娠|产后/u.test(primary)) {
     return 'pregnancy';
   }
 
@@ -166,12 +167,17 @@ export function detectTopic(input: string | DetectionInput, source: AuthoritySou
 export function detectAudience(input: string | DetectionInput, source: AuthoritySourceConfig): string {
   const { primary, extended, sourceUrl } = normalizeDetectionInput(input);
 
+  if (/\/(newborn|baby|infant|child|children|ages-stages\/baby)\//.test(sourceUrl)
+    || /newborn|infant|baby|child|children|新生儿|婴儿|婴幼儿|宝宝|儿童|孩子|小儿|育儿|托育/u.test(primary)) {
+    return '婴幼儿家长';
+  }
+
   if (/\/(toddler|preschool|school|parenting)\//.test(sourceUrl)
     || /toddler|preschool|school-age|potty|discipline|behavior|如厕|学步|学龄前|幼儿/u.test(primary)) {
     return '幼儿家长';
   }
 
-  if (/\/(pregnancy|prenatal|postpartum|womens-health|fertility|contraception)\//.test(sourceUrl) || /pregnan|prenatal|postpartum|孕妇|孕期|怀孕|产后/u.test(primary)) {
+  if (/\/(pregnancy|prenatal|postpartum|womens-health|fertility|contraception)\//.test(sourceUrl) || /pregnan|prenatal|postpartum|孕妇|孕期|怀孕|妊娠|产后/u.test(primary)) {
     return '孕妇';
   }
 
@@ -184,16 +190,11 @@ export function detectAudience(input: string | DetectionInput, source: Authority
     return '母婴家庭';
   }
 
-  if (/\/(newborn|baby|infant|child|children|ages-stages\/baby)\//.test(sourceUrl)
-    || /newborn|infant|baby|child|children|新生儿|婴儿|婴幼儿|儿童|孩子|小儿|育儿|托育/u.test(primary)) {
-    return '婴幼儿家长';
-  }
-
   if (/newborn|infant|baby|child|children|新生儿|婴儿|婴幼儿|儿童|孩子|小儿|育儿|托育/u.test(extended)) {
     return '婴幼儿家长';
   }
 
-  if (/pregnan|prenatal|postpartum|孕妇|孕期|产后/u.test(extended)) {
+  if (/pregnan|prenatal|postpartum|孕妇|孕期|妊娠|产后/u.test(extended)) {
     return '孕妇';
   }
 
@@ -217,7 +218,7 @@ export function isMaternalInfantRelevant(sourceUrl: string, title: string, text:
     /(baby|child|children|infant|newborn).*(fever|jaundice|vomit|vomiting|diarrhea|diarrhoea|cough|rash|cyanosis)/,
     /(vaccin|immuni).*(pregnan|baby|child|children|infant|newborn)/,
     /(pregnan|baby|child|children|infant|newborn).*(vaccin|immuni)/,
-    /(孕产妇|孕妇|孕期|孕早期|孕中期|孕晚期|产后|分娩|母乳|哺乳|新生儿|婴儿|儿童|孩子|小儿|儿科|辅食|疫苗|接种|妇幼|生育|托育|备孕|避孕)/,
+    /(孕产妇|孕妇|孕期|孕早期|孕中期|孕晚期|妊娠|产后|分娩|母乳|哺乳|新生儿|婴儿|儿童|孩子|小儿|儿科|辅食|疫苗|接种|妇幼|生育|托育|备孕|避孕)/,
   ];
 
   const genericMedicinePattern = /\/medicines\//.test(sourceUrl);
@@ -264,6 +265,13 @@ export function shouldPublishDocument(document: NormalizedAuthorityDocument): 'd
     : 300;
   if (!document.contentText || document.contentText.length < minimumContentLength) {
     return 'rejected';
+  }
+
+  const sourceClass = typeof document.metadataJson?.sourceClass === 'string'
+    ? document.metadataJson.sourceClass
+    : undefined;
+  if (sourceClass === 'medical_platform' && document.contentText.length < 600) {
+    return 'review';
   }
 
   // Keep emergency content in manual review, but let common maternal/infant
@@ -331,7 +339,7 @@ export function containsDeathRelatedTerms(text: string): boolean {
 
 const HIGH_SENSITIVITY_TOPIC_PATTERN = /胎死(?:腹中|宫内)?|胎停(?:育)?|稽留流产|胎儿宫内死亡|胎儿畸形(?:引产|终止妊娠)|引产案例|引产经历|堕胎(?:经历|过程|手术)|遗腹子/u;
 
-const SENSATIONAL_LANGUAGE_PATTERN = /(?:很要命|后患无穷|致命|可怕|惊人|惊悚|惊呆|噩耗|崩溃|惨剧|惨痛|血淋淋|绝症|悲剧|越来越多|不敢相信|高度警惕|都怪|这件事能|赶紧拿|赶紧用|分分钟|惊天|揪心|哭了|崩溃了|无人不知|无人不晓|惊曝|曝光|警惕!|当心!|千万别|太可怕|必看|秒懂|不妨试试|绝招|招数|支招|智力受损|补脑|不防不行|妈妈要早知|值得家长一看)/u;
+const SENSATIONAL_LANGUAGE_PATTERN = /(?:很要命|后患无穷|致命|可怕|惊人|惊悚|惊呆|噩耗|崩溃|惨剧|惨痛|痛不欲生|血淋淋|绝症|悲剧|越来越多|不敢相信|高度警惕|都怪|这件事能|赶紧拿|赶紧用|分分钟|惊天|揪心|哭了|崩溃了|无人不知|无人不晓|惊曝|曝光|警惕!|当心!|千万别|太可怕|必看|秒懂|不妨试试|绝招|招数|支招|智力受损|补脑|不防不行|妈妈要早知|值得家长一看)/u;
 
 const PSEUDO_MEDICAL_GENDER_SELECTION_PATTERN = /(?:备孕|怀孕|二胎|三胎|想要|要想|准备)[^，。！？]{0,8}(?:男孩|女孩|男宝|女宝|男娃|女娃|儿子)(?![名个])|(?:生|怀|要)(?:个)?(?:男孩|女孩|男宝|女宝|男娃|女娃)(?:[^，。！？]{0,12}(?:秘诀|偏方|方法|妙招|妙方|技巧|吃什么|怎么吃|食谱|配方|攻略|科学|备孕|攻略|攻略)|$|？|\?)|(?:男孩|女孩|男宝|女宝)[^，。！？]{0,6}(?:秘诀|偏方|妙方)|生男生女(?:秘诀|预测|看|早知道|提前知道)|清宫(?:表|图)预测|(?:酸性体质|碱性体质)[^，。！？]{0,8}(?:生男|生女|男孩|女孩)/u;
 
@@ -517,6 +525,26 @@ export function evaluateAuthorityDocumentQuality(document: NormalizedAuthorityDo
 
   if (containsDeathRelatedTerms(`${document.summary || ''} ${contentText}`)) {
     reasons.push('death_related_term');
+  }
+
+  if (HIGH_SENSITIVITY_TOPIC_PATTERN.test(`${document.summary || ''} ${contentText}`)) {
+    reasons.push('high_sensitivity_topic');
+  }
+
+  const medicalPlatformReason = getMedicalPlatformQualityDropReason({
+    title: document.title,
+    summary: document.summary,
+    contentText: `${typeof document.metadataJson.professionalSignal === 'string' ? document.metadataJson.professionalSignal : ''} ${document.contentText}`.trim(),
+    sourceId: document.sourceId,
+    sourceOrg: document.sourceOrg,
+    sourceClass: typeof document.metadataJson.sourceClass === 'string'
+      ? document.metadataJson.sourceClass
+      : undefined,
+    sourceUrl: document.sourceUrl,
+    updatedAt: document.updatedAt,
+  });
+  if (medicalPlatformReason) {
+    reasons.push(medicalPlatformReason);
   }
 
   const ocrCandidate = hasOcrOnlyDocumentSignal(document);

@@ -10,9 +10,13 @@ import { aapAdapter } from './aap.adapter';
 import { acogAdapter } from './acog.adapter';
 import { cdcAdapter } from './cdc.adapter';
 import { chunyuAdapter } from './chunyu.adapter';
+import { cmaKepuAdapter } from './cma-kepu.adapter';
 import { cnHealthAdapter } from './cn-health.adapter';
 import { dxyAdapter } from './dxy.adapter';
+import { dayiAdapter } from './dayi.adapter';
 import { familydoctorAdapter } from './familydoctor.adapter';
+import { haodfAdapter } from './haodf.adapter';
+import { kepuchinaAdapter } from './kepuchina.adapter';
 import { mayoAdapter } from './mayo.adapter';
 import { msdManualsAdapter } from './msd-manuals.adapter';
 import { nhsAdapter } from './nhs.adapter';
@@ -29,10 +33,14 @@ const adapters: AuthorityDocumentAdapter[] = [
   mayoAdapter,
   msdManualsAdapter,
   cnHealthAdapter,
+  cmaKepuAdapter,
   dxyAdapter,
   chunyuAdapter,
   youlaiAdapter,
+  dayiAdapter,
   familydoctorAdapter,
+  haodfAdapter,
+  kepuchinaAdapter,
   yilianmeitiAdapter,
 ];
 

@@ -53,6 +53,13 @@ export {
 } from '../../../shared/utils/article-translation'
 
 export {
+  containsDeathRelatedTerms,
+  getSensitiveKnowledgeDropReason,
+  isHighRiskOrClickbaitTitle,
+  isSensitiveKnowledgeQuery,
+} from '../../../shared/utils/knowledge-content-guard'
+
+export {
   buildKnowledgeVariantFilterFeedback,
   buildKnowledgeVariantRecommendation,
   buildKnowledgeRepresentativeReason,

@@ -46,6 +46,10 @@ export function formatSourceLabel(label?: string): string {
   if (/国家卫生健康委员会|国家卫健委/.test(value)) return '国家卫健委';
   if (/中国疾病预防控制中心|中国疾控/.test(value)) return '中国疾控';
   if (/国家疾病预防控制局/.test(value)) return '国家疾控局';
+  if (/有来医生|youlai\.cn/i.test(value)) return '有来医生';
+  if (/中国医药信息查询平台|dayi\.org\.cn/i.test(value)) return '中国医药信息查询平台';
+  if (/科普中国|kepuchina\.cn/i.test(value)) return '科普中国';
+  if (/好大夫在线|haodf\.com/i.test(value)) return '好大夫在线';
   return value;
 }
 

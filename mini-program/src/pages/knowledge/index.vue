@@ -1,16 +1,8 @@
 <template>
   <view class="knowledge-page">
-    <view class="hero">
-      <text class="hero-title">权威知识库</text>
-      <text class="hero-subtitle">优先展示中国政府网、国家卫健委、中国疾控、国家疾控局及 WHO、CDC、AAP、ACOG、NHS 等公开资料。</text>
-      <view class="hero-pills">
-        <view class="hero-pill">
-          <text class="hero-pill-text">中国权威源优先</text>
-        </view>
-        <view class="hero-pill">
-          <text class="hero-pill-text">国际原文支持中文辅助阅读</text>
-        </view>
-      </view>
+    <view class="knowledge-header">
+      <text class="knowledge-title">权威知识库</text>
+      <text class="knowledge-subtitle">中文权威源优先，直接搜索孕产、喂养、发热、黄疸、疫苗等问题。</text>
     </view>
 
     <view class="search-bar">
@@ -24,48 +16,6 @@
       <view class="search-btn" @tap="handleSearch">
         <text class="search-btn-text">搜索</text>
       </view>
-    </view>
-
-    <view class="stage-guide-panel">
-      <view class="section-head">
-        <view>
-          <text class="section-title">{{ stageGuide.title }}</text>
-          <text class="section-caption section-caption--block">{{ stageGuide.caption }}</text>
-        </view>
-        <text class="stage-guide-badge">{{ stageGuide.badge }}</text>
-      </view>
-      <view class="stage-guide-grid">
-        <view
-          v-for="item in stageGuide.items"
-          :key="item.key"
-          class="stage-guide-card"
-          @tap="applyStageGuide(item)"
-        >
-          <text class="stage-guide-title">{{ item.title }}</text>
-          <text class="stage-guide-desc">{{ item.desc }}</text>
-          <text class="stage-guide-action">筛选这个方向</text>
-        </view>
-      </view>
-    </view>
-
-    <view class="scenario-panel">
-      <view class="section-head">
-        <text class="section-title">按场景快速查</text>
-        <text class="section-caption">替代泛搜，更容易读到可用内容</text>
-      </view>
-      <scroll-view class="scenario-scroll" scroll-x>
-        <view class="scenario-row">
-          <view
-            v-for="option in scenarioOptions"
-            :key="option.key"
-            :class="['scenario-card', activeScenarioKey === option.key ? 'scenario-card--active' : '']"
-            @tap="applyScenario(option)"
-          >
-            <text :class="['scenario-title', activeScenarioKey === option.key ? 'scenario-title--active' : '']">{{ option.label }}</text>
-            <text :class="['scenario-desc', activeScenarioKey === option.key ? 'scenario-desc--active' : '']">{{ option.hint }}</text>
-          </view>
-        </view>
-      </scroll-view>
     </view>
 
     <view class="filter-block">
@@ -285,7 +235,6 @@ import {
   getKnowledgeDisplaySummary,
   getKnowledgeDisplayTitle,
   getKnowledgeFallbackSummary,
-  getKnowledgeStageLabel,
   groupKnowledgeArticles,
   isChineseKnowledgeArticle,
   sortKnowledgeVariants,
@@ -293,20 +242,11 @@ import {
 
 const knowledgeStore = useKnowledgeStore()
 
-interface StageGuideItem {
-  key: string
-  title: string
-  desc: string
-  keyword: string
-  stage: string | null
-}
-
 type VariantFilterMode = 'all' | 'zh' | 'latest'
 type VariantSortMode = 'recommended' | 'recent' | 'zhFirst'
 
 const searchText = ref('')
 const selectedStageIndex = ref(0)
-const activeScenarioKey = ref('')
 const expandedVariantGroups = ref<string[]>([])
 const variantFilterModes = ref<Record<string, VariantFilterMode>>({})
 const variantSortModes = ref<Record<string, VariantSortMode>>({})
@@ -329,6 +269,11 @@ const sourceOptions = [
   { label: '国家卫健委', value: '国家卫生健康委员会' },
   { label: '中国疾控', value: '中国疾病预防控制中心' },
   { label: '国家疾控局', value: '国家疾病预防控制局' },
+  { label: '中华医学会', value: '中华医学会' },
+  { label: '有来医生', value: '有来医生' },
+  { label: '医药信息查询平台', value: '中国医药信息查询平台' },
+  { label: '科普中国', value: '科普中国' },
+  { label: '好大夫在线', value: '好大夫在线' },
   { label: 'WHO', value: 'who' },
   { label: 'CDC', value: 'cdc' },
   { label: '美国儿科学会', value: 'aap' },
@@ -351,44 +296,6 @@ const stageOptions = [
   { label: '1-3岁', value: '1-3-years' },
   { label: '3岁+', value: '3-years-plus' },
 ]
-
-const scenarioOptions = [
-  {
-    key: 'early-risk',
-    label: '孕早期风险',
-    hint: '出血、孕吐、叶酸、初次产检',
-    keyword: '孕早期 出血 孕吐 叶酸 产检',
-    stage: 'first-trimester',
-  },
-  {
-    key: 'checkup-nutrition',
-    label: '产检与营养',
-    hint: '孕中晚期产检、体重、饮食',
-    keyword: '产检 营养 体重 孕期',
-    stage: 'second-trimester',
-  },
-  {
-    key: 'feeding',
-    label: '母乳与喂养',
-    hint: '母乳、配方奶、辅食开始',
-    keyword: '母乳 喂养 辅食',
-    stage: '0-6-months',
-  },
-  {
-    key: 'vaccine',
-    label: '疫苗与发热',
-    hint: '接种、发热、黄疸、就医判断',
-    keyword: '疫苗 发热 黄疸 新生儿',
-    stage: '0-6-months',
-  },
-  {
-    key: 'development',
-    label: '发育与安全',
-    hint: '睡眠、发育、意外预防',
-    keyword: '发育 睡眠 安全 婴幼儿',
-    stage: '6-12-months',
-  },
-] as const
 
 const articles = computed(() => knowledgeStore.articles)
 const displayedArticleGroups = computed(() => groupKnowledgeArticles(articles.value))
@@ -426,73 +333,9 @@ watch(displayedArticleGroups, (groups) => {
   ) as Record<string, VariantSortMode>
 }, { immediate: true })
 
-function resolveStoredStage(): string | null {
-  const storedWeek = Number.parseInt(String(uni.getStorageSync('userPregnancyWeek') || ''), 10)
-  if (Number.isNaN(storedWeek) || storedWeek < 1 || storedWeek > 40) {
-    return null
-  }
-
-  if (storedWeek <= 12) return 'first-trimester'
-  if (storedWeek <= 27) return 'second-trimester'
-  return 'third-trimester'
-}
-
-function buildStageGuideItems(stage: string | null): StageGuideItem[] {
-  if (stage === 'first-trimester') {
-    return [
-      { key: 'early-risk', title: '孕早期风险信号', desc: '先看出血、腹痛、孕吐和何时需要尽快线下就医。', keyword: '孕早期 出血 腹痛 孕吐 就医', stage },
-      { key: 'early-checkup', title: '叶酸与首次产检', desc: '把叶酸补充、建档和初次产检节点看清楚。', keyword: '叶酸 建档 初次产检 早孕', stage },
-      { key: 'early-diet', title: '饮食与生活方式', desc: '集中看补剂、忌口和早孕期的日常注意事项。', keyword: '孕早期 饮食 补剂 注意事项', stage },
-    ]
-  }
-
-  if (stage === 'second-trimester') {
-    return [
-      { key: 'mid-checkup', title: '产检节点', desc: '先理顺糖耐、B 超、常见指标和复查时机。', keyword: '孕中期 糖耐 B超 产检 报告', stage },
-      { key: 'mid-nutrition', title: '营养与体重管理', desc: '优先看体重变化、营养补充和运动安排。', keyword: '孕中期 营养 体重 运动', stage },
-      { key: 'mid-fetal-movement', title: '胎动与异常信号', desc: '先把胎动观察、宫缩区别和异常信号看明白。', keyword: '胎动 宫缩 异常信号', stage },
-    ]
-  }
-
-  if (stage === 'third-trimester') {
-    return [
-      { key: 'late-delivery', title: '临近分娩准备', desc: '优先看入院信号、待产包和分娩前准备。', keyword: '孕晚期 入院信号 待产包 分娩准备', stage },
-      { key: 'late-breastfeeding', title: '哺乳与新生儿护理', desc: '先读产后喂养、皮肤接触和新生儿护理的基础内容。', keyword: '哺乳 新生儿护理 产后 喂养', stage },
-      { key: 'late-warning', title: '胎动与破水', desc: '重点区分规律宫缩、破水和需要尽快处理的异常情况。', keyword: '孕晚期 宫缩 破水 胎动', stage },
-    ]
-  }
-
-  if (stage === 'newborn' || stage === '0-6-months') {
-    return [
-      { key: 'newborn-feeding', title: '喂养与黄疸', desc: '先看母乳、黄疸和体重变化的基础判断。', keyword: '新生儿 喂养 黄疸 体重', stage },
-      { key: 'newborn-vaccine', title: '疫苗与发热', desc: '把接种安排和发热处理的权威口径看准。', keyword: '新生儿 疫苗 发热 接种', stage },
-      { key: 'newborn-sleep', title: '睡眠与护理', desc: '先熟悉睡眠、安全睡姿和日常护理。', keyword: '新生儿 睡眠 护理 安全', stage },
-    ]
-  }
-
-  return [
-    { key: 'authority-start', title: '中国权威来源', desc: '优先看中国政府网、国家卫健委和中国疾控的公开内容。', keyword: '国家卫健委 中国疾控 孕产 指南', stage: null },
-    { key: 'pregnancy-start', title: '孕期常见主题', desc: '从产检、营养、风险信号这些高频主题进入。', keyword: '产检 营养 风险信号 孕期', stage: null },
-    { key: 'newborn-start', title: '新生儿高频问题', desc: '提前熟悉喂养、黄疸、疫苗和睡眠主题。', keyword: '新生儿 喂养 黄疸 疫苗 睡眠', stage: 'newborn' },
-  ]
-}
-
-const resolvedStage = computed(() => stageOptions[selectedStageIndex.value]?.value || resolveStoredStage())
-const stageGuide = computed(() => {
-  const stage = resolvedStage.value
-  const label = stageOptions.find(item => item.value === stage)?.label || '当前阶段'
-
-  return {
-    title: stage ? `${label}建议先看这些` : '第一次来建议先看这些',
-    caption: stage ? '先从高频主题切入，再用机构和关键词继续缩小范围。' : '先从高频入口熟悉知识库，再决定接下来补什么信息。',
-    badge: stage ? label : '冷启动',
-    items: buildStageGuideItems(stage || null),
-  }
-})
 function syncLocalFiltersFromStore() {
   searchText.value = knowledgeStore.keyword
   syncStageIndex(knowledgeStore.selectedStage)
-  activeScenarioKey.value = ''
 }
 
 async function loadArticles(reset = true) {
@@ -513,7 +356,6 @@ onShow(async () => {
 
 function handleSearch() {
   const keyword = searchText.value.trim()
-  activeScenarioKey.value = ''
   void knowledgeStore.applyFilters({
     keyword,
     source: selectedSource.value,
@@ -525,7 +367,6 @@ function handleSourceChange(source: string) {
   if (selectedSource.value === source) {
     return
   }
-  activeScenarioKey.value = ''
   void knowledgeStore.applyFilters({
     keyword: searchText.value,
     source,
@@ -537,7 +378,6 @@ function onStageChange(e: { detail: { value: number } }) {
   const idx = e.detail.value
   selectedStageIndex.value = idx
   const stage = stageOptions[idx]
-  activeScenarioKey.value = ''
   void knowledgeStore.applyFilters({
     keyword: searchText.value,
     source: selectedSource.value,
@@ -548,17 +388,6 @@ function onStageChange(e: { detail: { value: number } }) {
 function syncStageIndex(stageValue?: string | null) {
   const nextIndex = stageOptions.findIndex(option => option.value === (stageValue || ''))
   selectedStageIndex.value = nextIndex >= 0 ? nextIndex : 0
-}
-
-function applyScenario(option: typeof scenarioOptions[number]) {
-  activeScenarioKey.value = option.key
-  searchText.value = option.keyword
-  syncStageIndex(option.stage)
-  void knowledgeStore.applyFilters({
-    keyword: option.keyword,
-    source: 'all',
-    stage: option.stage,
-  })
 }
 
 function handleLoadMore() {
@@ -575,20 +404,8 @@ onReachBottom(() => {
 function resetFilters() {
   selectedStageIndex.value = 0
   searchText.value = ''
-  activeScenarioKey.value = ''
   knowledgeStore.reset()
   void knowledgeStore.fetchArticles({ reset: true, page: 1 })
-}
-
-function applyStageGuide(item: StageGuideItem) {
-  activeScenarioKey.value = ''
-  searchText.value = item.keyword
-  syncStageIndex(item.stage)
-  void knowledgeStore.applyFilters({
-    keyword: item.keyword,
-    source: 'all',
-    stage: item.stage,
-  })
 }
 
 function goToDetail(article: Article) {
@@ -606,10 +423,6 @@ function getReadingHint(article: Article): string {
 
 function getReadingMeta(article: Article) {
   return buildKnowledgeReadingMeta(article)
-}
-
-function getStageLabel(stage?: string | null): string {
-  return getKnowledgeStageLabel(stage || undefined, stageOptions.find(item => item.value === (stage || ''))?.label || '当前阶段')
 }
 
 function getListDisplayTitle(article: Article): string {
@@ -736,128 +549,30 @@ onShareTimeline(() => {
   padding-bottom: 40rpx;
 }
 
-.hero {
-  margin: 24rpx 28rpx 22rpx;
-  padding: 34rpx 30rpx;
-  border-radius: 28rpx;
-  background: linear-gradient(180deg, #ffffff 0%, #fdf5f0 100%);
-  border: 1rpx solid rgba(31, 42, 55, 0.06);
+.knowledge-header {
+  padding: 32rpx 28rpx 18rpx;
 }
 
-.hero-title {
+.knowledge-title {
   display: block;
-  font-size: 44rpx;
+  font-size: 40rpx;
   line-height: 1.25;
   font-weight: 900;
-  color: #444;
-  margin-bottom: 12rpx;
-  letter-spacing: 1rpx;
+  color: #2c3948;
 }
 
-.hero-subtitle {
+.knowledge-subtitle {
   display: block;
-  font-size: 26rpx;
-  line-height: 1.6;
+  margin-top: 10rpx;
+  font-size: 24rpx;
+  line-height: 1.55;
   color: #5f6d7c;
-}
-
-.hero-pills {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 14rpx;
-  margin-top: 20rpx;
-}
-
-.hero-pill {
-  padding: 10rpx 18rpx;
-  border-radius: 999rpx;
-  background: rgba(31, 143, 116, 0.08);
-}
-
-.hero-pill-text {
-  font-size: 22rpx;
-  font-weight: 700;
-  color: #1c7a63;
 }
 
 .search-bar {
   display: flex;
   align-items: center;
-  padding: 0 28rpx 22rpx;
-}
-
-.cold-start-card {
-  margin: 0 28rpx 24rpx;
-  padding: 24rpx;
-  border-radius: 24rpx;
-  background: rgba(255, 248, 240, 0.95);
-  border: 1rpx solid rgba(243, 111, 69, 0.12);
-}
-
-.cold-start-title {
-  display: block;
-  font-size: 28rpx;
-  line-height: 1.45;
-  font-weight: 800;
-  color: #444;
-}
-
-.cold-start-desc {
-  display: block;
-  margin-top: 12rpx;
-  font-size: 23rpx;
-  line-height: 1.7;
-  color: #6d7887;
-}
-
-.stage-guide-panel {
-  padding: 0 28rpx 24rpx;
-}
-
-.stage-guide-badge {
-  flex-shrink: 0;
-  padding: 10rpx 18rpx;
-  border-radius: 999rpx;
-  background: rgba(47, 124, 246, 0.12);
-  font-size: 22rpx;
-  font-weight: 700;
-  color: #326ac8;
-}
-
-.stage-guide-grid {
-  display: grid;
-  gap: 16rpx;
-}
-
-.stage-guide-card {
-  padding: 22rpx;
-  border-radius: 24rpx;
-  background: rgba(255, 255, 255, 0.94);
-  border: 1rpx solid rgba(31, 42, 55, 0.06);
-}
-
-.stage-guide-title {
-  display: block;
-  font-size: 27rpx;
-  font-weight: 800;
-  line-height: 1.45;
-  color: #444;
-}
-
-.stage-guide-desc {
-  display: block;
-  margin-top: 10rpx;
-  font-size: 22rpx;
-  line-height: 1.65;
-  color: #6d7887;
-}
-
-.stage-guide-action {
-  display: block;
-  margin-top: 12rpx;
-  font-size: 22rpx;
-  font-weight: 700;
-  color: #1f8f74;
+  padding: 0 28rpx 20rpx;
 }
 
 .search-input {
@@ -882,191 +597,6 @@ onShareTimeline(() => {
   font-size: 26rpx;
   color: #fff;
   font-weight: 600;
-}
-
-.recent-ai-section {
-  padding: 0 28rpx 24rpx;
-}
-
-.section-caption--block {
-  display: block;
-  margin-top: 6rpx;
-}
-
-.recent-ai-count {
-  flex-shrink: 0;
-  padding: 10rpx 18rpx;
-  border-radius: 999rpx;
-  background: rgba(31, 143, 116, 0.12);
-  font-size: 22rpx;
-  font-weight: 700;
-  color: #1c7a63;
-}
-
-.recent-ai-scroll {
-  white-space: nowrap;
-}
-
-.recent-ai-row {
-  display: inline-flex;
-  gap: 16rpx;
-  padding-right: 28rpx;
-}
-
-.recent-ai-card {
-  width: 252rpx;
-  min-height: 164rpx;
-  padding: 20rpx;
-  border-radius: 26rpx;
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 10rpx 28rpx rgba(31, 42, 55, 0.02);
-  box-sizing: border-box;
-}
-
-.recent-ai-card-kicker {
-  display: block;
-  font-size: 21rpx;
-  font-weight: 700;
-  color: #1c7a63;
-}
-
-.recent-ai-card-title {
-  display: block;
-  margin-top: 10rpx;
-  font-size: 26rpx;
-  line-height: 1.5;
-  font-weight: 700;
-  color: #444;
-}
-
-.recent-ai-card-meta,
-.recent-ai-card-topic {
-  display: block;
-  margin-top: 10rpx;
-  font-size: 22rpx;
-  line-height: 1.45;
-  color: #6f7d8d;
-}
-
-.recent-ai-chip-panel {
-  margin-top: 18rpx;
-  padding: 18rpx;
-  border-radius: 24rpx;
-  background: rgba(255, 255, 255, 0.82);
-}
-
-.recent-ai-chip-row + .recent-ai-chip-row {
-  margin-top: 16rpx;
-}
-
-.recent-ai-chip-label {
-  display: block;
-  margin-bottom: 12rpx;
-  font-size: 22rpx;
-  font-weight: 700;
-  color: #7a8697;
-}
-
-.recent-ai-topic-chip,
-.recent-ai-source-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 10rpx;
-  margin-right: 12rpx;
-  margin-bottom: 12rpx;
-  padding: 12rpx 18rpx;
-  border-radius: 999rpx;
-}
-
-.recent-ai-topic-chip {
-  background: rgba(31, 143, 116, 0.1);
-}
-
-.recent-ai-source-chip {
-  background: rgba(243, 111, 69, 0.1);
-}
-
-.recent-ai-chip-name {
-  font-size: 23rpx;
-  font-weight: 700;
-  color: #324255;
-}
-
-.recent-ai-chip-count {
-  font-size: 21rpx;
-  color: #7a8697;
-}
-
-.scenario-panel {
-  padding: 0 28rpx 24rpx;
-}
-
-.section-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 18rpx;
-  margin-bottom: 16rpx;
-}
-
-.section-title {
-  font-size: 28rpx;
-  font-weight: 800;
-  color: #444;
-}
-
-.section-caption {
-  flex-shrink: 0;
-  font-size: 22rpx;
-  color: #8a96a3;
-}
-
-.scenario-scroll {
-  white-space: nowrap;
-}
-
-.scenario-row {
-  display: inline-flex;
-  gap: 16rpx;
-  padding-right: 28rpx;
-}
-
-.scenario-card {
-  width: 220rpx;
-  min-height: 126rpx;
-  padding: 20rpx;
-  border-radius: 26rpx;
-  background: rgba(255, 255, 255, 0.92);
-  border: 1rpx solid rgba(31, 42, 55, 0.06);
-  box-sizing: border-box;
-}
-
-.scenario-card--active {
-  background: linear-gradient(135deg, #e8a1a6 0%, #c7656e 100%);
-}
-
-.scenario-title {
-  display: block;
-  font-size: 27rpx;
-  font-weight: 800;
-  color: #263342;
-}
-
-.scenario-title--active {
-  color: #ffffff;
-}
-
-.scenario-desc {
-  display: block;
-  margin-top: 10rpx;
-  font-size: 22rpx;
-  line-height: 1.45;
-  color: #687588;
-  white-space: normal;
-}
-
-.scenario-desc--active {
-  color: rgba(255, 255, 255, 0.82);
 }
 
 .filter-block {

@@ -35,6 +35,9 @@ export interface Article {
   viewCount: number
   likeCount: number
   collectCount: number
+  readingTime?: number
+  readableTextLength?: number
+  readableTextUnit?: '字' | '词'
   stage?: string
   difficulty?: string
   contentType?: string
@@ -42,6 +45,7 @@ export interface Article {
   disclaimer?: string
   source?: string
   sourceOrg?: string
+  sourceClass?: 'official' | 'medical_platform' | 'dataset' | 'unknown'
   sourceUrl?: string
   sourceLanguage?: 'zh' | 'en'
   sourceLocale?: string

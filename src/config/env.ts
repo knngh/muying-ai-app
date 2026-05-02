@@ -15,12 +15,36 @@ const AI_PROVIDER_KEYS = [
   'AI_GATEWAY_KEY',
 ] as const;
 
+const JWT_SECRET_PLACEHOLDERS = new Set([
+  'your-super-secret-jwt-key-change-in-production',
+  'change-me',
+  'secret',
+]);
+const JWT_SECRET_MIN_LENGTH = 32;
+
 export function validateEnv(): void {
   const missing = REQUIRED_ENV.filter(key => !process.env[key]);
   if (missing.length > 0) {
     console.error(`[启动失败] 缺少必需环境变量: ${missing.join(', ')}`);
     console.error('请参考 .env.example 配置环境变量');
     process.exit(1);
+  }
+
+  // 生产环境对 JWT_SECRET 做强度校验，防止误用 .env.example 占位值
+  if (process.env.NODE_ENV === 'production') {
+    const secret = process.env.JWT_SECRET || '';
+    if (JWT_SECRET_PLACEHOLDERS.has(secret) || secret.length < JWT_SECRET_MIN_LENGTH) {
+      console.error(`[启动失败] 生产环境 JWT_SECRET 必须至少 ${JWT_SECRET_MIN_LENGTH} 字符且非示例占位值`);
+      console.error('请使用强随机字符串，例如：openssl rand -base64 48');
+      process.exit(1);
+    }
+
+    // PAYMENT_CALLBACK_ALLOW_AUTH_FALLBACK 在生产代码里已被 isDev 强制 false，
+    // 但若 .env 误留了 true，给出显式启动警告便于运维察觉。
+    if (process.env.PAYMENT_CALLBACK_ALLOW_AUTH_FALLBACK === 'true') {
+      console.warn('[启动警告] 生产环境检测到 PAYMENT_CALLBACK_ALLOW_AUTH_FALLBACK=true，已被代码强制禁用');
+      console.warn('  请从 .env / 部署配置中移除该项，避免接入真实支付网关后被误启用');
+    }
   }
 
   // AI 配置校验：至少需要一个可用的 provider key，否则 AI 功能将降级到知识库兜底

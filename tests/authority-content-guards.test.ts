@@ -299,6 +299,7 @@ describe('authority content guards', () => {
     expect(isHighRiskOrClickbaitTitle('改善宝宝枕秃的有效措施在这里 妈妈赶紧拿去用')).toBe('sensational_clickbait');
     expect(isHighRiskOrClickbaitTitle('宝宝有睡眠障碍怎么办？不妨试试这6招')).toBe('sensational_clickbait');
     expect(isHighRiskOrClickbaitTitle('儿童挑食智力受损 几种方法改善儿童挑食现象')).toBe('sensational_clickbait');
+    expect(isHighRiskOrClickbaitTitle('无痛分娩：让分娩不再痛不欲生')).toBe('sensational_clickbait');
   });
 
   it('blocks pseudo-medical gender-selection content', () => {
@@ -336,6 +337,257 @@ describe('authority content guards', () => {
     };
 
     expect(evaluateAuthorityDocumentQuality(document).decision).toBe('reject');
+    expect(shouldPublishDocument(document)).toBe('rejected');
+  });
+
+  it('rejects low-quality third-party medical-platform articles before publishing', () => {
+    const noisyDocument = {
+      sourceId: 'yilianmeiti-maternal-child',
+      sourceOrg: '医联媒体',
+      sourceUrl: 'https://www.yilianmeiti.com/article/2934661.html',
+      sourceLanguage: 'zh' as const,
+      sourceLocale: 'zh-CN',
+      title: '哺乳期可以喝酒吗？酒精对宝宝的影响要知道',
+      updatedAt: '2026-03-01T00:00:00.000Z',
+      audience: '产后妈妈',
+      topic: 'feeding',
+      region: 'CN',
+      riskLevelDefault: 'green' as const,
+      summary: '好多新手妈妈在哺乳期时，都被“能不能喝酒”这个问题给难住了🤔。',
+      contentText: '今天咱就来好好唠唠哺乳期饮酒这事儿。'.repeat(30),
+      metadataJson: { sourceClass: 'medical_platform' },
+      publishStatus: 'draft' as const,
+    };
+
+    expect(evaluateAuthorityDocumentQuality(noisyDocument).reasons).toContain('medical_platform_noisy_title');
+    expect(shouldPublishDocument(noisyDocument)).toBe('rejected');
+
+    const oldDocument = {
+      sourceId: 'familydoctor-maternal',
+      sourceOrg: '家庭医生在线',
+      sourceUrl: 'https://www.familydoctor.com.cn/baby/a/201503/752536.html',
+      sourceLanguage: 'zh' as const,
+      sourceLocale: 'zh-CN',
+      title: '新生儿疾病小心黄疸湿疹 保健新生儿疾病注意哺乳',
+      updatedAt: '2015-03-27T09:06:09',
+      audience: '婴幼儿家长',
+      topic: 'common-symptoms',
+      region: 'CN',
+      riskLevelDefault: 'yellow' as const,
+      summary: '介绍新生儿常见疾病。',
+      contentText: '新生儿常见护理问题包括黄疸、湿疹、吐奶、腹泻等，家长应注意观察精神状态、吃奶和排便情况。'.repeat(20),
+      metadataJson: { sourceClass: 'medical_platform' },
+      publishStatus: 'draft' as const,
+    };
+
+    expect(evaluateAuthorityDocumentQuality(oldDocument).reasons).toContain('medical_platform_noisy_title');
+    expect(shouldPublishDocument(oldDocument)).toBe('rejected');
+
+    const caseNewsDocument = {
+      sourceId: 'yilianmeiti-maternal-child',
+      sourceOrg: '医联媒体',
+      sourceUrl: 'https://www.yilianmeiti.com/article/2932205.html',
+      sourceLanguage: 'zh' as const,
+      sourceLocale: 'zh-CN',
+      title: '腹胀如孕妇，8岁女孩竟患上卵巢恶性肿瘤，专家：“拆弹”保生育',
+      updatedAt: '2026-03-01T00:00:00.000Z',
+      audience: '母婴家庭',
+      topic: 'common-symptoms',
+      region: 'CN',
+      riskLevelDefault: 'yellow' as const,
+      summary: '医院团队通过多学科协作与精准手术处理复杂病例。',
+      contentText: '患儿因腹胀住院，医生检查后发现恶性肿瘤并进行手术切除。'.repeat(20),
+      metadataJson: { sourceClass: 'medical_platform' },
+      publishStatus: 'draft' as const,
+    };
+
+    expect(evaluateAuthorityDocumentQuality(caseNewsDocument).reasons).toContain('medical_platform_severe_case_news');
+    expect(shouldPublishDocument(caseNewsDocument)).toBe('rejected');
+
+    const kepuchinaTeamProfile = {
+      sourceId: 'kepuchina-maternal-child',
+      sourceOrg: '科普中国',
+      sourceUrl: 'https://www.kepuchina.cn/article/articleinfo?business_type=100&classify=0&ar_id=440996',
+      sourceLanguage: 'zh' as const,
+      sourceLocale: 'zh-CN',
+      title: '仁医妇产母乳喂养科普团队：营造关爱母乳喂养良好氛围',
+      updatedAt: '2023-12-01',
+      audience: '产后妈妈',
+      topic: 'feeding',
+      region: 'CN',
+      riskLevelDefault: 'green' as const,
+      summary: '2023年度科普团队介绍。',
+      contentText: '该团队长期开展母乳喂养科普活动，介绍团队建设、项目经验和社会服务情况。'.repeat(30),
+      metadataJson: { sourceClass: 'medical_platform' },
+      publishStatus: 'draft' as const,
+    };
+
+    expect(evaluateAuthorityDocumentQuality(kepuchinaTeamProfile).reasons).toContain('medical_platform_noisy_title');
+    expect(shouldPublishDocument(kepuchinaTeamProfile)).toBe('rejected');
+
+    const kepuchinaCasualStory = {
+      sourceId: 'kepuchina-maternal-child',
+      sourceOrg: '科普中国',
+      sourceUrl: 'https://www.kepuchina.cn/article/articleinfo?business_type=100&classify=0&ar_id=66617',
+      sourceLanguage: 'zh' as const,
+      sourceLocale: 'zh-CN',
+      title: '吃母乳就是母乳喂养？',
+      updatedAt: '2023-06-01',
+      audience: '产后妈妈',
+      topic: 'feeding',
+      region: 'CN',
+      riskLevelDefault: 'green' as const,
+      summary: '母乳喂养指导。',
+      contentText: '同部门的小李最近升级做了新手妈妈，每天微信朋友圈是各种晒娃，初为人母的幸福可谓溢于言表。一天微信聊天时，她吐槽喂养过程很累。'.repeat(20),
+      metadataJson: { sourceClass: 'medical_platform' },
+      publishStatus: 'draft' as const,
+    };
+
+    expect(evaluateAuthorityDocumentQuality(kepuchinaCasualStory).reasons).toContain('medical_platform_casual_or_promotional');
+    expect(shouldPublishDocument(kepuchinaCasualStory)).toBe('rejected');
+
+    const yilianCaseNews = {
+      sourceId: 'yilianmeiti-maternal-child',
+      sourceOrg: '医联媒体',
+      sourceUrl: 'https://www.yilianmeiti.com/article/2953986.html',
+      sourceLanguage: 'zh' as const,
+      sourceLocale: 'zh-CN',
+      title: '28+2周龙凤胎54天闯关出院！南医增城院区医护托起“掌心宝宝”生命奇迹',
+      updatedAt: '2026-04-01T00:00:00.000Z',
+      audience: '婴幼儿家长',
+      topic: 'newborn',
+      region: 'CN',
+      riskLevelDefault: 'green' as const,
+      summary: '一对出生体重较低的龙凤胎在医护团队精准救治下闯过重重生命关卡。',
+      contentText: '近日，医院儿童中心上演团聚画面，医护团队托起掌心宝宝生命奇迹，文章主要介绍病例救治过程和团队协作。'.repeat(20),
+      metadataJson: { sourceClass: 'medical_platform' },
+      publishStatus: 'draft' as const,
+    };
+
+    expect(evaluateAuthorityDocumentQuality(yilianCaseNews).reasons).toContain('medical_platform_severe_case_news');
+    expect(shouldPublishDocument(yilianCaseNews)).toBe('rejected');
+  });
+
+  it('requires Haodf doctor-authored professional signals and rejects repost-like content', () => {
+    const missingProfessionalSignal = {
+      sourceId: 'haodf-maternal-child',
+      sourceOrg: '好大夫在线',
+      sourceUrl: 'https://www.haodf.com/neirong/wenzhang/9394363019.html',
+      sourceLanguage: 'zh' as const,
+      sourceLocale: 'zh-CN',
+      title: '婴幼儿退热用药原则',
+      updatedAt: '2025-05-12',
+      audience: '婴幼儿家长',
+      topic: 'common-symptoms',
+      region: 'CN',
+      riskLevelDefault: 'yellow' as const,
+      summary: '婴幼儿发热用药需要结合月龄、体重、精神状态和药品浓度。',
+      contentText: '婴幼儿发热时应观察精神状态、吃奶饮水、尿量、呼吸和皮肤颜色，按照体重核对药品剂量，避免重复使用同类成分。三个月以下婴儿发热不建议自行用药，应尽快联系儿科医生评估。'.repeat(8),
+      metadataJson: { sourceClass: 'medical_platform' },
+      publishStatus: 'draft' as const,
+    };
+
+    expect(evaluateAuthorityDocumentQuality(missingProfessionalSignal).reasons).toContain('medical_platform_missing_professional_signal');
+    expect(shouldPublishDocument(missingProfessionalSignal)).toBe('rejected');
+
+    const repostDocument = {
+      ...missingProfessionalSignal,
+      contentText: '王医生 主任医师 北京儿童医院 儿科。转自其他平台的科普文章，未体现医生本人原创发表，不适合进入自动知识库。'.repeat(10),
+    };
+
+    expect(evaluateAuthorityDocumentQuality(repostDocument).reasons).toContain('medical_platform_repost_or_forum_content');
+    expect(shouldPublishDocument(repostDocument)).toBe('rejected');
+  });
+
+  it('allows high-quality third-party medical-platform guidance', () => {
+    const document = {
+      sourceId: 'youlai-pregnancy-guide',
+      sourceOrg: '有来医生',
+      sourceUrl: 'https://m.youlai.cn/special/advisor/dOP09kv7LD.html',
+      sourceLanguage: 'zh' as const,
+      sourceLocale: 'zh-CN',
+      title: '孕期体重管理和营养建议',
+      updatedAt: '2025-03-01T00:00:00.000Z',
+      audience: '孕妇',
+      topic: 'pregnancy',
+      region: 'CN',
+      riskLevelDefault: 'green' as const,
+      summary: '孕期体重管理应结合孕前体重、孕周和胎儿发育情况。',
+      contentText: '孕期体重管理应结合孕前体重、孕周和胎儿发育情况，饮食上保持主食、优质蛋白、蔬菜水果和奶类摄入，避免长期高糖高油饮食。若体重增长过快或过慢，应咨询产科医生并结合产检结果调整。'.repeat(8),
+      metadataJson: { sourceClass: 'medical_platform' },
+      publishStatus: 'draft' as const,
+    };
+
+    expect(evaluateAuthorityDocumentQuality(document).decision).toBe('pass');
+    expect(shouldPublishDocument(document)).toBe('published');
+  });
+
+  it('keeps short third-party medical-platform guidance in manual review', () => {
+    const document = {
+      sourceId: 'dayi-maternal-child',
+      sourceOrg: '中国医药信息查询平台',
+      sourceUrl: 'https://www.dayi.org.cn/qa/153633.html',
+      sourceLanguage: 'zh' as const,
+      sourceLocale: 'zh-CN',
+      title: '孕妇脚痒怎么办',
+      updatedAt: '2025-11-17T14:08:18.000+00:00',
+      audience: '孕妇',
+      topic: 'pregnancy',
+      region: 'CN',
+      riskLevelDefault: 'green' as const,
+      summary: '孕妇脚痒需要结合孕周、皮疹和产检情况评估。',
+      contentText: '审核医生：李若瑜 主任医师 北京大学第一医院。孕妇脚痒可见于正常生理现象，也可能与足癣、妊娠期肝内胆汁淤积症等因素有关。建议保持皮肤清洁，避免热水烫洗和过度抓挠，若瘙痒持续或伴随其他异常，应到产科或皮肤科就诊。'.repeat(3),
+      metadataJson: { sourceClass: 'medical_platform' },
+      publishStatus: 'draft' as const,
+    };
+
+    expect(evaluateAuthorityDocumentQuality(document).decision).toBe('pass');
+    expect(shouldPublishDocument(document)).toBe('review');
+  });
+
+  it('allows Dayi structured guidance that uses normal appointment and hospitalization wording', () => {
+    const document = {
+      sourceId: 'dayi-maternal-child',
+      sourceOrg: '中国医药信息查询平台',
+      sourceUrl: 'https://www.dayi.org.cn/symptom/1142681.html',
+      sourceLanguage: 'zh' as const,
+      sourceLocale: 'zh-CN',
+      title: '孕妇腿抽筋',
+      updatedAt: '2025-11-17T14:08:18.000+00:00',
+      audience: '孕妇',
+      topic: 'pregnancy',
+      region: 'CN',
+      riskLevelDefault: 'green' as const,
+      summary: '孕妇腿抽筋多与缺钙、疲劳、寒冷和睡姿不当等因素有关。',
+      contentText: '审核医生：杨慧霞 主任医师 北京大学第一医院。孕妇腿抽筋多与缺钙、疲劳、寒冷和睡姿不当有关。就医准备包括提前预约挂号，携带身份证、医保卡、检查报告和近期用药记录。患者可以询问医生是否需要住院、是否需要补钙、如何调整饮食和睡眠姿势。医生会结合体格检查和电解质检查评估原因，并给出适合孕期的处理建议。'.repeat(8),
+      metadataJson: { sourceClass: 'medical_platform' },
+      publishStatus: 'draft' as const,
+    };
+
+    expect(evaluateAuthorityDocumentQuality(document).decision).toBe('pass');
+    expect(shouldPublishDocument(document)).toBe('published');
+  });
+
+  it('still rejects promotional Dayi-like pages when promotional wording appears', () => {
+    const document = {
+      sourceId: 'dayi-maternal-child',
+      sourceOrg: '中国医药信息查询平台',
+      sourceUrl: 'https://www.dayi.org.cn/qa/999999.html',
+      sourceLanguage: 'zh' as const,
+      sourceLocale: 'zh-CN',
+      title: '孕妇水肿怎么办',
+      updatedAt: '2025-11-17T14:08:18.000+00:00',
+      audience: '孕妇',
+      topic: 'pregnancy',
+      region: 'CN',
+      riskLevelDefault: 'green' as const,
+      summary: '孕妇水肿需要结合孕周和血压情况评估。',
+      contentText: '孕妇水肿需要结合孕周、血压、尿蛋白和体重增长情况评估。医院哪家好可以免费咨询在线问诊，排行榜口碑即时公开。'.repeat(12),
+      metadataJson: { sourceClass: 'medical_platform' },
+      publishStatus: 'draft' as const,
+    };
+
+    expect(evaluateAuthorityDocumentQuality(document).reasons).toContain('medical_platform_casual_or_promotional');
     expect(shouldPublishDocument(document)).toBe('rejected');
   });
 

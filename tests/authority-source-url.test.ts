@@ -124,6 +124,50 @@ describe('authority source url filtering', () => {
     })).toBe(false);
   });
 
+  test('filters Dayi search and non-article pages but keeps maternal-child detail pages', () => {
+    expect(shouldFilterAuthoritySourceUrl({
+      source_id: 'dayi-maternal-child',
+      source_url: 'https://www.dayi.org.cn/search?keyword=%E5%AD%95%E5%A6%87',
+    })).toBe(true);
+
+    expect(shouldFilterAuthoritySourceUrl({
+      source_id: 'dayi-maternal-child',
+      source_url: 'https://www.dayi.org.cn/doctor/1119229.html',
+    })).toBe(true);
+
+    expect(shouldFilterAuthoritySourceUrl({
+      source_id: 'dayi-maternal-child',
+      source_url: 'https://www.dayi.org.cn/qa/153633.html',
+    })).toBe(false);
+
+    expect(shouldFilterAuthoritySourceUrl({
+      source_id: 'dayi-maternal-child',
+      source_url: 'https://www.dayi.org.cn/symptom/1153160.html',
+    })).toBe(false);
+  });
+
+  test('filters Kepuchina search/special/video pages but keeps articleinfo text pages', () => {
+    expect(shouldFilterAuthoritySourceUrl({
+      source_id: 'kepuchina-maternal-child',
+      source_url: 'https://www.kepuchina.cn/search/index?search=%E6%AF%8D%E4%B9%B3',
+    })).toBe(true);
+
+    expect(shouldFilterAuthoritySourceUrl({
+      source_id: 'kepuchina-maternal-child',
+      source_url: 'https://www.kepuchina.cn/special/specialinfo?id=AR202508011646548120',
+    })).toBe(true);
+
+    expect(shouldFilterAuthoritySourceUrl({
+      source_id: 'kepuchina-maternal-child',
+      source_url: 'https://www.kepuchina.cn/article/articleinfo?business_type=100&classify=2&ar_id=558465',
+    })).toBe(true);
+
+    expect(shouldFilterAuthoritySourceUrl({
+      source_id: 'kepuchina-maternal-child',
+      source_url: 'https://www.kepuchina.cn/article/articleinfo?business_type=100&classify=0&ar_id=558464',
+    })).toBe(false);
+  });
+
   test('filters Yilianmeiti category/media pages but keeps concrete article pages', () => {
     expect(shouldFilterAuthoritySourceUrl({
       source_id: 'yilianmeiti-maternal-child',
@@ -138,6 +182,40 @@ describe('authority source url filtering', () => {
     expect(shouldFilterAuthoritySourceUrl({
       source_id: 'yilianmeiti-maternal-child',
       source_url: 'https://www.yilianmeiti.com/article/2528524.html',
+    })).toBe(false);
+  });
+
+  test('filters Haodf search/case pages but keeps doctor-authored article pages', () => {
+    expect(shouldFilterAuthoritySourceUrl({
+      source_id: 'haodf-maternal-child',
+      source_url: 'https://www.haodf.com/s?wd=%E6%AF%8D%E4%B9%B3',
+    })).toBe(true);
+
+    expect(shouldFilterAuthoritySourceUrl({
+      source_id: 'haodf-maternal-child',
+      source_url: 'https://www.haodf.com/bingcheng/8890560235.html',
+    })).toBe(true);
+
+    expect(shouldFilterAuthoritySourceUrl({
+      source_id: 'haodf-maternal-child',
+      source_url: 'https://www.haodf.com/neirong/wenzhang/9394363019.html',
+    })).toBe(false);
+  });
+
+  test('filters CMA kepu index/proxy pages but keeps concrete article pages', () => {
+    expect(shouldFilterAuthoritySourceUrl({
+      source_id: 'cma-kepu-maternal-child',
+      source_url: 'https://www.cma.org.cn/col/col4584/index.html',
+    })).toBe(true);
+
+    expect(shouldFilterAuthoritySourceUrl({
+      source_id: 'cma-kepu-maternal-child',
+      source_url: 'https://www.cma.org.cn/module/web/jpage/dataproxy.jsp?page=1&webid=1&columnid=4584',
+    })).toBe(true);
+
+    expect(shouldFilterAuthoritySourceUrl({
+      source_id: 'cma-kepu-maternal-child',
+      source_url: 'https://www.cma.org.cn/art/2025/10/29/art_4584_60353.html',
     })).toBe(false);
   });
 

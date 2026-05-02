@@ -6,7 +6,7 @@
  * 把每一步的失败原因落到一份报告里。**不写 DB，不写 cache**。
  *
  * 用途：定位 nhc-fys/chinacdc/ndcpa/ncwch/mchscn/cnsoc/chinanutri/dxy/chunyu/
- * yilianmeiti/mayo-clinic-zh/msd-manuals-cn 等零产出源的具体卡点，给后续修复
+ * dayi/kepuchina/yilianmeiti/mayo-clinic-zh/msd-manuals-cn 等零产出源的具体卡点，给后续修复
  * 提供路线图。
  *
  * 运行：
@@ -39,6 +39,8 @@ const {
   isAuthorityUrlMatched,
   extractSitemapLocUrls,
   extractIndexLinks,
+  extractPaginationLinks,
+  filterNestedSitemapCandidates,
   prioritizeAuthorityUrls,
 } = __authoritySyncTestUtils;
 
@@ -55,6 +57,14 @@ const FILTER_IDS = (process.env.CN_DIAG_SOURCES || '')
 // 只关心中文/CN 区域源
 function isChineseSource(source: AuthoritySourceConfig): boolean {
   return source.language === 'zh' || source.region === 'CN';
+}
+
+function looksLikeSitemapIndex(xml: string): boolean {
+  return /<sitemapindex[\s>]/i.test(xml);
+}
+
+function isXmlSitemapUrl(url: string): boolean {
+  return /\.xml(?:\.gz)?($|[?#])/i.test(url) || /sitemap/i.test(url) || /\.gz($|[?#])/i.test(url);
 }
 
 interface FetchResult {
@@ -244,7 +254,22 @@ async function diagnoseSource(source: AuthoritySourceConfig): Promise<SourceDiag
 
     if (source.discoveryType === 'sitemap') {
       const locs = extractSitemapLocUrls(fr.rawBody);
-      allCandidates.push(...locs);
+      if (looksLikeSitemapIndex(fr.rawBody)) {
+        const nestedSitemaps = filterNestedSitemapCandidates(
+          locs.filter((candidate) => isXmlSitemapUrl(candidate)),
+          source,
+        );
+
+        for (const nested of nestedSitemaps.slice(0, source.maxPagesPerRun)) {
+          const nestedFetch = await fetchUrl(nested);
+          result.entryFetch.push(dropRawBody(nestedFetch));
+          if (!nestedFetch.ok || !nestedFetch.rawBody) continue;
+
+          allCandidates.push(...extractSitemapLocUrls(nestedFetch.rawBody));
+        }
+      } else {
+        allCandidates.push(...locs);
+      }
     } else if (source.discoveryType === 'api') {
       try {
         const json = JSON.parse(fr.rawBody);
@@ -256,6 +281,27 @@ async function diagnoseSource(source: AuthoritySourceConfig): Promise<SourceDiag
       // index_page
       const indexLinks = extractIndexLinks(fr.rawBody, source, entry);
       allCandidates.push(...indexLinks);
+      const visited = new Set([entry]);
+      const queue = extractPaginationLinks(fr.rawBody, source, entry);
+      const maxIndexPages = Math.max(1, source.maxDiscoveryIndexPages || 3);
+
+      while (queue.length > 0 && visited.size < maxIndexPages && allCandidates.length < source.maxPagesPerRun) {
+        const current = queue.shift();
+        if (!current || visited.has(current)) continue;
+        visited.add(current);
+
+        const pageFetch = await fetchUrl(current);
+        result.entryFetch.push(dropRawBody(pageFetch));
+        if (!pageFetch.ok || !pageFetch.rawBody) continue;
+
+        allCandidates.push(...extractIndexLinks(pageFetch.rawBody, source, current));
+        for (const next of extractPaginationLinks(pageFetch.rawBody, source, current)) {
+          if (!visited.has(next) && !queue.includes(next)) {
+            queue.push(next);
+          }
+        }
+      }
+
       if (!firstIndexPageBody) {
         firstIndexPageBody = fr.rawBody;
         firstIndexPageUrl = entry;

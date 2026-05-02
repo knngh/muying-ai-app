@@ -70,6 +70,10 @@ function isOutOfScopeChineseAuthority(record: AuthoritySourceUrlRecord, url: str
     return false;
   }
 
+  if (isNhcSource(record, url) && /nhc-fys|妇幼健康司|儿童青少年.{0,8}(?:健康|五健)|五健/u.test(text)) {
+    return false;
+  }
+
   if (isBroadChildOrPublicPolicyZhText(text) && !/(3岁以下|三岁以下|0[~～-]3岁|0到3岁|婴幼儿|婴儿|新生儿|孕产|孕妇|孕期|备孕|产后|分娩|产科|生育|托育|育儿补贴|母乳|哺乳|喂养|辅食|配方乳粉|百白破)/u.test(text)) {
     return true;
   }
@@ -97,7 +101,7 @@ function isOutOfScopeChineseAuthority(record: AuthoritySourceUrlRecord, url: str
   }
 
   if (isNdcpaSource(record, url)) {
-    return !/(婴幼儿|新生儿|孕产|孕妇|疫苗|接种|百白破|母乳|喂养)/u.test(text);
+    return !/(婴幼儿|新生儿|孕产|孕妇|疫苗|接种|免疫规划|百白破|母乳|喂养)/u.test(text);
   }
 
   return false;
@@ -170,6 +174,16 @@ function isYoulaiSource(record: AuthoritySourceUrlRecord, url: string): boolean 
   return /youlai-pregnancy-guide|有来医生|youlai\.cn/.test(sourceText);
 }
 
+function isDayiSource(record: AuthoritySourceUrlRecord, url: string): boolean {
+  const sourceText = `${record.source_id || ''} ${record.source_org || ''} ${record.source || ''} ${url}`.toLowerCase();
+  return /dayi-maternal-child|中国医药信息查询平台|dayi\.org\.cn/.test(sourceText);
+}
+
+function isKepuchinaSource(record: AuthoritySourceUrlRecord, url: string): boolean {
+  const sourceText = `${record.source_id || ''} ${record.source_org || ''} ${record.source || ''} ${url}`.toLowerCase();
+  return /kepuchina-maternal-child|科普中国|kepuchina\.cn/.test(sourceText);
+}
+
 function isFamilydoctorSource(record: AuthoritySourceUrlRecord, url: string): boolean {
   const sourceText = `${record.source_id || ''} ${record.source_org || ''} ${record.source || ''} ${url}`.toLowerCase();
   return /familydoctor-maternal|家庭医生在线|familydoctor\.com\.cn/.test(sourceText);
@@ -178,6 +192,16 @@ function isFamilydoctorSource(record: AuthoritySourceUrlRecord, url: string): bo
 function isYilianmeitiSource(record: AuthoritySourceUrlRecord, url: string): boolean {
   const sourceText = `${record.source_id || ''} ${record.source_org || ''} ${record.source || ''} ${url}`.toLowerCase();
   return /yilianmeiti-maternal-child|医联媒体|yilianmeiti\.com/.test(sourceText);
+}
+
+function isHaodfSource(record: AuthoritySourceUrlRecord, url: string): boolean {
+  const sourceText = `${record.source_id || ''} ${record.source_org || ''} ${record.source || ''} ${url}`.toLowerCase();
+  return /haodf-maternal-child|好大夫在线|haodf\.com/.test(sourceText);
+}
+
+function isCmaKepuSource(record: AuthoritySourceUrlRecord, url: string): boolean {
+  const sourceText = `${record.source_id || ''} ${record.source_org || ''} ${record.source || ''} ${url}`.toLowerCase();
+  return /cma-kepu-maternal-child|中华医学会|cma\.org\.cn/.test(sourceText);
 }
 
 function isNcwchSource(record: AuthoritySourceUrlRecord, url: string): boolean {
@@ -356,6 +380,18 @@ export function shouldFilterAuthoritySourceUrl(record: AuthoritySourceUrlRecord)
     return !/\/special\/advisor\/[A-Za-z0-9]+\.html(?:$|[?#])/i.test(url);
   }
 
+  if (isDayiSource(record, url)) {
+    return isIndexLikeAuthorityUrl(url)
+      || !/\/(?:disease|symptom|qa)\/\d+(?:\.html)?(?:$|[?#])/i.test(url);
+  }
+
+  if (isKepuchinaSource(record, url)) {
+    return !/\/article\/articleinfo\?/i.test(url)
+      || !/[?&]ar_id=\d+(?:&|$)/i.test(url)
+      || !/[?&]classify=0(?:&|$)/i.test(url)
+      || !/[?&]business_type=(?:1|100)(?:&|$)/i.test(url);
+  }
+
   if (isFamilydoctorSource(record, url)) {
     return isIndexLikeAuthorityUrl(url)
       || !/\/(?:baby\/)?a\/\d{6}\/\d+\.html(?:$|[?#])/i.test(url);
@@ -364,6 +400,18 @@ export function shouldFilterAuthoritySourceUrl(record: AuthoritySourceUrlRecord)
   if (isYilianmeitiSource(record, url)) {
     return isIndexLikeAuthorityUrl(url)
       || !/\/article\/\d+\.html(?:$|[?#])/i.test(url);
+  }
+
+  if (isHaodfSource(record, url)) {
+    return isIndexLikeAuthorityUrl(url)
+      || /\/(?:bingcheng|doctor|hospital|citiao|s)\//i.test(url)
+      || !/\/neirong\/wenzhang\/\d+\.html(?:$|[?#])/i.test(url);
+  }
+
+  if (isCmaKepuSource(record, url)) {
+    return isIndexLikeAuthorityUrl(url)
+      || /\/module\/web\/jpage\/dataproxy\.jsp(?:$|[?#])/i.test(url)
+      || !/\/art\/\d{4}\/\d{1,2}\/\d{1,2}\/art_4584_\d+\.html(?:$|[?#])/i.test(url);
   }
 
   if (isNhcSource(record, url)) {

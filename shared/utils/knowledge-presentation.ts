@@ -23,6 +23,13 @@ export type KnowledgeArticleLike = {
   title?: string;
   summary?: string;
   content?: string;
+  readingTime?: number;
+  readTime?: number;
+  read_time?: number;
+  readableTextLength?: number;
+  readableTextUnit?: '字' | '词';
+  wordCount?: number;
+  characterCount?: number;
   sourceOrg?: string;
   source?: string;
   region?: string;
@@ -203,24 +210,112 @@ function extractHeadingCandidates(content?: string): string[] {
   return Array.from(new Set([...htmlHeadings, ...textHeadings])).slice(0, 3);
 }
 
-function countReadableChars(input?: string): number {
-  const plainText = stripHtmlTags(input || '')
-    .replace(/\s+/g, '')
-    .trim();
-
-  return plainText.length;
+interface ReadableLength {
+  count: number;
+  unit: '字' | '词';
 }
 
-function formatLengthLabel(charCount: number): string {
-  if (charCount >= 10000) {
-    return `约 ${(charCount / 10000).toFixed(1)} 万字`;
+const CHINESE_READING_CHARS_PER_MINUTE = 600;
+const ENGLISH_READING_WORDS_PER_MINUTE = 220;
+
+function countReadableLength(input?: string): ReadableLength {
+  const plainText = stripHtmlTags(input || '')
+    .replace(/https?:\/\/\S+|www\.\S+/gi, ' ')
+    .replace(/&(?:nbsp|amp|lt|gt|quot|#39);/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!plainText) {
+    return { count: 0, unit: '字' };
   }
 
-  if (charCount >= 1000) {
-    return `约 ${Math.round(charCount / 100) * 100} 字`;
+  const cjkChars = plainText.match(/[\u3400-\u4dbf\u4e00-\u9fff]/gu)?.length || 0;
+  const latinWords = plainText.match(/[A-Za-z]+(?:[-'][A-Za-z]+)*/g)?.length || 0;
+  const numberGroups = plainText.match(/\b\d+(?:[.,]\d+)*\b/g)?.length || 0;
+
+  if (cjkChars > 0) {
+    return {
+      count: cjkChars + latinWords + numberGroups,
+      unit: '字',
+    };
   }
 
-  return `约 ${Math.max(charCount, 1)} 字`;
+  if (latinWords > 0 || numberGroups > 0) {
+    return {
+      count: latinWords + numberGroups,
+      unit: '词',
+    };
+  }
+
+  return {
+    count: plainText.replace(/[^\p{L}\p{N}]/gu, '').length,
+    unit: '字',
+  };
+}
+
+function normalizePositiveInteger(value: unknown): number {
+  const numberValue = typeof value === 'number' ? value : Number.parseFloat(String(value || ''));
+  if (!Number.isFinite(numberValue) || numberValue <= 0) {
+    return 0;
+  }
+
+  return Math.max(1, Math.ceil(numberValue));
+}
+
+function resolveSuppliedReadingTime(article?: KnowledgeArticleLike | null): number {
+  return normalizePositiveInteger(article?.readingTime)
+    || normalizePositiveInteger(article?.readTime)
+    || normalizePositiveInteger(article?.read_time);
+}
+
+function resolveSuppliedReadableLength(article?: KnowledgeArticleLike | null): ReadableLength {
+  const readableTextLength = normalizePositiveInteger(article?.readableTextLength);
+  if (readableTextLength > 0) {
+    return {
+      count: readableTextLength,
+      unit: article?.readableTextUnit === '词' ? '词' : '字',
+    };
+  }
+
+  const characterCount = normalizePositiveInteger(article?.characterCount);
+  if (characterCount > 0) {
+    return { count: characterCount, unit: '字' };
+  }
+
+  const wordCount = normalizePositiveInteger(article?.wordCount);
+  if (wordCount > 0) {
+    return { count: wordCount, unit: '词' };
+  }
+
+  return { count: 0, unit: '字' };
+}
+
+function estimateReadingMinutes(length: ReadableLength): number {
+  if (length.count <= 0) {
+    return 0;
+  }
+
+  const speed = length.unit === '词'
+    ? ENGLISH_READING_WORDS_PER_MINUTE
+    : CHINESE_READING_CHARS_PER_MINUTE;
+  return Math.max(1, Math.ceil(length.count / speed));
+}
+
+function formatLengthLabel(length: ReadableLength, contentMode: 'body' | 'summary' | 'empty'): string {
+  if (contentMode === 'empty' || length.count <= 0) {
+    return '正文待同步';
+  }
+
+  const prefix = contentMode === 'summary' ? '摘要约 ' : '约 ';
+  if (length.count >= 10000 && length.unit === '字') {
+    return `${prefix}${(length.count / 10000).toFixed(1)} 万字`;
+  }
+
+  if (length.count >= 1000) {
+    return `${prefix}${Math.round(length.count / 100) * 100} ${length.unit}`;
+  }
+
+  return `${prefix}${Math.max(length.count, 1)} ${length.unit}`;
 }
 
 function countSections(input?: string): number {
@@ -245,26 +340,35 @@ function countSections(input?: string): number {
 }
 
 export function buildKnowledgeReadingMeta(article?: KnowledgeArticleLike | null): KnowledgeReadingMeta {
-  const bodyChars = countReadableChars(article?.content);
-  const summaryChars = countReadableChars(article?.summary);
-  const contentMode = bodyChars > 0 ? 'body' : 'summary';
-  const effectiveChars = bodyChars || summaryChars || 1;
-  const estimatedMinutes = Math.max(1, Math.ceil(effectiveChars / 420));
-  const sectionCount = countSections(bodyChars > 0 ? article?.content : article?.summary);
+  const bodyLength = countReadableLength(article?.content);
+  const summaryLength = countReadableLength(article?.summary);
+  const suppliedLength = resolveSuppliedReadableLength(article);
+  const contentMode = bodyLength.count > 0 || suppliedLength.count > 0
+    ? 'body'
+    : (summaryLength.count > 0 ? 'summary' : 'empty');
+  const effectiveLength = bodyLength.count > 0
+    ? bodyLength
+    : (suppliedLength.count > 0 ? suppliedLength : summaryLength);
+  const effectiveCount = effectiveLength.count;
+  const suppliedMinutes = resolveSuppliedReadingTime(article);
+  const estimatedMinutes = suppliedMinutes || estimateReadingMinutes(effectiveLength);
+  const sectionCount = countSections(bodyLength.count > 0 ? article?.content : article?.summary);
 
   return {
     estimatedMinutes,
-    estimatedMinutesLabel: `约 ${estimatedMinutes} 分钟`,
-    textLength: effectiveChars,
-    textLengthLabel: formatLengthLabel(effectiveChars),
+    estimatedMinutesLabel: estimatedMinutes > 0 ? `约 ${estimatedMinutes} 分钟` : '待同步',
+    textLength: effectiveCount,
+    textLengthLabel: formatLengthLabel(effectiveLength, contentMode),
     sectionCount,
     sectionLabel: sectionCount > 0
       ? `${sectionCount} 个章节`
-      : contentMode === 'summary'
+      : contentMode === 'empty'
+        ? '等待正文'
+        : contentMode === 'summary'
         ? '摘要阅读'
         : '连续阅读',
-    contentMode,
-    contentModeLabel: contentMode === 'body' ? '正文阅读' : '摘要阅读',
+    contentMode: contentMode === 'empty' ? 'summary' : contentMode,
+    contentModeLabel: contentMode === 'body' ? '正文阅读' : (contentMode === 'empty' ? '正文待同步' : '摘要阅读'),
   };
 }
 

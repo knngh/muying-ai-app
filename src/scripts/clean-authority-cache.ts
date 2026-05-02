@@ -12,6 +12,7 @@ import {
 } from '../services/authority-adapters/base.adapter';
 import { buildAuthorityDisplayTags } from '../utils/authority-metadata';
 import { inferAuthorityStages } from '../utils/authority-stage';
+import { getAuthorityKnowledgeDropReason } from '../utils/knowledge-content-guard';
 import { shouldFilterAuthoritySourceUrl } from '../utils/authority-source-url';
 
 interface AuthorityCacheRecord {
@@ -22,6 +23,7 @@ interface AuthorityCacheRecord {
   source?: string;
   source_org?: string;
   source_id?: string;
+  source_class?: 'official' | 'medical_platform' | 'dataset' | 'unknown';
   source_url?: string;
   url?: string;
   answer?: string;
@@ -396,6 +398,11 @@ function getRecordQualityScore(record: AuthorityCacheRecord): number {
 function getDropReason(record: AuthorityCacheRecord): string | null {
   if (shouldFilterAuthoritySourceUrl(record)) {
     return 'filtered_source_url';
+  }
+
+  const knowledgeGuardReason = getAuthorityKnowledgeDropReason(record);
+  if (knowledgeGuardReason) {
+    return knowledgeGuardReason;
   }
 
   const sensitivityReason = isHighRiskOrClickbaitTitle(record.question || record.title || '');

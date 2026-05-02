@@ -8,7 +8,7 @@ import { buildAuthorityDisplayTags } from '../utils/authority-metadata';
 import { shouldFilterAuthoritySourceUrl } from '../utils/authority-source-url';
 import { inferAuthorityStages } from '../utils/authority-stage';
 import { shouldUseAuthorityVectorSupplement } from '../utils/authority-vector-filter';
-import { getDatasetKnowledgeDropReason, isOutOfScopeKnowledgeQuery } from '../utils/knowledge-content-guard';
+import { getAuthorityKnowledgeDropReason, getDatasetKnowledgeDropReason, isOutOfScopeKnowledgeQuery } from '../utils/knowledge-content-guard';
 import { detectAudience, detectTopic, sanitizeAuthorityTitle } from './authority-adapters/base.adapter';
 import {
   dedupeSearchQueries,
@@ -1000,9 +1000,12 @@ function findAuthorityMatch(question: string, source: string): QAPair | undefine
 }
 
 function shouldIncludeAuthoritySearchRecord(qa: QAPair): boolean {
+  const qaSummary = (qa as { summary?: string }).summary;
   return shouldUseAuthorityVectorSupplement({
     title: qa.question,
     question: qa.question,
+    summary: qaSummary,
+    answer: qa.answer,
     topic: qa.topic,
     category: qa.category,
     source: qa.source,
@@ -1063,9 +1066,12 @@ function toVectorSupplementResult(
   }
 
   const matched = findAuthorityMatch(result.question, result.source);
+  const matchedSummary = (matched as { summary?: string } | undefined)?.summary;
   if (!shouldUseAuthorityVectorSupplement({
     title: result.question,
     question: matched?.question,
+    summary: matchedSummary,
+    answer: matched?.answer || result.answer,
     topic: matched?.topic || result.category,
     category: matched?.category || result.category,
     source: matched?.source || result.source,
@@ -2272,7 +2278,9 @@ export function loadKnowledgeBase(): void {
       const rawAuthority = fs.readFileSync(authorityPath, 'utf-8');
       authorityQaData = (JSON.parse(rawAuthority) as QAPair[])
         .filter((item) => !shouldFilterAuthoritySourceUrl(item))
+        .filter((item) => !getAuthorityKnowledgeDropReason(item))
         .map((item) => normalizeAuthorityKnowledgeRecord(item))
+        .filter((item) => !getAuthorityKnowledgeDropReason(item))
         .filter((item) => shouldIncludeAuthoritySearchRecord(item));
       console.log(`🏛️ 权威知识快照加载成功: ${authorityQaData.length} 条数据 (路径: ${authorityPath})`);
     } else {

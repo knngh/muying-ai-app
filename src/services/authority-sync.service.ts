@@ -11,8 +11,9 @@ import {
 import { inferAuthorityStages } from '../utils/authority-stage';
 import { buildAuthorityDisplayTags } from '../utils/authority-metadata';
 import { isIndexLikeAuthorityUrl, shouldFilterAuthoritySourceUrl } from '../utils/authority-source-url';
+import { getAuthorityKnowledgeDropReason } from '../utils/knowledge-content-guard';
 import { normalizeWithAuthorityAdapter } from './authority-adapters';
-import { detectAudience, detectTopic, sanitizeAuthorityTitle, stripHtml } from './authority-adapters/base.adapter';
+import { detectAudience, detectTopic, extractTitle, sanitizeAuthorityTitle, stripHtml } from './authority-adapters/base.adapter';
 
 export interface DiscoveredAuthorityUrl {
   url: string;
@@ -219,7 +220,10 @@ function isBlockedAuthorityUrl(url: string, source: AuthoritySourceConfig): bool
 
   if (source.id === 'mayo-clinic-zh') {
     return /\/(?:zh-hans\/)?about-mayo-clinic\//.test(normalized)
-      || /\/rochester-construction\//.test(normalized);
+      || /\/departments-centers\//.test(normalized)
+      || /\/patient-visitor-guide\//.test(normalized)
+      || /\/rochester-construction\//.test(normalized)
+      || /\/(?:appointments|clinical-trials|contact-us|doctors|news|patient-stories|resources-for-physicians)(?:\/|$)/.test(normalized);
   }
 
   if (source.id === 'msd-manuals-cn') {
@@ -237,6 +241,15 @@ function isBlockedAuthorityUrl(url: string, source: AuthoritySourceConfig): bool
 
   if (source.id === 'youlai-pregnancy-guide') {
     return /\/(customer|cse\/search|doctorasklist|doctorphonelist|doctorregisterlist|super|video|voice|ask|yyk\/docindex)(?:\/|$)/.test(normalized);
+  }
+
+  if (source.id === 'dayi-maternal-child') {
+    return /\/(?:doctor|hospital|list|video_list|drug|cmedical|search|api|service|login|register)(?:[/?#]|$)/.test(normalized);
+  }
+
+  if (source.id === 'kepuchina-maternal-child') {
+    return /\/(?:admin|login|api|special|kepuhao|account|search|list|video|help|gywm|lxwm)(?:[/?#]|$)/.test(normalized)
+      || !/\/article\/articleinfo\?/i.test(normalized);
   }
 
   if (source.id === 'familydoctor-maternal') {
@@ -307,13 +320,28 @@ function isAuthorityUrlMatched(url: string, source: AuthoritySourceConfig, ancho
   }
 
   if (source.id === 'mayo-clinic-zh') {
-    return /mayoclinic\.org\/zh-hans\//i.test(url)
-      && /(pregnan|prenatal|postpartum|birth|labor|delivery|newborn|infant|baby|child|children|breast|feeding|vaccine|immun|fertility|contracept|women)/.test(normalized);
+    if (!/mayoclinic\.org\/zh-hans\//i.test(url)) {
+      return false;
+    }
+
+    const directMaternalChildPattern = /(pregnan|prenatal|postpartum|birth|labou?r|delivery|newborn|neonat|infant|baby|toddler|child|children|pediatric|paediatric|breast|feeding|fertility|contracept|women|孕|孕妇|孕期|怀孕|产后|新生儿|婴儿|婴幼儿|宝宝|儿童|孩子|儿科|母乳|喂养|备孕|生育|避孕|妇幼)/u;
+    const vaccinationPattern = /(vaccine|vaccination|immunization|immunisation|疫苗|接种)/u;
+    const vaccinationAudiencePattern = /(pregnan|prenatal|newborn|neonat|infant|baby|toddler|child|children|pediatric|paediatric|women|孕|新生儿|婴儿|婴幼儿|宝宝|儿童|孩子|儿科)/u;
+
+    return directMaternalChildPattern.test(normalized)
+      || (vaccinationPattern.test(normalized) && vaccinationAudiencePattern.test(normalized));
   }
 
   if (source.id === 'msd-manuals-cn') {
-    return /msdmanuals\.cn\/home\//i.test(url)
-      && /(pregnan|prenatal|postpartum|birth|labor|delivery|newborn|infant|baby|child|children|breast|feeding|vaccine|immun|fertility|contracept|妇产|孕|婴|儿童|新生儿|母乳|喂养|疫苗)/u.test(normalized);
+    if (!/msdmanuals\.cn\/home\//i.test(url)) {
+      return false;
+    }
+
+    const maternalChildPathPattern = /\/home\/(?:children-s-health-issues|women-s-health-issues\/(?:normal-pregnancy|pregnancy-and-childbirth|family-planning|contraception|infertility|postpartum|drug-use-during-pregnancy))\//i;
+    const directMaternalChildPattern = /(pregnan|prenatal|postpartum|birth|labou?r|delivery|newborn|neonat|infant|baby|toddler|child|children|pediatric|paediatric|breast|feeding|vaccine|vaccination|immunization|immunisation|fertility|contracept|妇产|孕|婴|儿童|新生儿|母乳|喂养|疫苗|接种|避孕|生育|儿科)/u;
+
+    return maternalChildPathPattern.test(normalized)
+      || directMaternalChildPattern.test(normalized);
   }
 
   if (source.id === 'cdc') {
@@ -338,6 +366,19 @@ function isAuthorityUrlMatched(url: string, source: AuthoritySourceConfig, ancho
     return /m\.youlai\.cn\/special\/advisor\/[A-Za-z0-9]+\.html(?:$|[?#])/i.test(url);
   }
 
+  if (source.id === 'dayi-maternal-child') {
+    return /dayi\.org\.cn\/(?:disease|symptom|qa)\/\d+(?:\.html)?(?:$|[?#])/i.test(url)
+      && /(备孕|怀孕|孕期|孕早期|孕中期|孕晚期|孕妇|妊娠|产检|产后|分娩|母乳|哺乳|喂养|辅食|新生儿|婴儿|婴幼儿|宝宝|儿童|孩子|小儿|儿科|发热|发烧|腹泻|呕吐|咳嗽|黄疸|湿疹|疫苗|接种|营养|成长|发育)/u.test(normalized);
+  }
+
+  if (source.id === 'kepuchina-maternal-child') {
+    return /kepuchina\.cn\/article\/articleinfo\?/i.test(url)
+      && /[?&]ar_id=\d+(?:&|$)/i.test(url)
+      && /[?&]classify=0(?:&|$)/i.test(url)
+      && /[?&]business_type=(?:1|100)(?:&|$)/i.test(url)
+      && /(3岁以下|三岁以下|0[~～-]3岁|0到3岁|备孕|怀孕|孕期|孕早期|孕中期|孕晚期|孕妇|妊娠|产检|产后|产妇|分娩|乳母|母乳|哺乳|喂养|辅食|配方奶|新生儿|婴儿|婴幼儿|宝宝|胎便|脐部|脐带|黄疸|婴幼儿护理|新生儿护理)/u.test(normalized);
+  }
+
   if (source.id === 'familydoctor-maternal') {
     return /familydoctor\.com\.cn\/(?:baby\/)?a\/\d{6}\/\d+\.html(?:$|[?#])/i.test(url)
       && /(备孕|怀孕|孕期|产后|分娩|母乳|喂养|辅食|新生儿|婴儿|婴幼儿|宝宝|儿童|儿科|发热|发烧|腹泻|咳嗽|黄疸|湿疹|疫苗|接种|营养|成长|发育)/.test(normalized);
@@ -346,6 +387,16 @@ function isAuthorityUrlMatched(url: string, source: AuthoritySourceConfig, ancho
   if (source.id === 'yilianmeiti-maternal-child') {
     return /yilianmeiti\.com\/article\/\d+\.html(?:$|[?#])/i.test(url)
       && /(备孕|怀孕|孕期|孕早期|孕中期|孕晚期|孕妇|产检|产后|分娩|母乳|哺乳|喂养|辅食|新生儿|婴儿|婴幼儿|宝宝|儿童|孩子|儿科|小儿|发热|发烧|腹泻|呕吐|咳嗽|黄疸|湿疹|疫苗|接种|营养|成长|发育)/.test(normalized);
+  }
+
+  if (source.id === 'haodf-maternal-child') {
+    return /haodf\.com\/neirong\/wenzhang\/\d+\.html(?:$|[?#])/i.test(url)
+      && /(医学科普|实名认证|医生本人发表|备孕|怀孕|孕期|孕早期|孕中期|孕晚期|孕妇|产检|产后|分娩|母乳|哺乳|喂养|辅食|新生儿|婴儿|婴幼儿|宝宝|儿童|孩子|儿科|小儿|发热|发烧|腹泻|呕吐|咳嗽|黄疸|湿疹|疫苗|接种|营养|成长|发育)/u.test(normalized);
+  }
+
+  if (source.id === 'cma-kepu-maternal-child') {
+    return /cma\.org\.cn\/art\/\d{4}\/\d{1,2}\/\d{1,2}\/art_4584_\d+\.html(?:$|[?#])/i.test(url)
+      && /(3岁以下|三岁以下|0[~～-]3岁|0到3岁|备孕|怀孕|孕期|孕早期|孕中期|孕晚期|孕妇|孕产|妊娠|产检|产后|分娩|乳母|母乳|哺乳|喂养|辅食|配方奶|新生儿|早产儿|婴儿|婴幼儿|宝宝|胎儿|胎动|叶酸|黄疸|新生儿护理|婴幼儿护理|儿童.{0,8}(?:发热|发烧|腹泻|呕吐|咳嗽|过敏|鼻炎|身高|发育|疫苗|接种)|孩子.{0,8}(?:发热|发烧|腹泻|呕吐|咳嗽|过敏|鼻炎|身高|发育|疫苗|接种))/u.test(normalized);
   }
 
   if (source.id === 'ncwch-maternal-child-health') {
@@ -438,7 +489,7 @@ function getAuthorityUrlRelevanceScore(url: string, source: AuthoritySourceConfi
     score += 5;
   }
 
-  if (/(pregnan|prenatal|postpartum|birth|labor|delivery|newborn|infant|baby|toddler|child|children|breast|feeding|vaccine|immun|fertility|contracept|妇产|孕|婴|儿童|新生儿|母乳|喂养|疫苗)/u.test(normalized)) {
+  if (/(pregnan|prenatal|postpartum|birth|labou?r|delivery|newborn|infant|baby|toddler|child|children|breast|feeding|vaccine|vaccination|immunization|immunisation|fertility|contracept|妇产|孕|婴|儿童|新生儿|母乳|喂养|疫苗|接种)/u.test(normalized)) {
     score += 20;
   }
 
@@ -455,7 +506,7 @@ function getAuthorityUrlRelevanceScore(url: string, source: AuthoritySourceConfi
       score += 70;
     }
 
-    if (/(newborn|infant|baby|toddler|child|children|pediatric|paediatric|breast|feeding|vaccine|immun)/.test(normalized)) {
+    if (/(newborn|infant|baby|toddler|child|children|pediatric|paediatric|breast|feeding|vaccine|vaccination|immunization|immunisation)/.test(normalized)) {
       score += 75;
     }
 
@@ -493,8 +544,16 @@ function getAuthorityUrlRelevanceScore(url: string, source: AuthoritySourceConfi
       score += 40;
     }
 
-    if (/(children-s-health-issues|symptoms-in-infants-and-children|women-s-health-issues|pregnancy-and-childbirth|newborn|infant|child|children|breast|feeding|vaccine|immun)/.test(normalized)) {
+    if (/(children-s-health-issues|symptoms-in-infants-and-children|women-s-health-issues|pregnancy-and-childbirth|newborn|infant|child|children|breast|feeding|vaccine|vaccination|immunization|immunisation)/.test(normalized)) {
       score += 90;
+    }
+
+    if (/(symptoms-in-infants-and-children|nutrition|breastfeeding|feeding|normal-pregnancy|pregnancy-and-childbirth|contraception|vaccination|immunization)/.test(normalized)) {
+      score += 80;
+    }
+
+    if (/(meningitis|bacteremia|sepsis|leukemia|cancer|tumou?r|palliative)/.test(normalized)) {
+      score -= 100;
     }
 
     if (/\/professional\//.test(normalized)) {
@@ -515,6 +574,36 @@ function getAuthorityUrlRelevanceScore(url: string, source: AuthoritySourceConfi
   if (source.id === 'nhc-fys' || source.id === 'nhc-rkjt' || source.id.startsWith('ndcpa-')) {
     if (/(妇幼|孕产|孕妇|母婴|婴幼儿|新生儿|儿童|托育|生育|母乳|哺乳|接种|疫苗|照护|家庭发展)/u.test(normalized)) {
       score += 60;
+    }
+  }
+
+  if (source.id === 'dayi-maternal-child') {
+    if (/\/(?:disease|symptom|qa)\/\d+(?:\.html)?(?:$|[?#])/i.test(normalized)) {
+      score += 90;
+    }
+
+    if (/(孕妇|孕期|妊娠|产后|新生儿|婴儿|婴幼儿|母乳|喂养|儿科|儿童|宝宝)/u.test(normalized)) {
+      score += 70;
+    }
+  }
+
+  if (source.id === 'kepuchina-maternal-child') {
+    if (/\/article\/articleinfo\?(?=.*[?&]ar_id=\d+)/i.test(normalized)) {
+      score += 90;
+    }
+
+    if (/(中华医学会|人民网科普|达医晓护|福棠儿童用药咨询中心|医学专家|母婴健康|孕妇|孕期|妊娠|产后|新生儿|婴儿|婴幼儿|母乳|喂养|辅食|宝宝|新生儿护理|婴幼儿护理)/u.test(normalized)) {
+      score += 75;
+    }
+  }
+
+  if (source.id === 'cma-kepu-maternal-child') {
+    if (/\/art\/\d{4}\/\d{1,2}\/\d{1,2}\/art_4584_\d+\.html(?:$|[?#])/i.test(normalized)) {
+      score += 95;
+    }
+
+    if (/(中华医学会|科学普及部|科普中国|孕妇|孕期|孕产|妊娠|产后|新生儿|早产儿|婴儿|婴幼儿|母乳|喂养|辅食|宝宝|胎儿|黄疸|儿童|孩子)/u.test(normalized)) {
+      score += 80;
     }
   }
 
@@ -642,6 +731,11 @@ function extractDxyIndexLinks(html: string, source: AuthoritySourceConfig): Arra
 }
 
 function extractIndexLinks(html: string, source: AuthoritySourceConfig, pageUrl: string): string[] {
+  const currentPageTitle = extractTitle(html);
+  const currentPageText = `${currentPageTitle} ${stripHtml(html).slice(0, 1200)}`.trim();
+  const currentPageCandidate = isAuthorityUrlMatched(pageUrl, source, currentPageText)
+    ? [{ url: pageUrl, text: currentPageText }]
+    : [];
   const links = Array.from(html.matchAll(/<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi))
     .map((match) => ({
       href: match[1]?.trim() || '',
@@ -662,6 +756,7 @@ function extractIndexLinks(html: string, source: AuthoritySourceConfig, pageUrl:
     .filter((item): item is { url: string; text: string } => Boolean(item));
 
   const candidates = [
+    ...currentPageCandidate,
     ...links,
     ...extractEmbeddedIndexLinks(html, source, pageUrl),
     ...extractDxyIndexLinks(html, source),
@@ -720,13 +815,36 @@ function extractPaginationLinks(html: string, source: AuthoritySourceConfig, pag
 
     const allowContentPagination = source.id === 'youlai-pregnancy-guide'
       && /\/special\/advisor\/[A-Za-z0-9]+\.html(?:$|[?#])/i.test(url);
+    const allowCmaDataproxyPagination = source.id === 'cma-kepu-maternal-child'
+      && /\/module\/web\/jpage\/dataproxy\.jsp\?/i.test(url)
+      && /[?&]columnid=4584(?:&|$)/i.test(url);
 
-    if (!allowContentPagination && !isIndexLikeAuthorityUrl(url)) {
+    if (source.id === 'cma-kepu-maternal-child' && !allowCmaDataproxyPagination) {
       continue;
     }
 
-    if (!isPaginationAnchorText(text) && !isPaginationLikeUrl(url, pageUrl)) {
+    if (!allowContentPagination && !allowCmaDataproxyPagination && !isIndexLikeAuthorityUrl(url)) {
       continue;
+    }
+
+    if (!allowCmaDataproxyPagination && !isPaginationAnchorText(text) && !isPaginationLikeUrl(url, pageUrl)) {
+      continue;
+    }
+
+    if (allowCmaDataproxyPagination) {
+      try {
+        const normalizedPaginationUrl = new URL(url);
+        if (!normalizedPaginationUrl.searchParams.has('webid')) {
+          normalizedPaginationUrl.searchParams.set('webid', '1');
+        }
+        if (!normalizedPaginationUrl.searchParams.has('permissiontype')) {
+          normalizedPaginationUrl.searchParams.set('permissiontype', '0');
+        }
+        discovered.add(normalizedPaginationUrl.toString());
+        continue;
+      } catch {
+        // Fall through to the raw URL if URL normalization fails.
+      }
     }
 
     discovered.add(url);
@@ -1403,6 +1521,21 @@ export async function exportPublishedAuthoritySnapshot(): Promise<void> {
   const exportableRows = rows.filter((row) => shouldExportAuthoritySnapshotDocument({
     publishStatus: row.publishStatus as NormalizedAuthorityDocument['publishStatus'],
     riskLevelDefault: row.riskLevelDefault as NormalizedAuthorityDocument['riskLevelDefault'],
+  })).filter((row) => !shouldFilterAuthoritySourceUrl({
+    source_id: row.sourceId,
+    source_org: row.sourceOrg,
+    source_url: row.sourceUrl,
+    title: row.title,
+    question: row.title,
+  })).filter((row) => !getAuthorityKnowledgeDropReason({
+    sourceId: row.sourceId,
+    sourceOrg: row.sourceOrg,
+    sourceUrl: row.sourceUrl,
+    title: row.title,
+    question: row.title,
+    summary: row.summary,
+    answer: row.contentText,
+    updatedAt: row.updatedAt?.toISOString() || row.createdAt.toISOString(),
   }));
 
   const payload = exportableRows.map((row, index) => {

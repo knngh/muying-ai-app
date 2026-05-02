@@ -6,6 +6,7 @@ import {
   isLikelyEnglishNavigationShell,
   isOffTopicGovPolicyTitle,
 } from '../services/authority-adapters/base.adapter';
+import { getAuthorityKnowledgeDropReason } from '../utils/knowledge-content-guard';
 import { shouldFilterAuthoritySourceUrl } from '../utils/authority-source-url';
 
 interface CacheEntry {
@@ -14,9 +15,16 @@ interface CacheEntry {
   source_url?: string;
   url?: string;
   source_org?: string;
+  source_class?: string;
   source?: string;
   question?: string;
+  title?: string;
+  summary?: string;
   answer?: string;
+  source_updated_at?: string;
+  updated_at?: string;
+  published_at?: string;
+  created_at?: string;
   [key: string]: unknown;
 }
 
@@ -25,6 +33,11 @@ const CACHE_PATH = path.resolve(__dirname, '../../data/authority-knowledge-cache
 function rejectionReason(entry: CacheEntry): string | null {
   const sourceId = entry.source_id || '';
   const title = entry.question || '';
+
+  const knowledgeGuardReason = getAuthorityKnowledgeDropReason(entry);
+  if (knowledgeGuardReason) {
+    return knowledgeGuardReason;
+  }
 
   const govReason = isOffTopicGovPolicyTitle(title, sourceId);
   if (govReason) {

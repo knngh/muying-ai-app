@@ -20,6 +20,10 @@ import {
   normalizeKnowledgeSourceKey,
   normalizeKnowledgeTitleKey,
 } from '../../../shared/utils/knowledge-dedupe'
+import {
+  getSensitiveKnowledgeDropReason,
+  isSensitiveKnowledgeQuery,
+} from '../../../shared/utils/knowledge-content-guard'
 import { getAuthorityRegionPriority } from '@/utils/authority-source'
 
 const TRANSLATION_CACHE_STORAGE_KEY = 'knowledgeTranslationCache'
@@ -111,6 +115,14 @@ function normalizeCachedTranslation(translation: AuthorityArticleTranslation | n
     return null
   }
 
+  if (getSensitiveKnowledgeDropReason({
+    title: normalized.translatedTitle,
+    summary: normalized.translatedSummary,
+    content: normalized.translatedContent,
+  })) {
+    return null
+  }
+
   return normalized
 }
 
@@ -173,6 +185,27 @@ function loadPersistedTranslations() {
 const persistedTranslations = loadPersistedTranslations()
 
 export type { RecentAIHitArticle } from '../../../shared/types'
+
+function isBlockedKnowledgeArticle(article: Partial<Article | RecentAIHitArticle> | null | undefined): boolean {
+  if (!article) {
+    return false
+  }
+
+  return Boolean(getSensitiveKnowledgeDropReason({
+    title: article.title,
+    summary: article.summary,
+    content: 'content' in article ? article.content : undefined,
+    source: article.source,
+    sourceOrg: article.sourceOrg,
+    sourceUrl: 'sourceUrl' in article ? article.sourceUrl : undefined,
+    topic: article.topic,
+    category: 'category' in article && typeof article.category === 'object' ? article.category?.name : undefined,
+  }))
+}
+
+function filterBlockedKnowledgeArticles<T extends Partial<Article | RecentAIHitArticle>>(articles: T[]): T[] {
+  return articles.filter((article) => !isBlockedKnowledgeArticle(article))
+}
 
 function getArticleTimestamp(article: Article): number {
   return getKnowledgeArticleTimestamp(article)
@@ -277,6 +310,15 @@ export const useKnowledgeStore = defineStore('knowledge', {
       this.error = null
 
       try {
+        if (isSensitiveKnowledgeQuery(this.keyword)) {
+          if (params?.reset || page === 1) {
+            this.articles = []
+          }
+          this.total = 0
+          this.page = page
+          return
+        }
+
         const response = await articleApi.getList({
           page,
           pageSize: this.pageSize,
@@ -291,15 +333,16 @@ export const useKnowledgeStore = defineStore('knowledge', {
           return
         }
 
+        const safeList = filterBlockedKnowledgeArticles(response.list)
         if (params?.reset) {
-          this.articles = sortKnowledgeArticles(response.list)
+          this.articles = sortKnowledgeArticles(safeList)
         } else {
           // Append pages: only dedupe by slug, skip full re-sort
           const existingSlugs = new Set(this.articles.map((a) => a.slug))
-          const newItems = response.list.filter((a) => !existingSlugs.has(a.slug))
+          const newItems = safeList.filter((a) => !existingSlugs.has(a.slug))
           this.articles = [...this.articles, ...newItems]
         }
-        this.total = response.pagination.total
+        this.total = Math.max(this.articles.length, response.pagination.total - (response.list.length - safeList.length))
         this.page = response.pagination.page
       } catch (error: unknown) {
         if (requestId !== knowledgeListRequestId) {
@@ -317,6 +360,11 @@ export const useKnowledgeStore = defineStore('knowledge', {
 
     async fetchArticleDetail(slug: string): Promise<Article | null> {
       if (this.currentArticle?.slug === slug && (this.currentArticle.content || this.currentArticle.summary)) {
+        if (isBlockedKnowledgeArticle(this.currentArticle)) {
+          this.currentArticle = null
+          this.error = '内容已更新或下线'
+          return null
+        }
         return this.currentArticle
       }
 
@@ -333,7 +381,14 @@ export const useKnowledgeStore = defineStore('knowledge', {
           articleDetailInFlight.set(slug, request)
         }
 
-        this.currentArticle = await request
+        const loadedArticle = await request
+        if (isBlockedKnowledgeArticle(loadedArticle)) {
+          this.currentArticle = null
+          this.error = '内容已更新或下线'
+          return null
+        }
+
+        this.currentArticle = loadedArticle
         return this.currentArticle
       } catch (error: unknown) {
         const err = error as { message?: string }
@@ -414,6 +469,7 @@ export const useKnowledgeStore = defineStore('knowledge', {
     async prefetchTranslations(candidates: Article[], limit = 3) {
       const queue = candidates
         .filter((item) => item.contentType === 'authority')
+        .filter((item) => !isBlockedKnowledgeArticle(item))
         .filter((item) => !isChineseKnowledgeVariant(item))
         .filter((item) => !this.getCachedTranslation(item.slug, item.sourceUpdatedAt || item.publishedAt || item.createdAt) && !this.translationFailed[item.slug])
         .filter((item) => !translationInFlight.has(item.slug))
@@ -498,7 +554,7 @@ export const useKnowledgeStore = defineStore('knowledge', {
 
       try {
         const stored = uni.getStorageSync(RECENT_AI_HIT_ARTICLES_KEY) as RecentAIHitArticle[] | null
-        const nextList = sanitizeRecentAIHitArticles(Array.isArray(stored) ? stored : [])
+        const nextList = filterBlockedKnowledgeArticles(sanitizeRecentAIHitArticles(Array.isArray(stored) ? stored : []))
         this.recentAiHitArticles = nextList
         this.recentAiHitArticlesLoaded = true
         uni.setStorageSync(RECENT_AI_HIT_ARTICLES_KEY, nextList)
@@ -515,6 +571,10 @@ export const useKnowledgeStore = defineStore('knowledge', {
       originEntrySource?: string
       originReportId?: string
     }) {
+      if (isBlockedKnowledgeArticle(article)) {
+        return
+      }
+
       const nextHit = buildRecentAIHitArticle({
         slug: article.slug,
         articleId: 'articleId' in article ? article.articleId : article.id,
@@ -567,12 +627,24 @@ export const useKnowledgeStore = defineStore('knowledge', {
       this.selectedSource = filters.source || 'all'
       this.selectedStage = filters.stage || null
       this.page = 1
+      if (isSensitiveKnowledgeQuery(this.keyword)) {
+        this.articles = []
+        this.total = 0
+        this.error = null
+        return
+      }
       await this.fetchArticles({ page: 1, reset: true })
     },
 
     async search(keyword: string) {
       this.keyword = keyword
       this.page = 1
+      if (isSensitiveKnowledgeQuery(this.keyword)) {
+        this.articles = []
+        this.total = 0
+        this.error = null
+        return
+      }
       await this.fetchArticles({ page: 1, reset: true })
     },
 
