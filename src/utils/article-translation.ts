@@ -1,4 +1,4 @@
-export const TRANSLATION_PROMPT_LEAK_PATTERN = /<translated_(title|summary|content)>|Be accurate and faithful to the original|不要输出任何额外说明|输出必须严格使用以下标签/i;
+export const TRANSLATION_PROMPT_LEAK_PATTERN = /<translated_(title|summary|content)>|<think>|Be accurate and faithful to the original|不要输出任何额外说明|输出必须严格使用以下标签|Provide complete translations|Let me translate|do not add recommendations|do not change into diagnostic conclusions|do not omit important risk warnings|output only the translation/i;
 
 export function stripCodeFence(input: string): string {
   const fenced = input.trim().match(/^```(?:xml|json|markdown|md|text)?\s*([\s\S]*?)\s*```$/i);

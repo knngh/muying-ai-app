@@ -19,6 +19,7 @@
     "ops:rollback:prod": "bash scripts/prod-rollback-backend.sh",
     "ops:smoke:prod": "bash scripts/prod-smoke-backend.sh",
     "ops:smoke:knowledge": "bash scripts/smoke-knowledge-backend.sh",
+    "ops:knowledge:status": "bash scripts/prod-knowledge-status.sh",
     "ops:verify:workspace": "bash scripts/verify-workspace.sh",
     "ops:verify:payment-callback:prod": "bash scripts/prod-verify-payment-callback.sh",
     "ops:authority:rollout": "bash scripts/prod-authority-rollout.sh",

@@ -19,6 +19,18 @@ describe('article translation sanitization', () => {
     expect(hasTranslationPromptLeak(input)).toBe(true);
   });
 
+  test('returns empty string for chain-of-thought or instruction leakage', () => {
+    const input = [
+      '<think>',
+      'Let me translate carefully and accurately.',
+      'Provide complete translations without省略号, 占位符, or "待翻译"',
+      'Title: Example',
+    ].join('\n');
+
+    expect(sanitizeTranslationText(input, 'title')).toBe('');
+    expect(hasTranslationPromptLeak(input)).toBe(true);
+  });
+
   test('returns empty string for placeholder translation output', () => {
     expect(sanitizeTranslationText('...', 'content')).toBe('');
     expect(sanitizeTranslationText('…', 'summary')).toBe('');
