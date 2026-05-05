@@ -339,8 +339,13 @@ export function useHomeData() {
       setCheckinStatus((current) => ({
         checkedInToday: true,
         currentStreak: result.streakCount,
+        consecutiveDays: result.consecutiveDays,
+        streakDates: result.streakDates,
+        totalDays: result.totalDays,
         totalPoints: result.totalPoints,
-        monthlyCheckins: current?.monthlyCheckins ?? [],
+        monthlyCheckins: current?.monthlyCheckins?.includes(result.checkinDate)
+          ? current.monthlyCheckins
+          : [...(current?.monthlyCheckins ?? []), result.checkinDate],
         nextBonusAt: result.nextBonusAt,
         nextBonusPoints: result.nextBonusPoints,
       }))

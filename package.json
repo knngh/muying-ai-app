@@ -36,8 +36,8 @@
     "plan:knowledge-growth": "tsx src/scripts/generate-knowledge-growth-seeds.ts",
     "generate:answers": "tsx src/scripts/generate-answers.ts",
     "lint": "eslint \"src/**/*.ts\" \"tests/**/*.ts\" \"scripts/**/*.ts\" \"prisma/**/*.ts\"",
-    "test": "jest",
-    "test:unit": "jest --runInBand tests/mvp-route-guards.test.ts tests/mvp-security-regressions.test.ts tests/analytics-service.test.ts tests/subscription-quota.test.ts tests/payment-callback-signature.test.ts tests/pregnancy-lifecycle.test.ts tests/search-query-expansion.test.ts tests/authority-content-guards.test.ts tests/authority-search-normalization.test.ts",
+    "test": "jest --watchman=false",
+    "test:unit": "jest --runInBand --watchman=false tests/mvp-route-guards.test.ts tests/mvp-security-regressions.test.ts tests/analytics-service.test.ts tests/subscription-quota.test.ts tests/checkin-service.test.ts tests/payment-callback-signature.test.ts tests/pregnancy-lifecycle.test.ts tests/search-query-expansion.test.ts tests/authority-content-guards.test.ts tests/authority-search-normalization.test.ts",
     "test:integration": "RUN_INTEGRATION_TESTS=true jest --runInBand tests/auth.test.ts tests/user-community.test.ts",
     "ops:sign:payment-callback": "node --import tsx scripts/generate-payment-callback-signature.ts"
   },

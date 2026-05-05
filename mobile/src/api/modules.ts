@@ -55,6 +55,9 @@ export type { PaginationMeta } from '../../../shared/types'
 export interface CheckinStatus {
   checkedInToday: boolean
   currentStreak: number
+  consecutiveDays: number
+  streakDates: string[]
+  totalDays: number
   totalPoints: number
   monthlyCheckins: string[]
   nextBonusAt: number | null
@@ -64,7 +67,12 @@ export interface CheckinStatus {
 export interface CheckinResult {
   checkinDate: string
   streakCount: number
+  consecutiveDays: number
+  streakDates: string[]
+  totalDays: number
+  checkedInToday: boolean
   pointsAwarded: number
+  pointsEarned: number
   totalPoints: number
   nextBonusAt: number | null
   nextBonusPoints: number | null

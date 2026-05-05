@@ -12,15 +12,14 @@
       <view class="report-highlights">
         <view
           v-for="(item, index) in report.highlights"
-          :key="item.key || index"
+          :key="index"
           class="highlight-item"
         >
           <view class="highlight-index">
             <text>{{ index + 1 }}</text>
           </view>
           <view class="highlight-content">
-            <text class="highlight-label">{{ item.label }}</text>
-            <text v-if="item.value" class="highlight-value">{{ item.value }}</text>
+            <text class="highlight-label">{{ item }}</text>
           </view>
         </view>
       </view>
@@ -49,7 +48,7 @@ interface WeeklyReport {
   title: string
   stageLabel: string
   createdAt: string
-  highlights: Array<{ key: string; label: string; value: string }>
+  highlights: string[]
 }
 
 const report = ref<WeeklyReport | null>(null)
@@ -62,7 +61,7 @@ function formatDate(dateStr: string) {
 async function loadReport() {
   loading.value = true
   try {
-    const res = await api.get<WeeklyReport>('/subscription/weekly-report/latest')
+    const res = await api.get<WeeklyReport>('/report/weekly/latest')
     report.value = res
   } catch (_e) {
     report.value = null

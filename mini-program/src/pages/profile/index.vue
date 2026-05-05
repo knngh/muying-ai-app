@@ -40,16 +40,18 @@
 
       <!-- 签到卡片 -->
       <view class="checkin-card">
-        <view class="checkin-info">
-          <text class="checkin-streak">连续签到 {{ checkinStatus.consecutiveDays }} 天</text>
-          <text class="checkin-total">累计 {{ checkinStatus.totalDays }} 天</text>
-        </view>
-        <view
-          class="checkin-btn"
-          :class="{ disabled: checkinStatus.checkedInToday }"
-          @tap="doCheckin"
-        >
-          <text class="checkin-btn-text">{{ checkinStatus.checkedInToday ? '已签到' : '签到' }}</text>
+        <view class="checkin-main-row">
+          <view class="checkin-info">
+            <text class="checkin-streak">连续签到 {{ checkinSummary.consecutiveDays }} 天</text>
+            <text class="checkin-total">累计 {{ checkinSummary.totalDays }} 天</text>
+          </view>
+          <view
+            class="checkin-btn"
+            :class="{ disabled: checkinSummary.checkedInToday || checkinSubmitting }"
+            @tap="doCheckin"
+          >
+            <text class="checkin-btn-text">{{ checkinSummary.checkedInToday ? '已签到' : (checkinSubmitting ? '签到中' : '签到') }}</text>
+          </view>
         </view>
       </view>
 
@@ -152,20 +154,96 @@ const PROFILE_AUTO_OPEN_EDIT_KEY = 'profileAutoOpenEdit'
 const appStore = useAppStore()
 
 const checkinStatus = ref<CheckinStatus>({ checkedInToday: false, consecutiveDays: 0, totalDays: 0 })
+const checkinSubmitting = ref(false)
+
+const normalizeDateList = (dates?: string[]) => {
+  const seen = new Set<string>()
+  return (dates || [])
+    .map(item => dayjs(item).format('YYYY-MM-DD'))
+    .filter((item) => {
+      if (!dayjs(item).isValid() || seen.has(item)) return false
+      seen.add(item)
+      return true
+    })
+    .sort((left, right) => left.localeCompare(right))
+}
+
+const normalizeCheckinStatus = (
+  status: CheckinStatus,
+  fallback?: CheckinStatus,
+): CheckinStatus => {
+  const previous = fallback || checkinStatus.value
+  const today = dayjs().format('YYYY-MM-DD')
+  const checkedInToday = Boolean(
+    status.checkedInToday
+    || status.checkinDate === today
+    || status.streakDates?.includes(today)
+    || status.monthlyCheckins?.includes(today)
+  )
+  const rawConsecutiveDays = status.consecutiveDays ?? status.currentStreak ?? status.streakCount ?? previous.consecutiveDays ?? previous.currentStreak ?? 0
+  const consecutiveDays = checkedInToday && rawConsecutiveDays < 1 ? 1 : rawConsecutiveDays
+  const monthlyCheckins = normalizeDateList([
+    ...(previous.monthlyCheckins || []),
+    ...(status.monthlyCheckins || []),
+    ...(checkedInToday ? [status.checkinDate || today] : []),
+  ])
+  const streakDates = normalizeDateList([
+    ...(status.streakDates || []),
+    ...(!status.streakDates?.length && checkedInToday ? [status.checkinDate || today] : []),
+  ])
+
+  return {
+    ...previous,
+    ...status,
+    checkedInToday,
+    consecutiveDays,
+    currentStreak: status.currentStreak ?? consecutiveDays,
+    streakCount: status.streakCount ?? consecutiveDays,
+    totalDays: status.totalDays ?? previous.totalDays ?? monthlyCheckins.length,
+    monthlyCheckins,
+    streakDates,
+  }
+}
+
+const checkinSummary = computed(() => {
+  const status = checkinStatus.value
+  const rawConsecutiveDays = status.consecutiveDays ?? status.currentStreak ?? status.streakCount ?? 0
+  const streakDates = normalizeDateList(status.streakDates)
+  const monthlyDates = normalizeDateList(status.monthlyCheckins)
+  const fallbackToday = status.checkedInToday && status.checkinDate ? normalizeDateList([status.checkinDate]) : []
+  const checkedInToday = status.checkedInToday || monthlyDates.includes(dayjs().format('YYYY-MM-DD')) || streakDates.includes(dayjs().format('YYYY-MM-DD'))
+  const consecutiveDays = checkedInToday && rawConsecutiveDays < 1 ? 1 : rawConsecutiveDays
+  const totalDays = status.totalDays ?? monthlyDates.length ?? fallbackToday.length ?? 0
+
+  return {
+    checkedInToday,
+    consecutiveDays,
+    totalDays: checkedInToday && totalDays < 1 ? 1 : totalDays,
+  }
+})
 
 async function loadCheckinStatus() {
   try {
-    checkinStatus.value = await checkinApi.getStatus()
+    checkinStatus.value = normalizeCheckinStatus(await checkinApi.getStatus())
   } catch (_e) { /* ignore */ }
 }
 
 async function doCheckin() {
-  if (checkinStatus.value.checkedInToday) return
+  if (checkinSummary.value.checkedInToday || checkinSubmitting.value) return
+  checkinSubmitting.value = true
   try {
-    checkinStatus.value = await checkinApi.checkin()
-    uni.showToast({ title: `签到成功！+${checkinStatus.value.pointsEarned || 1}积分`, icon: 'success' })
+    checkinStatus.value = normalizeCheckinStatus(await checkinApi.checkin())
+    uni.showToast({ title: `签到成功！+${checkinStatus.value.pointsEarned || checkinStatus.value.pointsAwarded || 1}积分`, icon: 'success' })
   } catch (e: any) {
-    uni.showToast({ title: e.message || '签到失败', icon: 'none' })
+    if (String(e?.message || '').includes('今日已签到')) {
+      checkinStatus.value = normalizeCheckinStatus({ ...checkinStatus.value, checkedInToday: true, checkinDate: dayjs().format('YYYY-MM-DD') })
+      await loadCheckinStatus()
+      uni.showToast({ title: '今日已签到', icon: 'none' })
+    } else {
+      uni.showToast({ title: e.message || '签到失败', icon: 'none' })
+    }
+  } finally {
+    checkinSubmitting.value = false
   }
 }
 
@@ -466,6 +544,13 @@ onShow(() => {
   padding: 28rpx 32rpx;
   background: linear-gradient(135deg, #16806a 0%, #2f7cf6 100%);
   border-radius: 24rpx;
+}
+.checkin-main-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24rpx;
+  width: 100%;
 }
 .checkin-info { display: flex; flex-direction: column; gap: 8rpx; }
 .checkin-streak { font-size: 30rpx; font-weight: 700; color: #fff; }

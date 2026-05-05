@@ -1,4 +1,5 @@
 import dayjs from 'dayjs';
+import { Prisma } from '@prisma/client';
 import prisma from '../config/database';
 import { AppError, ErrorCodes } from '../middlewares/error.middleware';
 import { cache } from './cache.service';
@@ -12,11 +13,17 @@ const BONUS_TIERS = [
 ] as const;
 
 const BASE_POINTS = 5;
+const ALREADY_CHECKED_IN_MESSAGE = '今日已签到';
 
 interface CheckinResult {
   checkinDate: string;
   streakCount: number;
+  consecutiveDays: number;
+  streakDates: string[];
+  totalDays: number;
+  checkedInToday: boolean;
   pointsAwarded: number;
+  pointsEarned: number;
   totalPoints: number;
   nextBonusAt: number | null;
   nextBonusPoints: number | null;
@@ -25,6 +32,9 @@ interface CheckinResult {
 interface CheckinStatus {
   checkedInToday: boolean;
   currentStreak: number;
+  consecutiveDays: number;
+  streakDates: string[];
+  totalDays: number;
   totalPoints: number;
   monthlyCheckins: string[];
   nextBonusAt: number | null;
@@ -51,7 +61,14 @@ function computeNextBonus(streak: number): { nextBonusAt: number | null; nextBon
   return { nextBonusAt: null, nextBonusPoints: null };
 }
 
-async function computeStreak(userId: bigint, includeToday: boolean): Promise<number> {
+function isUniqueConstraintError(error: unknown): error is Prisma.PrismaClientKnownRequestError {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
+}
+
+async function computeStreakInfo(
+  userId: bigint,
+  includeToday: boolean,
+): Promise<{ count: number; dates: string[] }> {
   const today = dayjs().startOf('day');
   const startDate = includeToday ? today : today.subtract(1, 'day');
 
@@ -67,83 +84,115 @@ async function computeStreak(userId: bigint, includeToday: boolean): Promise<num
   });
 
   let streak = 0;
+  const dates: string[] = [];
   let expectedDate = startDate;
 
   for (const checkin of checkins) {
     const checkinDay = dayjs(checkin.checkinDate).startOf('day');
     if (checkinDay.isSame(expectedDate, 'day')) {
       streak++;
+      dates.push(checkinDay.format('YYYY-MM-DD'));
       expectedDate = expectedDate.subtract(1, 'day');
     } else {
       break;
     }
   }
 
-  return streak;
+  return {
+    count: streak,
+    dates: dates.reverse(),
+  };
 }
 
 export async function performCheckin(userId: string): Promise<CheckinResult> {
   const userIdBigInt = BigInt(userId);
   const today = dayjs().startOf('day').toDate();
+  const todayString = dayjs(today).format('YYYY-MM-DD');
 
-  // Upsert with unique constraint — affected=0 means already checked in
-  const affected = await prisma.$executeRaw`
-    INSERT INTO user_checkins (userId, checkinDate, streakCount, pointsAwarded, createdAt)
-    VALUES (${userIdBigInt}, CURDATE(), 1, 0, NOW())
-    ON DUPLICATE KEY UPDATE id = id
-  `;
+  const existingCheckin = await prisma.userCheckin.findUnique({
+    where: {
+      userId_checkinDate: {
+        userId: userIdBigInt,
+        checkinDate: today,
+      },
+    },
+    select: { id: true },
+  });
 
-  if (affected === 0) {
-    throw new AppError('今日已签到', ErrorCodes.PARAM_ERROR, 400);
+  if (existingCheckin) {
+    throw new AppError(ALREADY_CHECKED_IN_MESSAGE, ErrorCodes.PARAM_ERROR, 400);
   }
 
-  // Compute streak: yesterday's streak + 1 (today)
-  const yesterdayStreak = await computeStreak(userIdBigInt, false);
-  const streakCount = yesterdayStreak + 1;
-
-  // Calculate points
+  // Compute streak before creating today; unique create below prevents concurrent double awards.
+  const yesterdayStreak = await computeStreakInfo(userIdBigInt, false);
+  const streakCount = yesterdayStreak.count + 1;
   const bonus = computeBonus(streakCount);
   const pointsAwarded = BASE_POINTS + bonus;
 
-  // Atomic balance update
-  await prisma.$executeRaw`
-    UPDATE users SET totalPoints = totalPoints + ${pointsAwarded} WHERE id = ${userIdBigInt}
-  `;
+  let result: { totalPoints: number; totalDays: number };
 
-  // Get updated balance
-  const user = await prisma.user.findUniqueOrThrow({
-    where: { id: userIdBigInt },
-    select: { totalPoints: true },
-  });
+  try {
+    result = await prisma.$transaction(async (tx) => {
+      await tx.userCheckin.create({
+        data: {
+          userId: userIdBigInt,
+          checkinDate: today,
+          streakCount,
+          pointsAwarded,
+        },
+      });
 
-  // Write points log
-  await prisma.userPointsLog.create({
-    data: {
-      userId: userIdBigInt,
-      points: pointsAwarded,
-      balance: user.totalPoints,
-      source: 'checkin',
-      sourceId: dayjs(today).format('YYYY-MM-DD'),
-      description: streakCount > 1
-        ? `连续签到第${streakCount}天，获得${pointsAwarded}积分`
-        : `签到获得${pointsAwarded}积分`,
-    },
-  });
+      const user = await tx.user.update({
+        where: { id: userIdBigInt },
+        data: {
+          totalPoints: {
+            increment: pointsAwarded,
+          },
+        },
+        select: { totalPoints: true },
+      });
 
-  // Update checkin record with streak/points
-  await prisma.$executeRaw`
-    UPDATE user_checkins
-    SET streakCount = ${streakCount}, pointsAwarded = ${pointsAwarded}
-    WHERE userId = ${userIdBigInt} AND checkinDate = CURDATE()
-  `;
+      await tx.userPointsLog.create({
+        data: {
+          userId: userIdBigInt,
+          points: pointsAwarded,
+          balance: user.totalPoints,
+          source: 'checkin',
+          sourceId: todayString,
+          description: streakCount > 1
+            ? `连续签到第${streakCount}天，获得${pointsAwarded}积分`
+            : `签到获得${pointsAwarded}积分`,
+        },
+      });
+
+      const totalDays = await tx.userCheckin.count({
+        where: { userId: userIdBigInt },
+      });
+
+      return {
+        totalPoints: user.totalPoints,
+        totalDays,
+      };
+    });
+  } catch (error) {
+    if (isUniqueConstraintError(error)) {
+      throw new AppError(ALREADY_CHECKED_IN_MESSAGE, ErrorCodes.PARAM_ERROR, 400);
+    }
+    throw error;
+  }
 
   const { nextBonusAt, nextBonusPoints } = computeNextBonus(streakCount);
 
   return {
-    checkinDate: dayjs(today).format('YYYY-MM-DD'),
+    checkinDate: todayString,
     streakCount,
+    consecutiveDays: streakCount,
+    streakDates: [...yesterdayStreak.dates, todayString],
+    totalDays: result.totalDays,
+    checkedInToday: true,
     pointsAwarded,
-    totalPoints: user.totalPoints,
+    pointsEarned: pointsAwarded,
+    totalPoints: result.totalPoints,
     nextBonusAt,
     nextBonusPoints,
   };
@@ -166,7 +215,7 @@ export async function getCheckinStatus(userId: string): Promise<CheckinStatus> {
   const checkedInToday = !!todayCheckin;
 
   // Compute current streak
-  const currentStreak = await computeStreak(userIdBigInt, true);
+  const currentStreak = await computeStreakInfo(userIdBigInt, true);
 
   // Monthly checkins calendar
   const monthStart = today.startOf('month').toDate();
@@ -189,11 +238,19 @@ export async function getCheckinStatus(userId: string): Promise<CheckinStatus> {
     select: { totalPoints: true },
   });
 
-  const { nextBonusAt, nextBonusPoints } = computeNextBonus(currentStreak);
+  // Total checkin days (all time)
+  const totalDays = await prisma.userCheckin.count({
+    where: { userId: userIdBigInt },
+  });
+
+  const { nextBonusAt, nextBonusPoints } = computeNextBonus(currentStreak.count);
 
   return {
     checkedInToday,
-    currentStreak,
+    currentStreak: currentStreak.count,
+    consecutiveDays: currentStreak.count,
+    streakDates: currentStreak.dates,
+    totalDays,
     totalPoints: user.totalPoints,
     monthlyCheckins,
     nextBonusAt,

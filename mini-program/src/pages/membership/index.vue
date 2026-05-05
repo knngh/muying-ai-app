@@ -142,7 +142,7 @@ async function loadData() {
       subscriptionApi.getPlans(),
     ])
     membership.value = memberRes
-    plans.value = planRes.plans || []
+    plans.value = planRes || []
   } catch (e) {
     console.error('[Membership] 加载失败:', e)
   } finally {
@@ -160,22 +160,8 @@ async function onSubscribe() {
   subscribing.value = true
   try {
     const res = await subscriptionApi.createOrder(selectedPlan.value.code)
-    if (res.paymentParams) {
-      // 调用微信支付
-      uni.requestPayment({
-        ...res.paymentParams,
-        success: () => {
-          uni.showToast({ title: '开通成功', icon: 'success' })
-          loadData()
-        },
-        fail: () => {
-          uni.showToast({ title: '支付取消', icon: 'none' })
-        },
-      } as any)
-    } else {
-      uni.showToast({ title: '订单已创建', icon: 'success' })
-      loadData()
-    }
+    uni.showToast({ title: `订单已创建：${res.orderNo}`, icon: 'success' })
+    loadData()
   } catch (e: any) {
     uni.showToast({ title: e.message || '开通失败', icon: 'none' })
   } finally {
