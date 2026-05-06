@@ -2444,32 +2444,6 @@
     "original_id": "49571759"
   },
   {
-    "id": "qa-20260316-0328",
-    "content_type": "qa",
-    "question": "如果吃药能否打掉孩子怀孕快俩月了，吃什么药能够打掉孩子",
-    "answer": "**孕早期注意事项：**\n\n1. **营养补充**\n   - 继续补充叶酸（400μg/天）\n   - 均衡饮食，少食多餐\n   - 避免生冷、刺激性食物\n\n2. **产检安排**\n   - 6-8周：确认宫内妊娠\n   - 11-13周：NT检查\n   - 建立孕期保健档案\n\n3. **生活注意**\n   - 避免剧烈运动和重体力劳动\n   - 禁止烟酒，远离有害物质\n   - 保持心情愉悦，充足睡眠\n\n⚠️ 免责声明：本回答基于孕期保健常识整理，仅供参考，不构成医疗建议。如有异常症状，请及时就医。",
-    "category": "pregnancy-early",
-    "tags": [
-      "孕早期"
-    ],
-    "target_stage": [],
-    "difficulty": "beginner",
-    "read_time": 3,
-    "author": {
-      "name": "AI助手",
-      "title": "智能问答系统"
-    },
-    "is_verified": false,
-    "status": "published",
-    "view_count": 0,
-    "like_count": 0,
-    "created_at": "2026-03-16T02:29:22.526285Z",
-    "updated_at": "2026-03-16T02:29:22.526286Z",
-    "published_at": "2026-03-16T02:29:22.526287Z",
-    "source": "cMedQA2数据集",
-    "original_id": "34765688"
-  },
-  {
     "id": "qa-20260316-0329",
     "content_type": "qa",
     "question": "宝宝九个月可以打腮腺炎疫苗？宝宝九个月可以打腮腺炎疫苗？宝宝九个月可以打腮腺炎疫苗？",
@@ -3638,32 +3612,6 @@
     "published_at": "2026-03-16T02:29:22.526921Z",
     "source": "cMedQA2数据集",
     "original_id": "7560855"
-  },
-  {
-    "id": "qa-20260316-0404",
-    "content_type": "qa",
-    "question": "请问我老婆怀孕2给多月了，用药可以打掉小孩吗？用药打小孩对我老婆身体有",
-    "answer": "**孕早期注意事项：**\n\n1. **营养补充**\n   - 继续补充叶酸（400μg/天）\n   - 均衡饮食，少食多餐\n   - 避免生冷、刺激性食物\n\n2. **产检安排**\n   - 6-8周：确认宫内妊娠\n   - 11-13周：NT检查\n   - 建立孕期保健档案\n\n3. **生活注意**\n   - 避免剧烈运动和重体力劳动\n   - 禁止烟酒，远离有害物质\n   - 保持心情愉悦，充足睡眠\n\n⚠️ 免责声明：本回答基于孕期保健常识整理，仅供参考，不构成医疗建议。如有异常症状，请及时就医。",
-    "category": "pregnancy-early",
-    "tags": [
-      "孕早期"
-    ],
-    "target_stage": [],
-    "difficulty": "beginner",
-    "read_time": 3,
-    "author": {
-      "name": "AI助手",
-      "title": "智能问答系统"
-    },
-    "is_verified": false,
-    "status": "published",
-    "view_count": 0,
-    "like_count": 0,
-    "created_at": "2026-03-16T02:29:22.526935Z",
-    "updated_at": "2026-03-16T02:29:22.526936Z",
-    "published_at": "2026-03-16T02:29:22.526937Z",
-    "source": "cMedQA2数据集",
-    "original_id": "38709597"
   },
   {
     "id": "qa-20260316-0406",
@@ -5146,32 +5094,6 @@
     "published_at": "2026-03-16T02:29:22.527722Z",
     "source": "cMedQA2数据集",
     "original_id": "27137474"
-  },
-  {
-    "id": "qa-20260316-0488",
-    "content_type": "qa",
-    "question": "2011年4月15日孩子骑滑板车摔倒了，当时就哭了，但没去医院看，后来16日去苏州妇幼保健医院拍片子看了说是锁骨骨折。医生当时用纱布呈8字状在后面绑了起来，但手没有吊起来，也没用任何药，说让小孩自己长。绑好后又拍了片子，但和之前拍的一样，这样会有问题吗？求大家懂的给点建议，是否需要其他治疗。",
-    "answer": "**0-1岁育儿建议：**\n\n1. **喂养要点**\n   - 0-6个月：纯母乳或配方奶喂养\n   - 6个月后：逐步添加辅食\n   - 注意食物过敏反应\n\n2. **发育监测**\n   - 定期体检，监测身高体重\n   - 关注大运动发育里程碑\n   - 按时接种疫苗\n\n3. **日常护理**\n   - 保持皮肤清洁，预防湿疹\n   - 培养规律作息习惯\n   - 多进行亲子互动\n\n⚠️ 免责声明：本回答基于育儿常识整理，仅供参考，不构成医疗建议。如有健康问题，请咨询专业医生。",
-    "category": "parenting-0-1",
-    "tags": [
-      "母婴"
-    ],
-    "target_stage": [],
-    "difficulty": "beginner",
-    "read_time": 3,
-    "author": {
-      "name": "AI助手",
-      "title": "智能问答系统"
-    },
-    "is_verified": false,
-    "status": "published",
-    "view_count": 0,
-    "like_count": 0,
-    "created_at": "2026-03-16T02:29:22.527728Z",
-    "updated_at": "2026-03-16T02:29:22.527729Z",
-    "published_at": "2026-03-16T02:29:22.527730Z",
-    "source": "cMedQA2数据集",
-    "original_id": "8352950"
   },
   {
     "id": "qa-20260316-0492",
@@ -7878,32 +7800,6 @@
     "original_id": "22173582"
   },
   {
-    "id": "qa-20260316-0771",
-    "content_type": "qa",
-    "question": "我现在怀孕八个月了，可最近总感觉下面有疼痛感，晚上睡觉翻身都疼，小便次数越来越多，这会不会是要临产了啊？我第一胎就提前一个月生的。",
-    "answer": "**症状处理建议：**\n\n1. **观察症状**\n   - 记录症状出现时间、持续时间\n   - 注意伴随症状（发热、呕吐等）\n   - 观察精神状态和食欲\n\n2. **家庭护理**\n   - 保持室内通风，温度适宜\n   - 多饮水，保证休息\n   - 清淡饮食，避免刺激性食物\n\n3. **就医建议**\n   - 症状持续超过3天应就医\n   - 出现高热、呼吸困难等立即就医\n   - 携带症状记录便于医生诊断\n\n⚠️ 免责声明：本回答基于医学常识整理，仅供参考，不构成医疗建议。如有健康问题，请咨询专业医生。",
-    "category": "pregnancy-late",
-    "tags": [
-      "孕晚期"
-    ],
-    "target_stage": [],
-    "difficulty": "beginner",
-    "read_time": 3,
-    "author": {
-      "name": "AI助手",
-      "title": "智能问答系统"
-    },
-    "is_verified": false,
-    "status": "published",
-    "view_count": 0,
-    "like_count": 0,
-    "created_at": "2026-03-16T02:29:22.530279Z",
-    "updated_at": "2026-03-16T02:29:22.530280Z",
-    "published_at": "2026-03-16T02:29:22.530281Z",
-    "source": "cMedQA2数据集",
-    "original_id": "17469090"
-  },
-  {
     "id": "qa-20260316-0774",
     "content_type": "qa",
     "question": "宝宝感冒流涕咳嗽是不是禽流感症状最近流感高发期宝宝这两天有点咳嗽流涕是不是流感症状。",
@@ -8526,32 +8422,6 @@
     "published_at": "2026-03-16T02:29:22.531021Z",
     "source": "cMedQA2数据集",
     "original_id": "13305849"
-  },
-  {
-    "id": "qa-20260316-0858",
-    "content_type": "qa",
-    "question": "宝宝41天，不一会就像大人便秘一样用力挣，然后就哭了，看着很痛苦的样子，是不是肠胃出现问题了？",
-    "answer": "**0-1岁育儿建议：**\n\n1. **喂养要点**\n   - 0-6个月：纯母乳或配方奶喂养\n   - 6个月后：逐步添加辅食\n   - 注意食物过敏反应\n\n2. **发育监测**\n   - 定期体检，监测身高体重\n   - 关注大运动发育里程碑\n   - 按时接种疫苗\n\n3. **日常护理**\n   - 保持皮肤清洁，预防湿疹\n   - 培养规律作息习惯\n   - 多进行亲子互动\n\n⚠️ 免责声明：本回答基于育儿常识整理，仅供参考，不构成医疗建议。如有健康问题，请咨询专业医生。",
-    "category": "parenting-0-1",
-    "tags": [
-      "母婴"
-    ],
-    "target_stage": [],
-    "difficulty": "beginner",
-    "read_time": 3,
-    "author": {
-      "name": "AI助手",
-      "title": "智能问答系统"
-    },
-    "is_verified": false,
-    "status": "published",
-    "view_count": 0,
-    "like_count": 0,
-    "created_at": "2026-03-16T02:29:22.531047Z",
-    "updated_at": "2026-03-16T02:29:22.531048Z",
-    "published_at": "2026-03-16T02:29:22.531050Z",
-    "source": "cMedQA2数据集",
-    "original_id": "28448636"
   },
   {
     "id": "qa-20260316-0864",
@@ -15054,32 +14924,6 @@
     "original_id": "11973387"
   },
   {
-    "id": "qa-20260316-1321",
-    "content_type": "qa",
-    "question": "我家宝宝的蛋蛋一个在上面一个在下面，哭了一整天，请问这和宝宝哭有关系吗？怎样才能避免再次发生",
-    "answer": "**症状处理建议：**\n\n1. **观察症状**\n   - 记录症状出现时间、持续时间\n   - 注意伴随症状\n   - 观察精神状态\n\n2. **家庭护理**\n   - 保持室内通风\n   - 多饮水，保证休息\n   - 清淡饮食\n\n3. **就医建议**\n   - 症状持续或加重应就医\n   - 出现紧急情况立即就医\n   - 携带症状记录\n\n⚠️ 免责声明：本回答基于医学常识整理，仅供参考，不构成医疗建议。如有健康问题，请咨询专业医生。",
-    "category": "parenting-0-1",
-    "tags": [
-      "母婴"
-    ],
-    "target_stage": [],
-    "difficulty": "beginner",
-    "read_time": 3,
-    "author": {
-      "name": "AI助手",
-      "title": "智能问答系统"
-    },
-    "is_verified": false,
-    "status": "published",
-    "view_count": 0,
-    "like_count": 0,
-    "created_at": "2026-03-16T02:31:04.916315Z",
-    "updated_at": "2026-03-16T02:31:04.916316Z",
-    "published_at": "2026-03-16T02:31:04.916317Z",
-    "source": "cMedQA2数据集",
-    "original_id": "61507209"
-  },
-  {
     "id": "qa-20260316-1322",
     "content_type": "qa",
     "question": "7岁孩子散瞳后一个近视50度，一个散光50度（无近视），需要配眼镜吗？",
@@ -20956,32 +20800,6 @@
     "original_id": "47811667"
   },
   {
-    "id": "qa-20260316-1686",
-    "content_type": "qa",
-    "question": "怀孕十五周做四维男孩准确率问吗？得到帮助。谢谢",
-    "answer": "**症状处理建议：**\n\n1. **观察症状**\n   - 记录症状出现时间、持续时间\n   - 注意伴随症状\n   - 观察精神状态\n\n2. **家庭护理**\n   - 保持室内通风\n   - 多饮水，保证休息\n   - 清淡饮食\n\n3. **就医建议**\n   - 症状持续或加重应就医\n   - 出现紧急情况立即就医\n   - 携带症状记录\n\n⚠️ 免责声明：本回答基于医学常识整理，仅供参考，不构成医疗建议。如有健康问题，请咨询专业医生。",
-    "category": "pregnancy-early",
-    "tags": [
-      "孕早期"
-    ],
-    "target_stage": [],
-    "difficulty": "beginner",
-    "read_time": 3,
-    "author": {
-      "name": "AI助手",
-      "title": "智能问答系统"
-    },
-    "is_verified": false,
-    "status": "published",
-    "view_count": 0,
-    "like_count": 0,
-    "created_at": "2026-03-16T02:31:04.923090Z",
-    "updated_at": "2026-03-16T02:31:04.923091Z",
-    "published_at": "2026-03-16T02:31:04.923095Z",
-    "source": "cMedQA2数据集",
-    "original_id": "27082555"
-  },
-  {
     "id": "qa-20260316-1687",
     "content_type": "qa",
     "question": "小孩贫血怎么办？小孩贫血怎么办？大家说吃补血的食物有助于补血，但是我也给孩子吃了，为什么一点效果都没有？现在想买铁之缘片来补，医生们觉得这个补血怎么样？小孩贫血怎么办？",
@@ -23244,32 +23062,6 @@
     "original_id": "57215078"
   },
   {
-    "id": "qa-20260316-1824",
-    "content_type": "qa",
-    "question": "这是怀孕了还是得了什么绝症呀？这是怀孕了还是得了什么绝症呀。",
-    "answer": "**症状处理建议：**\n\n1. **观察症状**\n   - 记录症状出现时间、持续时间\n   - 注意伴随症状\n   - 观察精神状态\n\n2. **家庭护理**\n   - 保持室内通风\n   - 多饮水，保证休息\n   - 清淡饮食\n\n3. **就医建议**\n   - 症状持续或加重应就医\n   - 出现紧急情况立即就医\n   - 携带症状记录\n\n⚠️ 免责声明：本回答基于医学常识整理，仅供参考，不构成医疗建议。如有健康问题，请咨询专业医生。",
-    "category": "pregnancy-early",
-    "tags": [
-      "孕早期"
-    ],
-    "target_stage": [],
-    "difficulty": "beginner",
-    "read_time": 3,
-    "author": {
-      "name": "AI助手",
-      "title": "智能问答系统"
-    },
-    "is_verified": false,
-    "status": "published",
-    "view_count": 0,
-    "like_count": 0,
-    "created_at": "2026-03-16T02:31:04.925583Z",
-    "updated_at": "2026-03-16T02:31:04.925584Z",
-    "published_at": "2026-03-16T02:31:04.925585Z",
-    "source": "cMedQA2数据集",
-    "original_id": "30510581"
-  },
-  {
     "id": "qa-20260316-1825",
     "content_type": "qa",
     "question": "如果可以吃，吃多长时间。请问怀孕快5个月了能吃康耐得多维元素胶囊（13）吗？",
@@ -24362,32 +24154,6 @@
     "original_id": "17700256"
   },
   {
-    "id": "qa-20260316-1897",
-    "content_type": "qa",
-    "question": "了，我家婆婆每天都说孙子怎么好的，现在弄的我自己都好有压力啊，怀孕几个月可以看出来男孩女孩呢。要怎么才能知道啊，验血还是做B超呢？",
-    "answer": "**症状处理建议：**\n\n1. **观察症状**\n   - 记录症状出现时间、持续时间\n   - 注意伴随症状\n   - 观察精神状态\n\n2. **家庭护理**\n   - 保持室内通风\n   - 多饮水，保证休息\n   - 清淡饮食\n\n3. **就医建议**\n   - 症状持续或加重应就医\n   - 出现紧急情况立即就医\n   - 携带症状记录\n\n⚠️ 免责声明：本回答基于医学常识整理，仅供参考，不构成医疗建议。如有健康问题，请咨询专业医生。",
-    "category": "pregnancy-early",
-    "tags": [
-      "孕早期"
-    ],
-    "target_stage": [],
-    "difficulty": "beginner",
-    "read_time": 3,
-    "author": {
-      "name": "AI助手",
-      "title": "智能问答系统"
-    },
-    "is_verified": false,
-    "status": "published",
-    "view_count": 0,
-    "like_count": 0,
-    "created_at": "2026-03-16T02:31:04.926963Z",
-    "updated_at": "2026-03-16T02:31:04.926964Z",
-    "published_at": "2026-03-16T02:31:04.926965Z",
-    "source": "cMedQA2数据集",
-    "original_id": "59042994"
-  },
-  {
     "id": "qa-20260316-1898",
     "content_type": "qa",
     "question": "大姨妈2号来，9号开始行房的，28号又来月经了，还有可能怀孕吗？",
@@ -24802,32 +24568,6 @@
     "published_at": "2026-03-16T02:31:04.927412Z",
     "source": "cMedQA2数据集",
     "original_id": "14858337"
-  },
-  {
-    "id": "qa-20260316-1923",
-    "content_type": "qa",
-    "question": "我的宝宝也是先心病去世了，现在我们想再要一个健康的宝宝，请问我们夫妻需要做哪些方面的检查？谢谢",
-    "answer": "**症状处理建议：**\n\n1. **观察症状**\n   - 记录症状出现时间、持续时间\n   - 注意伴随症状\n   - 观察精神状态\n\n2. **家庭护理**\n   - 保持室内通风\n   - 多饮水，保证休息\n   - 清淡饮食\n\n3. **就医建议**\n   - 症状持续或加重应就医\n   - 出现紧急情况立即就医\n   - 携带症状记录\n\n⚠️ 免责声明：本回答基于医学常识整理，仅供参考，不构成医疗建议。如有健康问题，请咨询专业医生。",
-    "category": "parenting-0-1",
-    "tags": [
-      "母婴"
-    ],
-    "target_stage": [],
-    "difficulty": "beginner",
-    "read_time": 3,
-    "author": {
-      "name": "AI助手",
-      "title": "智能问答系统"
-    },
-    "is_verified": false,
-    "status": "published",
-    "view_count": 0,
-    "like_count": 0,
-    "created_at": "2026-03-16T02:31:04.927429Z",
-    "updated_at": "2026-03-16T02:31:04.927430Z",
-    "published_at": "2026-03-16T02:31:04.927431Z",
-    "source": "cMedQA2数据集",
-    "original_id": "22332711"
   },
   {
     "id": "qa-20260316-1924",
@@ -31304,32 +31044,6 @@
     "original_id": "7459281"
   },
   {
-    "id": "qa-20260316-2246",
-    "content_type": "qa",
-    "question": "意外怀孕，想用药流掉孩子怀孕一个月想用药流掉",
-    "answer": "婴幼儿安全很重要，注意防摔、防烫、防窒息，家中做好安全防护措施。",
-    "category": "common-safety",
-    "tags": [
-      "母婴"
-    ],
-    "target_stage": [],
-    "difficulty": "beginner",
-    "read_time": 2,
-    "author": {
-      "name": "AI助手",
-      "title": "智能问答系统"
-    },
-    "is_verified": false,
-    "status": "published",
-    "view_count": 0,
-    "like_count": 0,
-    "created_at": "2026-03-16T09:52:06.060389Z",
-    "updated_at": "2026-03-16T09:52:06.060390Z",
-    "published_at": "2026-03-16T09:52:06.060391Z",
-    "source": "cMedQA2数据集",
-    "original_id": "33454700"
-  },
-  {
     "id": "qa-20260316-2247",
     "content_type": "qa",
     "question": "宝宝六个月最近几天躺在床上头会摇来摇去睡着的时候也会摇头。他最近排便都是用开塞露还有前几天吃了半粒排便的药是不是副作用）抱起来不会摇头就是刚放床上他头会靠在床边摇来摇去。想知道这到底是什么回事要不要紧。",
@@ -34892,32 +34606,6 @@
     "original_id": "26113454"
   },
   {
-    "id": "qa-20260316-2428",
-    "content_type": "qa",
-    "question": "满月婴儿喝水被呛到了大夫。今天宝宝哭了我就给她弄水。但是一心急。宝宝哭着就直接把水倒她嘴里了也没用奶瓶。水温有些偏高。是哭着就倒她嘴里了会伤到她吗？婴儿刚满月。还有婴儿爽身粉微量的进去宝宝嘴里会有什么伤害。谢谢",
-    "answer": "0-1岁是宝宝快速发育期，注意科学喂养，按时接种疫苗，关注发育里程碑。",
-    "category": "parenting-0-1",
-    "tags": [
-      "母婴"
-    ],
-    "target_stage": [],
-    "difficulty": "beginner",
-    "read_time": 2,
-    "author": {
-      "name": "AI助手",
-      "title": "智能问答系统"
-    },
-    "is_verified": false,
-    "status": "published",
-    "view_count": 0,
-    "like_count": 0,
-    "created_at": "2026-03-16T09:52:06.064693Z",
-    "updated_at": "2026-03-16T09:52:06.064694Z",
-    "published_at": "2026-03-16T09:52:06.064696Z",
-    "source": "cMedQA2数据集",
-    "original_id": "20049844"
-  },
-  {
     "id": "qa-20260316-2429",
     "content_type": "qa",
     "question": "一个月的宝宝咳嗽有痰吃母乳，母亲可以吃腌肉猪油吗？",
@@ -36660,32 +36348,6 @@
     "original_id": "28769199"
   },
   {
-    "id": "qa-20260316-2530",
-    "content_type": "qa",
-    "question": "一次是手术，第二，第三次是药流，后两次药流都不干净。复查后，都没有什么问题，但现在想要孩子，一直都怀不上，月经一个准，一个月不准",
-    "answer": "0-1岁是宝宝快速发育期，注意科学喂养，按时接种疫苗，关注发育里程碑。",
-    "category": "parenting-0-1",
-    "tags": [
-      "母婴"
-    ],
-    "target_stage": [],
-    "difficulty": "beginner",
-    "read_time": 2,
-    "author": {
-      "name": "AI助手",
-      "title": "智能问答系统"
-    },
-    "is_verified": false,
-    "status": "published",
-    "view_count": 0,
-    "like_count": 0,
-    "created_at": "2026-03-16T09:52:06.066803Z",
-    "updated_at": "2026-03-16T09:52:06.066804Z",
-    "published_at": "2026-03-16T09:52:06.066805Z",
-    "source": "cMedQA2数据集",
-    "original_id": "5042929"
-  },
-  {
     "id": "qa-20260316-2531",
     "content_type": "qa",
     "question": "怀孕25周躺着胎动就多，站着或坐着就不那么多怎么回事？",
@@ -37700,32 +37362,6 @@
     "original_id": "59143362"
   },
   {
-    "id": "qa-20260316-2575",
-    "content_type": "qa",
-    "question": "医生我怀孕了，但是我不想要这个孩子，如果我吃药流说是意外流产，去医院能检查出来嘛",
-    "answer": "婴幼儿安全很重要，注意防摔、防烫、防窒息，家中做好安全防护措施。",
-    "category": "common-safety",
-    "tags": [
-      "母婴"
-    ],
-    "target_stage": [],
-    "difficulty": "beginner",
-    "read_time": 2,
-    "author": {
-      "name": "AI助手",
-      "title": "智能问答系统"
-    },
-    "is_verified": false,
-    "status": "published",
-    "view_count": 0,
-    "like_count": 0,
-    "created_at": "2026-03-16T09:52:06.067666Z",
-    "updated_at": "2026-03-16T09:52:06.067668Z",
-    "published_at": "2026-03-16T09:52:06.067669Z",
-    "source": "cMedQA2数据集",
-    "original_id": "57492763"
-  },
-  {
     "id": "qa-20260316-2576",
     "content_type": "qa",
     "question": "8个多月宝宝晚上睡觉突然大哭怎么哄都不好去医院看了没什么问题想确定是自慰么回事",
@@ -38010,32 +37646,6 @@
     "published_at": "2026-03-16T09:52:06.067902Z",
     "source": "cMedQA2数据集",
     "original_id": "49704677"
-  },
-  {
-    "id": "qa-20260316-2588",
-    "content_type": "qa",
-    "question": "怀孕十天左右、想把孩子打掉、现在药流可以么可以药流么、还有现在药流有什么危害么？",
-    "answer": "孕早期是胎儿发育关键期，注意营养补充，避免接触有害物质，定期产检。如有不适请及时就医。",
-    "category": "pregnancy-early",
-    "tags": [
-      "孕早期"
-    ],
-    "target_stage": [],
-    "difficulty": "beginner",
-    "read_time": 2,
-    "author": {
-      "name": "AI助手",
-      "title": "智能问答系统"
-    },
-    "is_verified": false,
-    "status": "published",
-    "view_count": 0,
-    "like_count": 0,
-    "created_at": "2026-03-16T09:52:06.067919Z",
-    "updated_at": "2026-03-16T09:52:06.067920Z",
-    "published_at": "2026-03-16T09:52:06.067921Z",
-    "source": "cMedQA2数据集",
-    "original_id": "37351340"
   },
   {
     "id": "qa-20260316-2590",
@@ -41834,32 +41444,6 @@
     "original_id": "64289946"
   },
   {
-    "id": "qa-20260316-2775",
-    "content_type": "qa",
-    "question": "我结扎了。现在想做输卵管复通可以吗？手术费用多少钱？如果可以。接通后多久能怀孕？接通想要个男孩可以吗？",
-    "answer": "孕早期是胎儿发育关键期，注意营养补充，避免接触有害物质，定期产检。如有不适请及时就医。",
-    "category": "pregnancy-early",
-    "tags": [
-      "孕早期"
-    ],
-    "target_stage": [],
-    "difficulty": "beginner",
-    "read_time": 2,
-    "author": {
-      "name": "AI助手",
-      "title": "智能问答系统"
-    },
-    "is_verified": false,
-    "status": "published",
-    "view_count": 0,
-    "like_count": 0,
-    "created_at": "2026-03-16T09:52:06.071829Z",
-    "updated_at": "2026-03-16T09:52:06.071830Z",
-    "published_at": "2026-03-16T09:52:06.071832Z",
-    "source": "cMedQA2数据集",
-    "original_id": "66776724"
-  },
-  {
     "id": "qa-20260316-2776",
     "content_type": "qa",
     "question": "怀孕25周+6天去做四维彩超，可是宝宝把脸挡住了，只照了一张脸部，照不清楚脸部，医生说我羊水不多，肚子的空间很小，叫我下个星期再去照一次，这样连续一直照彩超对宝宝有没有什么影响？",
@@ -42534,32 +42118,6 @@
     "published_at": "2026-03-16T09:52:06.072349Z",
     "source": "cMedQA2数据集",
     "original_id": "49807243"
-  },
-  {
-    "id": "qa-20260316-2804",
-    "content_type": "qa",
-    "question": "如果药流了一次，又怀孕了再打掉的话，是不是就不能怀孕了",
-    "answer": "孕早期是胎儿发育关键期，注意营养补充，避免接触有害物质，定期产检。如有不适请及时就医。",
-    "category": "pregnancy-early",
-    "tags": [
-      "孕早期"
-    ],
-    "target_stage": [],
-    "difficulty": "beginner",
-    "read_time": 2,
-    "author": {
-      "name": "AI助手",
-      "title": "智能问答系统"
-    },
-    "is_verified": false,
-    "status": "published",
-    "view_count": 0,
-    "like_count": 0,
-    "created_at": "2026-03-16T09:52:06.072364Z",
-    "updated_at": "2026-03-16T09:52:06.072366Z",
-    "published_at": "2026-03-16T09:52:06.072367Z",
-    "source": "cMedQA2数据集",
-    "original_id": "4848668"
   },
   {
     "id": "qa-20260316-2805",
@@ -43340,32 +42898,6 @@
     "published_at": "2026-03-16T09:52:06.073088Z",
     "source": "cMedQA2数据集",
     "original_id": "41201301"
-  },
-  {
-    "id": "qa-20260316-2843",
-    "content_type": "qa",
-    "question": "怀孕一个月，用打胎药能打掉孩子么有影响吗？",
-    "answer": "孕早期是胎儿发育关键期，注意营养补充，避免接触有害物质，定期产检。如有不适请及时就医。",
-    "category": "pregnancy-early",
-    "tags": [
-      "孕早期"
-    ],
-    "target_stage": [],
-    "difficulty": "beginner",
-    "read_time": 2,
-    "author": {
-      "name": "AI助手",
-      "title": "智能问答系统"
-    },
-    "is_verified": false,
-    "status": "published",
-    "view_count": 0,
-    "like_count": 0,
-    "created_at": "2026-03-16T09:52:06.073105Z",
-    "updated_at": "2026-03-16T09:52:06.073107Z",
-    "published_at": "2026-03-16T09:52:06.073108Z",
-    "source": "cMedQA2数据集",
-    "original_id": "5106624"
   },
   {
     "id": "qa-20260316-2844",
@@ -46356,32 +45888,6 @@
     "published_at": "2026-03-16T09:52:06.076103Z",
     "source": "cMedQA2数据集",
     "original_id": "67798518"
-  },
-  {
-    "id": "qa-20260316-2984",
-    "content_type": "qa",
-    "question": "意外怀孕4周，如何处理好些B超已确定1CM采用药流好吗？",
-    "answer": "婴幼儿安全很重要，注意防摔、防烫、防窒息，家中做好安全防护措施。",
-    "category": "common-safety",
-    "tags": [
-      "母婴"
-    ],
-    "target_stage": [],
-    "difficulty": "beginner",
-    "read_time": 2,
-    "author": {
-      "name": "AI助手",
-      "title": "智能问答系统"
-    },
-    "is_verified": false,
-    "status": "published",
-    "view_count": 0,
-    "like_count": 0,
-    "created_at": "2026-03-16T09:52:06.076122Z",
-    "updated_at": "2026-03-16T09:52:06.076123Z",
-    "published_at": "2026-03-16T09:52:06.076124Z",
-    "source": "cMedQA2数据集",
-    "original_id": "42871000"
   },
   {
     "id": "qa-20260316-2986",
@@ -50024,32 +49530,6 @@
     "original_id": "63136045"
   },
   {
-    "id": "qa-20260316-3162",
-    "content_type": "qa",
-    "question": "孕中期羊水过少怀孕5个月，今天检查说羊水过少，只有4mm，才知道羊水流了一个月了，医生建议不要孩子，想知道怎么补羊水保胎",
-    "answer": "孕中期胎儿快速发育，注意营养均衡，适当运动，定期产检监测胎儿发育情况。",
-    "category": "pregnancy-mid",
-    "tags": [
-      "孕中期"
-    ],
-    "target_stage": [],
-    "difficulty": "beginner",
-    "read_time": 2,
-    "author": {
-      "name": "AI助手",
-      "title": "智能问答系统"
-    },
-    "is_verified": false,
-    "status": "published",
-    "view_count": 0,
-    "like_count": 0,
-    "created_at": "2026-03-16T09:52:06.080856Z",
-    "updated_at": "2026-03-16T09:52:06.080857Z",
-    "published_at": "2026-03-16T09:52:06.080858Z",
-    "source": "cMedQA2数据集",
-    "original_id": "56214381"
-  },
-  {
     "id": "qa-20260316-3163",
     "content_type": "qa",
     "question": "孕妇得糖尿病？现在自己注射胰岛素到孩子分娩、对孩子和我爱人有什么影响和什么危害吗？那我要怎么样去帮助他们、谢谢",
@@ -50100,32 +49580,6 @@
     "published_at": "2026-03-16T09:52:06.080883Z",
     "source": "cMedQA2数据集",
     "original_id": "18323665"
-  },
-  {
-    "id": "qa-20260316-3165",
-    "content_type": "qa",
-    "question": "父亲刚去世了才几天，女朋友就查出怀孕了，按照年龄和还在上大学的情况，这个孩子是没办法生的，只能打掉，但是那会是父亲投胎到女朋友肚子里的吗？如果那是父亲投胎的话那要怎么办呢？",
-    "answer": "孕早期是胎儿发育关键期，注意营养补充，避免接触有害物质，定期产检。如有不适请及时就医。",
-    "category": "pregnancy-early",
-    "tags": [
-      "孕早期"
-    ],
-    "target_stage": [],
-    "difficulty": "beginner",
-    "read_time": 2,
-    "author": {
-      "name": "AI助手",
-      "title": "智能问答系统"
-    },
-    "is_verified": false,
-    "status": "published",
-    "view_count": 0,
-    "like_count": 0,
-    "created_at": "2026-03-16T09:52:06.080902Z",
-    "updated_at": "2026-03-16T09:52:06.080904Z",
-    "published_at": "2026-03-16T09:52:06.080905Z",
-    "source": "cMedQA2数据集",
-    "original_id": "11814056"
   },
   {
     "id": "qa-20260316-3166",
@@ -59748,32 +59202,6 @@
     "original_id": "12304144"
   },
   {
-    "id": "qa-20260316-3643",
-    "content_type": "qa",
-    "question": "全部症状：我想问问你我以前坏过孕但是我做了药流我现在想要孩子但没有我想咨询一下是咋回事啊治疗情况以前吃过很多要但没啥效果不知咋回事啊",
-    "answer": "出现症状要观察，注意休息和饮食，如症状持续或加重，请及时就医检查。",
-    "category": "common-symptoms",
-    "tags": [
-      "母婴"
-    ],
-    "target_stage": [],
-    "difficulty": "beginner",
-    "read_time": 2,
-    "author": {
-      "name": "AI助手",
-      "title": "智能问答系统"
-    },
-    "is_verified": false,
-    "status": "published",
-    "view_count": 0,
-    "like_count": 0,
-    "created_at": "2026-03-16T09:52:06.090204Z",
-    "updated_at": "2026-03-16T09:52:06.090206Z",
-    "published_at": "2026-03-16T09:52:06.090207Z",
-    "source": "cMedQA2数据集",
-    "original_id": "8468175"
-  },
-  {
     "id": "qa-20260316-3644",
     "content_type": "qa",
     "question": "排卵期有安全措施、且安全套没有坏，月经推迟也会怀孕么",
@@ -62790,32 +62218,6 @@
     "original_id": "24955753"
   },
   {
-    "id": "qa-20260316-3794",
-    "content_type": "qa",
-    "question": "现在走到大街上，看到好多小孩小小年纪就戴上近视眼镜了，我家小孩今年也8岁了，也很担心我小孩子的眼镜视力，尤其是现在电视的儿童节目也越来越多。",
-    "answer": "0-1岁是宝宝快速发育期，注意科学喂养，按时接种疫苗，关注发育里程碑。",
-    "category": "parenting-0-1",
-    "tags": [
-      "母婴"
-    ],
-    "target_stage": [],
-    "difficulty": "beginner",
-    "read_time": 2,
-    "author": {
-      "name": "AI助手",
-      "title": "智能问答系统"
-    },
-    "is_verified": false,
-    "status": "published",
-    "view_count": 0,
-    "like_count": 0,
-    "created_at": "2026-03-16T09:52:06.093333Z",
-    "updated_at": "2026-03-16T09:52:06.093335Z",
-    "published_at": "2026-03-16T09:52:06.093337Z",
-    "source": "cMedQA2数据集",
-    "original_id": "58673751"
-  },
-  {
     "id": "qa-20260316-3795",
     "content_type": "qa",
     "question": "我怀孕25周医院检查只有24周还出现了胎？我怀孕25周医院检查只有24周还出现了胎盘老化现像我想问下是什么原因呢。",
@@ -63230,32 +62632,6 @@
     "published_at": "2026-03-16T09:52:06.094075Z",
     "source": "cMedQA2数据集",
     "original_id": "63846499"
-  },
-  {
-    "id": "qa-20260316-3816",
-    "content_type": "qa",
-    "question": "我吃了米非司酮片三片没什么反应？我今年19岁，我意外怀孕了，我选择来做药流，前天去医院的，医生给我开了米非司酮片3片，每天早上吃一片，到今天刚刚好，都吃完了，到今天的早上了，我还是没什么反应，这样的情况是正常的吗。吃了3片米非司酮片么反应正常吗？",
-    "answer": "婴幼儿安全很重要，注意防摔、防烫、防窒息，家中做好安全防护措施。",
-    "category": "common-safety",
-    "tags": [
-      "母婴"
-    ],
-    "target_stage": [],
-    "difficulty": "beginner",
-    "read_time": 2,
-    "author": {
-      "name": "AI助手",
-      "title": "智能问答系统"
-    },
-    "is_verified": false,
-    "status": "published",
-    "view_count": 0,
-    "like_count": 0,
-    "created_at": "2026-03-16T09:52:06.094099Z",
-    "updated_at": "2026-03-16T09:52:06.094101Z",
-    "published_at": "2026-03-16T09:52:06.094102Z",
-    "source": "cMedQA2数据集",
-    "original_id": "52082200"
   },
   {
     "id": "qa-20260316-3817",
@@ -64348,32 +63724,6 @@
     "published_at": "2026-03-16T09:52:06.095289Z",
     "source": "cMedQA2数据集",
     "original_id": "63860187"
-  },
-  {
-    "id": "qa-20260316-3877",
-    "content_type": "qa",
-    "question": "我老婆想打掉孩子以后还能怀孕吗？",
-    "answer": "孕早期是胎儿发育关键期，注意营养补充，避免接触有害物质，定期产检。如有不适请及时就医。",
-    "category": "pregnancy-early",
-    "tags": [
-      "孕早期"
-    ],
-    "target_stage": [],
-    "difficulty": "beginner",
-    "read_time": 2,
-    "author": {
-      "name": "AI助手",
-      "title": "智能问答系统"
-    },
-    "is_verified": false,
-    "status": "published",
-    "view_count": 0,
-    "like_count": 0,
-    "created_at": "2026-03-16T09:52:06.095304Z",
-    "updated_at": "2026-03-16T09:52:06.095306Z",
-    "published_at": "2026-03-16T09:52:06.095307Z",
-    "source": "cMedQA2数据集",
-    "original_id": "47850771"
   },
   {
     "id": "qa-20260316-3878",
@@ -66378,32 +65728,6 @@
     "original_id": "48352742"
   },
   {
-    "id": "qa-20260316-3975",
-    "content_type": "qa",
-    "question": "做梦梦见自己刚怀孕就生下个女孩而且是哑巴太阳穴和眼睛还充血，并且宝宝特别可爱。感谢医生为我快速解答――该如何治疗和预防",
-    "answer": "孕早期是胎儿发育关键期，注意营养补充，避免接触有害物质，定期产检。如有不适请及时就医。",
-    "category": "pregnancy-early",
-    "tags": [
-      "孕早期"
-    ],
-    "target_stage": [],
-    "difficulty": "beginner",
-    "read_time": 2,
-    "author": {
-      "name": "AI助手",
-      "title": "智能问答系统"
-    },
-    "is_verified": false,
-    "status": "published",
-    "view_count": 0,
-    "like_count": 0,
-    "created_at": "2026-03-16T09:52:06.097224Z",
-    "updated_at": "2026-03-16T09:52:06.097226Z",
-    "published_at": "2026-03-16T09:52:06.097227Z",
-    "source": "cMedQA2数据集",
-    "original_id": "52959820"
-  },
-  {
     "id": "qa-20260316-3976",
     "content_type": "qa",
     "question": "一个月大宝宝三天没大便而且肚子很硬怎么办",
@@ -68066,32 +67390,6 @@
     "published_at": "2026-03-16T09:52:06.099117Z",
     "source": "cMedQA2数据集",
     "original_id": "52102886"
-  },
-  {
-    "id": "qa-20260316-4060",
-    "content_type": "qa",
-    "question": "媳妇血压高，140高压，低压100去年九月怀孕早产，因为血压高，孩子早产没成活，七天就夭折了。那时候高压达到二百，因想再要孩子。所以请教医生如何治疗。怎么检查？我们周几到你那方便？我们是铁力的就怀孕时在医大二住院来着。后期孩子没了就回家了。病例什么的都有，何时方便我们来麻烦你啊？请问你周几出诊",
-    "answer": "孕早期是胎儿发育关键期，注意营养补充，避免接触有害物质，定期产检。如有不适请及时就医。",
-    "category": "pregnancy-early",
-    "tags": [
-      "孕早期"
-    ],
-    "target_stage": [],
-    "difficulty": "beginner",
-    "read_time": 2,
-    "author": {
-      "name": "AI助手",
-      "title": "智能问答系统"
-    },
-    "is_verified": false,
-    "status": "published",
-    "view_count": 0,
-    "like_count": 0,
-    "created_at": "2026-03-16T09:52:06.099143Z",
-    "updated_at": "2026-03-16T09:52:06.099145Z",
-    "published_at": "2026-03-16T09:52:06.099146Z",
-    "source": "cMedQA2数据集",
-    "original_id": "42962372"
   },
   {
     "id": "qa-20260316-4061",
@@ -72124,32 +71422,6 @@
     "original_id": "63418704"
   },
   {
-    "id": "qa-20260316-4268",
-    "content_type": "qa",
-    "question": "宝宝十一个月了，为什么每天睡到夜里就突然大哭了还爬起来哭是怎么回事啊？",
-    "answer": "0-1岁是宝宝快速发育期，注意科学喂养，按时接种疫苗，关注发育里程碑。",
-    "category": "parenting-0-1",
-    "tags": [
-      "母婴"
-    ],
-    "target_stage": [],
-    "difficulty": "beginner",
-    "read_time": 2,
-    "author": {
-      "name": "AI助手",
-      "title": "智能问答系统"
-    },
-    "is_verified": false,
-    "status": "published",
-    "view_count": 0,
-    "like_count": 0,
-    "created_at": "2026-03-16T09:52:06.104331Z",
-    "updated_at": "2026-03-16T09:52:06.104332Z",
-    "published_at": "2026-03-16T09:52:06.104334Z",
-    "source": "cMedQA2数据集",
-    "original_id": "57516485"
-  },
-  {
     "id": "qa-20260316-4269",
     "content_type": "qa",
     "question": "我们家宝宝最近不知道怎么了，总是一直都挑食很严重，每次我喂他吃饭的时候，她看到有蔬菜就会一直都大哭大闹的，还有就是也不喜欢吃水果，就是一直都偏爱于肉食。",
@@ -73736,32 +73008,6 @@
     "original_id": "30336684"
   },
   {
-    "id": "qa-20260316-4350",
-    "content_type": "qa",
-    "question": "我一切正常，可是我害怕自然分娩，怎么办，今天医生为我检查，可是还没有把手伸进去，我就恐怖的要命，我也想顺产，可是不能忍受医生检查身体，医生说这样我根本没有办法生",
-    "answer": "分娩方式应根据孕妇和胎儿情况，在医生指导下选择。产后注意休息和营养恢复。",
-    "category": "pregnancy-birth",
-    "tags": [
-      "分娩知识"
-    ],
-    "target_stage": [],
-    "difficulty": "beginner",
-    "read_time": 2,
-    "author": {
-      "name": "AI助手",
-      "title": "智能问答系统"
-    },
-    "is_verified": false,
-    "status": "published",
-    "view_count": 0,
-    "like_count": 0,
-    "created_at": "2026-03-16T09:52:06.105853Z",
-    "updated_at": "2026-03-16T09:52:06.105855Z",
-    "published_at": "2026-03-16T09:52:06.105856Z",
-    "source": "cMedQA2数据集",
-    "original_id": "5864901"
-  },
-  {
     "id": "qa-20260316-4351",
     "content_type": "qa",
     "question": "双顶经2。2cm颅骨完整胎盘前壁0级羊小量适中胎心胎动加号宫内早孕三个月加，BPd2。4cm羊水前后径3。0cmFl0。8cm双顶经2。2cm颅骨完整胎盘前壁0级羊小量适中胎心胎动加号宫内早孕三个月加，BPd2。4cm羊水前后径3。0cmFl0。8cm:",
@@ -75112,32 +74358,6 @@
     "published_at": "2026-03-16T09:52:06.107151Z",
     "source": "cMedQA2数据集",
     "original_id": "66456068"
-  },
-  {
-    "id": "qa-20260316-4416",
-    "content_type": "qa",
-    "question": "他说不要小孩了，可以做胃镜吗怀孕了胃难受，本来就有严重的胃病，胃难受的厉害，睡觉也不安稳，不知道怎么办才好",
-    "answer": "孕早期是胎儿发育关键期，注意营养补充，避免接触有害物质，定期产检。如有不适请及时就医。",
-    "category": "pregnancy-early",
-    "tags": [
-      "孕早期"
-    ],
-    "target_stage": [],
-    "difficulty": "beginner",
-    "read_time": 2,
-    "author": {
-      "name": "AI助手",
-      "title": "智能问答系统"
-    },
-    "is_verified": false,
-    "status": "published",
-    "view_count": 0,
-    "like_count": 0,
-    "created_at": "2026-03-16T09:52:06.107169Z",
-    "updated_at": "2026-03-16T09:52:06.107170Z",
-    "published_at": "2026-03-16T09:52:06.107172Z",
-    "source": "cMedQA2数据集",
-    "original_id": "30754126"
   },
   {
     "id": "qa-20260316-4417",
@@ -77298,32 +76518,6 @@
     "original_id": "46314291"
   },
   {
-    "id": "qa-20260316-4521",
-    "content_type": "qa",
-    "question": "我几年前药流过三次，之后月经也挺正常，现在想要个宝宝，都要了一个月了还没有，这个月月经推迟了六天是怎么回事啊，会不会影响怀孕",
-    "answer": "孕早期是胎儿发育关键期，注意营养补充，避免接触有害物质，定期产检。如有不适请及时就医。",
-    "category": "pregnancy-early",
-    "tags": [
-      "孕早期"
-    ],
-    "target_stage": [],
-    "difficulty": "beginner",
-    "read_time": 2,
-    "author": {
-      "name": "AI助手",
-      "title": "智能问答系统"
-    },
-    "is_verified": false,
-    "status": "published",
-    "view_count": 0,
-    "like_count": 0,
-    "created_at": "2026-03-16T09:52:06.109687Z",
-    "updated_at": "2026-03-16T09:52:06.109689Z",
-    "published_at": "2026-03-16T09:52:06.109690Z",
-    "source": "cMedQA2数据集",
-    "original_id": "68520103"
-  },
-  {
     "id": "qa-20260316-4522",
     "content_type": "qa",
     "question": "近两个月来总是恶心干呕，所以一直以为是怀孕了，但是这两个月都来了月经，而且这一个月反而更加厉害了，向左伸腰时伴着轻微疼痛。请问医生我这是怎么了？（我有胃病）。:",
@@ -77452,32 +76646,6 @@
     "published_at": "2026-03-16T09:52:06.109813Z",
     "source": "cMedQA2数据集",
     "original_id": "64960438"
-  },
-  {
-    "id": "qa-20260316-4528",
-    "content_type": "qa",
-    "question": "意外怀孕没一周可以吃什么药流产",
-    "answer": "婴幼儿安全很重要，注意防摔、防烫、防窒息，家中做好安全防护措施。",
-    "category": "common-safety",
-    "tags": [
-      "母婴"
-    ],
-    "target_stage": [],
-    "difficulty": "beginner",
-    "read_time": 2,
-    "author": {
-      "name": "AI助手",
-      "title": "智能问答系统"
-    },
-    "is_verified": false,
-    "status": "published",
-    "view_count": 0,
-    "like_count": 0,
-    "created_at": "2026-03-16T09:52:06.109829Z",
-    "updated_at": "2026-03-16T09:52:06.109831Z",
-    "published_at": "2026-03-16T09:52:06.109832Z",
-    "source": "cMedQA2数据集",
-    "original_id": "63977138"
   },
   {
     "id": "qa-20260316-4529",
@@ -77634,32 +76802,6 @@
     "published_at": "2026-03-16T09:52:06.110011Z",
     "source": "cMedQA2数据集",
     "original_id": "68214845"
-  },
-  {
-    "id": "qa-20260316-4539",
-    "content_type": "qa",
-    "question": "吃完药流我想在一个月以后做试管婴儿行吗一切正常药流后一个月以后我想做试管婴儿",
-    "answer": "0-1岁是宝宝快速发育期，注意科学喂养，按时接种疫苗，关注发育里程碑。",
-    "category": "parenting-0-1",
-    "tags": [
-      "母婴"
-    ],
-    "target_stage": [],
-    "difficulty": "beginner",
-    "read_time": 2,
-    "author": {
-      "name": "AI助手",
-      "title": "智能问答系统"
-    },
-    "is_verified": false,
-    "status": "published",
-    "view_count": 0,
-    "like_count": 0,
-    "created_at": "2026-03-16T09:52:06.110040Z",
-    "updated_at": "2026-03-16T09:52:06.110041Z",
-    "published_at": "2026-03-16T09:52:06.110042Z",
-    "source": "cMedQA2数据集",
-    "original_id": "19748661"
   },
   {
     "id": "qa-20260316-4540",
@@ -79404,32 +78546,6 @@
     "original_id": "47488472"
   },
   {
-    "id": "qa-20260316-4627",
-    "content_type": "qa",
-    "question": "是否允许拿药在家药流怀孕38天、已做彩超检查",
-    "answer": "孕早期是胎儿发育关键期，注意营养补充，避免接触有害物质，定期产检。如有不适请及时就医。",
-    "category": "pregnancy-early",
-    "tags": [
-      "孕早期"
-    ],
-    "target_stage": [],
-    "difficulty": "beginner",
-    "read_time": 2,
-    "author": {
-      "name": "AI助手",
-      "title": "智能问答系统"
-    },
-    "is_verified": false,
-    "status": "published",
-    "view_count": 0,
-    "like_count": 0,
-    "created_at": "2026-03-16T09:52:06.111840Z",
-    "updated_at": "2026-03-16T09:52:06.111841Z",
-    "published_at": "2026-03-16T09:52:06.111842Z",
-    "source": "cMedQA2数据集",
-    "original_id": "42229328"
-  },
-  {
     "id": "qa-20260316-4628",
     "content_type": "qa",
     "question": "我怀孕了，去医院检查，说我有子宫囊肿，宫颈2度糜烂外阴瘙痒，白带多，有异味",
@@ -79454,32 +78570,6 @@
     "published_at": "2026-03-16T09:52:06.111861Z",
     "source": "cMedQA2数据集",
     "original_id": "37864708"
-  },
-  {
-    "id": "qa-20260316-4629",
-    "content_type": "qa",
-    "question": "女友怀孕了，还有宫颈糜烂不打掉小孩可以吗？急呀",
-    "answer": "孕早期是胎儿发育关键期，注意营养补充，避免接触有害物质，定期产检。如有不适请及时就医。",
-    "category": "pregnancy-early",
-    "tags": [
-      "孕早期"
-    ],
-    "target_stage": [],
-    "difficulty": "beginner",
-    "read_time": 2,
-    "author": {
-      "name": "AI助手",
-      "title": "智能问答系统"
-    },
-    "is_verified": false,
-    "status": "published",
-    "view_count": 0,
-    "like_count": 0,
-    "created_at": "2026-03-16T09:52:06.111876Z",
-    "updated_at": "2026-03-16T09:52:06.111878Z",
-    "published_at": "2026-03-16T09:52:06.111879Z",
-    "source": "cMedQA2数据集",
-    "original_id": "20337910"
   },
   {
     "id": "qa-20260316-4630",
@@ -80286,32 +79376,6 @@
     "published_at": "2026-03-16T09:52:06.112572Z",
     "source": "cMedQA2数据集",
     "original_id": "29363874"
-  },
-  {
-    "id": "qa-20260316-4666",
-    "content_type": "qa",
-    "question": "子宫肌瘤可怕吗，怀孕后可以生宝宝吗",
-    "answer": "孕早期是胎儿发育关键期，注意营养补充，避免接触有害物质，定期产检。如有不适请及时就医。",
-    "category": "pregnancy-early",
-    "tags": [
-      "孕早期"
-    ],
-    "target_stage": [],
-    "difficulty": "beginner",
-    "read_time": 2,
-    "author": {
-      "name": "AI助手",
-      "title": "智能问答系统"
-    },
-    "is_verified": false,
-    "status": "published",
-    "view_count": 0,
-    "like_count": 0,
-    "created_at": "2026-03-16T09:52:06.112611Z",
-    "updated_at": "2026-03-16T09:52:06.112612Z",
-    "published_at": "2026-03-16T09:52:06.112613Z",
-    "source": "cMedQA2数据集",
-    "original_id": "38422796"
   },
   {
     "id": "qa-20260316-4667",
@@ -81588,32 +80652,6 @@
     "original_id": "6816065"
   },
   {
-    "id": "qa-20260316-4736",
-    "content_type": "qa",
-    "question": "意外怀孕后先兆流产，不要这个孩子我朋友意外怀孕后先兆流产，不打算要这个孩子。症状会是发现有血块了会肚子痛还是会怎么样，就流血吗，流血后去检查，检查说排干净了就会没事吗",
-    "answer": "出现症状要观察，注意休息和饮食，如症状持续或加重，请及时就医检查。",
-    "category": "common-symptoms",
-    "tags": [
-      "母婴"
-    ],
-    "target_stage": [],
-    "difficulty": "beginner",
-    "read_time": 2,
-    "author": {
-      "name": "AI助手",
-      "title": "智能问答系统"
-    },
-    "is_verified": false,
-    "status": "published",
-    "view_count": 0,
-    "like_count": 0,
-    "created_at": "2026-03-16T09:52:06.114225Z",
-    "updated_at": "2026-03-16T09:52:06.114226Z",
-    "published_at": "2026-03-16T09:52:06.114227Z",
-    "source": "cMedQA2数据集",
-    "original_id": "22278240"
-  },
-  {
     "id": "qa-20260316-4738",
     "content_type": "qa",
     "question": "大便次数增多，而且这两天像拉肚子的感觉，是怀孕初期吗？是怀孕初期吗",
@@ -82290,32 +81328,6 @@
     "original_id": "42465497"
   },
   {
-    "id": "qa-20260316-4768",
-    "content_type": "qa",
-    "question": "意外怀孕可以用药流产吗我月经期到了没来，已经超过了16天，用卡纸测试怀孕了，用什么药可以流产……急……谢谢",
-    "answer": "婴幼儿安全很重要，注意防摔、防烫、防窒息，家中做好安全防护措施。",
-    "category": "common-safety",
-    "tags": [
-      "母婴"
-    ],
-    "target_stage": [],
-    "difficulty": "beginner",
-    "read_time": 2,
-    "author": {
-      "name": "AI助手",
-      "title": "智能问答系统"
-    },
-    "is_verified": false,
-    "status": "published",
-    "view_count": 0,
-    "like_count": 0,
-    "created_at": "2026-03-16T09:52:06.114821Z",
-    "updated_at": "2026-03-16T09:52:06.114822Z",
-    "published_at": "2026-03-16T09:52:06.114823Z",
-    "source": "cMedQA2数据集",
-    "original_id": "34536219"
-  },
-  {
     "id": "qa-20260316-4770",
     "content_type": "qa",
     "question": "关于怀孕五个月了，臀部常常像抽筋一样痛，怎么回事的问题",
@@ -82730,32 +81742,6 @@
     "published_at": "2026-03-16T09:52:06.115204Z",
     "source": "cMedQA2数据集",
     "original_id": "20335400"
-  },
-  {
-    "id": "qa-20260316-4789",
-    "content_type": "qa",
-    "question": "药流过三次后，想要宝宝，会顺利怀孕吗？",
-    "answer": "孕早期是胎儿发育关键期，注意营养补充，避免接触有害物质，定期产检。如有不适请及时就医。",
-    "category": "pregnancy-early",
-    "tags": [
-      "孕早期"
-    ],
-    "target_stage": [],
-    "difficulty": "beginner",
-    "read_time": 2,
-    "author": {
-      "name": "AI助手",
-      "title": "智能问答系统"
-    },
-    "is_verified": false,
-    "status": "published",
-    "view_count": 0,
-    "like_count": 0,
-    "created_at": "2026-03-16T09:52:06.115219Z",
-    "updated_at": "2026-03-16T09:52:06.115221Z",
-    "published_at": "2026-03-16T09:52:06.115222Z",
-    "source": "cMedQA2数据集",
-    "original_id": "54530110"
   },
   {
     "id": "qa-20260316-4790",
@@ -84290,32 +83276,6 @@
     "published_at": "2026-03-16T09:52:06.116637Z",
     "source": "cMedQA2数据集",
     "original_id": "30674817"
-  },
-  {
-    "id": "qa-20260316-4866",
-    "content_type": "qa",
-    "question": "怀孕四个月怎样判断男孩女孩？怀孕四个月怎样判断男孩女孩，谢谢了。",
-    "answer": "孕早期是胎儿发育关键期，注意营养补充，避免接触有害物质，定期产检。如有不适请及时就医。",
-    "category": "pregnancy-early",
-    "tags": [
-      "孕早期"
-    ],
-    "target_stage": [],
-    "difficulty": "beginner",
-    "read_time": 2,
-    "author": {
-      "name": "AI助手",
-      "title": "智能问答系统"
-    },
-    "is_verified": false,
-    "status": "published",
-    "view_count": 0,
-    "like_count": 0,
-    "created_at": "2026-03-16T09:52:06.116688Z",
-    "updated_at": "2026-03-16T09:52:06.116689Z",
-    "published_at": "2026-03-16T09:52:06.116690Z",
-    "source": "cMedQA2数据集",
-    "original_id": "37568664"
   },
   {
     "id": "qa-20260316-4867",

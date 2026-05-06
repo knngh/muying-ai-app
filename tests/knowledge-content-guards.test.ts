@@ -54,6 +54,12 @@ describe('knowledge content guards', () => {
       answer: '症状处理建议',
       category: 'pregnancy-early',
     })).toBe('high_sensitivity_dataset_topic');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '怀孕两个月想吃药打掉孩子怎么办',
+      answer: '症状处理建议',
+      category: 'pregnancy-early',
+    })).toBe('high_sensitivity_dataset_topic');
   });
 
   it('rejects obvious off-scope search queries before random authority boosting', () => {
