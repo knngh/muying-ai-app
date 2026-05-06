@@ -194,9 +194,11 @@ AUTHORITY_PUBLISH_STATUS=review npm run review:authority -- summary
 4. 优先修复 source 覆盖低的问题：
    - `mayo-clinic-zh` 当前发现 0
    - `chinacdc-nutrition` 当前发现 0
-5. 调整用户检索排序：
+5. 调整用户检索排序（2026-05-06 已完成初版）：
    - 普通 QA 可作为召回补充
    - 权威来源应在医疗/护理类 query 中加权靠前
+   - 强症状 query 如果头部结果全是普通数据集，不再短路 AI / 向量权威补充
+   - 最终返回前对医疗、护理、孕产、疫苗、喂养、睡眠等意图做权威优先重排
 
 ## 8. 当前不做的事
 

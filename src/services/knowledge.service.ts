@@ -707,6 +707,10 @@ export function shouldShortCircuitKnowledgeAi(
     return false;
   }
 
+  if (head.every((item) => !item.sourceReference.authoritative)) {
+    return false;
+  }
+
   return true;
 }
 
@@ -1186,6 +1190,14 @@ function isChildCareQuery(query: string): boolean {
   return /宝宝|婴儿|新生儿|孩子|小孩|幼儿|月龄|个月|岁/u.test(query);
 }
 
+function hasAuthorityPreferredIntent(query: string): boolean {
+  const sanitized = sanitizeQuery(query);
+  return hasMedicalSymptomIntent(sanitized)
+    || isChildCareQuery(sanitized)
+    || hasVaccineIntent(sanitized)
+    || /怀孕|孕妇|孕期|孕周|产检|胎儿|预产期|分娩|顺产|剖宫产|产后|月子|哺乳|母乳|备孕|孕前|叶酸|排卵|辅食|喂奶|吃奶|奶量|配方奶|护理|喂养|睡眠|营养|补钙|维生素D|育儿/u.test(sanitized);
+}
+
 function targetsChildCare(qa: QAPair): boolean {
   const questionText = qa.question || '';
   const rawText = `${qa.question} ${qa.answer} ${(qa.tags || []).join(' ')} ${qa.category}`;
@@ -1297,11 +1309,27 @@ function hasQuestionAnswerFocusConflict(qa: QAPair, focus: 'fever' | 'sleep' | '
   return questionMatchesFocus(qa, focus) && !answerMatchesFocus(qa, focus);
 }
 
-function isPolicyLikeResult(qa: Pick<QAPair, 'question' | 'answer' | 'tags' | 'category' | 'topic'>): boolean {
-  const rawText = `${qa.question} ${qa.answer} ${(qa.tags || []).join(' ')} ${qa.category} ${qa.topic || ''}`;
+function isPolicyLikeResult(
+  qa: Pick<QAPair, 'question' | 'answer' | 'tags' | 'category' | 'topic'>
+    & Partial<Pick<QAPair, 'source' | 'source_org' | 'source_id' | 'source_url' | 'url'>>,
+): boolean {
+  const rawText = [
+    qa.question,
+    qa.answer,
+    ...(qa.tags || []),
+    qa.category,
+    qa.topic || '',
+    qa.source || '',
+    qa.source_org || '',
+    qa.source_id || '',
+    qa.source_url || '',
+    qa.url || '',
+  ].join(' ');
+
   return qa.category === 'policy'
     || qa.topic === 'policy'
-    || /政策|纲要|指导|全指导|practice update|committee opinion|clinical practice update/i.test(rawText);
+    || /政策|纲要|指导|全指导|practice update|committee opinion|clinical practice update/i.test(rawText)
+    || /政策解读|技术评估方案|评估方案|工作方案|实施方案|体系建设|建设管理|运行效能|评估指标|工作目标|评估内容|评估程序|组织实施|行政部门|通知|公告|办法|规定/u.test(rawText);
 }
 
 function hasKnowledgeSearchDomainIntent(query: string): boolean {
@@ -1611,6 +1639,70 @@ function buildSourceReference(qa: QAPair, score: number, signals?: QuerySignals)
   };
 }
 
+function getAuthorityIntentScoreBias(result: KnowledgeSearchResult, query: string): number {
+  if (!hasAuthorityPreferredIntent(query)) {
+    return 0;
+  }
+
+  let bias = 0;
+  const sourceClass = result.sourceReference.sourceClass;
+  const sourceType = result.sourceReference.sourceType;
+
+  if (isPolicyLikeResult(result)) {
+    return -80;
+  }
+
+  if (result.sourceReference.authoritative) {
+    bias += 32;
+  }
+
+  if (sourceClass === 'official') {
+    bias += 14;
+  } else if (sourceClass === 'medical_platform') {
+    bias += 6;
+  }
+
+  if (isLikelyChineseQuery(query) && result.sourceReference.authoritative && isChineseSourceReference(result.sourceReference)) {
+    bias += 12;
+  }
+
+  if (!result.sourceReference.authoritative || sourceClass === 'dataset' || sourceType === 'dataset') {
+    bias -= 8;
+  }
+
+  return bias;
+}
+
+function selectAuthorityIntentPreferredHead(
+  results: KnowledgeSearchResult[],
+  limit: number,
+  query: string,
+): KnowledgeSearchResult[] {
+  const ranked = results.map((result, index) => ({
+    result,
+    index,
+    adjustedScore: result.score + getAuthorityIntentScoreBias(result, query),
+  }));
+
+  ranked.sort((left, right) => {
+    if (right.adjustedScore !== left.adjustedScore) {
+      return right.adjustedScore - left.adjustedScore;
+    }
+
+    if (right.result.score !== left.result.score) {
+      return right.result.score - left.result.score;
+    }
+
+    if (right.result.view_count !== left.result.view_count) {
+      return right.result.view_count - left.result.view_count;
+    }
+
+    return left.index - right.index;
+  });
+
+  return ranked.slice(0, limit).map(({ result }) => result);
+}
+
 function reorderFocusedResults(
   results: KnowledgeSearchResult[],
   signals: QuerySignals,
@@ -1709,14 +1801,14 @@ function reorderFocusedResults(
   return selectAuthorityPreferredResults(Array.from(merged.values()), limit, query);
 }
 
-function selectAuthorityPreferredResults(
+export function selectAuthorityPreferredResults(
   results: KnowledgeSearchResult[],
   limit: number,
   query?: string,
 ): KnowledgeSearchResult[] {
   const head = results.slice(0, limit);
-  if (query && hasMedicalSymptomIntent(query)) {
-    return selectChineseAuthorityPreferredHead(results, limit, query);
+  if (query && hasAuthorityPreferredIntent(query)) {
+    return selectAuthorityIntentPreferredHead(results, limit, query);
   }
 
   const authoritativeInHead = head.filter((result) => result.sourceReference.authoritative);
@@ -1745,49 +1837,6 @@ function selectAuthorityPreferredResults(
     }
 
     selected.splice(replacementIndex, 1, candidate);
-  }
-
-  return selected.slice(0, limit);
-}
-
-function selectChineseAuthorityPreferredHead(
-  results: KnowledgeSearchResult[],
-  limit: number,
-  query: string,
-): KnowledgeSearchResult[] {
-  const head = results.slice(0, limit);
-  if (!isLikelyChineseQuery(query) || results.length <= limit) {
-    return head;
-  }
-
-  const selected = [...head];
-  const weakestHeadScore = selected[selected.length - 1]?.score ?? 0;
-  const promotable = results
-    .slice(limit)
-    .filter((result) => (
-      isChineseSourceReference(result.sourceReference)
-      && result.sourceReference.authoritative
-      && !isPolicyLikeResult(result)
-      && result.score >= weakestHeadScore - 10
-    ));
-
-  for (const candidate of promotable) {
-    if (selected.some((item) => item.id === candidate.id)) {
-      continue;
-    }
-
-    const replacementIndex = selected
-      .map((item, index) => ({ item, index }))
-      .reverse()
-      .find(({ item }) => (
-        !isChineseSourceReference(item.sourceReference)
-        && !item.sourceReference.authoritative
-        && item.score <= candidate.score + 10
-      ))?.index;
-
-    if (replacementIndex !== undefined) {
-      selected.splice(replacementIndex, 1, candidate);
-    }
   }
 
   return selected.slice(0, limit);
@@ -1908,10 +1957,22 @@ function calculateScore(
     score += 18;
   }
 
-  if (hasAuthorityEvidence(qa)) {
+  const hasAuthority = hasAuthorityEvidence(qa);
+  if (hasAuthority) {
     score += 16;
   } else {
     score -= 18;
+  }
+
+  if (hasAuthorityPreferredIntent(query)) {
+    if (hasAuthority) {
+      score += 20;
+      if (isLikelyChineseQuery(query) && isChineseAuthoritySourceRecord(qa)) {
+        score += 8;
+      }
+    } else if (qa.source_class === 'dataset' || /数据集/u.test(qa.source || '')) {
+      score -= 8;
+    }
   }
 
   score += getChineseSourcePriorityBoost(qa, query);
