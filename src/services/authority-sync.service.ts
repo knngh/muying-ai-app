@@ -77,6 +77,14 @@ export interface AuthorityReviewDocument {
   createdAt: Date;
 }
 
+export interface AuthorityReviewSummaryRow {
+  publishStatus: string;
+  riskLevelDefault: string;
+  sourceId: string;
+  topic: string;
+  count: number;
+}
+
 export interface ListAuthorityDocumentsOptions {
   publishStatus?: 'draft' | 'review' | 'published' | 'rejected' | 'all';
   sourceId?: string;
@@ -1374,6 +1382,53 @@ export async function listAuthorityDocuments(
      LIMIT ${limit}`,
     ...params,
   );
+}
+
+export async function summarizeAuthorityDocumentReviewQueue(
+  options: Pick<ListAuthorityDocumentsOptions, 'publishStatus' | 'sourceId'> = {},
+): Promise<AuthorityReviewSummaryRow[]> {
+  await ensureAuthoritySyncTables();
+  const whereClauses: string[] = [];
+  const params: string[] = [];
+
+  if (options.publishStatus && options.publishStatus !== 'all') {
+    whereClauses.push('publish_status = ?');
+    params.push(options.publishStatus);
+  }
+
+  if (options.sourceId) {
+    whereClauses.push('source_id = ?');
+    params.push(options.sourceId);
+  }
+
+  const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+  const rows = await prisma.$queryRawUnsafe<Array<{
+    publishStatus: string;
+    riskLevelDefault: string;
+    sourceId: string;
+    topic: string;
+    count: number | bigint;
+  }>>(
+    `SELECT
+      publish_status AS publishStatus,
+      risk_level_default AS riskLevelDefault,
+      source_id AS sourceId,
+      topic,
+      COUNT(*) AS count
+     FROM authority_normalized_documents
+     ${whereSql}
+     GROUP BY publish_status, risk_level_default, source_id, topic
+     ORDER BY count DESC, source_id ASC, topic ASC`,
+    ...params,
+  );
+
+  return rows.map((row) => ({
+    publishStatus: row.publishStatus,
+    riskLevelDefault: row.riskLevelDefault,
+    sourceId: row.sourceId,
+    topic: row.topic,
+    count: Number(row.count),
+  }));
 }
 
 export async function updateAuthorityDocumentPublishStatus(

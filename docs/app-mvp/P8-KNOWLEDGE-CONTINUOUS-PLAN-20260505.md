@@ -169,6 +169,20 @@ RUN_MUTATION_SMOKE=false npm run ops:smoke:knowledge
 
 目标：把 worker 从“能持续跑”提升为“可运营、可观测、可干预”。
 
+2026-05-06 已补 P2 初版运营脚本：
+
+```bash
+npm run audit:authority-coverage
+npm run ops:knowledge:report
+AUTHORITY_PUBLISH_STATUS=review npm run review:authority -- summary
+```
+
+输出文件：
+
+- `tmp/authority-coverage-audit.json`
+- `tmp/knowledge-ops-report.json`
+- `tmp/authority-review-summary.json`（生产状态脚本会生成）
+
 任务：
 
 1. 每日生成 `authority-coverage-audit.json`。

@@ -61,6 +61,56 @@ pwd
 git log -1 --oneline 2>/dev/null || true
 
 echo
+echo "== daily knowledge ops =="
+npm run --silent audit:authority-coverage >/dev/null || true
+AUTHORITY_PUBLISH_STATUS=review AUTHORITY_REVIEW_SUMMARY_OUTPUT_FILE=tmp/authority-review-summary.json npm run --silent review:authority -- summary >/dev/null || true
+npm run --silent ops:knowledge:report >/dev/null || true
+node <<'NODE'
+const fs = require('fs');
+const reportPath = 'tmp/knowledge-ops-report.json';
+if (!fs.existsSync(reportPath)) {
+  console.log(JSON.stringify({ exists: false, path: reportPath }, null, 2));
+  process.exit(0);
+}
+
+const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
+console.log(JSON.stringify({
+  exists: true,
+  generatedAt: report.generatedAt,
+  qa: {
+    total: report.qa?.total,
+    enrichedTotal: report.qa?.enrichedTotal,
+  },
+  authority: {
+    total: report.authority?.total,
+    riskDistribution: report.authority?.riskDistribution,
+  },
+  coverage: {
+    total: report.coverage?.total,
+    authorityCovered: report.coverage?.authorityCovered,
+    missingAuthorityCoverage: report.coverage?.missingAuthorityCoverage,
+    coverageRate: report.coverage?.coverageRate,
+    missingByCategory: (report.coverage?.missingByCategory || []).slice(0, 8),
+  },
+  translations: {
+    recordsForTranslation: report.translations?.recordsForTranslation,
+    cacheEntries: report.translations?.cacheEntries,
+    freshCacheEntries: report.translations?.freshCacheEntries,
+    staleCacheEntries: report.translations?.staleCacheEntries,
+    failureEntries: report.translations?.failureEntries,
+    retryableFailures: report.translations?.retryableFailures,
+    blockedFailures: report.translations?.blockedFailures,
+    cacheHitRate: report.translations?.cacheHitRate,
+  },
+  review: {
+    layers: report.review?.layers,
+  },
+  sourceCoverage: report.sourceCoverage?.watchedSources,
+  actionItems: report.actionItems,
+}, null, 2));
+NODE
+
+echo
 echo "== knowledge files =="
 node <<'NODE'
 const fs = require('fs');
@@ -114,6 +164,8 @@ console.log(JSON.stringify({
     translationFailures: readJson('data/authority-translation-failures.json'),
     qaCleanReport: readJson('tmp/expanded-qa-data-5000.clean-report.json'),
     authorityCoverageAudit: readJson('tmp/authority-coverage-audit.json'),
+    authorityReviewSummary: readJson('tmp/authority-review-summary.json'),
+    knowledgeOpsReport: readJson('tmp/knowledge-ops-report.json'),
   },
   qa: {
     total: qa.length,
@@ -123,7 +175,8 @@ console.log(JSON.stringify({
   },
   authority: {
     total: authority.length,
-    official: authority.filter((item) => item.source_class === 'official' || item.is_verified === true).length,
+    official: authority.filter((item) => item.source_class === 'official').length,
+    verified: authority.filter((item) => item.is_verified === true).length,
     topTopics: topBy(authority, (item) => item.topic || item.category),
     topSources: topBy(authority, (item) => item.source_org || item.source || item.source_id),
   },
