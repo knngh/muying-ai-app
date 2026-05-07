@@ -99,6 +99,13 @@ describe('knowledge ops report', () => {
           translatedContent: '旧正文',
           updatedAt: '2026-04-03T00:00:00.000Z',
         },
+        'authority-prompt-leak': {
+          sourceUpdatedAt: '2026-05-01T00:00:00.000Z',
+          translatedTitle: '<think>Let me translate</think>',
+          translatedSummary: '摘要',
+          translatedContent: '正文',
+          updatedAt: '2026-05-03T00:00:00.000Z',
+        },
       },
       translationFailures: {
         [staleSlug]: {
@@ -124,7 +131,8 @@ describe('knowledge ops report', () => {
     });
     expect(report.translations).toMatchObject({
       recordsForTranslation: 2,
-      cacheEntries: 2,
+      cacheEntries: 3,
+      invalidCacheEntries: 1,
       freshCacheEntries: 1,
       staleCacheEntries: 1,
       failureEntries: 1,
@@ -132,6 +140,9 @@ describe('knowledge ops report', () => {
       blockedFailures: 0,
       cacheHitRate: 50,
     });
+    expect(report.translations.invalidCacheSamples).toEqual([
+      { slug: 'authority-prompt-leak', reason: 'prompt_leak' },
+    ]);
     expect(report.review.layers).toEqual(expect.arrayContaining([
       expect.objectContaining({ riskLevel: 'red', action: 'manual_review', count: 1 }),
       expect.objectContaining({ riskLevel: 'yellow', action: 'sample_review', count: 1 }),

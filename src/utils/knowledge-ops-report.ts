@@ -1,3 +1,5 @@
+import { cleanAuthorityTranslationCache } from './authority-translation-cache-cleaner';
+
 export type KnowledgeOpsRiskLevel = 'red' | 'yellow' | 'green' | 'unknown';
 
 export interface KnowledgeOpsReference {
@@ -357,11 +359,13 @@ function buildTranslationSummary(
   });
   const blockedFailures = failures.length - retryableFailures.length;
   const failureMessageSummary = topBy(failures, ([, failure]) => normalizeFailureMessage(failure.message), 10);
+  const cacheCleanResult = cleanAuthorityTranslationCache(translationCache || {});
 
   return {
     authorityRecords: authorityRecords.length,
     recordsForTranslation: translatableSlugs.length,
     cacheEntries: Object.keys(translationCache || {}).length,
+    invalidCacheEntries: cacheCleanResult.removed,
     freshCacheEntries: freshSlugs.size,
     staleCacheEntries: staleEntries,
     orphanCacheEntries: orphanEntries,
@@ -374,6 +378,7 @@ function buildTranslationSummary(
       message: item.key,
       count: item.count,
     })),
+    invalidCacheSamples: cacheCleanResult.removedEntries.slice(0, sampleLimit),
     staleSamples,
     failureSamples: failures.slice(0, sampleLimit).map(([slug, failure]) => ({
       slug,
@@ -494,6 +499,13 @@ export function buildKnowledgeOpsReport(input: KnowledgeOpsReportInput, options:
         priority: 'P2',
         area: 'translation_cache',
         message: `${translations.failureEntries} translation failures need retry or diagnosis`,
+      }
+      : null,
+    translations.invalidCacheEntries > 0
+      ? {
+        priority: 'P2',
+        area: 'translation_cache',
+        message: `${translations.invalidCacheEntries} invalid translation cache entries need cleanup`,
       }
       : null,
     ...sourceCoverage.watchedSources

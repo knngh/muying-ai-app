@@ -95,6 +95,7 @@ console.log(JSON.stringify({
   translations: {
     recordsForTranslation: report.translations?.recordsForTranslation,
     cacheEntries: report.translations?.cacheEntries,
+    invalidCacheEntries: report.translations?.invalidCacheEntries,
     freshCacheEntries: report.translations?.freshCacheEntries,
     staleCacheEntries: report.translations?.staleCacheEntries,
     failureEntries: report.translations?.failureEntries,
