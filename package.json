@@ -20,6 +20,7 @@
     "ops:smoke:prod": "bash scripts/prod-smoke-backend.sh",
     "ops:smoke:knowledge": "bash scripts/smoke-knowledge-backend.sh",
     "ops:knowledge:status": "bash scripts/prod-knowledge-status.sh",
+    "ops:knowledge:daily": "node --import tsx src/scripts/run-knowledge-daily-ops.ts",
     "ops:knowledge:report": "node --import tsx src/scripts/generate-knowledge-ops-report.ts",
     "ops:authority:refresh-low-coverage": "node --import tsx src/scripts/refresh-low-coverage-authority-sources.ts",
     "ops:verify:workspace": "bash scripts/verify-workspace.sh",

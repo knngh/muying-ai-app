@@ -180,11 +180,15 @@ AUTHORITY_PUBLISH_STATUS=review npm run review:authority -- summary
 2026-05-07 已补低覆盖源干预入口：
 
 ```bash
+npm run ops:knowledge:daily
+KNOWLEDGE_DAILY_APPLY_FIXES=true npm run ops:knowledge:daily
 npm run ops:authority:refresh-low-coverage
 DRY_RUN=false npm run ops:authority:refresh-low-coverage
 npm run clean:authority-translation-cache
 DRY_RUN=false npm run clean:authority-translation-cache
 ```
+
+`ops:knowledge:daily` 会顺序生成覆盖审计、review summary、知识运营报告，并 dry-run 低覆盖源刷新和翻译缓存清理，最后输出 `tmp/knowledge-daily-ops-report.json`。默认不修改权威源和翻译缓存；显式 `KNOWLEDGE_DAILY_APPLY_FIXES=true` 才会把低覆盖源刷新和翻译缓存清理切到非 dry-run。
 
 默认读取 `tmp/knowledge-ops-report.json` 中 `sourceCoverage.watchedSources` 的 `missing` / `low` 源，先 dry-run 打印将刷新列表；显式 `DRY_RUN=false` 后按源调用现有 `sync:authority` 能力刷新。可用 `AUTHORITY_SOURCE_IDS=mayo-clinic-zh,chinacdc-nutrition` 限定源。
 
@@ -194,6 +198,7 @@ DRY_RUN=false npm run clean:authority-translation-cache
 
 - `tmp/authority-coverage-audit.json`
 - `tmp/knowledge-ops-report.json`
+- `tmp/knowledge-daily-ops-report.json`
 - `tmp/authority-review-summary.json`（生产状态脚本会生成）
 
 任务：

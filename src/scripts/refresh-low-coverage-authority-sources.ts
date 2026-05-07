@@ -9,6 +9,7 @@ import {
 } from '../utils/authority-source-refresh';
 
 const REPORT_FILE = process.env.REPORT_FILE || path.join(process.cwd(), 'tmp', 'knowledge-ops-report.json');
+const OUTPUT_FILE = process.env.OUTPUT_FILE || path.join(process.cwd(), 'tmp', 'knowledge-low-coverage-source-refresh.json');
 const DRY_RUN = process.env.DRY_RUN !== 'false';
 const AUTHORITY_SYNC_MODE = (process.env.AUTHORITY_SYNC_MODE || 'incremental') as 'full' | 'incremental';
 const SOURCE_IDS = parseAuthoritySourceIdList(process.env.AUTHORITY_SOURCE_IDS || process.env.AUTHORITY_SOURCE_ID);
@@ -31,7 +32,7 @@ async function main() {
   const startedAt = new Date().toISOString();
 
   if (selectedSources.length === 0) {
-    console.log(JSON.stringify({
+    const payload = {
       startedAt,
       finishedAt: new Date().toISOString(),
       dryRun: DRY_RUN,
@@ -39,7 +40,10 @@ async function main() {
       reportFile: REPORT_FILE,
       selectedSources: [],
       summaries: [],
-    }, null, 2));
+    };
+    fs.mkdirSync(path.dirname(OUTPUT_FILE), { recursive: true });
+    fs.writeFileSync(OUTPUT_FILE, JSON.stringify(payload, null, 2), 'utf-8');
+    console.log(JSON.stringify(payload, null, 2));
     return;
   }
 
@@ -57,7 +61,7 @@ async function main() {
     summaries.push(await syncAuthoritySource(source.sourceId!, AUTHORITY_SYNC_MODE));
   }
 
-  console.log(JSON.stringify({
+  const payload = {
     startedAt,
     finishedAt: new Date().toISOString(),
     dryRun: DRY_RUN,
@@ -65,7 +69,11 @@ async function main() {
     reportFile: REPORT_FILE,
     selectedSources,
     summaries,
-  }, null, 2));
+  };
+
+  fs.mkdirSync(path.dirname(OUTPUT_FILE), { recursive: true });
+  fs.writeFileSync(OUTPUT_FILE, JSON.stringify(payload, null, 2), 'utf-8');
+  console.log(JSON.stringify(payload, null, 2));
 }
 
 main()
