@@ -35,6 +35,29 @@ describe('authority index discovery', () => {
     expect(links).not.toContain('https://www.chinacdc.cn/jkkp/mygh/ztrxc/');
   });
 
+  test('discovers China CDC nutrition guidance links from relative index anchors', () => {
+    const source = getAuthoritySourceConfig('chinacdc-nutrition');
+    expect(source).toBeDefined();
+
+    const html = `
+      <ul class="xw_list">
+        <li><a href="./202408/t20240825_295584.html" target="_blank">6-23月龄婴幼儿辅食喂养指南<span>2023-11-23</span></a></li>
+        <li><a href="./">人群营养</a></li>
+      </ul>
+    `;
+
+    const links = __authoritySyncTestUtils.extractIndexLinks(html, source!, source!.entryUrls[0]!);
+    const articleUrl = 'https://www.chinacdc.cn/jkkp/yyjk/rqyy/202408/t20240825_295584.html';
+
+    expect(links).toContain(articleUrl);
+    expect(__authoritySyncTestUtils.isAuthorityUrlMatched(
+      articleUrl,
+      source!,
+      '6-23月龄婴幼儿辅食喂养指南',
+    )).toBe(true);
+    expect(links).not.toContain('https://www.chinacdc.cn/jkkp/yyjk/rqyy/');
+  });
+
   test('extracts NDCPA content links from inline script payloads', () => {
     const source = getAuthoritySourceConfig('ndcpa-immunization');
     expect(source).toBeDefined();

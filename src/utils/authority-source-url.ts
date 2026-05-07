@@ -221,7 +221,7 @@ function isCnsocSource(record: AuthoritySourceUrlRecord, url: string): boolean {
 
 function isChinanutriSource(record: AuthoritySourceUrlRecord, url: string): boolean {
   const sourceText = `${record.source_id || ''} ${record.source_org || ''} ${record.source || ''} ${url}`.toLowerCase();
-  return /chinanutri-maternal-child|中国疾病预防控制中心营养与健康所|chinanutri\.cn/.test(sourceText);
+  return /chinanutri-maternal-child|chinanutri\.cn/.test(sourceText);
 }
 
 function isNhcSource(record: AuthoritySourceUrlRecord, url: string): boolean {

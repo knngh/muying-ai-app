@@ -18,6 +18,15 @@ describe('authority source url filtering', () => {
     })).toBe(false);
   });
 
+  test('keeps China CDC nutrition articles separate from chinanutri.cn source rules', () => {
+    expect(shouldFilterAuthoritySourceUrl({
+      source_id: 'chinacdc-nutrition',
+      source_org: '中国疾病预防控制中心营养与健康所',
+      source_url: 'https://www.chinacdc.cn/jkkp/yyjk/rqyy/202408/t20240825_295584.html',
+      title: '6-23月龄婴幼儿辅食喂养指南',
+    })).toBe(false);
+  });
+
   test('filters common English source landing pages but keeps article pages', () => {
     expect(shouldFilterAuthoritySourceUrl({
       source_id: 'cdc',
