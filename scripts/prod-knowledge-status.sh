@@ -62,20 +62,83 @@ git log -1 --oneline 2>/dev/null || true
 
 echo
 echo "== daily knowledge ops =="
-npm run --silent audit:authority-coverage >/dev/null || true
-AUTHORITY_PUBLISH_STATUS=review AUTHORITY_REVIEW_SUMMARY_OUTPUT_FILE=tmp/authority-review-summary.json npm run --silent review:authority -- summary >/dev/null || true
-npm run --silent ops:knowledge:report >/dev/null || true
+DAILY_OPS_EXIT=0
+DAILY_OPS_SUCCEEDED=false
+if npm run --silent ops:knowledge:daily >/dev/null; then
+  DAILY_OPS_EXIT=0
+  DAILY_OPS_SUCCEEDED=true
+else
+  DAILY_OPS_EXIT=$?
+  echo "ops:knowledge:daily failed or is not available; falling back to legacy knowledge status commands."
+  npm run --silent audit:authority-coverage >/dev/null || true
+  AUTHORITY_PUBLISH_STATUS=review AUTHORITY_REVIEW_SUMMARY_OUTPUT_FILE=tmp/authority-review-summary.json npm run --silent review:authority -- summary >/dev/null || true
+  npm run --silent ops:knowledge:report >/dev/null || true
+fi
+export DAILY_OPS_SUCCEEDED
 node <<'NODE'
 const fs = require('fs');
-const reportPath = 'tmp/knowledge-ops-report.json';
-if (!fs.existsSync(reportPath)) {
-  console.log(JSON.stringify({ exists: false, path: reportPath }, null, 2));
+
+function readJson(path) {
+  if (!fs.existsSync(path)) {
+    return null;
+  }
+  try {
+    return JSON.parse(fs.readFileSync(path, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+const dailyReportPath = 'tmp/knowledge-daily-ops-report.json';
+const legacyReportPath = 'tmp/knowledge-ops-report.json';
+const dailyReport = process.env.DAILY_OPS_SUCCEEDED === 'true'
+  ? readJson(dailyReportPath)
+  : null;
+const legacyReport = readJson(legacyReportPath);
+
+if (dailyReport) {
+  const failedCommands = (dailyReport.commands?.results || [])
+    .filter((command) => !command.ok && !command.skipped)
+    .map((command) => ({
+      name: command.name,
+      exitCode: command.exitCode,
+      error: command.error,
+      stderrTail: command.stderrTail,
+    }));
+
+  console.log(JSON.stringify({
+    exists: true,
+    path: dailyReportPath,
+    generatedAt: dailyReport.generatedAt,
+    status: dailyReport.status,
+    applyFixes: dailyReport.applyFixes,
+    commands: {
+      total: dailyReport.commands?.total,
+      failed: dailyReport.commands?.failed,
+      failedCommands,
+    },
+    coverage: dailyReport.knowledge?.coverage,
+    translations: dailyReport.knowledge?.translations,
+    sourceCoverage: dailyReport.knowledge?.sourceCoverage?.watchedSources,
+    remediation: dailyReport.remediation,
+    actionItems: dailyReport.knowledge?.actionItems,
+    nextActions: dailyReport.nextActions,
+  }, null, 2));
   process.exit(0);
 }
 
-const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
+if (!legacyReport) {
+  console.log(JSON.stringify({
+    daily: { exists: false, path: dailyReportPath },
+    legacy: { exists: false, path: legacyReportPath },
+  }, null, 2));
+  process.exit(0);
+}
+
+const report = legacyReport;
 console.log(JSON.stringify({
   exists: true,
+  path: legacyReportPath,
   generatedAt: report.generatedAt,
   qa: {
     total: report.qa?.total,
@@ -110,6 +173,9 @@ console.log(JSON.stringify({
   actionItems: report.actionItems,
 }, null, 2));
 NODE
+if [[ "${DAILY_OPS_EXIT}" -ne 0 ]]; then
+  echo "daily ops command exit code: ${DAILY_OPS_EXIT}"
+fi
 
 echo
 echo "== knowledge files =="

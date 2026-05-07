@@ -190,6 +190,10 @@ DRY_RUN=false npm run clean:authority-translation-cache
 
 `ops:knowledge:daily` 会顺序生成覆盖审计、review summary、知识运营报告，并 dry-run 低覆盖源刷新和翻译缓存清理，最后输出 `tmp/knowledge-daily-ops-report.json`。默认不修改权威源和翻译缓存；显式 `KNOWLEDGE_DAILY_APPLY_FIXES=true` 才会把低覆盖源刷新和翻译缓存清理切到非 dry-run。
 
+生产状态入口 `ops:knowledge:status` 会通过 SSH 进入服务器应用目录执行 `ops:knowledge:daily`，DB 依赖项直接使用服务器 `.env` / MySQL 配置，不依赖本地 `localhost:3306`。
+
+2026-05-07 生产验证：`SSH_IDENTITY_FILE=/Users/zhugehao/.ssh/id_server npm run ops:knowledge:status` 已在服务器跑通 `ops:knowledge:daily`，5 个 daily ops 子命令失败数为 0；当前状态为 `attention`，权威覆盖率 51.81%，`mayo-clinic-zh` / `chinacdc-nutrition` 仍为 0/10，翻译缓存 dry-run 发现 47 条 invalid cache entries。
+
 默认读取 `tmp/knowledge-ops-report.json` 中 `sourceCoverage.watchedSources` 的 `missing` / `low` 源，先 dry-run 打印将刷新列表；显式 `DRY_RUN=false` 后按源调用现有 `sync:authority` 能力刷新。可用 `AUTHORITY_SOURCE_IDS=mayo-clinic-zh,chinacdc-nutrition` 限定源。
 
 翻译缓存清理默认扫描 `data/authority-translation-cache.json`，输出 `tmp/authority-translation-cache-clean-report.json`；显式 `DRY_RUN=false` 后才删除 prompt leak / 占位符 / 空正文缓存条目，让它们重新进入翻译预热队列。
