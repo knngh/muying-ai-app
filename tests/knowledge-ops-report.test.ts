@@ -138,8 +138,8 @@ describe('knowledge ops report', () => {
       expect.objectContaining({ riskLevel: 'green', action: 'default_publish', count: 1 }),
     ]));
     expect(report.sourceCoverage.watchedSources).toEqual([
-      { sourceId: 'mayo-clinic-zh', count: 0, status: 'missing' },
-      { sourceId: 'chinacdc-nutrition', count: 0, status: 'missing' },
+      { sourceId: 'mayo-clinic-zh', count: 0, minimumPublishedRecords: 10, status: 'missing' },
+      { sourceId: 'chinacdc-nutrition', count: 0, minimumPublishedRecords: 10, status: 'missing' },
     ]);
     expect(report.actionItems.map((item) => item.area)).toEqual(expect.arrayContaining([
       'authority_coverage',
@@ -183,5 +183,43 @@ describe('knowledge ops report', () => {
       missingAuthorityCoverage: 1481,
       coverageRate: 52.83,
     });
+  });
+
+  it('keeps watched authority sources in low status until they reach the configured minimum', () => {
+    const chinacdcRecords = Array.from({ length: 10 }, (_, index) => authorityFixture({
+      id: `authority-chinacdc-nutrition-${index + 1}`,
+      source_id: 'chinacdc-nutrition',
+      source_org: '中国疾病预防控制中心营养与健康所',
+      source_url: `https://www.chinacdc.cn/jkkp/yyjk/rqyy/202408/t20240825_29558${index}.html`,
+      source_language: 'zh',
+      risk_level_default: 'green',
+    }));
+    const report = buildKnowledgeOpsReport({
+      qaRecords: [],
+      authorityRecords: [
+        authorityFixture({
+          id: 'authority-mayo-clinic-zh-1',
+          source_id: 'mayo-clinic-zh',
+          source_org: 'Mayo Clinic',
+          source_url: 'https://www.mayoclinic.org/zh-hans/healthy-lifestyle/infant-and-toddler-health/in-depth/baby-poop/art-20043980',
+          source_language: 'zh',
+        }),
+        ...chinacdcRecords,
+      ],
+    }, {
+      watchedSourceIds: ['mayo-clinic-zh', 'chinacdc-nutrition'],
+      watchedSourceMinimumRecords: 10,
+    });
+
+    expect(report.sourceCoverage.watchedSources).toEqual([
+      { sourceId: 'mayo-clinic-zh', count: 1, minimumPublishedRecords: 10, status: 'low' },
+      { sourceId: 'chinacdc-nutrition', count: 10, minimumPublishedRecords: 10, status: 'healthy' },
+    ]);
+    expect(report.actionItems).toContainEqual({
+      priority: 'P2',
+      area: 'source_coverage',
+      message: 'mayo-clinic-zh has 1/10 published authority records',
+    });
+    expect(report.actionItems.some((item) => item.message.includes('chinacdc-nutrition'))).toBe(false);
   });
 });

@@ -12,6 +12,9 @@ import {
 
 const OUTPUT_FILE = process.env.OUTPUT_FILE || path.join(process.cwd(), 'tmp', 'knowledge-ops-report.json');
 const SAMPLE_LIMIT = Math.max(1, Number(process.env.SAMPLE_LIMIT || 20));
+const WATCHED_SOURCE_MINIMUM_RECORDS = process.env.WATCHED_SOURCE_MINIMUM_RECORDS
+  ? Number(process.env.WATCHED_SOURCE_MINIMUM_RECORDS)
+  : undefined;
 
 function resolveFilePath(candidates: string[]): string {
   for (const candidate of candidates) {
@@ -121,6 +124,7 @@ async function main() {
     },
     {
       sampleLimit: SAMPLE_LIMIT,
+      watchedSourceMinimumRecords: WATCHED_SOURCE_MINIMUM_RECORDS,
       fileStats: {
         qa: describeJsonFile(files.qa),
         enrichedQa: describeJsonFile(files.enrichedQa),

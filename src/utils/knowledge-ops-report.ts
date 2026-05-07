@@ -91,14 +91,24 @@ export interface KnowledgeOpsReportOptions {
   now?: string;
   sampleLimit?: number;
   watchedSourceIds?: string[];
+  watchedSourceMinimumRecords?: number;
   fileStats?: Record<string, KnowledgeOpsFileStat>;
 }
 
 const DEFAULT_WATCHED_SOURCE_IDS = ['mayo-clinic-zh', 'chinacdc-nutrition'];
+const DEFAULT_WATCHED_SOURCE_MINIMUM_RECORDS = 10;
 const AUTHORITY_SOURCE_PATTERN = /who\.int|cdc\.gov|healthychildren\.org|acog\.org|mayoclinic\.org|msdmanuals\.cn|nhs\.uk|nih\.gov|fda\.gov|nhc\.gov\.cn|chinacdc\.cn|ndcpa\.gov\.cn|gov\.cn|who|cdc|aap|acog|mayo|nhs|卫健委|疾控|中国政府网|国家疾病预防控制局/iu;
 
 function roundPercent(value: number): number {
   return Number(value.toFixed(2));
+}
+
+function normalizePositiveInteger(value: unknown, fallback: number): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 1) {
+    return fallback;
+  }
+  return Math.floor(parsed);
 }
 
 function normalizeKey(value: unknown): string {
@@ -419,7 +429,19 @@ function buildReviewRiskSummary(authorityRecords: KnowledgeOpsQaRecord[], review
   };
 }
 
-function buildSourceCoverageSummary(authorityRecords: KnowledgeOpsQaRecord[], watchedSourceIds: string[]) {
+function resolveWatchedSourceStatus(count: number, minimumPublishedRecords: number): 'missing' | 'low' | 'healthy' {
+  if (count <= 0) {
+    return 'missing';
+  }
+
+  return count >= minimumPublishedRecords ? 'healthy' : 'low';
+}
+
+function buildSourceCoverageSummary(
+  authorityRecords: KnowledgeOpsQaRecord[],
+  watchedSourceIds: string[],
+  minimumPublishedRecords: number,
+) {
   const countBySourceId = new Map<string, number>();
   for (const record of authorityRecords) {
     const sourceId = normalizeKey(record.source_id || record.source_org || record.source);
@@ -430,7 +452,8 @@ function buildSourceCoverageSummary(authorityRecords: KnowledgeOpsQaRecord[], wa
     watchedSources: watchedSourceIds.map((sourceId) => ({
       sourceId,
       count: countBySourceId.get(sourceId) || 0,
-      status: (countBySourceId.get(sourceId) || 0) > 0 ? 'covered' : 'missing',
+      minimumPublishedRecords,
+      status: resolveWatchedSourceStatus(countBySourceId.get(sourceId) || 0, minimumPublishedRecords),
     })),
     topSources: topBy(authorityRecords, (item) => item.source_id || item.source_org || item.source, 15),
   };
@@ -444,8 +467,12 @@ export function buildKnowledgeOpsReport(input: KnowledgeOpsReportInput, options:
   const authorityRecords = input.authorityRecords || [];
   const coverageRecords = enrichedQaRecords.length > 0 ? enrichedQaRecords : qaRecords;
   const watchedSourceIds = options.watchedSourceIds || DEFAULT_WATCHED_SOURCE_IDS;
+  const watchedSourceMinimumRecords = normalizePositiveInteger(
+    options.watchedSourceMinimumRecords,
+    DEFAULT_WATCHED_SOURCE_MINIMUM_RECORDS,
+  );
   const coverage = buildCoverageSummary(coverageRecords, input.coverageAudit, sampleLimit);
-  const sourceCoverage = buildSourceCoverageSummary(authorityRecords, watchedSourceIds);
+  const sourceCoverage = buildSourceCoverageSummary(authorityRecords, watchedSourceIds, watchedSourceMinimumRecords);
   const translations = buildTranslationSummary(
     authorityRecords,
     input.translationCache || {},
@@ -470,11 +497,11 @@ export function buildKnowledgeOpsReport(input: KnowledgeOpsReportInput, options:
       }
       : null,
     ...sourceCoverage.watchedSources
-      .filter((source) => source.status === 'missing')
+      .filter((source) => source.status !== 'healthy')
       .map((source) => ({
         priority: 'P2',
         area: 'source_coverage',
-        message: `${source.sourceId} has 0 published authority records`,
+        message: `${source.sourceId} has ${source.count}/${source.minimumPublishedRecords} published authority records`,
       })),
   ].filter((item): item is { priority: string; area: string; message: string } => Boolean(item));
 
