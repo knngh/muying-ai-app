@@ -147,4 +147,41 @@ describe('knowledge ops report', () => {
       'source_coverage',
     ]));
   });
+
+  it('preserves guard exclusion totals from authority coverage audits', () => {
+    const report = buildKnowledgeOpsReport({
+      qaRecords: [
+        qaFixture({ id: 'qa-covered', references: [{ authoritative: true, sourceOrg: 'AAP' }] }),
+        qaFixture({ id: 'qa-filtered', question: '孩子青春期发育太快怎么办' }),
+      ],
+      authorityRecords: [],
+      coverageAudit: {
+        total: 3140,
+        rawTotal: 3306,
+        excludedByGuard: [
+          { reason: 'category_scope_conflict', count: 81 },
+          { reason: 'beyond_app_child_age', count: 54 },
+        ],
+        authorityCovered: 1659,
+        missingAuthorityCoverage: 1481,
+        coverageRate: 52.83,
+      },
+    }, {
+      now: '2026-05-06T00:00:00.000Z',
+      watchedSourceIds: [],
+    });
+
+    expect(report.coverage).toMatchObject({
+      source: 'authority-coverage-audit',
+      total: 3140,
+      rawTotal: 3306,
+      excludedByGuard: [
+        { reason: 'category_scope_conflict', count: 81 },
+        { reason: 'beyond_app_child_age', count: 54 },
+      ],
+      authorityCovered: 1659,
+      missingAuthorityCoverage: 1481,
+      coverageRate: 52.83,
+    });
+  });
 });

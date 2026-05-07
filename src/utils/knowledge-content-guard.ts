@@ -28,15 +28,21 @@ export interface KnowledgeGuardRecord {
 
 const PRODUCT_SCOPE_PATTERN = /怀孕|孕妇|孕期|孕早期|孕中期|孕晚期|孕周|产检|胎儿|胎动|胎心|宫缩|破水|预产期|分娩|顺产|剖宫产|产后|坐月子|月子|哺乳|母乳|备孕|孕前|叶酸|排卵|宝宝|婴儿|新生儿|幼儿|小孩|孩子|月龄|辅食|喂奶|吃奶|奶量|配方奶|疫苗|接种|预防针|黄疸|脐带|湿疹|尿布|纸尿裤/u;
 
-const OFF_SCOPE_ADULT_HEALTH_PATTERN = /阳痿|早泄|前列腺|阴茎|龟头|包皮|手淫|遗精|精液|射精|不洁性交|处女|阴道口|阴毛|性病|尖锐湿疣|梅毒|艾滋|淋病|尿道口|隆胸|丰胸|乳房下垂|飞机场|狐臭|脱发|斑秃|痔疮|肛裂|肛瘘|混合痔|内痔|外痔|脱肛|屁眼|肛门|痘痘|痤疮|美容|整形|抽脂|减肥|肾虚|心梗|癫痫|脑出血/u;
+const OFF_SCOPE_ADULT_HEALTH_PATTERN = /阳痿|早泄|前列腺|阴茎|阴囊|龟头|包皮|手淫|遗精|精液|射精|不洁性交|处女|阴道口|阴毛|性病|尖锐湿疣|梅毒|艾滋|淋病|尿道口|隆胸|丰胸|乳房下垂|飞机场|狐臭|脱发|斑秃|痔疮|肛裂|肛瘘|混合痔|内痔|外痔|脱肛|屁眼|肛门|痘痘|痤疮|美容|整形|抽脂|减肥|肾虚|心梗|癫痫|脑出血/u;
 
 const BEYOND_CHILD_AGE_PATTERN = /青春期|青少年|中小学生|小学|初中|高中|学龄儿童|学龄期|学生近视|早恋/u;
+
+const OLDER_CHILD_AGE_PATTERN = /(?:孩子|小孩|宝宝|男孩|女孩|女儿|儿子|男童|女童|儿童).{0,12}(?:(?<!\d)(?:[7-9]|1\d|2[0-5])(?!\d)\s*(?:岁|周岁|岁半|了)|(?:七|八|九|十|十一|十二|十三|十四|十五|十六|十七|十八|十九|二十|二十一|二十二|二十三|二十四|二十五)\s*(?:岁|周岁|岁半|了))|(?:(?<!\d)(?:[7-9]|1\d|2[0-5])(?!\d)\s*(?:岁|周岁|岁半|了)|(?:七|八|九|十|十一|十二|十三|十四|十五|十六|十七|十八|十九|二十|二十一|二十二|二十三|二十四|二十五)\s*(?:岁|周岁|岁半|了)).{0,12}(?:孩子|小孩|宝宝|男孩|女孩|女儿|儿子|男童|女童|儿童)/u;
+
+const TODDLER_OR_PRESCHOOL_AGE_PATTERN = /(?:孩子|小孩|宝宝|男孩|女孩|女儿|儿子|男童|女童|儿童).{0,12}(?:(?<!\d)1(?!\d)\s*(?:岁|周岁)\s*半|一\s*(?:岁|周岁)\s*半|(?<!\d)[2-6](?!\d)\s*(?:岁|周岁|岁半)|(?:两|二|三|四|五|六)\s*(?:岁|周岁|岁半))|(?:(?<!\d)1(?!\d)\s*(?:岁|周岁)\s*半|一\s*(?:岁|周岁)\s*半|(?<!\d)[2-6](?!\d)\s*(?:岁|周岁|岁半)|(?:两|二|三|四|五|六)\s*(?:岁|周岁|岁半)).{0,12}(?:孩子|小孩|宝宝|男孩|女孩|女儿|儿子|男童|女童|儿童)/u;
 
 const NON_CONTENT_PATTERN = /中文调研|调查问卷|问卷|调研|调查研究|课题研究|示范城市|民用机场|文旅|消防安全/u;
 
 const SUPPORT_POLICY_QUERY_PATTERN = /育儿补贴|生育保险|个税|个人所得税|专项附加扣除|医保|托育服务|普惠托育|补贴申领/u;
 
-const HIGH_SENSITIVITY_PATTERN = /人流|人工流产|引产|堕胎|清宫|药流|打掉(?:孩子|小孩|胎儿)|流掉(?:孩子|小孩|胎儿)|不要(?:这个)?(?:孩子|小孩|胎儿)|宫外孕|异位妊娠|胎停|稽留流产|胎死|死胎|死产|死亡|猝死|畸形|大出血|脑内出血|缺氧|心脏发育异常|唐氏儿/u;
+const UNSUPPORTED_SERVICE_REQUEST_PATTERN = /哪家医院(?:最好|好)|(?:医院|儿科|产科|妇产科).{0,12}(?:最好|好一点)|(?:免费治疗|接受免费治疗)/u;
+
+const HIGH_SENSITIVITY_PATTERN = /人流|人工流产|引产|堕胎|坠胎|清宫|药流|打掉(?:孩子|小孩|胎儿)|流掉(?:孩子|小孩|胎儿)|不要(?:这个)?(?:孩子|小孩|胎儿)|不想要(?:这个)?(?:孩子|小孩|胎儿)|宫外孕|异位妊娠|胎停|稽留流产|胎死|死胎|死产|死亡|猝死|畸形|大出血|脑内出血|缺氧|心脏发育异常|唐氏儿|癌|肿瘤/u;
 
 // Product-level blocklist for knowledge articles and authority cache records.
 // Death-related terms are intentionally broad: even statistical/public-policy
@@ -160,12 +166,27 @@ function isPregnancyOrPostpartumContext(text: string): boolean {
 }
 
 function isInfantChildCareContext(text: string): boolean {
-  return /宝宝|婴儿|新生儿|幼儿|小孩|孩子|月龄|辅食|喂奶|吃奶|奶量|配方奶|疫苗|接种|预防针|黄疸|脐带|湿疹|尿布|纸尿裤/u.test(text);
+  const planningContext = /准备要宝宝|想要宝宝|要宝宝|要孩子|准备要孩子|想要孩子|生孩子|生小孩/u.test(text);
+  const careContext = /婴儿|新生儿|幼儿|小孩|孩子|月龄|辅食|喂奶|吃奶|奶量|配方奶|疫苗|接种|预防针|黄疸|脐带|湿疹|尿布|纸尿裤/u.test(text);
+  const babyCareContext = /宝宝/u.test(text) && !planningContext;
+  return careContext || babyCareContext;
+}
+
+function isPregnancyPlanningContext(text: string): boolean {
+  return /备孕|孕前|准备要宝宝|想要宝宝|要宝宝|要孩子|准备要孩子|想要孩子|怀孕前|怀孕前期/u.test(text);
 }
 
 function hasCategoryScopeConflict(record: KnowledgeGuardRecord): boolean {
   const category = record.category || '';
   const question = getQuestion(record);
+
+  if ((category === 'parenting-newborn' || category === 'parenting-0-1') && TODDLER_OR_PRESCHOOL_AGE_PATTERN.test(question)) {
+    return true;
+  }
+
+  if (category.startsWith('parenting-') && isPregnancyPlanningContext(question)) {
+    return true;
+  }
 
   if (category.startsWith('parenting-') && isPregnancyOrPostpartumContext(question) && !isInfantChildCareContext(question)) {
     return true;
@@ -193,11 +214,15 @@ export function getDatasetKnowledgeDropReason(record: KnowledgeGuardRecord): str
     return 'non_content_or_research';
   }
 
+  if (UNSUPPORTED_SERVICE_REQUEST_PATTERN.test(question)) {
+    return 'unsupported_service_request';
+  }
+
   if (!hasProductScope(question)) {
     return 'missing_product_scope';
   }
 
-  if (BEYOND_CHILD_AGE_PATTERN.test(text)) {
+  if (BEYOND_CHILD_AGE_PATTERN.test(text) || OLDER_CHILD_AGE_PATTERN.test(question)) {
     return 'beyond_app_child_age';
   }
 
@@ -231,6 +256,7 @@ export function isOutOfScopeKnowledgeQuery(query: string): boolean {
 
   return NON_CONTENT_PATTERN.test(normalized)
     || SUPPORT_POLICY_QUERY_PATTERN.test(normalized)
+    || UNSUPPORTED_SERVICE_REQUEST_PATTERN.test(normalized)
     || BEYOND_CHILD_AGE_PATTERN.test(normalized)
     || OFF_SCOPE_ADULT_HEALTH_PATTERN.test(normalized)
     || HIGH_SENSITIVITY_PATTERN.test(normalized)

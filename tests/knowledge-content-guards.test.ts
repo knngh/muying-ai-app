@@ -60,6 +60,84 @@ describe('knowledge content guards', () => {
       answer: '症状处理建议',
       category: 'pregnancy-early',
     })).toBe('high_sensitivity_dataset_topic');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '由于工作原因，不想要孩子如果不想保留，喝酒能否导致坠胎？',
+      answer: '症状处理建议',
+      category: 'parenting-0-1',
+    })).toBe('high_sensitivity_dataset_topic');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '37岁怀孕快5个月，晚上睡觉腰部和大腿疼痛，胎动比白天频繁',
+      answer: '症状处理建议',
+      category: 'pregnancy-mid',
+    })).toBeNull();
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '28岁了早上拉大便时有虫子小孩还在吃奶可以吃药吗',
+      answer: '哺乳期用药建议',
+      category: 'nutrition-baby',
+    })).toBeNull();
+  });
+
+  it('rejects dataset records assigned to the wrong lifecycle category', () => {
+    expect(getDatasetKnowledgeDropReason({
+      question: '我家8岁小孩为什么总是嘴巴子红',
+      answer: '症状处理建议',
+      category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBe('beyond_app_child_age');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '我的孩子20了可老感冒发烧还有时咳嗽吃药打针',
+      answer: '症状处理建议',
+      category: 'vaccine-reaction',
+      tags: ['母婴'],
+    })).toBe('beyond_app_child_age');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '三岁小孩打蛔虫时该吃多大剂量药',
+      answer: '症状处理建议',
+      category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBe('category_scope_conflict');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '老公有乙肝我们准备要宝宝该怎么办',
+      answer: '备孕建议',
+      category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBe('category_scope_conflict');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '宝宝8个月不会主动伸手拿东西，坐不稳怎么办',
+      answer: '观察发育表现，必要时就医评估。',
+      category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBeNull();
+  });
+
+  it('rejects adult diseases and unsupported service requests from dataset records', () => {
+    expect(getDatasetKnowledgeDropReason({
+      question: '黄疸呕吐腹泻皮肤瘙痒体重下降，初步确诊为胆囊癌如何治疗',
+      answer: '症状处理建议',
+      category: 'parenting-newborn',
+      tags: ['母婴'],
+    })).toBe('high_sensitivity_dataset_topic');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '那阴囊湿疹和毛囊炎有区别吗？',
+      answer: '症状处理建议',
+      category: 'common-disease',
+      tags: ['母婴'],
+    })).toBe('off_scope_adult_health');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '治小孩的脑积水，哪家医院最好',
+      answer: '症状处理建议',
+      category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBe('unsupported_service_request');
   });
 
   it('rejects obvious off-scope search queries before random authority boosting', () => {
@@ -70,6 +148,7 @@ describe('knowledge content guards', () => {
     expect(isOutOfScopeKnowledgeQuery('孕产妇死亡率')).toBe(true);
     expect(isOutOfScopeKnowledgeQuery('死产和死胎')).toBe(true);
     expect(isOutOfScopeKnowledgeQuery('胎停怎么办')).toBe(true);
+    expect(isOutOfScopeKnowledgeQuery('哪家医院最好')).toBe(true);
     expect(isOutOfScopeKnowledgeQuery('宝宝发烧怎么办')).toBe(false);
   });
 

@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { listEnabledOfficialAuthoritySources } from '../config/authority-sources';
 import { buildKnowledgeGrowthSeeds } from '../config/knowledge-growth';
+import { getDatasetKnowledgeDropReason } from '../utils/knowledge-content-guard';
 import type { AuthorityReference, QAPair } from '../services/knowledge.service';
 
 const INPUT_FILE = process.env.INPUT_FILE || resolveInputFile();
@@ -91,7 +92,16 @@ async function main() {
   }
 
   const data = JSON.parse(fs.readFileSync(INPUT_FILE, 'utf-8')) as QAPair[];
-  const missing = data.filter((item) => !hasAuthorityCoverage(item));
+  const excludedByGuard = new Map<string, number>();
+  const eligibleData = data.filter((item) => {
+    const reason = getDatasetKnowledgeDropReason(item);
+    if (reason) {
+      excludedByGuard.set(reason, (excludedByGuard.get(reason) || 0) + 1);
+      return false;
+    }
+    return true;
+  });
+  const missing = eligibleData.filter((item) => !hasAuthorityCoverage(item));
   const categorySummary = Object.entries(
     missing.reduce<Record<string, number>>((acc, item) => {
       acc[item.category] = (acc[item.category] || 0) + 1;
@@ -104,10 +114,14 @@ async function main() {
   const payload = {
     generatedAt: new Date().toISOString(),
     inputFile: INPUT_FILE,
-    total: data.length,
-    authorityCovered: data.length - missing.length,
+    total: eligibleData.length,
+    rawTotal: data.length,
+    excludedByGuard: Array.from(excludedByGuard.entries())
+      .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+      .map(([reason, count]) => ({ reason, count })),
+    authorityCovered: eligibleData.length - missing.length,
     missingAuthorityCoverage: missing.length,
-    coverageRate: Number((((data.length - missing.length) / Math.max(data.length, 1)) * 100).toFixed(2)),
+    coverageRate: Number((((eligibleData.length - missing.length) / Math.max(eligibleData.length, 1)) * 100).toFixed(2)),
     missingByCategory: categorySummary,
     remediationQueue: missing.slice(0, SAMPLE_LIMIT).map((item) => ({
       id: item.id,

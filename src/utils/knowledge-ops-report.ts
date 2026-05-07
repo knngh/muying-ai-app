@@ -55,6 +55,8 @@ export interface KnowledgeOpsTranslationFailureRecord {
 
 export interface KnowledgeOpsCoverageAudit {
   total?: number;
+  rawTotal?: number;
+  excludedByGuard?: Array<{ reason?: string; count?: number }>;
   authorityCovered?: number;
   missingAuthorityCoverage?: number;
   coverageRate?: number;
@@ -176,6 +178,13 @@ function buildCoverageSummary(
     return {
       source: 'authority-coverage-audit',
       total: Number(audit.total),
+      rawTotal: Number(audit.rawTotal || audit.total),
+      excludedByGuard: (audit.excludedByGuard || [])
+        .map((item) => ({
+          reason: normalizeKey(item.reason),
+          count: Number(item.count || 0),
+        }))
+        .filter((item) => item.count > 0),
       authorityCovered: Number(audit.authorityCovered),
       missingAuthorityCoverage: Number(audit.missingAuthorityCoverage),
       coverageRate: Number(audit.coverageRate || 0),
