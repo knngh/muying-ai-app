@@ -332,11 +332,13 @@ function isAuthorityUrlMatched(url: string, source: AuthoritySourceConfig, ancho
       return false;
     }
 
-    const directMaternalChildPattern = /(pregnan|prenatal|postpartum|birth|labou?r|delivery|newborn|neonat|infant|baby|toddler|child|children|pediatric|paediatric|breast|feeding|fertility|contracept|women|孕|孕妇|孕期|怀孕|产后|新生儿|婴儿|婴幼儿|宝宝|儿童|孩子|儿科|母乳|喂养|备孕|生育|避孕|妇幼)/u;
+    const directMaternalChildPattern = /(pregnan|prenatal|postpartum|childbirth|premature-birth|birth(?!-control)|labou?r|delivery|newborn|neonat|infant|baby|toddler|child|children|pediatric|paediatric|fertility|孕|孕妇|孕期|怀孕|产后|新生儿|婴儿|婴幼儿|宝宝|儿童|孩子|儿科|备孕|生育|妇幼)/u;
+    const feedingPattern = /(breast[\s-]?feed|breast[\s-]?feeding|breast milk|lactation|induced-lactation|feeding|formula|wean|母乳|喂养|哺乳|配方奶)/u;
     const vaccinationPattern = /(vaccine|vaccination|immunization|immunisation|疫苗|接种)/u;
     const vaccinationAudiencePattern = /(pregnan|prenatal|newborn|neonat|infant|baby|toddler|child|children|pediatric|paediatric|women|孕|新生儿|婴儿|婴幼儿|宝宝|儿童|孩子|儿科)/u;
 
     return directMaternalChildPattern.test(normalized)
+      || feedingPattern.test(normalized)
       || (vaccinationPattern.test(normalized) && vaccinationAudiencePattern.test(normalized));
   }
 

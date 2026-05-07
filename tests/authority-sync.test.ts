@@ -109,6 +109,16 @@ describe('authority index discovery', () => {
     expect(links).not.toContain('https://www.mayoclinic.org/zh-hans/departments-centers/childrens-center/overview/specialty-groups/newborn-intensive-care-unit-follow-up-clinic');
   });
 
+  test('loads Mayo Chinese health sitemaps that contain maternal-child articles', () => {
+    const source = getAuthoritySourceConfig('mayo-clinic-zh');
+    expect(source).toBeDefined();
+
+    expect(source!.entryUrls).toEqual(expect.arrayContaining([
+      'https://www.mayoclinic.org/chinese_condition_consolidated_concepts.xml',
+      'https://www.mayoclinic.org/chinese_patient_consumer_faq.xml',
+    ]));
+  });
+
   test('does not let generic Mayo vaccine timeline pages crowd out maternal-child articles', () => {
     const source = getAuthoritySourceConfig('mayo-clinic-zh');
     expect(source).toBeDefined();
@@ -125,6 +135,36 @@ describe('authority index discovery', () => {
 
     expect(__authoritySyncTestUtils.isAuthorityUrlMatched(
       'https://www.mayoclinic.org/zh-hans/healthy-lifestyle/infant-and-toddler-health/in-depth/baby-poop/art-20043980',
+      source!,
+    )).toBe(true);
+  });
+
+  test('does not let generic Mayo breast and adult womens-health pages crowd out maternal-child articles', () => {
+    const source = getAuthoritySourceConfig('mayo-clinic-zh');
+    expect(source).toBeDefined();
+
+    expect(__authoritySyncTestUtils.isAuthorityUrlMatched(
+      'https://www.mayoclinic.org/zh-hans/diseases-conditions/breast-cancer/symptoms-causes/syc-20352470',
+      source!,
+    )).toBe(false);
+
+    expect(__authoritySyncTestUtils.isAuthorityUrlMatched(
+      'https://www.mayoclinic.org/zh-hans/healthy-lifestyle/womens-health/expert-answers/breast-implants/faq-20058454',
+      source!,
+    )).toBe(false);
+
+    expect(__authoritySyncTestUtils.isAuthorityUrlMatched(
+      'https://www.mayoclinic.org/zh-hans/healthy-lifestyle/birth-control/expert-answers/birth-control/faq-20058518',
+      source!,
+    )).toBe(false);
+
+    expect(__authoritySyncTestUtils.isAuthorityUrlMatched(
+      'https://www.mayoclinic.org/zh-hans/diseases-conditions/infant-acid-reflux/symptoms-causes/syc-20351408',
+      source!,
+    )).toBe(true);
+
+    expect(__authoritySyncTestUtils.isAuthorityUrlMatched(
+      'https://www.mayoclinic.org/zh-hans/healthy-lifestyle/pregnancy-week-by-week/expert-answers/vaccines-during-pregnancy/faq-20057799',
       source!,
     )).toBe(true);
   });

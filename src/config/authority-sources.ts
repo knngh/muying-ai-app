@@ -122,6 +122,8 @@ export const AUTHORITY_SOURCES: AuthoritySourceConfig[] = [
     allowedDomains: ['mayoclinic.org'],
     discoveryType: 'sitemap',
     entryUrls: [
+      'https://www.mayoclinic.org/chinese_condition_consolidated_concepts.xml',
+      'https://www.mayoclinic.org/chinese_patient_consumer_faq.xml',
       'https://www.mayoclinic.org/chinese_patient_consumer_web.xml',
     ],
     region: 'US',
