@@ -194,6 +194,10 @@ DRY_RUN=false npm run clean:authority-translation-cache
 
 2026-05-07 生产验证：`SSH_IDENTITY_FILE=/Users/zhugehao/.ssh/id_server npm run ops:knowledge:status` 已在服务器跑通 `ops:knowledge:daily`，5 个 daily ops 子命令失败数为 0；当前状态为 `attention`，权威覆盖率 51.81%，`mayo-clinic-zh` / `chinacdc-nutrition` 仍为 0/10，翻译缓存 dry-run 发现 47 条 invalid cache entries。
 
+2026-05-07 已补低覆盖源 dry-run discovery probe：`ops:authority:refresh-low-coverage` 默认仍只列计划；显式 `AUTHORITY_SOURCE_DRY_RUN_PROBE_DISCOVERY=true` 时会只做 URL 发现预检并输出 `discoveryProbe.discovered` 和少量 `sampleUrls`，不抓正文、不入库、不改缓存。`ops:knowledge:status` 默认开启该预检，便于区分 source 覆盖低是发现阶段、抓取归一化阶段还是发布统计阶段的问题。
+
+2026-05-07 服务器 discovery probe 实测：`chinacdc-nutrition` 可发现 6 条候选 URL（下一步可做受控非 dry-run 同步）；`mayo-clinic-zh` 服务器侧仍发现 0 条，本地同规则可发现 162 条，需继续定位服务器运行时筛选 / sitemap 解析差异。
+
 默认读取 `tmp/knowledge-ops-report.json` 中 `sourceCoverage.watchedSources` 的 `missing` / `low` 源，先 dry-run 打印将刷新列表；显式 `DRY_RUN=false` 后按源调用现有 `sync:authority` 能力刷新。可用 `AUTHORITY_SOURCE_IDS=mayo-clinic-zh,chinacdc-nutrition` 限定源。
 
 翻译缓存清理默认扫描 `data/authority-translation-cache.json`，输出 `tmp/authority-translation-cache-clean-report.json`；显式 `DRY_RUN=false` 后才删除 prompt leak / 占位符 / 空正文缓存条目，让它们重新进入翻译预热队列。

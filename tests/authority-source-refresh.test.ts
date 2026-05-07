@@ -1,4 +1,5 @@
 import {
+  buildAuthoritySourceDryRunSummaries,
   parseAuthoritySourceIdList,
   selectAuthoritySourcesForRefresh,
 } from '../src/utils/authority-source-refresh';
@@ -44,6 +45,84 @@ describe('authority source refresh planning', () => {
 
     expect(selected).toEqual([
       { sourceId: 'chinacdc-nutrition', count: 2, minimumPublishedRecords: 10, status: 'low' },
+    ]);
+  });
+
+  it('keeps dry-run summaries cheap unless discovery probing is enabled', async () => {
+    const discover = jest.fn();
+
+    const summaries = await buildAuthoritySourceDryRunSummaries([
+      { sourceId: 'mayo-clinic-zh', count: 0, minimumPublishedRecords: 10, status: 'missing' },
+    ], {
+      probeDiscovery: false,
+      discover,
+    });
+
+    expect(discover).not.toHaveBeenCalled();
+    expect(summaries).toEqual([
+      {
+        sourceId: 'mayo-clinic-zh',
+        skipped: true,
+        reason: 'dry_run',
+      },
+    ]);
+  });
+
+  it('adds bounded discovery probe samples to dry-run summaries', async () => {
+    const discover = jest.fn().mockResolvedValue([
+      { url: 'https://www.mayoclinic.org/zh-hans/healthy-lifestyle/infant-and-toddler-health/expert-answers/newborn/faq-20057752' },
+      { url: 'https://www.mayoclinic.org/zh-hans/healthy-lifestyle/pregnancy-week-by-week/expert-answers/vaping-during-pregnancy/faq-20462062' },
+      { url: 'https://www.mayoclinic.org/zh-hans/diseases-conditions/atopic-dermatitis-eczema/expert-answers/baby-eczema/faq-20450999' },
+    ]);
+
+    const summaries = await buildAuthoritySourceDryRunSummaries([
+      { sourceId: 'mayo-clinic-zh', count: 0, minimumPublishedRecords: 10, status: 'missing' },
+    ], {
+      probeDiscovery: true,
+      sampleLimit: 2,
+      discover,
+    });
+
+    expect(discover).toHaveBeenCalledWith('mayo-clinic-zh');
+    expect(summaries).toEqual([
+      {
+        sourceId: 'mayo-clinic-zh',
+        skipped: true,
+        reason: 'dry_run',
+        discoveryProbe: {
+          ok: true,
+          discovered: 3,
+          sampleUrls: [
+            'https://www.mayoclinic.org/zh-hans/healthy-lifestyle/infant-and-toddler-health/expert-answers/newborn/faq-20057752',
+            'https://www.mayoclinic.org/zh-hans/healthy-lifestyle/pregnancy-week-by-week/expert-answers/vaping-during-pregnancy/faq-20462062',
+          ],
+        },
+      },
+    ]);
+  });
+
+  it('records discovery probe failures without failing the dry-run summary', async () => {
+    const discover = jest.fn().mockRejectedValue(new Error('upstream timeout'));
+
+    const summaries = await buildAuthoritySourceDryRunSummaries([
+      { sourceId: 'chinacdc-nutrition', count: 0, minimumPublishedRecords: 10, status: 'missing' },
+    ], {
+      probeDiscovery: true,
+      discover,
+    });
+
+    expect(summaries).toEqual([
+      {
+        sourceId: 'chinacdc-nutrition',
+        skipped: true,
+        reason: 'dry_run',
+        discoveryProbe: {
+          ok: false,
+          discovered: 0,
+          sampleUrls: [],
+          error: 'upstream timeout',
+        },
+      },
     ]);
   });
 });

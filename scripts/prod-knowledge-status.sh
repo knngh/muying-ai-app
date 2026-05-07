@@ -25,6 +25,8 @@ Env:
   APP_DIR       default: /www/wwwroot/muying-ai-app
   PM2_API_NAME  default: muying-api
   PM2_AUTHORITY_WORKER_NAME default: muying-authority-worker
+  KNOWLEDGE_STATUS_PROBE_DISCOVERY default: true; probe low-coverage source discovery during dry-run
+  AUTHORITY_SOURCE_DRY_RUN_SAMPLE_LIMIT default: 3; sample URL count per probed source
 EOF
 }
 
@@ -64,6 +66,13 @@ echo
 echo "== daily knowledge ops =="
 DAILY_OPS_EXIT=0
 DAILY_OPS_SUCCEEDED=false
+KNOWLEDGE_STATUS_PROBE_DISCOVERY="${KNOWLEDGE_STATUS_PROBE_DISCOVERY:-true}"
+AUTHORITY_SOURCE_DRY_RUN_SAMPLE_LIMIT="${AUTHORITY_SOURCE_DRY_RUN_SAMPLE_LIMIT:-3}"
+export AUTHORITY_SOURCE_DRY_RUN_SAMPLE_LIMIT
+if [[ "${KNOWLEDGE_STATUS_PROBE_DISCOVERY}" == "true" ]]; then
+  AUTHORITY_SOURCE_DRY_RUN_PROBE_DISCOVERY="${AUTHORITY_SOURCE_DRY_RUN_PROBE_DISCOVERY:-true}"
+  export AUTHORITY_SOURCE_DRY_RUN_PROBE_DISCOVERY
+fi
 if npm run --silent ops:knowledge:daily >/dev/null; then
   DAILY_OPS_EXIT=0
   DAILY_OPS_SUCCEEDED=true
@@ -120,7 +129,14 @@ if (dailyReport) {
     coverage: dailyReport.knowledge?.coverage,
     translations: dailyReport.knowledge?.translations,
     sourceCoverage: dailyReport.knowledge?.sourceCoverage?.watchedSources,
-    remediation: dailyReport.remediation,
+    remediation: {
+      sourceRefresh: {
+        dryRun: dailyReport.remediation?.sourceRefresh?.dryRun,
+        selectedSources: dailyReport.remediation?.sourceRefresh?.selectedSources,
+        summaries: dailyReport.remediation?.sourceRefresh?.summaries,
+      },
+      translationCleanup: dailyReport.remediation?.translationCleanup,
+    },
     actionItems: dailyReport.knowledge?.actionItems,
     nextActions: dailyReport.nextActions,
   }, null, 2));

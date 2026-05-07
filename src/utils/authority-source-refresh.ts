@@ -19,6 +19,24 @@ export interface SelectAuthoritySourcesForRefreshOptions {
   limit?: number;
 }
 
+export interface AuthoritySourceDryRunSummary {
+  sourceId?: string;
+  skipped: true;
+  reason: 'dry_run';
+  discoveryProbe?: {
+    ok: boolean;
+    discovered: number;
+    sampleUrls: string[];
+    error?: string;
+  };
+}
+
+export interface BuildAuthoritySourceDryRunSummariesOptions {
+  probeDiscovery?: boolean;
+  sampleLimit?: number;
+  discover?: (sourceId: string) => Promise<Array<{ url?: string }>>;
+}
+
 const DEFAULT_REFRESH_STATUSES: AuthoritySourceRefreshStatus[] = ['missing', 'low'];
 
 function normalizeSourceId(value: unknown): string {
@@ -77,4 +95,51 @@ export function selectAuthoritySourcesForRefresh(
   }
 
   return selected;
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error || 'unknown error');
+}
+
+export async function buildAuthoritySourceDryRunSummaries(
+  selectedSources: AuthoritySourceCoverageEntry[],
+  options: BuildAuthoritySourceDryRunSummariesOptions = {},
+): Promise<AuthoritySourceDryRunSummary[]> {
+  const sampleLimit = Number.isFinite(options.sampleLimit) && Number(options.sampleLimit) >= 0
+    ? Math.floor(Number(options.sampleLimit))
+    : 5;
+
+  const summaries: AuthoritySourceDryRunSummary[] = [];
+  for (const source of selectedSources) {
+    const summary: AuthoritySourceDryRunSummary = {
+      sourceId: source.sourceId,
+      skipped: true,
+      reason: 'dry_run',
+    };
+
+    if (options.probeDiscovery && source.sourceId && options.discover) {
+      try {
+        const discovered = await options.discover(source.sourceId);
+        summary.discoveryProbe = {
+          ok: true,
+          discovered: discovered.length,
+          sampleUrls: discovered
+            .map((item) => item.url)
+            .filter((url): url is string => typeof url === 'string' && url.length > 0)
+            .slice(0, sampleLimit),
+        };
+      } catch (error) {
+        summary.discoveryProbe = {
+          ok: false,
+          discovered: 0,
+          sampleUrls: [],
+          error: getErrorMessage(error),
+        };
+      }
+    }
+
+    summaries.push(summary);
+  }
+
+  return summaries;
 }

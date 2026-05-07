@@ -28,10 +28,38 @@ describe('knowledge daily ops report', () => {
         selectedSources: [
           { sourceId: 'mayo-clinic-zh', count: 0, minimumPublishedRecords: 10, status: 'missing' },
         ],
+        summaries: [
+          {
+            sourceId: 'mayo-clinic-zh',
+            skipped: true,
+            reason: 'dry_run',
+            discoveryProbe: {
+              ok: true,
+              discovered: 3,
+              sampleUrls: [
+                'https://www.mayoclinic.org/zh-hans/healthy-lifestyle/infant-and-toddler-health/expert-answers/newborn/faq-20057752',
+              ],
+            },
+          },
+        ],
       },
     });
 
     expect(report.status).toBe('attention');
+    expect(report.remediation.sourceRefresh.summaries).toEqual([
+      {
+        sourceId: 'mayo-clinic-zh',
+        skipped: true,
+        reason: 'dry_run',
+        discoveryProbe: {
+          ok: true,
+          discovered: 3,
+          sampleUrls: [
+            'https://www.mayoclinic.org/zh-hans/healthy-lifestyle/infant-and-toddler-health/expert-answers/newborn/faq-20057752',
+          ],
+        },
+      },
+    ]);
     expect(report.nextActions).toEqual(expect.arrayContaining([
       'Authority coverage is below P2 target: 52.83% < 60%',
       'Review low-coverage source dry-run output, then run KNOWLEDGE_DAILY_APPLY_FIXES=true npm run ops:knowledge:daily when ready.',

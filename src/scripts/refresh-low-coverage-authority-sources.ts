@@ -1,8 +1,10 @@
 import '../config/env';
 import fs from 'fs';
 import path from 'path';
-import { syncAuthoritySource } from '../services/authority-sync.service';
+import { discoverAuthorityUrls, syncAuthoritySource } from '../services/authority-sync.service';
+import { getAuthoritySourceConfig } from '../config/authority-sources';
 import {
+  buildAuthoritySourceDryRunSummaries,
   parseAuthoritySourceIdList,
   selectAuthoritySourcesForRefresh,
   type AuthoritySourceRefreshReport,
@@ -14,6 +16,10 @@ const DRY_RUN = process.env.DRY_RUN !== 'false';
 const AUTHORITY_SYNC_MODE = (process.env.AUTHORITY_SYNC_MODE || 'incremental') as 'full' | 'incremental';
 const SOURCE_IDS = parseAuthoritySourceIdList(process.env.AUTHORITY_SOURCE_IDS || process.env.AUTHORITY_SOURCE_ID);
 const LIMIT = process.env.AUTHORITY_SOURCE_LIMIT ? Number(process.env.AUTHORITY_SOURCE_LIMIT) : undefined;
+const PROBE_DISCOVERY = /^true$/i.test(process.env.AUTHORITY_SOURCE_DRY_RUN_PROBE_DISCOVERY || '');
+const PROBE_SAMPLE_LIMIT = process.env.AUTHORITY_SOURCE_DRY_RUN_SAMPLE_LIMIT
+  ? Number(process.env.AUTHORITY_SOURCE_DRY_RUN_SAMPLE_LIMIT)
+  : undefined;
 
 function readReport(filePath: string): AuthoritySourceRefreshReport {
   if (!fs.existsSync(filePath)) {
@@ -48,17 +54,22 @@ async function main() {
   }
 
   const summaries = [];
-  for (const source of selectedSources) {
-    if (DRY_RUN) {
-      summaries.push({
-        sourceId: source.sourceId,
-        skipped: true,
-        reason: 'dry_run',
-      });
-      continue;
+  if (DRY_RUN) {
+    summaries.push(...await buildAuthoritySourceDryRunSummaries(selectedSources, {
+      probeDiscovery: PROBE_DISCOVERY,
+      sampleLimit: PROBE_SAMPLE_LIMIT,
+      discover: async (sourceId) => {
+        const sourceConfig = getAuthoritySourceConfig(sourceId);
+        if (!sourceConfig) {
+          throw new Error(`Authority source not configured: ${sourceId}`);
+        }
+        return discoverAuthorityUrls(sourceConfig, AUTHORITY_SYNC_MODE);
+      },
+    }));
+  } else {
+    for (const source of selectedSources) {
+      summaries.push(await syncAuthoritySource(source.sourceId!, AUTHORITY_SYNC_MODE));
     }
-
-    summaries.push(await syncAuthoritySource(source.sourceId!, AUTHORITY_SYNC_MODE));
   }
 
   const payload = {

@@ -45,6 +45,17 @@ export interface KnowledgeDailyOpsSourceRefreshResult {
     minimumPublishedRecords?: number;
     status?: string;
   }>;
+  summaries?: Array<{
+    sourceId?: string;
+    skipped?: boolean;
+    reason?: string;
+    discoveryProbe?: {
+      ok?: boolean;
+      discovered?: number;
+      sampleUrls?: string[];
+      error?: string;
+    };
+  }>;
 }
 
 export interface KnowledgeDailyOpsTranslationCleanupReport {
@@ -141,6 +152,7 @@ export function buildKnowledgeDailyOpsReport(input: BuildKnowledgeDailyOpsReport
       sourceRefresh: {
         dryRun: input.sourceRefreshResult?.dryRun ?? true,
         selectedSources: input.sourceRefreshResult?.selectedSources || [],
+        summaries: input.sourceRefreshResult?.summaries || [],
       },
       translationCleanup: input.translationCleanupReport || null,
     },
