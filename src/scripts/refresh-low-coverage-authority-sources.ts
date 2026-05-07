@@ -1,0 +1,76 @@
+import '../config/env';
+import fs from 'fs';
+import path from 'path';
+import { syncAuthoritySource } from '../services/authority-sync.service';
+import {
+  parseAuthoritySourceIdList,
+  selectAuthoritySourcesForRefresh,
+  type AuthoritySourceRefreshReport,
+} from '../utils/authority-source-refresh';
+
+const REPORT_FILE = process.env.REPORT_FILE || path.join(process.cwd(), 'tmp', 'knowledge-ops-report.json');
+const DRY_RUN = process.env.DRY_RUN !== 'false';
+const AUTHORITY_SYNC_MODE = (process.env.AUTHORITY_SYNC_MODE || 'incremental') as 'full' | 'incremental';
+const SOURCE_IDS = parseAuthoritySourceIdList(process.env.AUTHORITY_SOURCE_IDS || process.env.AUTHORITY_SOURCE_ID);
+const LIMIT = process.env.AUTHORITY_SOURCE_LIMIT ? Number(process.env.AUTHORITY_SOURCE_LIMIT) : undefined;
+
+function readReport(filePath: string): AuthoritySourceRefreshReport {
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`Knowledge ops report not found: ${filePath}. Run npm run ops:knowledge:report first.`);
+  }
+
+  return JSON.parse(fs.readFileSync(filePath, 'utf-8')) as AuthoritySourceRefreshReport;
+}
+
+async function main() {
+  const report = readReport(REPORT_FILE);
+  const selectedSources = selectAuthoritySourcesForRefresh(report, {
+    sourceIds: SOURCE_IDS,
+    limit: LIMIT,
+  });
+  const startedAt = new Date().toISOString();
+
+  if (selectedSources.length === 0) {
+    console.log(JSON.stringify({
+      startedAt,
+      finishedAt: new Date().toISOString(),
+      dryRun: DRY_RUN,
+      mode: AUTHORITY_SYNC_MODE,
+      reportFile: REPORT_FILE,
+      selectedSources: [],
+      summaries: [],
+    }, null, 2));
+    return;
+  }
+
+  const summaries = [];
+  for (const source of selectedSources) {
+    if (DRY_RUN) {
+      summaries.push({
+        sourceId: source.sourceId,
+        skipped: true,
+        reason: 'dry_run',
+      });
+      continue;
+    }
+
+    summaries.push(await syncAuthoritySource(source.sourceId!, AUTHORITY_SYNC_MODE));
+  }
+
+  console.log(JSON.stringify({
+    startedAt,
+    finishedAt: new Date().toISOString(),
+    dryRun: DRY_RUN,
+    mode: AUTHORITY_SYNC_MODE,
+    reportFile: REPORT_FILE,
+    selectedSources,
+    summaries,
+  }, null, 2));
+}
+
+main()
+  .then(() => process.exit(0))
+  .catch((error) => {
+    console.error('[Authority Source Refresh] failed:', error);
+    process.exit(1);
+  });

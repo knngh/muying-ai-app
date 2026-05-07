@@ -177,6 +177,15 @@ npm run ops:knowledge:report
 AUTHORITY_PUBLISH_STATUS=review npm run review:authority -- summary
 ```
 
+2026-05-07 已补低覆盖源干预入口：
+
+```bash
+npm run ops:authority:refresh-low-coverage
+DRY_RUN=false npm run ops:authority:refresh-low-coverage
+```
+
+默认读取 `tmp/knowledge-ops-report.json` 中 `sourceCoverage.watchedSources` 的 `missing` / `low` 源，先 dry-run 打印将刷新列表；显式 `DRY_RUN=false` 后按源调用现有 `sync:authority` 能力刷新。可用 `AUTHORITY_SOURCE_IDS=mayo-clinic-zh,chinacdc-nutrition` 限定源。
+
 输出文件：
 
 - `tmp/authority-coverage-audit.json`
@@ -194,6 +203,8 @@ AUTHORITY_PUBLISH_STATUS=review npm run review:authority -- summary
 4. 优先修复 source 覆盖低的问题：
    - `mayo-clinic-zh` 当前发现 0
    - `chinacdc-nutrition` 当前发现 0
+   - 已补 `ops:knowledge:report` 的 `missing` / `low` / `healthy` 状态与 `minimumPublishedRecords` 阈值。
+   - 已补 `ops:authority:refresh-low-coverage`，把低覆盖告警转成可执行的单源刷新动作。
 5. 调整用户检索排序（2026-05-06 已完成初版）：
    - 普通 QA 可作为召回补充
    - 权威来源应在医疗/护理类 query 中加权靠前
