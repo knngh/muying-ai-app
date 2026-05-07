@@ -158,7 +158,7 @@ RUN_MUTATION_SMOKE=false npm run ops:smoke:knowledge
 4. 让 `knowledge.service.ts` 优先读取 `.enriched.json` 的现有逻辑在生产真正生效。
 5. 翻译缓存质量继续治理：
    - 已增加缓存读取阶段的 prompt leak 丢弃逻辑，避免旧缓存继续展示。
-   - 后续可补批量清理脚本，删除包含提示词泄漏 / `<think>` / 任务说明的缓存条目。
+   - 已补批量清理脚本，删除包含提示词泄漏 / `<think>` / 任务说明 / 占位符的缓存条目。
    - 清理条目应重新进入预热队列。
 6. 增加审计阈值：
    - P1 目标覆盖率：先达到 30%
@@ -182,9 +182,13 @@ AUTHORITY_PUBLISH_STATUS=review npm run review:authority -- summary
 ```bash
 npm run ops:authority:refresh-low-coverage
 DRY_RUN=false npm run ops:authority:refresh-low-coverage
+npm run clean:authority-translation-cache
+DRY_RUN=false npm run clean:authority-translation-cache
 ```
 
 默认读取 `tmp/knowledge-ops-report.json` 中 `sourceCoverage.watchedSources` 的 `missing` / `low` 源，先 dry-run 打印将刷新列表；显式 `DRY_RUN=false` 后按源调用现有 `sync:authority` 能力刷新。可用 `AUTHORITY_SOURCE_IDS=mayo-clinic-zh,chinacdc-nutrition` 限定源。
+
+翻译缓存清理默认扫描 `data/authority-translation-cache.json`，输出 `tmp/authority-translation-cache-clean-report.json`；显式 `DRY_RUN=false` 后才删除 prompt leak / 占位符 / 空正文缓存条目，让它们重新进入翻译预热队列。
 
 输出文件：
 

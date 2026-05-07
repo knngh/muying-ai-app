@@ -36,6 +36,7 @@
     "audit:authority-coverage": "node --import tsx src/scripts/audit-authority-coverage.ts",
     "audit:authority-cache": "tsx src/scripts/audit-authority-cache.ts",
     "clean:authority-cache": "node --import tsx src/scripts/clean-authority-cache.ts",
+    "clean:authority-translation-cache": "node --import tsx src/scripts/clean-authority-translation-cache.ts",
     "clean:knowledge-base": "node --import tsx src/scripts/clean-knowledge-base.ts",
     "plan:knowledge-growth": "tsx src/scripts/generate-knowledge-growth-seeds.ts",
     "generate:answers": "tsx src/scripts/generate-answers.ts",
