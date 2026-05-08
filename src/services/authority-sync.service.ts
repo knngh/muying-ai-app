@@ -30,6 +30,7 @@ export interface AuthorityDiscoveryEntryDiagnostic {
   locCount?: number;
   nestedSitemapCount?: number;
   matchedCandidateCount?: number;
+  paginationCandidateCount?: number;
   sampleMatchedUrls?: string[];
   error?: string;
 }
@@ -1258,16 +1259,54 @@ export async function diagnoseAuthorityUrlDiscovery(
       }
       visited.add(currentUrl);
 
-      const response = await fetchText(currentUrl);
+      const diagnostic: AuthorityDiscoveryEntryDiagnostic = {
+        entryUrl: currentUrl,
+        ok: false,
+        status: null,
+        contentType: null,
+      };
+
+      let response: Response;
+      try {
+        response = await fetchText(currentUrl);
+      } catch (error) {
+        if (strictFetchErrors) {
+          throw error;
+        }
+        diagnostic.error = getErrorMessage(error);
+        entryDiagnostics.push(diagnostic);
+        continue;
+      }
+      diagnostic.ok = response.ok;
+      diagnostic.status = response.status;
+      diagnostic.contentType = response.headers.get('content-type');
+
       if (!response.ok) {
+        entryDiagnostics.push(diagnostic);
         continue;
       }
 
-      const text = await readResponseText(response, currentUrl);
+      let text: string;
+      try {
+        text = await readResponseText(response, currentUrl);
+      } catch (error) {
+        if (strictFetchErrors) {
+          throw error;
+        }
+        diagnostic.ok = false;
+        diagnostic.error = getErrorMessage(error);
+        entryDiagnostics.push(diagnostic);
+        continue;
+      }
 
+      const matchedBefore = pageUrls.length;
       if (isAuthorityUrlMatched(currentUrl, source) && !pageUrls.includes(currentUrl)) {
         pageUrls.push(currentUrl);
         if (pageUrls.length >= source.maxPagesPerRun) {
+          diagnostic.matchedCandidateCount = pageUrls.length - matchedBefore;
+          diagnostic.paginationCandidateCount = 0;
+          diagnostic.sampleMatchedUrls = pageUrls.slice(matchedBefore, matchedBefore + sampleLimit);
+          entryDiagnostics.push(diagnostic);
           break;
         }
       }
@@ -1282,11 +1321,18 @@ export async function diagnoseAuthorityUrlDiscovery(
         }
       }
 
+      diagnostic.matchedCandidateCount = pageUrls.length - matchedBefore;
+      diagnostic.sampleMatchedUrls = pageUrls.slice(matchedBefore, matchedBefore + sampleLimit);
+
       if (pageUrls.length >= source.maxPagesPerRun) {
+        diagnostic.paginationCandidateCount = 0;
+        entryDiagnostics.push(diagnostic);
         break;
       }
 
       const paginationCandidates = extractPaginationLinks(text, source, currentUrl);
+      diagnostic.paginationCandidateCount = paginationCandidates.length;
+      entryDiagnostics.push(diagnostic);
       for (const paginationUrl of paginationCandidates) {
         if (!visited.has(paginationUrl) && !queue.includes(paginationUrl)) {
           queue.push(paginationUrl);

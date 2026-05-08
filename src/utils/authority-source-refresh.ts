@@ -40,6 +40,7 @@ export interface AuthoritySourceDiscoveryEntryDiagnostic {
   locCount?: number;
   nestedSitemapCount?: number;
   matchedCandidateCount?: number;
+  paginationCandidateCount?: number;
   sampleMatchedUrls?: string[];
   error?: string;
 }

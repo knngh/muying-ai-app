@@ -63,6 +63,51 @@ describe('authority index discovery', () => {
     expect(links).not.toContain('https://www.chinacdc.cn/jkkp/yyjk/rqyy/');
   });
 
+  test('diagnoses China CDC index pages with matched article samples', async () => {
+    const source = getAuthoritySourceConfig('chinacdc-nutrition');
+    expect(source).toBeDefined();
+    const fetchMock = jest.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(`
+      <ul class="xw_list">
+        <li><a href="./202408/t20240825_295584.html" target="_blank">6-23月龄婴幼儿辅食喂养指南<span>2023-11-23</span></a></li>
+        <li><a href="./">人群营养</a></li>
+      </ul>
+    `, {
+      status: 200,
+      headers: {
+        'content-type': 'text/html; charset=utf-8',
+      },
+    }));
+
+    try {
+      const diagnosis = await diagnoseAuthorityUrlDiscovery({
+        ...source!,
+        entryUrls: ['https://www.chinacdc.cn/jkkp/yyjk/rqyy/'],
+        maxPagesPerRun: 10,
+      }, 'incremental', {
+        sampleLimit: 2,
+      });
+
+      expect(diagnosis.discovered.map((item) => item.url)).toEqual([
+        'https://www.chinacdc.cn/jkkp/yyjk/rqyy/202408/t20240825_295584.html',
+      ]);
+      expect(diagnosis.entryDiagnostics).toEqual([
+        {
+          entryUrl: 'https://www.chinacdc.cn/jkkp/yyjk/rqyy/',
+          ok: true,
+          status: 200,
+          contentType: 'text/html; charset=utf-8',
+          matchedCandidateCount: 1,
+          paginationCandidateCount: 0,
+          sampleMatchedUrls: [
+            'https://www.chinacdc.cn/jkkp/yyjk/rqyy/202408/t20240825_295584.html',
+          ],
+        },
+      ]);
+    } finally {
+      fetchMock.mockRestore();
+    }
+  });
+
   test('extracts NDCPA content links from inline script payloads', () => {
     const source = getAuthoritySourceConfig('ndcpa-immunization');
     expect(source).toBeDefined();
