@@ -410,7 +410,7 @@ function isInvalidAuthoritySourceUrl(record: Pick<AuthorityCacheRecord, 'source_
   }
 }
 
-function resolveSourceUpdatedAt(record: AuthorityCacheRecord): string | undefined {
+export function resolveAuthorityTranslationSourceUpdatedAt(record: AuthorityCacheRecord): string | undefined {
   return record.updated_at || record.published_at || record.created_at;
 }
 
@@ -891,7 +891,7 @@ export async function translateAuthorityRecord(
   slug: string,
   record: AuthorityCacheRecord,
 ): Promise<AuthorityTranslationCacheRecord> {
-  const sourceUpdatedAt = resolveSourceUpdatedAt(record);
+  const sourceUpdatedAt = resolveAuthorityTranslationSourceUpdatedAt(record);
   const cached = getCachedAuthorityTranslation(slug, sourceUpdatedAt);
   if (cached) {
     return cached;
@@ -1024,7 +1024,7 @@ export function getOrCreateAuthorityTranslation(
   slug: string,
   record: AuthorityCacheRecord,
 ): Promise<AuthorityTranslationCacheRecord> {
-  const sourceUpdatedAt = resolveSourceUpdatedAt(record);
+  const sourceUpdatedAt = resolveAuthorityTranslationSourceUpdatedAt(record);
   const cached = getCachedAuthorityTranslation(slug, sourceUpdatedAt);
   if (cached) {
     return Promise.resolve(cached);
@@ -1066,7 +1066,7 @@ export async function warmPublishedAuthorityTranslations(
       return;
     }
 
-    const sourceUpdatedAt = resolveSourceUpdatedAt(record);
+    const sourceUpdatedAt = resolveAuthorityTranslationSourceUpdatedAt(record);
     if (getCachedAuthorityTranslation(slug, sourceUpdatedAt)) {
       if (options.slug) {
         clearAuthorityTranslationFailure(slug, sourceUpdatedAt);
@@ -1095,10 +1095,10 @@ export async function warmPublishedAuthorityTranslations(
     const item = selected[index];
     try {
       await getOrCreateAuthorityTranslation(item.slug, item.record);
-      clearAuthorityTranslationFailure(item.slug, resolveSourceUpdatedAt(item.record));
+      clearAuthorityTranslationFailure(item.slug, resolveAuthorityTranslationSourceUpdatedAt(item.record));
       warmed += 1;
     } catch (error) {
-      recordAuthorityTranslationFailure(item.slug, resolveSourceUpdatedAt(item.record), error);
+      recordAuthorityTranslationFailure(item.slug, resolveAuthorityTranslationSourceUpdatedAt(item.record), error);
       failures.push({
         slug: item.slug,
         message: error instanceof Error ? error.message : String(error),

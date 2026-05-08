@@ -2,11 +2,15 @@ import '../config/env';
 import fs from 'fs';
 import path from 'path';
 import {
+  findAuthorityRecordForTranslationBySlug,
+  resolveAuthorityTranslationSourceUpdatedAt,
   warmPublishedAuthorityTranslations,
 } from '../services/authority-translation.service';
 import {
   buildAuthorityTranslationFailureRetryPlan,
+  isAuthorityTranslationFailureRetrySourceMatch,
   type AuthorityTranslationFailureRecord,
+  type AuthorityTranslationFailureRetryCandidate,
 } from '../utils/authority-translation-failure-retry';
 
 const INPUT_FILE = process.env.INPUT_FILE || path.join(process.cwd(), 'data', 'authority-translation-failures.json');
@@ -35,11 +39,52 @@ function readFailureCache(filePath: string): Record<string, AuthorityTranslation
 
 async function main() {
   const failures = readFailureCache(INPUT_FILE);
-  const plan = buildAuthorityTranslationFailureRetryPlan(failures, {
-    limit: parseNonNegativeInt(process.env.LIMIT || process.env.AUTHORITY_TRANSLATION_FAILURE_RETRY_LIMIT, 5),
+  const retryLimit = parseNonNegativeInt(process.env.LIMIT || process.env.AUTHORITY_TRANSLATION_FAILURE_RETRY_LIMIT, 5);
+  const rawPlan = buildAuthorityTranslationFailureRetryPlan(failures, {
+    limit: Number.MAX_SAFE_INTEGER,
     includeBlocked: /^true$/i.test(process.env.INCLUDE_BLOCKED || ''),
     slug: process.env.SLUG?.trim() || undefined,
   });
+  const selectedFailures: AuthorityTranslationFailureRetryCandidate[] = [];
+  const skippedFailures: AuthorityTranslationFailureRetryCandidate[] = [...rawPlan.skippedFailures];
+
+  for (const candidate of rawPlan.selectedFailures) {
+    const found = await findAuthorityRecordForTranslationBySlug(candidate.slug);
+    if (!found) {
+      skippedFailures.push({
+        ...candidate,
+        skipReason: 'authority_record_not_found',
+      });
+      continue;
+    }
+
+    const currentSourceUpdatedAt = resolveAuthorityTranslationSourceUpdatedAt(found.record);
+    if (!isAuthorityTranslationFailureRetrySourceMatch(candidate.sourceUpdatedAt, currentSourceUpdatedAt)) {
+      skippedFailures.push({
+        ...candidate,
+        currentSourceUpdatedAt,
+        skipReason: 'source_updated_at_mismatch',
+      });
+      continue;
+    }
+
+    const matchedCandidate = {
+      ...candidate,
+      currentSourceUpdatedAt,
+    };
+    if (selectedFailures.length < retryLimit) {
+      selectedFailures.push(matchedCandidate);
+    } else {
+      skippedFailures.push(matchedCandidate);
+    }
+  }
+
+  const plan = {
+    ...rawPlan,
+    limit: retryLimit,
+    selectedFailures,
+    skippedFailures,
+  };
 
   const retried: Array<{ slug: string; ok: boolean; message?: string; cleared?: boolean }> = [];
 

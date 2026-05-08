@@ -1,5 +1,6 @@
 import {
   buildAuthorityTranslationFailureRetryPlan,
+  isAuthorityTranslationFailureRetrySourceMatch,
 } from '../src/utils/authority-translation-failure-retry';
 
 describe('authority translation failure retry planner', () => {
@@ -60,5 +61,17 @@ describe('authority translation failure retry planner', () => {
         blockedReason: 'retry_after_pending',
       }),
     ]);
+  });
+
+  it('requires sourceUpdatedAt to match the current authority record before retrying', () => {
+    expect(isAuthorityTranslationFailureRetrySourceMatch(
+      '2026-05-02T11:55:51.000Z',
+      '2026-05-02T11:55:51.000Z',
+    )).toBe(true);
+    expect(isAuthorityTranslationFailureRetrySourceMatch(
+      '2026-05-02T11:55:51.000Z',
+      '2026-05-08T06:00:09.000Z',
+    )).toBe(false);
+    expect(isAuthorityTranslationFailureRetrySourceMatch(undefined, '2026-05-08T06:00:09.000Z')).toBe(false);
   });
 });

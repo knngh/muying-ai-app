@@ -17,12 +17,14 @@ export interface AuthorityTranslationFailureRetryPlanOptions {
 export interface AuthorityTranslationFailureRetryCandidate {
   slug: string;
   sourceUpdatedAt?: string;
+  currentSourceUpdatedAt?: string;
   message: string;
   attempts: number;
   failedAt?: string;
   retryAfterAt?: string;
   retryable: boolean;
   blockedReason?: 'retry_after_pending';
+  skipReason?: 'authority_record_not_found' | 'source_updated_at_mismatch';
 }
 
 export interface AuthorityTranslationFailureRetryPlan {
@@ -64,6 +66,13 @@ function candidateSortKey(candidate: AuthorityTranslationFailureRetryCandidate):
     candidate.failedAt || '',
     candidate.slug,
   ].join('|');
+}
+
+export function isAuthorityTranslationFailureRetrySourceMatch(
+  failureSourceUpdatedAt: string | undefined,
+  currentSourceUpdatedAt: string | undefined,
+): boolean {
+  return Boolean(failureSourceUpdatedAt && currentSourceUpdatedAt && failureSourceUpdatedAt === currentSourceUpdatedAt);
 }
 
 export function buildAuthorityTranslationFailureRetryPlan(
