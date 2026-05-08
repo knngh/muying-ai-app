@@ -17,7 +17,6 @@ SYNC_PATHS=(
   "src"
   "prisma"
   "shared"
-  "data"
   "scripts"
   "package.json"
   "package-lock.json"
@@ -39,6 +38,11 @@ Env:
   APP_DIR         default: /www/wwwroot/muying-ai-app
   REMOTE_TMP_DIR  default: /tmp
   SSH_PASSWORD    optional; when set and sshpass exists, use password auth
+
+Notes:
+  Runtime data files under data/ are intentionally not synced. Production
+  knowledge caches, translation caches, and QA snapshots are generated and
+  mutated on the server.
 EOF
 }
 
