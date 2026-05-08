@@ -679,9 +679,14 @@ function recordAuthorityTranslationFailure(slug: string, sourceUpdatedAt: string
   saveAuthorityTranslationFailureCache(failureCache);
 }
 
-function clearAuthorityTranslationFailure(slug: string): void {
+function clearAuthorityTranslationFailure(slug: string, sourceUpdatedAt?: string): void {
   const failureCache = loadAuthorityTranslationFailureCache();
-  if (!failureCache[slug]) {
+  const cachedFailure = failureCache[slug];
+  if (!cachedFailure) {
+    return;
+  }
+
+  if (sourceUpdatedAt && cachedFailure.sourceUpdatedAt && cachedFailure.sourceUpdatedAt !== sourceUpdatedAt) {
     return;
   }
 
@@ -1064,7 +1069,7 @@ export async function warmPublishedAuthorityTranslations(
     const sourceUpdatedAt = resolveSourceUpdatedAt(record);
     if (getCachedAuthorityTranslation(slug, sourceUpdatedAt)) {
       if (options.slug) {
-        clearAuthorityTranslationFailure(slug);
+        clearAuthorityTranslationFailure(slug, sourceUpdatedAt);
       }
       cached += 1;
       return;
@@ -1090,7 +1095,7 @@ export async function warmPublishedAuthorityTranslations(
     const item = selected[index];
     try {
       await getOrCreateAuthorityTranslation(item.slug, item.record);
-      clearAuthorityTranslationFailure(item.slug);
+      clearAuthorityTranslationFailure(item.slug, resolveSourceUpdatedAt(item.record));
       warmed += 1;
     } catch (error) {
       recordAuthorityTranslationFailure(item.slug, resolveSourceUpdatedAt(item.record), error);
