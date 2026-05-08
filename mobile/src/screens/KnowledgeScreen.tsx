@@ -53,6 +53,7 @@ import {
   isChineseKnowledgeArticle as isChineseKnowledgeArticleShared,
   normalizeKnowledgeLabel as normalizeKnowledgeLabelShared,
   normalizePlainText,
+  resolveKnowledgeDisplayContent,
   sanitizeTranslationText,
   sortKnowledgeVariants as sortKnowledgeVariantsShared,
   shouldHideAuthorityCategoryChip as shouldHideAuthorityCategoryChipShared,
@@ -766,12 +767,13 @@ export default function KnowledgeScreen() {
           translatedSummary,
         }
       : undefined
+    const serverDisplayContent = resolveKnowledgeDisplayContent(item)
     const translatedHeadline = getTranslatedHeadline(translatedSummary)
     const displayedTitle = translatedTitle
       || (isGenericForeignTitle(item.title)
         ? (translatedHeadline || getLocalizedFallbackTitle(item))
-        : item.title)
-    const displayedSummary = normalizePlainText(translatedSummary || item.summary)
+        : serverDisplayContent.title || item.title)
+    const displayedSummary = normalizePlainText(translatedSummary || serverDisplayContent.summary || item.summary)
     const isExpanded = Boolean(expandedVariantGroups[item.slug])
     const variantFilterMode = variantFilterModes[item.slug] || 'all'
     const variantSortMode = variantSortModes[item.slug] || 'recommended'
@@ -804,7 +806,7 @@ export default function KnowledgeScreen() {
           <Text style={styles.articleTitle} numberOfLines={2}>
             {displayedTitle}
           </Text>
-          {articleTranslation && !isChineseArticle(item) ? (
+          {(articleTranslation || serverDisplayContent.hasChineseTranslation) && !isChineseArticle(item) ? (
             <Text style={styles.articleAssistText} numberOfLines={1}>
               已准备中文辅助阅读
             </Text>
@@ -946,7 +948,7 @@ export default function KnowledgeScreen() {
                       onPress={() => navigation.navigate('KnowledgeDetail', { slug: variant.slug })}
                     >
                       <Text style={styles.variantTitle} numberOfLines={2}>
-                        {getKnowledgeDisplayTitleShared(variant)}
+                        {resolveKnowledgeDisplayContent(variant).title}
                       </Text>
                       <Text style={styles.variantMeta} numberOfLines={1}>{variantPreview.sourceLabel}</Text>
                       <View style={styles.variantHintRow}>

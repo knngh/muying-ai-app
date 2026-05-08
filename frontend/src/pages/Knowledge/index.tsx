@@ -14,10 +14,9 @@ import {
   filterKnowledgeVariants,
   formatKnowledgeStageLabel,
   formatSourceLabel,
-  getLocalizedFallbackTitle,
   groupKnowledgeArticles,
-  isGenericForeignTitle,
   normalizePlainText,
+  resolveKnowledgeDisplayContent,
   sortKnowledgeVariants,
 } from '@/utils/knowledgeText'
 import styles from './Knowledge.module.css'
@@ -113,19 +112,11 @@ export function Knowledge() {
   }
 
   const getDisplayTitle = (article: Article) => {
-    if (!isGenericForeignTitle(article.title)) {
-      return article.title
-    }
-
-    return getLocalizedFallbackTitle({
-      topic: article.topic,
-      stage: article.stage,
-      categoryName: article.category?.name,
-    })
+    return resolveKnowledgeDisplayContent(article).title
   }
 
   const getDisplaySummary = (article: Article) => (
-    normalizePlainText(article.summary)
+    normalizePlainText(resolveKnowledgeDisplayContent(article).summary)
     || '围绕当前阶段整理出的权威知识要点，可进入详情继续阅读来源与正文。'
   )
 

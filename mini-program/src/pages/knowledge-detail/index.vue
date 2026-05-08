@@ -184,6 +184,7 @@ import {
   isChineseKnowledgeArticle,
   isMostlyChineseText,
   normalizePlainText,
+  resolveKnowledgeDisplayContent,
   sanitizeAuthoritySourceUrl,
   sanitizeTranslationText,
   stripHtmlTags,
@@ -237,12 +238,13 @@ let openAiHitContext: {
 const translatedTitleText = computed(() => sanitizeTranslationText(translation.value?.translatedTitle, 'title'))
 const translatedSummaryText = computed(() => sanitizeTranslationText(translation.value?.translatedSummary, 'summary'))
 const translatedContentText = computed(() => sanitizeTranslationText(translation.value?.translatedContent, 'content'))
+const articleDisplayContent = computed(() => resolveKnowledgeDisplayContent(article.value))
 
 const displayedTitle = computed(() => {
   if (showingTranslation.value && translatedTitleText.value) {
     return translatedTitleText.value
   }
-  return getKnowledgeDisplayTitle({
+  return articleDisplayContent.value.title || getKnowledgeDisplayTitle({
     title: article.value?.title,
     topic: article.value?.topic,
     stage: normalizedStageValue.value,
@@ -254,7 +256,7 @@ const displayedSummary = computed(() => {
   if (showingTranslation.value && translatedSummaryText.value) {
     return translatedSummaryText.value
   }
-  return article.value?.summary || ''
+  return articleDisplayContent.value.summary || article.value?.summary || ''
 })
 
 const displayedSummaryText = computed(() => normalizePlainText(displayedSummary.value))
@@ -267,7 +269,7 @@ const displayedSourceUrl = computed(() => sanitizeAuthoritySourceUrl(
 const isBodyFallback = computed(() => {
   const body = showingTranslation.value && translatedContentText.value
     ? translatedContentText.value
-    : (article.value?.content || '')
+    : (articleDisplayContent.value.content || article.value?.content || '')
   return !stripHtmlTags(body).replace(/\s+/g, '').trim() && Boolean(article.value?.summary)
 })
 
@@ -276,9 +278,9 @@ const displayedContent = computed(() => {
     return addArticleHeadingAnchors(formatRichArticleContent(translatedContentText.value))
   }
 
-  const body = article.value?.content || ''
-  if (!body.trim() && article.value?.summary) {
-    return addArticleHeadingAnchors(formatRichArticleContent(article.value.summary))
+  const body = articleDisplayContent.value.content || article.value?.content || ''
+  if (!body.trim() && displayedSummary.value) {
+    return addArticleHeadingAnchors(formatRichArticleContent(displayedSummary.value))
   }
   return addArticleHeadingAnchors(formatRichArticleContent(body))
 })
@@ -288,9 +290,9 @@ const contentOutline = computed(() => {
     return extractArticleOutline(translatedContentText.value)
   }
 
-  const body = article.value?.content || ''
-  if (!body.trim() && article.value?.summary) {
-    return extractArticleOutline(article.value.summary)
+  const body = articleDisplayContent.value.content || article.value?.content || ''
+  if (!body.trim() && displayedSummary.value) {
+    return extractArticleOutline(displayedSummary.value)
   }
 
   return extractArticleOutline(body)
@@ -561,6 +563,16 @@ async function loadArticleDetail(slug: string) {
   if (!loadedArticle || currentSlug !== slug) {
     handleMissingKnowledgeArticle(slug)
     return
+  }
+
+  if (!translation.value && loadedArticle.translation) {
+    const normalizedServerTranslation = knowledgeStore.cacheTranslation(slug, loadedArticle.translation)
+    if (normalizedServerTranslation) {
+      translation.value = normalizedServerTranslation
+      if (!normalizedServerTranslation.isSourceChinese) {
+        showingTranslation.value = true
+      }
+    }
   }
 
   await syncRelatedArticles()

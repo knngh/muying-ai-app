@@ -9,9 +9,8 @@ import { Skeleton } from '../common'
 import { colors, fontSize, spacing, borderRadius, categoryColors } from '../../theme'
 import {
   formatSourceLabel,
-  getLocalizedFallbackTitle,
-  isGenericForeignTitle,
   normalizePlainText,
+  resolveKnowledgeDisplayContent,
 } from '../../utils/knowledgeText'
 
 interface ArticleListProps {
@@ -22,15 +21,7 @@ interface ArticleListProps {
 }
 
 function getDisplayTitle(article: Article) {
-  if (!isGenericForeignTitle(article.title)) {
-    return article.title
-  }
-
-  return getLocalizedFallbackTitle({
-    topic: article.topic,
-    stage: article.stage,
-    categoryName: article.category?.name,
-  })
+  return resolveKnowledgeDisplayContent(article).title
 }
 
 function ArticleListInner({ articles, loading, readingTopic, onPress }: ArticleListProps) {
@@ -71,7 +62,7 @@ function ArticleListInner({ articles, loading, readingTopic, onPress }: ArticleL
             ? new Date(item.publishedAt).toLocaleDateString('zh-CN')
             : ''
           const displayTitle = getDisplayTitle(item)
-          const displaySummary = normalizePlainText(item.summary) || '围绕当前阶段整理出的权威知识要点，可进入详情继续阅读来源与正文。'
+          const displaySummary = normalizePlainText(resolveKnowledgeDisplayContent(item).summary) || '围绕当前阶段整理出的权威知识要点，可进入详情继续阅读来源与正文。'
 
           return (
             <StandardCard key={String(item.id)} onPress={() => onPress(item.slug)} style={styles.articleCard}>

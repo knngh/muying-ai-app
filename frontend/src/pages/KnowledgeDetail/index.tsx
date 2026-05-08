@@ -10,10 +10,9 @@ import {
   formatKnowledgeStageLabel,
   formatRichArticleContent,
   formatSourceLabel,
-  getLocalizedFallbackTitle,
   normalizeKnowledgeLabel,
-  isGenericForeignTitle,
   normalizePlainText,
+  resolveKnowledgeDisplayContent,
   sanitizeAuthoritySourceUrl,
   toReadableUrl,
 } from '@/utils/knowledgeText'
@@ -62,28 +61,18 @@ export function KnowledgeDetail() {
     navigate('/knowledge')
   }
 
-  const displayTitle = useMemo(() => {
-    if (!currentArticle) return ''
-    if (!isGenericForeignTitle(currentArticle.title)) {
-      return currentArticle.title
-    }
-
-    return getLocalizedFallbackTitle({
-      topic: currentArticle.topic,
-      stage: currentArticle.stage,
-      categoryName: currentArticle.category?.name,
-    })
-  }, [currentArticle])
+  const displayContent = useMemo(() => resolveKnowledgeDisplayContent(currentArticle), [currentArticle])
+  const displayTitle = displayContent.title
 
   const summaryText = useMemo(() => (
-    normalizePlainText(currentArticle?.summary)
+    normalizePlainText(displayContent.summary)
     || '当前文章暂未提供摘要，可先查看正文和来源信息。'
-  ), [currentArticle?.summary])
+  ), [displayContent.summary])
 
   const contentHtml = useMemo(() => {
-    const rawContent = currentArticle?.content || currentArticle?.summary || ''
+    const rawContent = displayContent.content || displayContent.summary || ''
     return DOMPurify.sanitize(addArticleHeadingAnchors(formatRichArticleContent(rawContent)))
-  }, [currentArticle?.content, currentArticle?.summary])
+  }, [displayContent.content, displayContent.summary])
   const readingMeta = useMemo(() => buildKnowledgeReadingMeta(currentArticle), [currentArticle])
 
   useEffect(() => {
@@ -109,9 +98,9 @@ export function KnowledgeDetail() {
   }, [contentHtml])
   const readingPath = useMemo(() => buildKnowledgeReadingPath(currentArticle), [currentArticle])
   const contentOutline = useMemo(() => {
-    const rawContent = currentArticle?.content || currentArticle?.summary || ''
+    const rawContent = displayContent.content || displayContent.summary || ''
     return extractArticleOutline(rawContent)
-  }, [currentArticle?.content, currentArticle?.summary])
+  }, [displayContent.content, displayContent.summary])
 
   const displayDate = useMemo(() => {
     const value = currentArticle?.sourceUpdatedAt || currentArticle?.publishedAt || currentArticle?.createdAt

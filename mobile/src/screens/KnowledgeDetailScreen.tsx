@@ -51,6 +51,7 @@ import {
   isMostlyChineseText,
   normalizePlainText,
   normalizeKnowledgeLabel as normalizeKnowledgeLabelShared,
+  resolveKnowledgeDisplayContent,
   sanitizeAuthoritySourceUrl as sanitizeAuthoritySourceUrlShared,
   sanitizeTranslationText,
   stripHtmlTags,
@@ -90,6 +91,7 @@ export default function KnowledgeDetailScreen() {
   const articleOpenedAtRef = useRef(Date.now())
   const reportedReadKeyRef = useRef<string | null>(null)
   const aiHitTrackedRef = useRef<string | null>(null)
+  const autoShownTranslationSlugRef = useRef<string | null>(null)
   const scrollViewRef = useRef<ScrollView | null>(null)
   const readingShellTopRef = useRef(0)
 
@@ -114,6 +116,7 @@ export default function KnowledgeDetailScreen() {
     setShowBackToTop(false)
     articleOpenedAtRef.current = Date.now()
     reportedReadKeyRef.current = null
+    autoShownTranslationSlugRef.current = null
   }, [fetchArticleDetail, slug])
 
   useEffect(() => {
@@ -226,12 +229,13 @@ export default function KnowledgeDetailScreen() {
     () => sanitizeTranslationText(translation?.translatedContent, 'content'),
     [translation?.translatedContent],
   )
+  const articleDisplayContent = useMemo(() => resolveKnowledgeDisplayContent(article), [article])
   const displayedTitle = showingTranslation && translatedTitleText
     ? translatedTitleText
-    : localizedFallbackTitle || article?.title || ''
+    : articleDisplayContent.title || localizedFallbackTitle || article?.title || ''
   const displayedSummary = showingTranslation && translatedSummaryText
     ? translatedSummaryText
-    : localizedFallbackSummary || article?.summary || ''
+    : articleDisplayContent.summary || localizedFallbackSummary || article?.summary || ''
   const displayedSummaryText = useMemo(
     () => normalizePlainText(displayedSummary),
     [displayedSummary],
@@ -247,7 +251,7 @@ export default function KnowledgeDetailScreen() {
   const readingPath = useMemo(() => buildKnowledgeReadingPath(article), [article])
   const displayedBodyContent = showingTranslation && translatedContentText
     ? translatedContentText
-    : article?.content || ''
+    : articleDisplayContent.content || article?.content || ''
   const isBodyFallback = !stripHtmlTags(displayedBodyContent).replace(/\s+/g, '').trim()
   const contentOutline = useMemo(() => {
     const rawContent = isBodyFallback
@@ -329,10 +333,28 @@ export default function KnowledgeDetailScreen() {
   }, [article, isLikelyChineseSource, slug, translation, translating])
 
   useEffect(() => {
-    if (translation && !isLikelyChineseSource && !showingTranslation) {
+    if (!article?.translation || translation) {
+      return
+    }
+
+    setTranslation(article.translation)
+    if (!article.translation.isSourceChinese) {
+      autoShownTranslationSlugRef.current = slug
       setShowingTranslation(true)
     }
-  }, [isLikelyChineseSource, showingTranslation, translation])
+  }, [article?.translation, slug, translation])
+
+  useEffect(() => {
+    if (
+      translation
+      && !isLikelyChineseSource
+      && !showingTranslation
+      && autoShownTranslationSlugRef.current !== slug
+    ) {
+      autoShownTranslationSlugRef.current = slug
+      setShowingTranslation(true)
+    }
+  }, [isLikelyChineseSource, showingTranslation, slug, translation])
 
   const handleShare = async () => {
     if (!article) return

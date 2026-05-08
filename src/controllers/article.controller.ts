@@ -176,6 +176,8 @@ interface AuthorityArticleTranslationApiResponse {
   translation?: AuthorityTranslationCacheRecord;
 }
 
+type AuthorityArticle = ReturnType<typeof mapAuthorityRecordToArticle>;
+
 function hashStringToPositiveInt(input: string): number {
   let hash = 0;
   for (let index = 0; index < input.length; index += 1) {
@@ -766,6 +768,36 @@ function getCachedAuthorityTranslation(
     return normalized;
   }
   return null;
+}
+
+function getCachedAuthorityArticleTranslation(article: AuthorityArticle): AuthorityTranslationCacheRecord | null {
+  return getCachedAuthorityTranslation(article.slug, article.updatedAt || article.publishedAt || article.createdAt);
+}
+
+function withAuthorityDisplayTranslation(
+  article: AuthorityArticle,
+  options: { includeContent?: boolean; includeTranslation?: boolean } = {},
+) {
+  const translation = getCachedAuthorityArticleTranslation(article);
+  if (!translation) {
+    return article;
+  }
+
+  const displayTitle = sanitizeTranslationText(translation.translatedTitle, 'title');
+  const displaySummary = sanitizeTranslationText(translation.translatedSummary, 'summary');
+  const displayContentText = options.includeContent
+    ? sanitizeTranslationText(translation.translatedContent, 'content')
+    : '';
+  const displayContent = displayContentText ? textToRichParagraphHtml(displayContentText) : '';
+
+  return {
+    ...article,
+    displayTitle: displayTitle || article.title,
+    displaySummary: displaySummary || article.summary,
+    ...(options.includeContent ? { displayContent: displayContent || article.content } : {}),
+    ...(options.includeTranslation ? { translation } : {}),
+    hasChineseTranslation: true,
+  };
 }
 
 function isInvalidAuthoritySourceUrl(record: Pick<AuthorityCacheRecord, 'source_url'>): boolean {
@@ -1674,8 +1706,13 @@ function getAuthorityArticleQualityScore(article: ReturnType<typeof mapAuthority
 }
 
 function toAuthorityArticleListItem(article: ReturnType<typeof mapAuthorityRecordToArticle>) {
+  const displayArticle = withAuthorityDisplayTranslation(article, {
+    includeContent: false,
+    includeTranslation: false,
+  });
+
   return {
-    ...article,
+    ...displayArticle,
     content: '',
   };
 }
@@ -2022,7 +2059,10 @@ export const getArticleBySlug = async (req: Request, res: Response, next: NextFu
       }
 
       return res.json(successResponse({
-        ...authorityArticle,
+        ...withAuthorityDisplayTranslation(authorityArticle, {
+          includeContent: true,
+          includeTranslation: true,
+        }),
         viewCount,
         isLiked,
         likeCount,

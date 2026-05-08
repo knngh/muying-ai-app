@@ -25,6 +25,7 @@ export {
   getKnowledgeStageLabel,
   isChineseKnowledgeArticle,
   normalizeKnowledgeLabel,
+  resolveKnowledgeDisplayContent,
   sanitizeAuthoritySourceUrl,
   shouldHideAuthorityCategoryChip,
   toReadableUrl,

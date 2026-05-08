@@ -6,8 +6,16 @@ import {
   normalizePlainText,
   stripHtmlTags,
 } from './knowledge-text';
+import { sanitizeTranslationText } from './article-translation';
 import type { KnowledgeVariantSortMode } from './knowledge-dedupe';
 import { isChineseKnowledgeSource } from './knowledge-source';
+
+export type KnowledgeTranslationLike = {
+  translatedTitle?: string;
+  translatedSummary?: string;
+  translatedContent?: string;
+  isSourceChinese?: boolean;
+};
 
 export type KnowledgeTagLike = {
   id?: number | string;
@@ -23,6 +31,11 @@ export type KnowledgeArticleLike = {
   title?: string;
   summary?: string;
   content?: string;
+  displayTitle?: string;
+  displaySummary?: string;
+  displayContent?: string;
+  translation?: KnowledgeTranslationLike | null;
+  hasChineseTranslation?: boolean;
   readingTime?: number;
   readTime?: number;
   read_time?: number;
@@ -81,6 +94,15 @@ export type KnowledgeSourceDigest = {
   totalCount: number;
   summaryLabel: string;
   description: string;
+};
+
+export type KnowledgeDisplayContent = {
+  title: string;
+  summary: string;
+  content: string;
+  translation: KnowledgeTranslationLike | null;
+  hasChineseTranslation: boolean;
+  isTranslated: boolean;
 };
 
 export type KnowledgeVariantReadingSuggestion = {
@@ -156,7 +178,77 @@ export function getKnowledgeSourceSignal(article: KnowledgeArticleLike): string 
   return isChineseKnowledgeArticle(article) ? '中文源' : '国际源';
 }
 
+export function normalizeKnowledgeArticleTranslation(
+  translation?: KnowledgeTranslationLike | null,
+): KnowledgeTranslationLike | null {
+  if (!translation) {
+    return null;
+  }
+
+  const normalized = {
+    ...translation,
+    translatedTitle: sanitizeTranslationText(translation.translatedTitle, 'title'),
+    translatedSummary: sanitizeTranslationText(translation.translatedSummary, 'summary'),
+    translatedContent: sanitizeTranslationText(translation.translatedContent, 'content'),
+  };
+
+  if (!normalized.translatedContent) {
+    return null;
+  }
+
+  return normalized;
+}
+
+export function resolveKnowledgeDisplayContent(article: KnowledgeArticleLike | null | undefined): KnowledgeDisplayContent {
+  const translation = normalizeKnowledgeArticleTranslation(article?.translation);
+  const displayTitle = sanitizeTranslationText(article?.displayTitle, 'title');
+  const displaySummary = sanitizeTranslationText(article?.displaySummary, 'summary');
+  const displayContent = sanitizeTranslationText(article?.displayContent, 'content');
+  const translatedTitle = translation?.translatedTitle || '';
+  const translatedSummary = translation?.translatedSummary || '';
+  const translatedContent = translation?.translatedContent || '';
+  const hasChineseTranslation = Boolean(
+    article?.hasChineseTranslation
+      || displayTitle
+      || displaySummary
+      || displayContent
+      || translatedTitle
+      || translatedSummary
+      || translatedContent,
+  );
+
+  const title = displayTitle
+    || translatedTitle
+    || getKnowledgeDisplayTitle(article || {});
+  const summary = displaySummary
+    || translatedSummary
+    || getKnowledgeDisplaySummary(article || {}, '');
+  const content = displayContent
+    || translatedContent
+    || article?.content
+    || '';
+
+  return {
+    title,
+    summary,
+    content,
+    translation,
+    hasChineseTranslation,
+    isTranslated: Boolean(displayTitle || displaySummary || displayContent || translatedTitle || translatedSummary || translatedContent),
+  };
+}
+
 export function getKnowledgeDisplayTitle(article: KnowledgeArticleLike): string {
+  const displayTitle = sanitizeTranslationText(article.displayTitle, 'title');
+  if (displayTitle) {
+    return displayTitle;
+  }
+
+  const translation = normalizeKnowledgeArticleTranslation(article.translation);
+  if (translation?.translatedTitle) {
+    return translation.translatedTitle;
+  }
+
   const rawTitle = article.title || '';
   if (!isGenericForeignTitle(rawTitle)) {
     return rawTitle || '权威参考';
@@ -181,6 +273,16 @@ export function getKnowledgeFallbackSummary(article: KnowledgeArticleLike): stri
 }
 
 export function getKnowledgeDisplaySummary(article: KnowledgeArticleLike, fallback?: string): string {
+  const displaySummary = sanitizeTranslationText(article.displaySummary, 'summary');
+  if (displaySummary) {
+    return normalizePlainText(displaySummary);
+  }
+
+  const translation = normalizeKnowledgeArticleTranslation(article.translation);
+  if (translation?.translatedSummary) {
+    return normalizePlainText(translation.translatedSummary);
+  }
+
   return normalizePlainText(article.summary) || fallback || '围绕当前阶段整理出的权威知识要点，可进入详情继续阅读来源与正文。';
 }
 

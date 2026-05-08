@@ -15,6 +15,7 @@ import {
   getKnowledgeDisplayTitle,
   getKnowledgeSourceSignal,
   isChineseKnowledgeArticle,
+  resolveKnowledgeDisplayContent,
   sanitizeAuthoritySourceUrl,
   toReadableUrl,
 } from '../shared/utils/knowledge-presentation';
@@ -267,5 +268,59 @@ describe('shared knowledge text helpers', () => {
 
     expect(zhFirstFeedback?.label).toBe('已按中文优先排序');
     expect(zhFirstFeedback?.description).toContain('国家卫健委');
+  });
+
+  test('prefers server-side Chinese display fields when available', () => {
+    const display = resolveKnowledgeDisplayContent({
+      title: 'Pregnancy and flu',
+      summary: 'English summary',
+      content: '<p>English body</p>',
+      displayTitle: '孕期流感',
+      displaySummary: '孕期流感中文摘要。',
+      displayContent: '<p>孕期流感中文正文。</p>',
+      sourceLanguage: 'en',
+    });
+
+    expect(display.title).toBe('孕期流感');
+    expect(display.summary).toBe('孕期流感中文摘要。');
+    expect(display.content).toContain('孕期流感中文正文');
+    expect(display.hasChineseTranslation).toBe(true);
+    expect(display.isTranslated).toBe(true);
+  });
+
+  test('falls back to sanitized translation cache fields', () => {
+    const display = resolveKnowledgeDisplayContent({
+      title: 'Article',
+      summary: 'English summary',
+      content: 'English body',
+      translation: {
+        translatedTitle: '标题：中文标题',
+        translatedSummary: '摘要：中文摘要',
+        translatedContent: '正文：中文正文',
+      },
+    });
+
+    expect(display.title).toBe('中文标题');
+    expect(display.summary).toBe('中文摘要');
+    expect(display.content).toBe('中文正文');
+    expect(display.hasChineseTranslation).toBe(true);
+  });
+
+  test('keeps original content when translation is invalid', () => {
+    const display = resolveKnowledgeDisplayContent({
+      title: 'Original title',
+      summary: 'Original summary',
+      content: 'Original body',
+      translation: {
+        translatedTitle: '<translated_title>bad</translated_title>',
+        translatedSummary: '...',
+        translatedContent: 'Be accurate and faithful to the original',
+      },
+    });
+
+    expect(display.title).toBe('Original title');
+    expect(display.summary).toBe('Original summary');
+    expect(display.content).toBe('Original body');
+    expect(display.hasChineseTranslation).toBe(false);
   });
 });

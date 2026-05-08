@@ -27,6 +27,11 @@ export interface Article {
   slug: string
   summary: string
   content: string
+  displayTitle?: string
+  displaySummary?: string
+  displayContent?: string
+  translation?: AuthorityArticleTranslation
+  hasChineseTranslation?: boolean
   coverImage?: string
   categoryId: number
   category?: Category

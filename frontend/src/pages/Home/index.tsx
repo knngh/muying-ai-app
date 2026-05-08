@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { articleApi } from '@/api/modules'
 import type { Article } from '@/api/modules'
+import { normalizePlainText, resolveKnowledgeDisplayContent } from '@/utils/knowledgeText'
 import styles from './Home.module.css'
 
 const featureCards = [
@@ -151,12 +152,12 @@ export function Home() {
                 onClick={() => navigate(`/knowledge/${article.slug}`)}
               >
                 <div className={styles.articleTitleRow}>
-                  <h3>{article.title}</h3>
+                  <h3>{resolveKnowledgeDisplayContent(article).title}</h3>
                   {article.category?.name ? (
                     <span className={styles.categoryTag}>{article.category.name}</span>
                   ) : null}
                 </div>
-                <p>{article.summary || '当前文章暂未提供摘要，可进入详情查看。'}</p>
+                <p>{normalizePlainText(resolveKnowledgeDisplayContent(article).summary) || '当前文章暂未提供摘要，可进入详情查看。'}</p>
               </button>
             ))
           ) : (
