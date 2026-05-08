@@ -1,4 +1,5 @@
 import {
+  evaluateAuthoritySourceDiscoveryPreflight,
   buildAuthoritySourceDryRunSummaries,
   parseAuthoritySourceIdList,
   selectAuthoritySourcesForRefresh,
@@ -182,5 +183,96 @@ describe('authority source refresh planning', () => {
         },
       },
     ]);
+  });
+
+  it('marks a source safe for refresh when discovery returns candidates', () => {
+    expect(evaluateAuthoritySourceDiscoveryPreflight('chinacdc-nutrition', {
+      discovered: [
+        { url: 'https://www.chinacdc.cn/jkkp/yyjk/rqyy/202408/t20240825_295584.html' },
+        { url: 'https://www.chinacdc.cn/jkkp/yyjk/rqyy/202408/t20240825_295585.html' },
+      ],
+      entryDiagnostics: [
+        {
+          entryUrl: 'https://www.chinacdc.cn/jkkp/yyjk/rqyy/',
+          ok: true,
+          status: 200,
+          matchedCandidateCount: 2,
+        },
+      ],
+    }, 1)).toEqual({
+      sourceId: 'chinacdc-nutrition',
+      ok: true,
+      reason: 'discovery_passed',
+      discovered: 2,
+      sampleUrls: [
+        'https://www.chinacdc.cn/jkkp/yyjk/rqyy/202408/t20240825_295584.html',
+      ],
+      entryDiagnostics: [
+        {
+          entryUrl: 'https://www.chinacdc.cn/jkkp/yyjk/rqyy/',
+          ok: true,
+          status: 200,
+          matchedCandidateCount: 2,
+        },
+      ],
+    });
+  });
+
+  it('blocks source refresh when discovery has no candidates and entry access is blocked', () => {
+    expect(evaluateAuthoritySourceDiscoveryPreflight('mayo-clinic-zh', {
+      discovered: [],
+      entryDiagnostics: [
+        {
+          entryUrl: 'https://www.mayoclinic.org/chinese_patient_consumer_faq.xml',
+          ok: false,
+          status: 403,
+          contentType: 'text/html',
+        },
+      ],
+    })).toEqual({
+      sourceId: 'mayo-clinic-zh',
+      ok: false,
+      reason: 'discovery_entry_blocked',
+      discovered: 0,
+      sampleUrls: [],
+      blockedEntryUrl: 'https://www.mayoclinic.org/chinese_patient_consumer_faq.xml',
+      blockedStatus: 403,
+      entryDiagnostics: [
+        {
+          entryUrl: 'https://www.mayoclinic.org/chinese_patient_consumer_faq.xml',
+          ok: false,
+          status: 403,
+          contentType: 'text/html',
+        },
+      ],
+    });
+  });
+
+  it('blocks source refresh when discovery returns zero candidates', () => {
+    expect(evaluateAuthoritySourceDiscoveryPreflight('unknown-source', {
+      discovered: [],
+      entryDiagnostics: [
+        {
+          entryUrl: 'https://example.test/index.html',
+          ok: true,
+          status: 200,
+          matchedCandidateCount: 0,
+        },
+      ],
+    })).toEqual({
+      sourceId: 'unknown-source',
+      ok: false,
+      reason: 'discovery_returned_zero',
+      discovered: 0,
+      sampleUrls: [],
+      entryDiagnostics: [
+        {
+          entryUrl: 'https://example.test/index.html',
+          ok: true,
+          status: 200,
+          matchedCandidateCount: 0,
+        },
+      ],
+    });
   });
 });

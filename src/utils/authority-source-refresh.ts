@@ -50,6 +50,17 @@ export interface AuthoritySourceDiscoveryDiagnosis {
   entryDiagnostics: AuthoritySourceDiscoveryEntryDiagnostic[];
 }
 
+export interface AuthoritySourceDiscoveryPreflight {
+  sourceId: string;
+  ok: boolean;
+  reason: 'discovery_passed' | 'discovery_entry_blocked' | 'discovery_returned_zero';
+  discovered: number;
+  sampleUrls: string[];
+  blockedEntryUrl?: string;
+  blockedStatus?: number | null;
+  entryDiagnostics: AuthoritySourceDiscoveryEntryDiagnostic[];
+}
+
 export interface BuildAuthoritySourceDryRunSummariesOptions {
   probeDiscovery?: boolean;
   sampleLimit?: number;
@@ -115,6 +126,54 @@ export function selectAuthoritySourcesForRefresh(
   }
 
   return selected;
+}
+
+export function evaluateAuthoritySourceDiscoveryPreflight(
+  sourceId: string,
+  diagnosis: AuthoritySourceDiscoveryDiagnosis,
+  sampleLimit = 3,
+): AuthoritySourceDiscoveryPreflight {
+  const limit = Number.isFinite(sampleLimit) && Number(sampleLimit) >= 0
+    ? Math.floor(Number(sampleLimit))
+    : 3;
+  const sampleUrls = diagnosis.discovered
+    .map((item) => item.url)
+    .filter((url): url is string => typeof url === 'string' && url.length > 0)
+    .slice(0, limit);
+  const blockedEntry = diagnosis.entryDiagnostics.find((entry) => entry.ok === false && entry.status);
+
+  if (sampleUrls.length > 0) {
+    return {
+      sourceId,
+      ok: true,
+      reason: 'discovery_passed',
+      discovered: diagnosis.discovered.length,
+      sampleUrls,
+      entryDiagnostics: diagnosis.entryDiagnostics,
+    };
+  }
+
+  if (blockedEntry) {
+    return {
+      sourceId,
+      ok: false,
+      reason: 'discovery_entry_blocked',
+      discovered: diagnosis.discovered.length,
+      sampleUrls,
+      blockedEntryUrl: blockedEntry.entryUrl,
+      blockedStatus: blockedEntry.status,
+      entryDiagnostics: diagnosis.entryDiagnostics,
+    };
+  }
+
+  return {
+    sourceId,
+    ok: false,
+    reason: 'discovery_returned_zero',
+    discovered: diagnosis.discovered.length,
+    sampleUrls,
+    entryDiagnostics: diagnosis.entryDiagnostics,
+  };
 }
 
 function getErrorMessage(error: unknown): string {

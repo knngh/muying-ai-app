@@ -202,6 +202,8 @@ DRY_RUN=false npm run clean:authority-translation-cache
 
 2026-05-08 服务器 MySQL 路径复测：`SSH_IDENTITY_FILE=/Users/zhugehao/.ssh/id_server npm run ops:knowledge:status` 跑通，daily ops 子命令失败数仍为 0，状态为 `attention`，覆盖率仍为 51.81%。`mayo-clinic-zh` 三个 sitemap entry 在服务器均返回 `403 text/html`，所以当前不是本地匹配规则导致的 0 发现，而是服务器出口访问 Mayo sitemap 被上游阻断；在解决访问策略前不应对该源执行非 dry-run 刷新。`chinacdc-nutrition` 仍可发现 6 条候选 URL，适合下一步做限定单源、受控非 dry-run 刷新。
 
+2026-05-08 已补非 dry-run 低覆盖源刷新安全门：`ops:authority:refresh-low-coverage` 在真正调用 `syncAuthoritySource` 前默认执行 discovery preflight。只有发现候选 URL 大于 0 的源才会继续刷新；如果 entry 被上游阻断或发现为 0，会在报告中以 `reason=preflight_failed` 跳过，避免把 `mayo-clinic-zh` 这类 403 源和 `chinacdc-nutrition` 一起误刷新。可通过 `AUTHORITY_SOURCE_PREFLIGHT_DISCOVERY=false` 显式关闭，但默认不建议关闭。
+
 默认读取 `tmp/knowledge-ops-report.json` 中 `sourceCoverage.watchedSources` 的 `missing` / `low` 源，先 dry-run 打印将刷新列表；显式 `DRY_RUN=false` 后按源调用现有 `sync:authority` 能力刷新。可用 `AUTHORITY_SOURCE_IDS=mayo-clinic-zh,chinacdc-nutrition` 限定源。
 
 翻译缓存清理默认扫描 `data/authority-translation-cache.json`，输出 `tmp/authority-translation-cache-clean-report.json`；显式 `DRY_RUN=false` 后才删除 prompt leak / 占位符 / 空正文缓存条目，让它们重新进入翻译预热队列。

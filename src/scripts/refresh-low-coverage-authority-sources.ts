@@ -5,6 +5,7 @@ import { diagnoseAuthorityUrlDiscovery, syncAuthoritySource } from '../services/
 import { getAuthoritySourceConfig } from '../config/authority-sources';
 import {
   buildAuthoritySourceDryRunSummaries,
+  evaluateAuthoritySourceDiscoveryPreflight,
   parseAuthoritySourceIdList,
   selectAuthoritySourcesForRefresh,
   type AuthoritySourceRefreshReport,
@@ -20,6 +21,7 @@ const PROBE_DISCOVERY = /^true$/i.test(process.env.AUTHORITY_SOURCE_DRY_RUN_PROB
 const PROBE_SAMPLE_LIMIT = process.env.AUTHORITY_SOURCE_DRY_RUN_SAMPLE_LIMIT
   ? Number(process.env.AUTHORITY_SOURCE_DRY_RUN_SAMPLE_LIMIT)
   : undefined;
+const PREFLIGHT_DISCOVERY = process.env.AUTHORITY_SOURCE_PREFLIGHT_DISCOVERY !== 'false';
 
 function readReport(filePath: string): AuthoritySourceRefreshReport {
   if (!fs.existsSync(filePath)) {
@@ -72,6 +74,37 @@ async function main() {
         };
       },
     }));
+  } else if (PREFLIGHT_DISCOVERY) {
+    for (const source of selectedSources) {
+      const sourceId = source.sourceId!;
+      const sourceConfig = getAuthoritySourceConfig(sourceId);
+      if (!sourceConfig) {
+        throw new Error(`Authority source not configured: ${sourceId}`);
+      }
+
+      const diagnosis = await diagnoseAuthorityUrlDiscovery(sourceConfig, AUTHORITY_SYNC_MODE, {
+        sampleLimit: PROBE_SAMPLE_LIMIT,
+      });
+      const preflight = evaluateAuthoritySourceDiscoveryPreflight(sourceId, {
+        discovered: diagnosis.discovered,
+        entryDiagnostics: diagnosis.entryDiagnostics,
+      }, PROBE_SAMPLE_LIMIT);
+
+      if (!preflight.ok) {
+        summaries.push({
+          sourceId,
+          skipped: true,
+          reason: 'preflight_failed',
+          discoveryPreflight: preflight,
+        });
+        continue;
+      }
+
+      summaries.push({
+        ...await syncAuthoritySource(sourceId, AUTHORITY_SYNC_MODE),
+        discoveryPreflight: preflight,
+      });
+    }
   } else {
     for (const source of selectedSources) {
       summaries.push(await syncAuthoritySource(source.sourceId!, AUTHORITY_SYNC_MODE));
@@ -83,6 +116,7 @@ async function main() {
     finishedAt: new Date().toISOString(),
     dryRun: DRY_RUN,
     mode: AUTHORITY_SYNC_MODE,
+    preflightDiscovery: !DRY_RUN && PREFLIGHT_DISCOVERY,
     reportFile: REPORT_FILE,
     selectedSources,
     summaries,
