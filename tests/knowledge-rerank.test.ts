@@ -1,5 +1,6 @@
 import {
   applyKnowledgeRerankOrder,
+  finalizeKnowledgeSearchResults,
   parseKnowledgeRerankOutput,
   selectAuthorityPreferredResults,
   shouldShortCircuitKnowledgeAi,
@@ -218,5 +219,64 @@ describe('knowledge rerank helpers', () => {
       2,
       '孕晚期脚肿怎么办',
     ).map((item) => item.id)).toEqual(['dataset-edema', 'authority-policy']);
+  });
+
+  it('keeps edema-focused pregnancy hits ahead of generic authority pages after external rerank', () => {
+    const genericPregnancy = buildResult('authority-msd-pregnancy', 95, {
+      question: '小知识:孕期母体变化',
+      answer: '怀孕期间可能出现手或脚肿胀，也需要关注血压和胎动变化。',
+      category: 'pregnancy',
+      source: 'MSD Manuals',
+      sourceReference: {
+        title: '小知识:孕期母体变化',
+        source: 'MSD Manuals',
+        sourceOrg: 'MSD Manuals',
+        sourceClass: 'official',
+        sourceType: 'authority',
+        authoritative: true,
+      },
+    });
+    const unrelatedVaccine = buildResult('authority-msd-vaccine', 94, {
+      question: '埃博拉疫苗 - 感染',
+      answer: '疫苗副作用可能包括注射部位肿胀。',
+      category: 'vaccination',
+      source: 'MSD Manuals',
+      sourceReference: {
+        title: '埃博拉疫苗 - 感染',
+        source: 'MSD Manuals',
+        sourceOrg: 'MSD Manuals',
+        sourceClass: 'official',
+        sourceType: 'authority',
+        authoritative: true,
+      },
+    });
+    const preciseEdema = buildResult('dataset-edema', 88, {
+      question: '问题描述：怀孕后期为什么会脚肿',
+      answer: '孕晚期脚肿或腿浮肿需要结合血压、尿蛋白和是否单侧水肿判断。',
+      category: 'pregnancy-late',
+      source: 'cMedQA2数据集',
+      sourceReference: {
+        title: '怀孕后期为什么会脚肿',
+        source: 'cMedQA2数据集',
+        sourceOrg: 'cMedQA2数据集',
+        sourceClass: 'dataset',
+        sourceType: 'dataset',
+        authoritative: false,
+      },
+    });
+
+    const finalized = finalizeKnowledgeSearchResults(
+      [genericPregnancy, unrelatedVaccine, preciseEdema],
+      3,
+      '孕晚期脚肿怎么办',
+    );
+
+    expect(finalized.map((item) => item.id)).toEqual([
+      'dataset-edema',
+      'authority-msd-pregnancy',
+    ]);
+    expect(finalized[0].sourceReference.title).toMatch(/脚肿|水肿|浮肿/u);
+    expect(finalized[1].sourceReference.title).toBe('孕晚期水肿相关参考');
+    expect(finalized.some((item) => item.id === 'authority-msd-vaccine')).toBe(false);
   });
 });

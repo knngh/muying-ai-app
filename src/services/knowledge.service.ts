@@ -1213,6 +1213,21 @@ function targetsChildCare(qa: QAPair): boolean {
   );
 }
 
+function targetsPregnancyCare(qa: QAPair): boolean {
+  const titleAndMetadata = [
+    qa.question,
+    qa.category,
+    qa.topic || '',
+    qa.audience || '',
+    ...(qa.tags || []),
+  ].join(' ');
+
+  return qa.category === 'pregnancy'
+    || qa.category.startsWith('pregnancy-')
+    || /pregnancy/i.test(`${qa.category} ${qa.topic || ''}`)
+    || /孕|妊娠|胎儿|产检|产前|产后|分娩/u.test(titleAndMetadata);
+}
+
 function hasCategoryContentConflict(qa: QAPair): boolean {
   const rawText = `${qa.question} ${qa.answer} ${(qa.tags || []).join(' ')}`;
 
@@ -1455,6 +1470,10 @@ function buildSourceTitle(qa: QAPair, signals?: QuerySignals): string {
   const sleepFocused = signals?.matchedGroups.some(group => group.id === 'childcare-sleep');
   const feedingFocused = signals?.matchedGroups.some(group => group.id === 'childcare-feeding');
   const feverFocused = signals?.matchedGroups.some(group => group.id === 'fever');
+  const bleedingFocused = signals?.matchedGroups.some(group => group.id === 'bleeding');
+  const edemaFocused = signals?.matchedGroups.some(group => group.id === 'edema');
+  const fetalMovementFocused = signals?.matchedGroups.some(group => group.id === 'fetal-movement');
+  const contractionsFocused = signals?.matchedGroups.some(group => group.id === 'contractions');
 
   if (sleepFocused && !/夜醒|夜里总醒|夜间醒|睡眠|睡觉|哄睡|安抚|闹觉|睡不踏实|翻来覆去/u.test(titleSignalsText)) {
     return '婴幼儿睡眠安抚参考';
@@ -1466,6 +1485,26 @@ function buildSourceTitle(qa: QAPair, signals?: QuerySignals): string {
 
   if (feverFocused && !/发烧|发热|高烧|退烧/u.test(titleSignalsText) && qa.category.startsWith('parenting-')) {
     return '宝宝发热护理参考';
+  }
+
+  if (edemaFocused && !/水肿|浮肿|脚肿|腿肿|肿胀|edema|swelling/i.test(titleSignalsText) && focusMatchesResult(qa, 'edema')) {
+    return signals?.preferredCategories.has('pregnancy-late') || qa.category === 'pregnancy-late'
+      ? '孕晚期水肿相关参考'
+      : '孕期水肿相关参考';
+  }
+
+  if (bleedingFocused && !/出血|见红|流血|spotting|bleeding|bloody show/i.test(titleSignalsText) && focusMatchesResult(qa, 'bleeding')) {
+    return signals?.preferredCategories.has('pregnancy-early') || qa.category === 'pregnancy-early'
+      ? '孕早期出血相关参考'
+      : '孕期出血相关参考';
+  }
+
+  if (fetalMovementFocused && !/胎动|胎心|fetal movement|fetal heart/i.test(titleSignalsText) && focusMatchesResult(qa, 'fetal-movement')) {
+    return '孕期胎动相关参考';
+  }
+
+  if (contractionsFocused && !/宫缩|阵痛|规律宫缩|假性宫缩|contractions?/i.test(titleSignalsText) && focusMatchesResult(qa, 'contractions')) {
+    return '孕期宫缩相关参考';
   }
 
   if (cleaned.length >= 8 && !hasCategoryContentConflict(qa)) {
@@ -1740,6 +1779,7 @@ function reorderFocusedResults(
   }
 
   const vaccineIntent = hasVaccineIntent(query);
+  const pregnancyMedicalIntent = /怀孕|孕期|孕妇|孕周|产检|胎儿|胎动|胎心|宫缩|阵痛|见红|破水|羊水|预产期|分娩|水肿|浮肿|脚肿|腿肿/u.test(query);
   const focused = results.filter((result) => {
     if (!focusMatchesResult(result, focus!)) {
       return false;
@@ -1762,6 +1802,10 @@ function reorderFocusedResults(
     }
 
     if ((focus === 'bleeding' || focus === 'edema' || focus === 'fetal-movement' || focus === 'contractions') && isPolicyLikeResult(result)) {
+      return false;
+    }
+
+    if ((focus === 'bleeding' || focus === 'edema' || focus === 'fetal-movement' || focus === 'contractions') && pregnancyMedicalIntent && !targetsPregnancyCare(result)) {
       return false;
     }
 
@@ -1791,14 +1835,66 @@ function reorderFocusedResults(
     return selectAuthorityPreferredResults(results, limit, query);
   }
 
-  const merged = new Map<string, KnowledgeSearchResult>();
-  for (const result of [...promotableFocused, ...results]) {
-    if (!merged.has(result.id)) {
-      merged.set(result.id, result);
-    }
+  const selectedFocused = selectAuthorityPreferredResults(promotableFocused, limit, query);
+  if (selectedFocused.length >= limit) {
+    return selectedFocused.slice(0, limit);
   }
 
-  return selectAuthorityPreferredResults(Array.from(merged.values()), limit, query);
+  const selectedIds = new Set(selectedFocused.map((result) => result.id));
+  const fallbackResults = results.filter((result) => {
+    if (selectedIds.has(result.id)) {
+      return false;
+    }
+
+    if (hasCategoryContentConflict(result)) {
+      return false;
+    }
+
+    if (!vaccineIntent && /^vaccine-/.test(result.category)) {
+      return false;
+    }
+
+    if ((focus === 'fever' || focus === 'bleeding' || focus === 'edema' || focus === 'fetal-movement' || focus === 'contractions') && !vaccineIntent && /^vaccine-/.test(result.category)) {
+      return false;
+    }
+
+    if ((focus === 'bleeding' || focus === 'edema' || focus === 'fetal-movement' || focus === 'contractions') && isPolicyLikeResult(result)) {
+      return false;
+    }
+
+    if ((focus === 'bleeding' || focus === 'edema' || focus === 'fetal-movement' || focus === 'contractions') && pregnancyMedicalIntent && !targetsPregnancyCare(result)) {
+      return false;
+    }
+
+    if (isChildCareQuery(query) && !targetsChildCare(result)) {
+      return false;
+    }
+
+    return true;
+  });
+
+  const fallback = selectAuthorityPreferredResults(
+    fallbackResults,
+    Math.max(0, limit - selectedFocused.length),
+    query,
+  );
+
+  return [...selectedFocused, ...fallback].slice(0, limit);
+}
+
+export function finalizeKnowledgeSearchResults(
+  results: KnowledgeSearchResult[],
+  limit: number,
+  query: string,
+): KnowledgeSearchResult[] {
+  const signals = collectQuerySignals(query);
+  return reorderFocusedResults(results, signals, query, limit).map((result) => ({
+    ...result,
+    sourceReference: {
+      ...result.sourceReference,
+      title: buildSourceTitle(result, signals),
+    },
+  }));
 }
 
 export function selectAuthorityPreferredResults(
@@ -2519,10 +2615,10 @@ export async function searchQAWithRewrite(
     limit,
   });
   if (shouldShortCircuitKnowledgeAi(query, candidates)) {
-    return candidates.slice(0, limit);
+    return finalizeKnowledgeSearchResults(candidates, limit, query);
   }
   const reranked = await rerankKnowledgeResults(query, candidates);
-  return selectAuthorityPreferredResults(reranked, limit, query);
+  return finalizeKnowledgeSearchResults(reranked, limit, query);
 }
 
 export function buildKnowledgePack(
@@ -2538,7 +2634,7 @@ export function buildKnowledgePack(
   results: KnowledgeSearchResult[];
 } {
   const limit = options.limit || 3;
-  const authorityPreferredResults = selectAuthorityPreferredResults(
+  const authorityPreferredResults = finalizeKnowledgeSearchResults(
     collectKnowledgeCandidates(question, {
       category: options.category,
       limit,
@@ -2570,7 +2666,7 @@ export async function buildKnowledgePackWithRewrite(
   const limit = options.limit || 3;
   const candidates = await collectKnowledgeCandidatesWithRewrite(question, options);
   if (shouldShortCircuitKnowledgeAi(question, candidates)) {
-    const authorityPreferredResults = candidates.slice(0, limit);
+    const authorityPreferredResults = finalizeKnowledgeSearchResults(candidates, limit, question);
     return {
       context: formatContextBlock(authorityPreferredResults),
       sources: authorityPreferredResults.map((item) => item.sourceReference),
@@ -2579,7 +2675,7 @@ export async function buildKnowledgePackWithRewrite(
     };
   }
   const reranked = await rerankKnowledgeResults(question, candidates);
-  const authorityPreferredResults = selectAuthorityPreferredResults(reranked, limit, question);
+  const authorityPreferredResults = finalizeKnowledgeSearchResults(reranked, limit, question);
 
   return {
     context: formatContextBlock(authorityPreferredResults),
