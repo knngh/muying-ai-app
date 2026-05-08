@@ -214,6 +214,10 @@ DRY_RUN=false npm run retry:authority-translation-failures
 
 2026-05-08 已补翻译失败重试入口：`retry:authority-translation-failures` 默认只读 `data/authority-translation-failures.json` 并输出 `tmp/authority-translation-failure-retry-report.json`，列出 retryable / blocked failure；显式 `DRY_RUN=false` 后才按小批量重试，并复用现有 `warmPublishedAuthorityTranslations` 的成功清理和失败退避逻辑。`ops:knowledge:daily` 已接入该入口，生产状态脚本会展示 `remediation.translationFailureRetry`。
 
+2026-05-08 已修复生产同步脚本：`ops:sync:prod` 不再打包同步 `data/`，避免本地旧 `authority-knowledge-cache.json` / 翻译缓存 / QA 快照覆盖生产运行态数据。同步期间曾把生产 authority cache 覆盖成本地旧 229 条；已立即用服务器 MySQL 执行 `AUTHORITY_VECTOR_PUBLISH_ENABLED=false npm run review:authority -- export` 重建快照，恢复后 `chinacdc-nutrition=15/10 healthy`，权威快照当前 `1077` 条。MySQL 中 `published` 全部 + `review` 非 red 理论为 `1810` 条，导出阶段会继续经 `shouldFilterAuthoritySourceUrl` 和 `getAuthorityKnowledgeDropReason` 过滤高风险/低质内容，所以文件条数低于 MySQL 可导出状态行数是当前规则结果。
+
+2026-05-08 最终复测：`SSH_IDENTITY_FILE=/Users/zhugehao/.ssh/id_server npm run ops:knowledge:status` 在服务器 MySQL 路径跑通，daily ops 子命令为 `6/6` 成功，生产状态仍为 `attention`。权威覆盖率 `51.81% < 60%`；`mayo-clinic-zh` 仍因服务器访问 sitemap `403 text/html` 为 `0/10 missing`；`chinacdc-nutrition` 保持 `15/10 healthy`；翻译缓存 `cacheEntries=636`、`invalidCacheEntries=0`、`failureEntries=20`（retryable `15`，blocked `5`），下一步只能做小批量、带 sourceUpdatedAt 校验的失败重试。
+
 默认读取 `tmp/knowledge-ops-report.json` 中 `sourceCoverage.watchedSources` 的 `missing` / `low` 源，先 dry-run 打印将刷新列表；显式 `DRY_RUN=false` 后按源调用现有 `sync:authority` 能力刷新。可用 `AUTHORITY_SOURCE_IDS=mayo-clinic-zh,chinacdc-nutrition` 限定源。
 
 翻译缓存清理默认扫描 `data/authority-translation-cache.json`，输出 `tmp/authority-translation-cache-clean-report.json`；显式 `DRY_RUN=false` 后才删除 prompt leak / 占位符 / 空正文缓存条目，让它们重新进入翻译预热队列。
