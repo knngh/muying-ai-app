@@ -204,6 +204,10 @@ DRY_RUN=false npm run clean:authority-translation-cache
 
 2026-05-08 已补非 dry-run 低覆盖源刷新安全门：`ops:authority:refresh-low-coverage` 在真正调用 `syncAuthoritySource` 前默认执行 discovery preflight。只有发现候选 URL 大于 0 的源才会继续刷新；如果 entry 被上游阻断或发现为 0，会在报告中以 `reason=preflight_failed` 跳过，避免把 `mayo-clinic-zh` 这类 403 源和 `chinacdc-nutrition` 一起误刷新。可通过 `AUTHORITY_SOURCE_PREFLIGHT_DISCOVERY=false` 显式关闭，但默认不建议关闭。
 
+2026-05-08 已修复 `chinacdc-nutrition` 发现与归一化规则：新增 ChinaCDC 营养栏目入口 `swyy` / `wlyy`，扩展营养/饮食/体重/微量元素等标题匹配，限制 ChinaCDC 分页只在当前栏目内继续，避免把站点首页导航当成分页；同时补 TRS_Editor 页面标题和正文抽取，避免文章标题被解析成“中国疾病预防控制中心”。生产同步后 dry-run discovery 从 6 条提升到 31 条；限定单源非 dry-run 刷新结果为 `discovered=31` / `fetched=31` / `normalized=13` / `published=13` / `failed=18`，向量发布完成。复测 `ops:knowledge:status` 后 `chinacdc-nutrition` 已从 `7/10 low` 变为 `15/10 healthy`。
+
+2026-05-08 P2 状态：低覆盖源治理完成 `chinacdc-nutrition` 子项，但 P2 全部未完成。生产状态仍为 `attention`，权威覆盖率仍为 `51.81% < 60%`；剩余关键阻塞是 `mayo-clinic-zh` 服务器访问 sitemap 仍为 `403 text/html`，以及翻译缓存 dry-run 仍发现 46 条 invalid cache entries、15 条 translation failures。
+
 默认读取 `tmp/knowledge-ops-report.json` 中 `sourceCoverage.watchedSources` 的 `missing` / `low` 源，先 dry-run 打印将刷新列表；显式 `DRY_RUN=false` 后按源调用现有 `sync:authority` 能力刷新。可用 `AUTHORITY_SOURCE_IDS=mayo-clinic-zh,chinacdc-nutrition` 限定源。
 
 翻译缓存清理默认扫描 `data/authority-translation-cache.json`，输出 `tmp/authority-translation-cache-clean-report.json`；显式 `DRY_RUN=false` 后才删除 prompt leak / 占位符 / 空正文缓存条目，让它们重新进入翻译预热队列。
@@ -225,7 +229,7 @@ DRY_RUN=false npm run clean:authority-translation-cache
    - green：默认发布
 4. 优先修复 source 覆盖低的问题：
    - `mayo-clinic-zh` 当前服务器发现 0，entry 诊断显示 sitemap 入口均为 403，上游访问阻断优先于规则修复。
-   - `chinacdc-nutrition` 当前服务器可发现 6 条候选，但发布数仍为 0，下一步做受控单源刷新验证抓取 / 归一化 / 发布阶段。
+   - `chinacdc-nutrition` 已完成受控单源刷新并达到健康阈值：当前服务器 `15/10 healthy`。
    - 已补 `ops:knowledge:report` 的 `missing` / `low` / `healthy` 状态与 `minimumPublishedRecords` 阈值。
    - 已补 `ops:authority:refresh-low-coverage`，把低覆盖告警转成可执行的单源刷新动作。
 5. 调整用户检索排序（2026-05-06 已完成初版）：

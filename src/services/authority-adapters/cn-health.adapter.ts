@@ -82,6 +82,13 @@ function extractSourceSpecificCnContentCandidates(source: AuthoritySourceConfig,
     ];
   }
 
+  if (source.id === 'chinacdc-immunization' || source.id === 'chinacdc-nutrition') {
+    return [
+      rawBody.match(/<div[^>]+class=(?:"[^"]*"|'[^']*'|\S*)?(?:TRS_Editor|trs_editor_view|article-content|wp_articlecontent)(?:"[^"]*"|'[^']*')?[^>]*>([\s\S]*?)<\/div>/i)?.[1],
+      rawBody.match(/<div[^>]+id=["']UCAP-CONTENT["'][^>]*>([\s\S]*?)<\/div>/i)?.[1],
+    ];
+  }
+
   return [];
 }
 
@@ -138,6 +145,11 @@ function extractSourceSpecificCnTitle(source: AuthoritySourceConfig, rawBody: st
   } else if (source.id === 'cnsoc-dietary-guidelines') {
     candidates.push(
       rawBody.match(/<div[^>]+class=["'][^"']*news-show[^"']*["'][\s\S]*?<h1[^>]*>([\s\S]*?)<\/h1>/i)?.[1],
+    );
+  } else if (source.id === 'chinacdc-immunization' || source.id === 'chinacdc-nutrition') {
+    candidates.push(
+      rawBody.match(/<div[^>]+class=(?:"[^"]*"|'[^']*'|\S*)?(?:TRS_Editor|trs_editor_view|article-content|wp_articlecontent)(?:"[^"]*"|'[^']*')?[^>]*>[\s\S]*?<p[^>]*>\s*(?:\u3000|&nbsp;|\s)*(?:<font[^>]*>\s*)?(?:<b[^>]*>\s*)?(?:<span[^>]*>)?([\s\S]*?)(?:<\/span>)?(?:\s*<\/b>)?(?:\s*<\/font>)?\s*<\/p>/i)?.[1],
+      rawBody.match(/<div[^>]+id=["']UCAP-CONTENT["'][^>]*>[\s\S]*?<p[^>]*>\s*(?:\u3000|&nbsp;|\s)*(?:<strong[^>]*>|<b[^>]*>)?([\s\S]*?)(?:<\/strong>|<\/b>)?\s*<\/p>/i)?.[1],
     );
   }
 

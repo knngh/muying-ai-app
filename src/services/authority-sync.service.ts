@@ -472,7 +472,7 @@ function isAuthorityUrlMatched(url: string, source: AuthoritySourceConfig, ancho
       && isHtmlLikeDocumentUrl(url)
       && /(?:\/t\d{8}_\d+\.(?:html?|shtml)|\.pdf(?:$|[?#]))/i.test(url)
       && /chinacdc\.cn/.test(normalized)
-      && /(营养|喂养|母乳|辅食|婴幼儿|新生儿|儿童|孕妇|孕产|乳母|配方奶|膳食)/.test(normalized);
+      && /(营养|食养|饮食|膳食|食物|摄入|喂养|母乳|辅食|婴幼儿|新生儿|儿童|孩子|孕妇|孕产|乳母|配方奶|体重|肥胖|生长迟缓|减重|碘缺乏|微量元素)/.test(normalized);
   }
 
   if (source.id === 'govcn-muying' || source.id === 'govcn-jiedu-muying') {
@@ -832,6 +832,19 @@ function isPaginationLikeUrl(url: string, _currentPageUrl?: string): boolean {
 
 function extractPaginationLinks(html: string, source: AuthoritySourceConfig, pageUrl: string): string[] {
   const discovered = new Set<string>();
+  const pageOriginAndDirectory = (() => {
+    try {
+      const current = new URL(pageUrl);
+      return {
+        origin: current.origin,
+        directory: current.pathname.endsWith('/')
+          ? current.pathname
+          : current.pathname.replace(/\/[^/]*$/u, '/'),
+      };
+    } catch {
+      return null;
+    }
+  })();
 
   for (const match of html.matchAll(/<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi)) {
     const rawHref = match[1]?.trim() || '';
@@ -840,6 +853,19 @@ function extractPaginationLinks(html: string, source: AuthoritySourceConfig, pag
     if (!url || url === pageUrl) {
       continue;
     }
+
+    const allowChinaCdcSameSectionPagination = (source.id === 'chinacdc-immunization' || source.id === 'chinacdc-nutrition')
+      && pageOriginAndDirectory
+      && (() => {
+        try {
+          const candidate = new URL(url);
+          return candidate.origin === pageOriginAndDirectory.origin
+            && candidate.pathname.startsWith(pageOriginAndDirectory.directory)
+            && isPaginationLikeUrl(url, pageUrl);
+        } catch {
+          return false;
+        }
+      })();
 
     if (!isAllowedAuthorityUrl(url, source) || isBlockedAuthorityUrl(url, source)) {
       continue;
@@ -855,8 +881,19 @@ function extractPaginationLinks(html: string, source: AuthoritySourceConfig, pag
       continue;
     }
 
-    if (!allowContentPagination && !allowCmaDataproxyPagination && !isIndexLikeAuthorityUrl(url)) {
+    if (!allowContentPagination && !allowCmaDataproxyPagination && !allowChinaCdcSameSectionPagination && !isIndexLikeAuthorityUrl(url)) {
       continue;
+    }
+
+    if ((source.id === 'chinacdc-immunization' || source.id === 'chinacdc-nutrition') && pageOriginAndDirectory) {
+      try {
+        const candidate = new URL(url);
+        if (candidate.origin !== pageOriginAndDirectory.origin || !candidate.pathname.startsWith(pageOriginAndDirectory.directory)) {
+          continue;
+        }
+      } catch {
+        continue;
+      }
     }
 
     if (!allowCmaDataproxyPagination && !isPaginationAnchorText(text) && !isPaginationLikeUrl(url, pageUrl)) {

@@ -46,7 +46,10 @@ describe('authority index discovery', () => {
 
     const html = `
       <ul class="xw_list">
+        <li><a href="./202603/t20260309_315315.html" target="_blank">孩子体重出现这种情况，跟肥胖一样危险！一定要警惕<span>2026-03-09</span></a></li>
+        <li><a href="./202408/t20240825_295583.html" target="_blank">暑假“慧吃慧动”，让“神兽”远离肥胖（二）<span>2024-08-25</span></a></li>
         <li><a href="./202408/t20240825_295584.html" target="_blank">6-23月龄婴幼儿辅食喂养指南<span>2023-11-23</span></a></li>
+        <li><a href="../jbyy/202408/t20240825_295601.html" target="_blank">冬季呼吸道疾病高发，如何安排全家饮食？<span>2024-08-25</span></a></li>
         <li><a href="./">人群营养</a></li>
       </ul>
     `;
@@ -55,12 +58,32 @@ describe('authority index discovery', () => {
     const articleUrl = 'https://www.chinacdc.cn/jkkp/yyjk/rqyy/202408/t20240825_295584.html';
 
     expect(links).toContain(articleUrl);
+    expect(links).toContain('https://www.chinacdc.cn/jkkp/yyjk/rqyy/202603/t20260309_315315.html');
+    expect(links).toContain('https://www.chinacdc.cn/jkkp/yyjk/rqyy/202408/t20240825_295583.html');
+    expect(links).toContain('https://www.chinacdc.cn/jkkp/yyjk/jbyy/202408/t20240825_295601.html');
     expect(__authoritySyncTestUtils.isAuthorityUrlMatched(
       articleUrl,
       source!,
       '6-23月龄婴幼儿辅食喂养指南',
     )).toBe(true);
     expect(links).not.toContain('https://www.chinacdc.cn/jkkp/yyjk/rqyy/');
+  });
+
+  test('keeps China CDC pagination within the current nutrition section', () => {
+    const source = getAuthoritySourceConfig('chinacdc-nutrition');
+    expect(source).toBeDefined();
+
+    const html = `
+      <a href="../../../" title="首页" class="CurrChnlCls">首页</a>
+      <a href="../swyy/" title="食物营养">食物营养</a>
+      <a href="./index_1.html">下一页</a>
+    `;
+
+    const links = __authoritySyncTestUtils.extractPaginationLinks(html, source!, source!.entryUrls[0]!);
+
+    expect(links).toEqual([
+      'https://www.chinacdc.cn/jkkp/yyjk/rqyy/index_1.html',
+    ]);
   });
 
   test('diagnoses China CDC index pages with matched article samples', async () => {
@@ -995,6 +1018,42 @@ describe('authority index discovery', () => {
     expect(document?.contentText).toContain('婴儿成长过程中需要注意什么');
     expect(document?.metadataJson.sourceClass).toBe('medical_platform');
     expect(document?.contentText.length).toBeGreaterThan(180);
+  });
+
+  test('normalizes China CDC nutrition TRS editor pages by article title and body text', () => {
+    const source = getAuthoritySourceConfig('chinacdc-nutrition');
+    expect(source).toBeDefined();
+
+    const raw = {
+      sourceId: source!.id,
+      url: 'https://www.chinacdc.cn/jkkp/yyjk/rqyy/202408/t20240825_295584.html',
+      httpStatus: 200,
+      contentType: 'text/html; charset=utf-8',
+      contentHash: 'test',
+      fetchedAt: '2026-05-08T00:00:00.000Z',
+      rawBody: `
+        <title>中国疾病预防控制中心</title>
+        <div class="header">首页 健康科普 营养与健康 联系我们 版权所有</div>
+        <p><div class=TRS_Editor>
+          <p><font><b><span>6-23月龄婴幼儿辅食喂养指南</span></b></font></p>
+          <p>6-23月龄婴幼儿处于快速生长发育阶段，辅食添加应在继续母乳喂养基础上逐步进行。</p>
+          <p>家长应根据月龄、咀嚼能力和消化情况，安排富含铁、锌、优质蛋白和多样化食材的膳食。</p>
+          <p>辅食制作要注意清洁卫生，避免过多盐、糖和刺激性调味，观察过敏、腹泻、呕吐等异常表现。</p>
+          <p>喂养过程中保持耐心，鼓励儿童自主进食，并定期关注身长、体重和发育变化。</p>
+        </div></p>
+        <footer>联系我们 版权所有 备案号</footer>
+      `,
+    };
+
+    const document = normalizeAuthorityDocument(source!, raw);
+
+    expect(document).not.toBeNull();
+    expect(document?.title).toBe('6-23月龄婴幼儿辅食喂养指南');
+    expect(document?.topic).toBe('feeding');
+    expect(document?.audience).toBe('婴幼儿家长');
+    expect(document?.publishStatus).toBe('published');
+    expect(document?.contentText).toContain('快速生长发育阶段');
+    expect(document?.contentText).not.toContain('联系我们 版权所有');
   });
 
   test('normalizes Yilianmeiti article pages but keeps disabled automatic source out of publishing', () => {

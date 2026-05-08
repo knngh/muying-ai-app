@@ -235,6 +235,8 @@ export const AUTHORITY_SOURCES: AuthoritySourceConfig[] = [
     entryUrls: [
       'https://www.chinacdc.cn/jkkp/yyjk/rqyy/',
       'https://www.chinacdc.cn/jkkp/yyjk/jbyy/',
+      'https://www.chinacdc.cn/jkkp/yyjk/swyy/',
+      'https://www.chinacdc.cn/jkkp/yyjk/wlyy/',
     ],
     region: 'CN',
     language: 'zh',
