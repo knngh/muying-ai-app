@@ -1186,6 +1186,10 @@ function hasVaccineIntent(query: string): boolean {
   return VACCINE_QUERY_PATTERNS.some((pattern) => pattern.test(query));
 }
 
+function isVaccineCategory(category: string): boolean {
+  return /^vaccine-/.test(category) || category === 'vaccination';
+}
+
 function isChildCareQuery(query: string): boolean {
   return /宝宝|婴儿|新生儿|孩子|小孩|幼儿|月龄|个月|岁/u.test(query);
 }
@@ -1243,7 +1247,7 @@ function hasCategoryContentConflict(qa: QAPair): boolean {
     return true;
   }
 
-  if (/^vaccine-/.test(qa.category) && !/疫苗|接种|打针|预防针|卡介|乙肝疫苗|百白破|麻腮风|脊灰/u.test(rawText)) {
+  if (isVaccineCategory(qa.category) && !/疫苗|接种|打针|预防针|卡介|乙肝疫苗|百白破|麻腮风|脊灰/u.test(rawText)) {
     return true;
   }
 
@@ -1793,11 +1797,11 @@ function reorderFocusedResults(
       return false;
     }
 
-    if ((focus === 'fever' || focus === 'bleeding' || focus === 'edema' || focus === 'fetal-movement' || focus === 'contractions') && !vaccineIntent && /^vaccine-/.test(result.category)) {
+    if ((focus === 'fever' || focus === 'bleeding' || focus === 'edema' || focus === 'fetal-movement' || focus === 'contractions') && !vaccineIntent && isVaccineCategory(result.category)) {
       return false;
     }
 
-    if ((focus === 'sleep' || focus === 'feeding') && !vaccineIntent && /^vaccine-/.test(result.category)) {
+    if ((focus === 'sleep' || focus === 'feeding') && !vaccineIntent && isVaccineCategory(result.category)) {
       return false;
     }
 
@@ -1850,11 +1854,11 @@ function reorderFocusedResults(
       return false;
     }
 
-    if (!vaccineIntent && /^vaccine-/.test(result.category)) {
+    if (!vaccineIntent && isVaccineCategory(result.category)) {
       return false;
     }
 
-    if ((focus === 'fever' || focus === 'bleeding' || focus === 'edema' || focus === 'fetal-movement' || focus === 'contractions') && !vaccineIntent && /^vaccine-/.test(result.category)) {
+    if ((focus === 'fever' || focus === 'bleeding' || focus === 'edema' || focus === 'fetal-movement' || focus === 'contractions') && !vaccineIntent && isVaccineCategory(result.category)) {
       return false;
     }
 
@@ -2284,11 +2288,11 @@ function calculateScore(
 
   if (feverFocused) {
     if (hasVaccineIntent(query)) {
-      if (/^vaccine-/.test(qa.category)) {
+      if (isVaccineCategory(qa.category)) {
         score += 14;
       }
     } else {
-      if (/^vaccine-/.test(qa.category)) {
+      if (isVaccineCategory(qa.category)) {
         score -= 30;
       }
 
@@ -2320,7 +2324,7 @@ function calculateScore(
     }
   }
 
-  if ((sleepFocused || feedingFocused) && !hasVaccineIntent(query) && /^vaccine-/.test(qa.category)) {
+  if ((sleepFocused || feedingFocused) && !hasVaccineIntent(query) && isVaccineCategory(qa.category)) {
     score -= 32;
   }
 
