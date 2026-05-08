@@ -186,9 +186,11 @@ npm run ops:authority:refresh-low-coverage
 DRY_RUN=false npm run ops:authority:refresh-low-coverage
 npm run clean:authority-translation-cache
 DRY_RUN=false npm run clean:authority-translation-cache
+npm run retry:authority-translation-failures
+DRY_RUN=false npm run retry:authority-translation-failures
 ```
 
-`ops:knowledge:daily` 会顺序生成覆盖审计、review summary、知识运营报告，并 dry-run 低覆盖源刷新和翻译缓存清理，最后输出 `tmp/knowledge-daily-ops-report.json`。默认不修改权威源和翻译缓存；显式 `KNOWLEDGE_DAILY_APPLY_FIXES=true` 才会把低覆盖源刷新和翻译缓存清理切到非 dry-run。
+`ops:knowledge:daily` 会顺序生成覆盖审计、review summary、知识运营报告，并 dry-run 低覆盖源刷新、翻译缓存清理和翻译失败重试计划，最后输出 `tmp/knowledge-daily-ops-report.json`。默认不修改权威源和翻译缓存；显式 `KNOWLEDGE_DAILY_APPLY_FIXES=true` 才会把低覆盖源刷新、翻译缓存清理和翻译失败重试切到非 dry-run。
 
 生产状态入口 `ops:knowledge:status` 会通过 SSH 进入服务器应用目录执行 `ops:knowledge:daily`，DB 依赖项直接使用服务器 `.env` / MySQL 配置，不依赖本地 `localhost:3306`。
 
@@ -208,9 +210,15 @@ DRY_RUN=false npm run clean:authority-translation-cache
 
 2026-05-08 P2 状态：低覆盖源治理完成 `chinacdc-nutrition` 子项，但 P2 全部未完成。生产状态仍为 `attention`，权威覆盖率仍为 `51.81% < 60%`；剩余关键阻塞是 `mayo-clinic-zh` 服务器访问 sitemap 仍为 `403 text/html`，以及翻译缓存 dry-run 仍发现 46 条 invalid cache entries、15 条 translation failures。
 
+2026-05-08 已在生产执行翻译缓存非 dry-run 清理：`DRY_RUN=false npm run clean:authority-translation-cache`，扫描 `673` 条缓存，保留 `623` 条，删除 `50` 条，删除原因均为 `prompt_leak`。复测 `SSH_IDENTITY_FILE=/Users/zhugehao/.ssh/id_server npm run ops:knowledge:status` 后，daily ops 子命令失败数为 `0`，生产状态仍为 `attention`，权威覆盖率仍为 `51.81% < 60%`；翻译缓存 invalid entries 已降为 `0`，但因坏缓存删除后需要重新预热，`missingFreshTranslations=986`，translation failures 为 `19`（retryable `13`，blocked `6`）。`mayo-clinic-zh` 三个 sitemap entry 仍为服务器侧 `403 text/html`。
+
+2026-05-08 已补翻译失败重试入口：`retry:authority-translation-failures` 默认只读 `data/authority-translation-failures.json` 并输出 `tmp/authority-translation-failure-retry-report.json`，列出 retryable / blocked failure；显式 `DRY_RUN=false` 后才按小批量重试，并复用现有 `warmPublishedAuthorityTranslations` 的成功清理和失败退避逻辑。`ops:knowledge:daily` 已接入该入口，生产状态脚本会展示 `remediation.translationFailureRetry`。
+
 默认读取 `tmp/knowledge-ops-report.json` 中 `sourceCoverage.watchedSources` 的 `missing` / `low` 源，先 dry-run 打印将刷新列表；显式 `DRY_RUN=false` 后按源调用现有 `sync:authority` 能力刷新。可用 `AUTHORITY_SOURCE_IDS=mayo-clinic-zh,chinacdc-nutrition` 限定源。
 
 翻译缓存清理默认扫描 `data/authority-translation-cache.json`，输出 `tmp/authority-translation-cache-clean-report.json`；显式 `DRY_RUN=false` 后才删除 prompt leak / 占位符 / 空正文缓存条目，让它们重新进入翻译预热队列。
+
+翻译失败重试默认扫描 `data/authority-translation-failures.json`，输出 `tmp/authority-translation-failure-retry-report.json`；显式 `DRY_RUN=false` 后才重试已到期 failure。可用 `LIMIT=1` 做单条验证，或用 `SLUG=authority-aap-121` 限定目标。
 
 输出文件：
 
@@ -218,6 +226,7 @@ DRY_RUN=false npm run clean:authority-translation-cache
 - `tmp/knowledge-ops-report.json`
 - `tmp/knowledge-daily-ops-report.json`
 - `tmp/authority-review-summary.json`（生产状态脚本会生成）
+- `tmp/authority-translation-failure-retry-report.json`
 
 任务：
 

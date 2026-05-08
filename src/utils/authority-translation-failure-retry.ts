@@ -1,0 +1,113 @@
+export interface AuthorityTranslationFailureRecord {
+  slug?: string;
+  sourceUpdatedAt?: string;
+  message?: string;
+  attempts?: number;
+  failedAt?: string;
+  retryAfterAt?: string;
+}
+
+export interface AuthorityTranslationFailureRetryPlanOptions {
+  now?: string;
+  limit?: number;
+  includeBlocked?: boolean;
+  slug?: string;
+}
+
+export interface AuthorityTranslationFailureRetryCandidate {
+  slug: string;
+  sourceUpdatedAt?: string;
+  message: string;
+  attempts: number;
+  failedAt?: string;
+  retryAfterAt?: string;
+  retryable: boolean;
+  blockedReason?: 'retry_after_pending';
+}
+
+export interface AuthorityTranslationFailureRetryPlan {
+  generatedAt: string;
+  totalFailures: number;
+  retryableFailures: number;
+  blockedFailures: number;
+  includeBlocked: boolean;
+  limit: number;
+  selectedFailures: AuthorityTranslationFailureRetryCandidate[];
+  skippedFailures: AuthorityTranslationFailureRetryCandidate[];
+}
+
+function normalizeMessage(value: unknown): string {
+  return typeof value === 'string' && value.trim()
+    ? value.trim().replace(/\s+/g, ' ').slice(0, 240)
+    : 'unknown';
+}
+
+function normalizeAttempts(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.max(0, Math.trunc(value))
+    : 0;
+}
+
+function isRetryableAt(retryAfterAt: string | undefined, nowMs: number): boolean {
+  if (!retryAfterAt) {
+    return true;
+  }
+
+  const retryAt = Date.parse(retryAfterAt);
+  return !Number.isFinite(retryAt) || retryAt <= nowMs;
+}
+
+function candidateSortKey(candidate: AuthorityTranslationFailureRetryCandidate): string {
+  return [
+    candidate.retryable ? '0' : '1',
+    candidate.retryAfterAt || '',
+    candidate.failedAt || '',
+    candidate.slug,
+  ].join('|');
+}
+
+export function buildAuthorityTranslationFailureRetryPlan(
+  failures: Record<string, AuthorityTranslationFailureRecord>,
+  options: AuthorityTranslationFailureRetryPlanOptions = {},
+): AuthorityTranslationFailureRetryPlan {
+  const generatedAt = options.now || new Date().toISOString();
+  const nowMs = Date.parse(generatedAt);
+  const effectiveNowMs = Number.isFinite(nowMs) ? nowMs : Date.now();
+  const includeBlocked = options.includeBlocked === true;
+  const limit = Math.max(0, options.limit ?? 10);
+  const slugFilter = options.slug?.trim();
+
+  const candidates = Object.entries(failures || {})
+    .map(([cacheKey, failure]): AuthorityTranslationFailureRetryCandidate => {
+      const slug = (failure?.slug || cacheKey).trim();
+      const retryable = isRetryableAt(failure?.retryAfterAt, effectiveNowMs);
+      return {
+        slug,
+        sourceUpdatedAt: failure?.sourceUpdatedAt,
+        message: normalizeMessage(failure?.message),
+        attempts: normalizeAttempts(failure?.attempts),
+        failedAt: failure?.failedAt,
+        retryAfterAt: failure?.retryAfterAt,
+        retryable,
+        blockedReason: retryable ? undefined : 'retry_after_pending',
+      };
+    })
+    .filter((candidate) => candidate.slug)
+    .filter((candidate) => !slugFilter || candidate.slug === slugFilter)
+    .sort((left, right) => candidateSortKey(left).localeCompare(candidateSortKey(right)));
+
+  const eligible = candidates.filter((candidate) => candidate.retryable || includeBlocked);
+  const selectedFailures = limit > 0 ? eligible.slice(0, limit) : [];
+  const selectedSlugs = new Set(selectedFailures.map((candidate) => candidate.slug));
+
+  return {
+    generatedAt,
+    totalFailures: candidates.length,
+    retryableFailures: candidates.filter((candidate) => candidate.retryable).length,
+    blockedFailures: candidates.filter((candidate) => !candidate.retryable).length,
+    includeBlocked,
+    limit,
+    selectedFailures,
+    skippedFailures: candidates.filter((candidate) => !selectedSlugs.has(candidate.slug)),
+  };
+}

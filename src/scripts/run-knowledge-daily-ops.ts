@@ -8,6 +8,7 @@ import {
   type KnowledgeDailyOpsKnowledgeReport,
   type KnowledgeDailyOpsSourceRefreshResult,
   type KnowledgeDailyOpsTranslationCleanupReport,
+  type KnowledgeDailyOpsTranslationFailureRetryReport,
 } from '../utils/knowledge-daily-ops';
 
 const OUTPUT_FILE = process.env.OUTPUT_FILE || path.join(process.cwd(), 'tmp', 'knowledge-daily-ops-report.json');
@@ -15,6 +16,7 @@ const DAILY_COVERAGE_AUDIT_FILE = process.env.DAILY_COVERAGE_AUDIT_FILE || path.
 const KNOWLEDGE_REPORT_FILE = process.env.KNOWLEDGE_REPORT_FILE || path.join(process.cwd(), 'tmp', 'knowledge-ops-report.json');
 const SOURCE_REFRESH_REPORT_FILE = process.env.SOURCE_REFRESH_REPORT_FILE || path.join(process.cwd(), 'tmp', 'knowledge-low-coverage-source-refresh.json');
 const TRANSLATION_CLEAN_REPORT_FILE = process.env.TRANSLATION_CLEAN_REPORT_FILE || path.join(process.cwd(), 'tmp', 'authority-translation-cache-clean-report.json');
+const TRANSLATION_FAILURE_RETRY_REPORT_FILE = process.env.TRANSLATION_FAILURE_RETRY_REPORT_FILE || path.join(process.cwd(), 'tmp', 'authority-translation-failure-retry-report.json');
 const APPLY_FIXES = /^true$/i.test(process.env.KNOWLEDGE_DAILY_APPLY_FIXES || '');
 const STRICT = /^true$/i.test(process.env.KNOWLEDGE_DAILY_STRICT || '');
 
@@ -83,6 +85,11 @@ async function main() {
     DRY_RUN: APPLY_FIXES ? 'false' : 'true',
     REPORT_FILE: TRANSLATION_CLEAN_REPORT_FILE,
   }));
+  commands.push(runCommand('authority_translation_failure_retry', 'npm run retry:authority-translation-failures', {
+    DRY_RUN: APPLY_FIXES ? 'false' : 'true',
+    LIMIT: process.env.AUTHORITY_TRANSLATION_FAILURE_RETRY_LIMIT || '5',
+    REPORT_FILE: TRANSLATION_FAILURE_RETRY_REPORT_FILE,
+  }));
 
   const report = buildKnowledgeDailyOpsReport({
     generatedAt: new Date().toISOString(),
@@ -91,6 +98,7 @@ async function main() {
     knowledgeReport: readJsonFile<KnowledgeDailyOpsKnowledgeReport>(KNOWLEDGE_REPORT_FILE),
     sourceRefreshResult: readJsonFile<KnowledgeDailyOpsSourceRefreshResult>(SOURCE_REFRESH_REPORT_FILE),
     translationCleanupReport: readJsonFile<KnowledgeDailyOpsTranslationCleanupReport>(TRANSLATION_CLEAN_REPORT_FILE),
+    translationFailureRetryReport: readJsonFile<KnowledgeDailyOpsTranslationFailureRetryReport>(TRANSLATION_FAILURE_RETRY_REPORT_FILE),
   });
 
   fs.mkdirSync(path.dirname(OUTPUT_FILE), { recursive: true });

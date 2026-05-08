@@ -77,6 +77,30 @@ export interface KnowledgeDailyOpsTranslationCleanupReport {
   removed?: number;
 }
 
+export interface KnowledgeDailyOpsTranslationFailureRetryReport {
+  dryRun?: boolean;
+  totalFailures?: number;
+  retryableFailures?: number;
+  blockedFailures?: number;
+  limit?: number;
+  selectedFailures?: Array<{
+    slug?: string;
+    message?: string;
+    attempts?: number;
+    retryAfterAt?: string;
+    retryable?: boolean;
+    blockedReason?: string;
+  }>;
+  retried?: Array<{
+    slug?: string;
+    ok?: boolean;
+    message?: string;
+    cleared?: boolean;
+  }>;
+  retrySucceeded?: number;
+  retryFailed?: number;
+}
+
 export interface BuildKnowledgeDailyOpsReportInput {
   generatedAt: string;
   applyFixes: boolean;
@@ -84,6 +108,7 @@ export interface BuildKnowledgeDailyOpsReportInput {
   knowledgeReport?: KnowledgeDailyOpsKnowledgeReport | null;
   sourceRefreshResult?: KnowledgeDailyOpsSourceRefreshResult | null;
   translationCleanupReport?: KnowledgeDailyOpsTranslationCleanupReport | null;
+  translationFailureRetryReport?: KnowledgeDailyOpsTranslationFailureRetryReport | null;
 }
 
 function buildNextActions(input: BuildKnowledgeDailyOpsReportInput): string[] {
@@ -91,6 +116,8 @@ function buildNextActions(input: BuildKnowledgeDailyOpsReportInput): string[] {
   const failedCommands = input.commands.filter((command) => !command.ok && !command.skipped);
   const sourceRefreshCount = input.sourceRefreshResult?.selectedSources?.length || 0;
   const removedTranslations = input.translationCleanupReport?.removed || 0;
+  const retryableTranslationFailures = input.translationFailureRetryReport?.retryableFailures || 0;
+  const selectedTranslationFailures = input.translationFailureRetryReport?.selectedFailures?.length || 0;
   const coverageRate = input.knowledgeReport?.coverage?.coverageRate ?? 100;
 
   if (failedCommands.length > 0) {
@@ -121,6 +148,13 @@ function buildNextActions(input: BuildKnowledgeDailyOpsReportInput): string[] {
   }
   if (removedTranslations > 0 && input.translationCleanupReport?.dryRun !== false) {
     actions.push('Run DRY_RUN=false npm run clean:authority-translation-cache to remove invalid cached translations.');
+  }
+  if (
+    retryableTranslationFailures > 0
+    && selectedTranslationFailures > 0
+    && input.translationFailureRetryReport?.dryRun !== false
+  ) {
+    actions.push(`Run DRY_RUN=false npm run retry:authority-translation-failures to retry ${selectedTranslationFailures} translation failure(s).`);
   }
 
   return actions;
@@ -184,6 +218,7 @@ export function buildKnowledgeDailyOpsReport(input: BuildKnowledgeDailyOpsReport
         summaries: input.sourceRefreshResult?.summaries || [],
       },
       translationCleanup: input.translationCleanupReport || null,
+      translationFailureRetry: input.translationFailureRetryReport || null,
     },
     nextActions,
   };

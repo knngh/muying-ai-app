@@ -138,6 +138,43 @@ describe('knowledge daily ops report', () => {
     ]));
   });
 
+  it('surfaces retryable translation failures as an operator action', () => {
+    const report = buildKnowledgeDailyOpsReport({
+      generatedAt: '2026-05-08T00:00:00.000Z',
+      applyFixes: false,
+      commands: [
+        {
+          name: 'authority_translation_failure_retry',
+          command: 'npm run retry:authority-translation-failures',
+          ok: true,
+          exitCode: 0,
+          durationMs: 100,
+        },
+      ],
+      translationFailureRetryReport: {
+        dryRun: true,
+        totalFailures: 3,
+        retryableFailures: 2,
+        blockedFailures: 1,
+        limit: 5,
+        selectedFailures: [
+          { slug: 'authority-aap-1', message: 'AI Gateway timeout after 45000ms', retryable: true },
+          { slug: 'authority-aap-2', message: 'AI Gateway error: 529', retryable: true },
+        ],
+      },
+    });
+
+    expect(report.remediation.translationFailureRetry).toEqual(expect.objectContaining({
+      dryRun: true,
+      totalFailures: 3,
+      retryableFailures: 2,
+      blockedFailures: 1,
+    }));
+    expect(report.nextActions).toEqual(expect.arrayContaining([
+      'Run DRY_RUN=false npm run retry:authority-translation-failures to retry 2 translation failure(s).',
+    ]));
+  });
+
   it('marks report as failed when a command fails', () => {
     const report = buildKnowledgeDailyOpsReport({
       generatedAt: '2026-05-07T00:00:00.000Z',

@@ -1063,6 +1063,9 @@ export async function warmPublishedAuthorityTranslations(
 
     const sourceUpdatedAt = resolveSourceUpdatedAt(record);
     if (getCachedAuthorityTranslation(slug, sourceUpdatedAt)) {
+      if (options.slug) {
+        clearAuthorityTranslationFailure(slug);
+      }
       cached += 1;
       return;
     }

@@ -136,6 +136,7 @@ if (dailyReport) {
         summaries: dailyReport.remediation?.sourceRefresh?.summaries,
       },
       translationCleanup: dailyReport.remediation?.translationCleanup,
+      translationFailureRetry: dailyReport.remediation?.translationFailureRetry,
     },
     actionItems: dailyReport.knowledge?.actionItems,
     nextActions: dailyReport.nextActions,
