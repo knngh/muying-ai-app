@@ -1,5 +1,10 @@
 import { getAuthoritySourceConfig, listEnabledAuthoritySources } from '../src/config/authority-sources';
-import { __authoritySyncTestUtils, normalizeAuthorityDocument, shouldExportAuthoritySnapshotDocument } from '../src/services/authority-sync.service';
+import {
+  __authoritySyncTestUtils,
+  diagnoseAuthorityUrlDiscovery,
+  normalizeAuthorityDocument,
+  shouldExportAuthoritySnapshotDocument,
+} from '../src/services/authority-sync.service';
 import { detectAudience, detectTopic, extractTitle, shouldPublishDocument } from '../src/services/authority-adapters/base.adapter';
 import { inferAuthorityStages } from '../src/utils/authority-stage';
 
@@ -117,6 +122,52 @@ describe('authority index discovery', () => {
       'https://www.mayoclinic.org/chinese_condition_consolidated_concepts.xml',
       'https://www.mayoclinic.org/chinese_patient_consumer_faq.xml',
     ]));
+  });
+
+  test('diagnoses Mayo sitemap entries with loc counts and matched samples', async () => {
+    const source = getAuthoritySourceConfig('mayo-clinic-zh');
+    expect(source).toBeDefined();
+    const fetchMock = jest.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(`
+      <urlset>
+        <url><loc>https://www.mayoclinic.org/zh-hans/about-mayo-clinic/contact-us</loc></url>
+        <url><loc>https://www.mayoclinic.org/zh-hans/healthy-lifestyle/infant-and-toddler-health/in-depth/baby-poop/art-20043980</loc></url>
+      </urlset>
+    `, {
+      status: 200,
+      headers: {
+        'content-type': 'application/xml',
+      },
+    }));
+
+    try {
+      const diagnosis = await diagnoseAuthorityUrlDiscovery({
+        ...source!,
+        entryUrls: ['https://www.mayoclinic.org/chinese_patient_consumer_faq.xml'],
+        maxPagesPerRun: 10,
+      }, 'incremental', {
+        sampleLimit: 2,
+      });
+
+      expect(diagnosis.discovered.map((item) => item.url)).toEqual([
+        'https://www.mayoclinic.org/zh-hans/healthy-lifestyle/infant-and-toddler-health/in-depth/baby-poop/art-20043980',
+      ]);
+      expect(diagnosis.entryDiagnostics).toEqual([
+        {
+          entryUrl: 'https://www.mayoclinic.org/chinese_patient_consumer_faq.xml',
+          ok: true,
+          status: 200,
+          contentType: 'application/xml',
+          locCount: 2,
+          nestedSitemapCount: 0,
+          matchedCandidateCount: 1,
+          sampleMatchedUrls: [
+            'https://www.mayoclinic.org/zh-hans/healthy-lifestyle/infant-and-toddler-health/in-depth/baby-poop/art-20043980',
+          ],
+        },
+      ]);
+    } finally {
+      fetchMock.mockRestore();
+    }
   });
 
   test('does not let generic Mayo vaccine timeline pages crowd out maternal-child articles', () => {

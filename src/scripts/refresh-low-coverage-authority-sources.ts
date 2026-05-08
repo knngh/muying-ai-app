@@ -1,7 +1,7 @@
 import '../config/env';
 import fs from 'fs';
 import path from 'path';
-import { discoverAuthorityUrls, syncAuthoritySource } from '../services/authority-sync.service';
+import { diagnoseAuthorityUrlDiscovery, syncAuthoritySource } from '../services/authority-sync.service';
 import { getAuthoritySourceConfig } from '../config/authority-sources';
 import {
   buildAuthoritySourceDryRunSummaries,
@@ -58,12 +58,18 @@ async function main() {
     summaries.push(...await buildAuthoritySourceDryRunSummaries(selectedSources, {
       probeDiscovery: PROBE_DISCOVERY,
       sampleLimit: PROBE_SAMPLE_LIMIT,
-      discover: async (sourceId) => {
+      diagnoseDiscovery: async (sourceId) => {
         const sourceConfig = getAuthoritySourceConfig(sourceId);
         if (!sourceConfig) {
           throw new Error(`Authority source not configured: ${sourceId}`);
         }
-        return discoverAuthorityUrls(sourceConfig, AUTHORITY_SYNC_MODE);
+        const diagnosis = await diagnoseAuthorityUrlDiscovery(sourceConfig, AUTHORITY_SYNC_MODE, {
+          sampleLimit: PROBE_SAMPLE_LIMIT,
+        });
+        return {
+          discovered: diagnosis.discovered,
+          entryDiagnostics: diagnosis.entryDiagnostics,
+        };
       },
     }));
   } else {

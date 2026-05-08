@@ -101,6 +101,64 @@ describe('authority source refresh planning', () => {
     ]);
   });
 
+  it('adds entry-level discovery diagnostics when the dry-run probe provides them', async () => {
+    const diagnoseDiscovery = jest.fn().mockResolvedValue({
+      discovered: [
+        { url: 'https://www.mayoclinic.org/zh-hans/healthy-lifestyle/infant-and-toddler-health/in-depth/baby-poop/art-20043980' },
+      ],
+      entryDiagnostics: [
+        {
+          entryUrl: 'https://www.mayoclinic.org/chinese_patient_consumer_faq.xml',
+          ok: true,
+          status: 200,
+          contentType: 'application/xml',
+          locCount: 500,
+          matchedCandidateCount: 1,
+          sampleMatchedUrls: [
+            'https://www.mayoclinic.org/zh-hans/healthy-lifestyle/infant-and-toddler-health/in-depth/baby-poop/art-20043980',
+          ],
+        },
+      ],
+    });
+
+    const summaries = await buildAuthoritySourceDryRunSummaries([
+      { sourceId: 'mayo-clinic-zh', count: 0, minimumPublishedRecords: 10, status: 'missing' },
+    ], {
+      probeDiscovery: true,
+      sampleLimit: 1,
+      diagnoseDiscovery,
+    });
+
+    expect(diagnoseDiscovery).toHaveBeenCalledWith('mayo-clinic-zh');
+    expect(summaries).toEqual([
+      {
+        sourceId: 'mayo-clinic-zh',
+        skipped: true,
+        reason: 'dry_run',
+        discoveryProbe: {
+          ok: true,
+          discovered: 1,
+          sampleUrls: [
+            'https://www.mayoclinic.org/zh-hans/healthy-lifestyle/infant-and-toddler-health/in-depth/baby-poop/art-20043980',
+          ],
+          entryDiagnostics: [
+            {
+              entryUrl: 'https://www.mayoclinic.org/chinese_patient_consumer_faq.xml',
+              ok: true,
+              status: 200,
+              contentType: 'application/xml',
+              locCount: 500,
+              matchedCandidateCount: 1,
+              sampleMatchedUrls: [
+                'https://www.mayoclinic.org/zh-hans/healthy-lifestyle/infant-and-toddler-health/in-depth/baby-poop/art-20043980',
+              ],
+            },
+          ],
+        },
+      },
+    ]);
+  });
+
   it('records discovery probe failures without failing the dry-run summary', async () => {
     const discover = jest.fn().mockRejectedValue(new Error('upstream timeout'));
 

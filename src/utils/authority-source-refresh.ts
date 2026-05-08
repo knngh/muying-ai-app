@@ -27,14 +27,33 @@ export interface AuthoritySourceDryRunSummary {
     ok: boolean;
     discovered: number;
     sampleUrls: string[];
+    entryDiagnostics?: AuthoritySourceDiscoveryEntryDiagnostic[];
     error?: string;
   };
+}
+
+export interface AuthoritySourceDiscoveryEntryDiagnostic {
+  entryUrl: string;
+  ok: boolean;
+  status?: number | null;
+  contentType?: string | null;
+  locCount?: number;
+  nestedSitemapCount?: number;
+  matchedCandidateCount?: number;
+  sampleMatchedUrls?: string[];
+  error?: string;
+}
+
+export interface AuthoritySourceDiscoveryDiagnosis {
+  discovered: Array<{ url?: string }>;
+  entryDiagnostics: AuthoritySourceDiscoveryEntryDiagnostic[];
 }
 
 export interface BuildAuthoritySourceDryRunSummariesOptions {
   probeDiscovery?: boolean;
   sampleLimit?: number;
   discover?: (sourceId: string) => Promise<Array<{ url?: string }>>;
+  diagnoseDiscovery?: (sourceId: string) => Promise<AuthoritySourceDiscoveryDiagnosis>;
 }
 
 const DEFAULT_REFRESH_STATUSES: AuthoritySourceRefreshStatus[] = ['missing', 'low'];
@@ -117,9 +136,12 @@ export async function buildAuthoritySourceDryRunSummaries(
       reason: 'dry_run',
     };
 
-    if (options.probeDiscovery && source.sourceId && options.discover) {
+    if (options.probeDiscovery && source.sourceId && (options.diagnoseDiscovery || options.discover)) {
       try {
-        const discovered = await options.discover(source.sourceId);
+        const diagnosis = options.diagnoseDiscovery
+          ? await options.diagnoseDiscovery(source.sourceId)
+          : null;
+        const discovered = diagnosis?.discovered || await options.discover!(source.sourceId);
         summary.discoveryProbe = {
           ok: true,
           discovered: discovered.length,
@@ -128,6 +150,9 @@ export async function buildAuthoritySourceDryRunSummaries(
             .filter((url): url is string => typeof url === 'string' && url.length > 0)
             .slice(0, sampleLimit),
         };
+        if (diagnosis?.entryDiagnostics) {
+          summary.discoveryProbe.entryDiagnostics = diagnosis.entryDiagnostics;
+        }
       } catch (error) {
         summary.discoveryProbe = {
           ok: false,

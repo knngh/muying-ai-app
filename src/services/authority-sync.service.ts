@@ -22,6 +22,23 @@ export interface DiscoveredAuthorityUrl {
   priority: number;
 }
 
+export interface AuthorityDiscoveryEntryDiagnostic {
+  entryUrl: string;
+  ok: boolean;
+  status?: number | null;
+  contentType?: string | null;
+  locCount?: number;
+  nestedSitemapCount?: number;
+  matchedCandidateCount?: number;
+  sampleMatchedUrls?: string[];
+  error?: string;
+}
+
+export interface AuthorityDiscoveryDiagnosis {
+  discovered: DiscoveredAuthorityUrl[];
+  entryDiagnostics: AuthorityDiscoveryEntryDiagnostic[];
+}
+
 export interface AuthorityRawDocument {
   sourceId: string;
   url: string;
@@ -646,6 +663,10 @@ function isXmlSitemapUrl(url: string): boolean {
   return /\.xml(\.gz)?($|[?#])/i.test(url) || /sitemap/i.test(url) || /\.gz($|[?#])/i.test(url);
 }
 
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error || 'unknown error');
+}
+
 function filterNestedSitemapCandidates(urls: string[], source: AuthoritySourceConfig): string[] {
   let filtered = urls.filter((url) => isAllowedAuthorityUrl(url, source));
 
@@ -1096,11 +1117,42 @@ export async function ensureAuthoritySyncTables(): Promise<void> {
   return ensureAuthorityTablesPromise;
 }
 
-export async function discoverAuthorityUrls(
+function buildDiscoveredAuthorityUrls(
   source: AuthoritySourceConfig,
   mode: 'full' | 'incremental',
-): Promise<DiscoveredAuthorityUrl[]> {
+  urls: string[],
+): DiscoveredAuthorityUrl[] {
   const discovered = new Map<string, DiscoveredAuthorityUrl>();
+  for (const url of prioritizeAuthorityUrls(urls, source).slice(0, source.maxPagesPerRun)) {
+    if (!discovered.has(url)) {
+      discovered.set(url, {
+        url,
+        sourceId: source.id,
+        discoveredAt: new Date().toISOString(),
+        priority: mode === 'full' ? 100 : 80,
+      });
+    }
+  }
+
+  return Array.from(discovered.values()).slice(0, source.maxPagesPerRun);
+}
+
+export interface DiagnoseAuthorityUrlDiscoveryOptions {
+  sampleLimit?: number;
+  strictFetchErrors?: boolean;
+}
+
+export async function diagnoseAuthorityUrlDiscovery(
+  source: AuthoritySourceConfig,
+  mode: 'full' | 'incremental',
+  options: DiagnoseAuthorityUrlDiscoveryOptions = {},
+): Promise<AuthorityDiscoveryDiagnosis> {
+  const sampleLimit = Number.isFinite(options.sampleLimit) && Number(options.sampleLimit) >= 0
+    ? Math.floor(Number(options.sampleLimit))
+    : 5;
+  const strictFetchErrors = options.strictFetchErrors === true;
+  const entryDiagnostics: AuthorityDiscoveryEntryDiagnostic[] = [];
+  const allCandidates: string[] = [];
 
   async function collectSitemapPageUrls(urls: string[], depth = 0): Promise<string[]> {
     if (depth > 2 || urls.length === 0) {
@@ -1113,14 +1165,51 @@ export async function discoverAuthorityUrls(
         break;
       }
 
-      const response = await fetchText(url);
+      const diagnostic: AuthorityDiscoveryEntryDiagnostic = {
+        entryUrl: url,
+        ok: false,
+        status: null,
+        contentType: null,
+      };
+
+      let response: Response;
+      try {
+        response = await fetchText(url);
+      } catch (error) {
+        if (strictFetchErrors) {
+          throw error;
+        }
+        diagnostic.error = getErrorMessage(error);
+        entryDiagnostics.push(diagnostic);
+        continue;
+      }
+      diagnostic.ok = response.ok;
+      diagnostic.status = response.status;
+      diagnostic.contentType = response.headers.get('content-type');
+
       if (!response.ok) {
+        entryDiagnostics.push(diagnostic);
         continue;
       }
 
-      const text = await readResponseText(response, url);
+      let text: string;
+      try {
+        text = await readResponseText(response, url);
+      } catch (error) {
+        if (strictFetchErrors) {
+          throw error;
+        }
+        diagnostic.ok = false;
+        diagnostic.error = getErrorMessage(error);
+        entryDiagnostics.push(diagnostic);
+        continue;
+      }
       const locUrls = extractSitemapLocUrls(text);
+      diagnostic.locCount = locUrls.length;
       if (locUrls.length === 0) {
+        diagnostic.matchedCandidateCount = 0;
+        diagnostic.sampleMatchedUrls = [];
+        entryDiagnostics.push(diagnostic);
         continue;
       }
 
@@ -1130,6 +1219,10 @@ export async function discoverAuthorityUrls(
             .filter((candidate) => isXmlSitemapUrl(candidate)),
           source,
         );
+        diagnostic.nestedSitemapCount = nestedCandidates.length;
+        diagnostic.matchedCandidateCount = 0;
+        diagnostic.sampleMatchedUrls = [];
+        entryDiagnostics.push(diagnostic);
         const nestedUrls = await collectSitemapPageUrls(
           nestedCandidates.slice(0, source.maxPagesPerRun - pageUrls.length),
           depth + 1,
@@ -1138,10 +1231,14 @@ export async function discoverAuthorityUrls(
         continue;
       }
 
+      const matchedUrls = extractSitemapUrls(text, source)
+        .filter((candidate) => !isXmlSitemapUrl(candidate));
+      diagnostic.nestedSitemapCount = 0;
+      diagnostic.matchedCandidateCount = matchedUrls.length;
+      diagnostic.sampleMatchedUrls = matchedUrls.slice(0, sampleLimit);
+      entryDiagnostics.push(diagnostic);
       pageUrls.push(
-        ...extractSitemapUrls(text, source)
-          .filter((candidate) => !isXmlSitemapUrl(candidate))
-          .slice(0, source.maxPagesPerRun - pageUrls.length)
+        ...matchedUrls.slice(0, source.maxPagesPerRun - pageUrls.length)
       );
     }
 
@@ -1222,19 +1319,23 @@ export async function discoverAuthorityUrls(
       normalizedCandidates.push(...await collectIndexPageUrls([entryUrl]));
     }
 
-    for (const url of prioritizeAuthorityUrls(normalizedCandidates, source).slice(0, source.maxPagesPerRun)) {
-      if (!discovered.has(url)) {
-        discovered.set(url, {
-          url,
-          sourceId: source.id,
-          discoveredAt: new Date().toISOString(),
-          priority: mode === 'full' ? 100 : 80,
-        });
-      }
-    }
+    allCandidates.push(...normalizedCandidates);
   }
 
-  return Array.from(discovered.values()).slice(0, source.maxPagesPerRun);
+  return {
+    discovered: buildDiscoveredAuthorityUrls(source, mode, allCandidates),
+    entryDiagnostics,
+  };
+}
+
+export async function discoverAuthorityUrls(
+  source: AuthoritySourceConfig,
+  mode: 'full' | 'incremental',
+): Promise<DiscoveredAuthorityUrl[]> {
+  const diagnosis = await diagnoseAuthorityUrlDiscovery(source, mode, {
+    strictFetchErrors: true,
+  });
+  return diagnosis.discovered;
 }
 
 export const __authoritySyncTestUtils = {
