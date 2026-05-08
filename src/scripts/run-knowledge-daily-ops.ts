@@ -75,6 +75,8 @@ async function main() {
 
   commands.push(runCommand('low_coverage_source_refresh', 'npm run ops:authority:refresh-low-coverage', {
     DRY_RUN: APPLY_FIXES ? 'false' : 'true',
+    AUTHORITY_SOURCE_DRY_RUN_PROBE_DISCOVERY: APPLY_FIXES ? undefined : 'true',
+    AUTHORITY_SOURCE_DRY_RUN_SAMPLE_LIMIT: process.env.AUTHORITY_SOURCE_DRY_RUN_SAMPLE_LIMIT || '3',
     OUTPUT_FILE: SOURCE_REFRESH_REPORT_FILE,
   }));
   commands.push(runCommand('authority_translation_cache_clean', 'npm run clean:authority-translation-cache', {

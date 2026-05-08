@@ -53,6 +53,17 @@ export interface KnowledgeDailyOpsSourceRefreshResult {
       ok?: boolean;
       discovered?: number;
       sampleUrls?: string[];
+      entryDiagnostics?: Array<{
+        entryUrl?: string;
+        ok?: boolean;
+        status?: number | null;
+        contentType?: string | null;
+        locCount?: number;
+        nestedSitemapCount?: number;
+        matchedCandidateCount?: number;
+        sampleMatchedUrls?: string[];
+        error?: string;
+      }>;
       error?: string;
     };
   }>;
@@ -89,6 +100,23 @@ function buildNextActions(input: BuildKnowledgeDailyOpsReportInput): string[] {
   }
   if (sourceRefreshCount > 0 && input.sourceRefreshResult?.dryRun !== false) {
     actions.push('Review low-coverage source dry-run output, then run KNOWLEDGE_DAILY_APPLY_FIXES=true npm run ops:knowledge:daily when ready.');
+  }
+  for (const summary of input.sourceRefreshResult?.summaries || []) {
+    const sourceId = summary.sourceId || 'unknown-source';
+    const probe = summary.discoveryProbe;
+    if (!probe) {
+      continue;
+    }
+
+    const blockedEntry = (probe.entryDiagnostics || []).find((entry) => entry.ok === false && entry.status);
+    if (blockedEntry?.entryUrl) {
+      actions.push(`${sourceId} discovery entry is blocked upstream (${blockedEntry.status}): ${blockedEntry.entryUrl}`);
+      continue;
+    }
+
+    if (Number(probe.discovered || 0) > 0) {
+      actions.push(`${sourceId} discovery probe found ${probe.discovered} candidate URL(s); safe to run a controlled source refresh for that source.`);
+    }
   }
   if (removedTranslations > 0 && input.translationCleanupReport?.dryRun !== false) {
     actions.push('Run DRY_RUN=false npm run clean:authority-translation-cache to remove invalid cached translations.');

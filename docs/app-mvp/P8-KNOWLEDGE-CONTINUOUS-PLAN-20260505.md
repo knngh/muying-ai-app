@@ -198,6 +198,10 @@ DRY_RUN=false npm run clean:authority-translation-cache
 
 2026-05-07 服务器 discovery probe 实测：`chinacdc-nutrition` 可发现 6 条候选 URL（下一步可做受控非 dry-run 同步）；`mayo-clinic-zh` 服务器侧仍发现 0 条，本地同规则可发现 162 条，需继续定位服务器运行时筛选 / sitemap 解析差异。
 
+2026-05-08 已补低覆盖源 entry 级 discovery 诊断：`ops:authority:refresh-low-coverage` 在 dry-run probe 时会输出每个 sitemap entry 的 HTTP 状态、content-type、`locCount`、嵌套 sitemap 数量、过滤后候选数和样例 URL。`ops:knowledge:daily` 默认开启该只读 probe，并把关键结果提升到 `nextActions`。
+
+2026-05-08 服务器 MySQL 路径复测：`SSH_IDENTITY_FILE=/Users/zhugehao/.ssh/id_server npm run ops:knowledge:status` 跑通，daily ops 子命令失败数仍为 0，状态为 `attention`，覆盖率仍为 51.81%。`mayo-clinic-zh` 三个 sitemap entry 在服务器均返回 `403 text/html`，所以当前不是本地匹配规则导致的 0 发现，而是服务器出口访问 Mayo sitemap 被上游阻断；在解决访问策略前不应对该源执行非 dry-run 刷新。`chinacdc-nutrition` 仍可发现 6 条候选 URL，适合下一步做限定单源、受控非 dry-run 刷新。
+
 默认读取 `tmp/knowledge-ops-report.json` 中 `sourceCoverage.watchedSources` 的 `missing` / `low` 源，先 dry-run 打印将刷新列表；显式 `DRY_RUN=false` 后按源调用现有 `sync:authority` 能力刷新。可用 `AUTHORITY_SOURCE_IDS=mayo-clinic-zh,chinacdc-nutrition` 限定源。
 
 翻译缓存清理默认扫描 `data/authority-translation-cache.json`，输出 `tmp/authority-translation-cache-clean-report.json`；显式 `DRY_RUN=false` 后才删除 prompt leak / 占位符 / 空正文缓存条目，让它们重新进入翻译预热队列。
@@ -218,8 +222,8 @@ DRY_RUN=false npm run clean:authority-translation-cache
    - yellow：抽样审核
    - green：默认发布
 4. 优先修复 source 覆盖低的问题：
-   - `mayo-clinic-zh` 当前发现 0
-   - `chinacdc-nutrition` 当前发现 0
+   - `mayo-clinic-zh` 当前服务器发现 0，entry 诊断显示 sitemap 入口均为 403，上游访问阻断优先于规则修复。
+   - `chinacdc-nutrition` 当前服务器可发现 6 条候选，但发布数仍为 0，下一步做受控单源刷新验证抓取 / 归一化 / 发布阶段。
    - 已补 `ops:knowledge:report` 的 `missing` / `low` / `healthy` 状态与 `minimumPublishedRecords` 阈值。
    - 已补 `ops:authority:refresh-low-coverage`，把低覆盖告警转成可执行的单源刷新动作。
 5. 调整用户检索排序（2026-05-06 已完成初版）：

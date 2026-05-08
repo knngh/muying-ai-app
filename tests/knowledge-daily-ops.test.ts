@@ -39,6 +39,20 @@ describe('knowledge daily ops report', () => {
               sampleUrls: [
                 'https://www.mayoclinic.org/zh-hans/healthy-lifestyle/infant-and-toddler-health/expert-answers/newborn/faq-20057752',
               ],
+              entryDiagnostics: [
+                {
+                  entryUrl: 'https://www.mayoclinic.org/chinese_patient_consumer_faq.xml',
+                  ok: true,
+                  status: 200,
+                  contentType: 'application/xml',
+                  locCount: 500,
+                  nestedSitemapCount: 0,
+                  matchedCandidateCount: 3,
+                  sampleMatchedUrls: [
+                    'https://www.mayoclinic.org/zh-hans/healthy-lifestyle/infant-and-toddler-health/expert-answers/newborn/faq-20057752',
+                  ],
+                },
+              ],
             },
           },
         ],
@@ -57,12 +71,70 @@ describe('knowledge daily ops report', () => {
           sampleUrls: [
             'https://www.mayoclinic.org/zh-hans/healthy-lifestyle/infant-and-toddler-health/expert-answers/newborn/faq-20057752',
           ],
+          entryDiagnostics: [
+            {
+              entryUrl: 'https://www.mayoclinic.org/chinese_patient_consumer_faq.xml',
+              ok: true,
+              status: 200,
+              contentType: 'application/xml',
+              locCount: 500,
+              nestedSitemapCount: 0,
+              matchedCandidateCount: 3,
+              sampleMatchedUrls: [
+                'https://www.mayoclinic.org/zh-hans/healthy-lifestyle/infant-and-toddler-health/expert-answers/newborn/faq-20057752',
+              ],
+            },
+          ],
         },
       },
     ]);
     expect(report.nextActions).toEqual(expect.arrayContaining([
       'Authority coverage is below P2 target: 52.83% < 60%',
       'Review low-coverage source dry-run output, then run KNOWLEDGE_DAILY_APPLY_FIXES=true npm run ops:knowledge:daily when ready.',
+      'mayo-clinic-zh discovery probe found 3 candidate URL(s); safe to run a controlled source refresh for that source.',
+    ]));
+  });
+
+  it('flags upstream entry access failures before source refresh is applied', () => {
+    const report = buildKnowledgeDailyOpsReport({
+      generatedAt: '2026-05-08T00:00:00.000Z',
+      applyFixes: false,
+      commands: [
+        { name: 'low_coverage_source_refresh', command: 'npm run ops:authority:refresh-low-coverage', ok: true, exitCode: 0, durationMs: 100 },
+      ],
+      sourceRefreshResult: {
+        dryRun: true,
+        selectedSources: [
+          { sourceId: 'mayo-clinic-zh', count: 0, minimumPublishedRecords: 10, status: 'missing' },
+        ],
+        summaries: [
+          {
+            sourceId: 'mayo-clinic-zh',
+            skipped: true,
+            reason: 'dry_run',
+            discoveryProbe: {
+              ok: true,
+              discovered: 0,
+              sampleUrls: [],
+              entryDiagnostics: [
+                {
+                  entryUrl: 'https://www.mayoclinic.org/chinese_condition_consolidated_concepts.xml',
+                  ok: false,
+                  status: 403,
+                  contentType: 'text/html',
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+
+    expect(report.nextActions).toEqual(expect.arrayContaining([
+      'mayo-clinic-zh discovery entry is blocked upstream (403): https://www.mayoclinic.org/chinese_condition_consolidated_concepts.xml',
+    ]));
+    expect(report.nextActions).not.toEqual(expect.arrayContaining([
+      'mayo-clinic-zh discovery probe found 0 candidate URL(s); safe to run a controlled source refresh for that source.',
     ]));
   });
 
