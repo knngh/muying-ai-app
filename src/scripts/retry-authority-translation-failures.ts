@@ -8,6 +8,7 @@ import {
 } from '../services/authority-translation.service';
 import {
   buildAuthorityTranslationFailureRetryPlan,
+  isPrunableAuthorityTranslationFailure,
   isAuthorityTranslationFailureRetrySourceMatch,
   type AuthorityTranslationFailureRecord,
   type AuthorityTranslationFailureRetryCandidate,
@@ -16,6 +17,7 @@ import {
 const INPUT_FILE = process.env.INPUT_FILE || path.join(process.cwd(), 'data', 'authority-translation-failures.json');
 const REPORT_FILE = process.env.REPORT_FILE || path.join(process.cwd(), 'tmp', 'authority-translation-failure-retry-report.json');
 const DRY_RUN = process.env.DRY_RUN !== 'false';
+const PRUNE_STALE = /^true$/i.test(process.env.PRUNE_STALE || '');
 
 function parseNonNegativeInt(value: string | undefined, fallback: number): number {
   if (value === undefined || value.trim() === '') {
@@ -87,6 +89,7 @@ async function main() {
   };
 
   const retried: Array<{ slug: string; ok: boolean; message?: string; cleared?: boolean }> = [];
+  const prunedFailures = plan.skippedFailures.filter(isPrunableAuthorityTranslationFailure);
 
   if (!DRY_RUN) {
     for (const candidate of plan.selectedFailures) {
@@ -119,6 +122,14 @@ async function main() {
         });
       }
     }
+
+    if (PRUNE_STALE && prunedFailures.length > 0) {
+      for (const candidate of prunedFailures) {
+        delete failures[candidate.slug];
+      }
+      fs.mkdirSync(path.dirname(INPUT_FILE), { recursive: true });
+      fs.writeFileSync(INPUT_FILE, JSON.stringify(failures, null, 2), 'utf-8');
+    }
   }
 
   const report = {
@@ -126,6 +137,11 @@ async function main() {
     inputFile: INPUT_FILE,
     reportFile: REPORT_FILE,
     dryRun: DRY_RUN,
+    pruneStale: PRUNE_STALE,
+    prunedFailures: !DRY_RUN && PRUNE_STALE ? prunedFailures.map((candidate) => ({
+      slug: candidate.slug,
+      skipReason: candidate.skipReason,
+    })) : [],
     retried,
     retrySucceeded: retried.filter((item) => item.ok).length,
     retryFailed: retried.filter((item) => !item.ok).length,

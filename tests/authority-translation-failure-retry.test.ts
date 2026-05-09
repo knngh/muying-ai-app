@@ -1,6 +1,7 @@
 import {
   buildAuthorityTranslationFailureRetryPlan,
   isAuthorityTranslationFailureRetrySourceMatch,
+  isPrunableAuthorityTranslationFailure,
 } from '../src/utils/authority-translation-failure-retry';
 
 describe('authority translation failure retry planner', () => {
@@ -73,5 +74,11 @@ describe('authority translation failure retry planner', () => {
       '2026-05-08T06:00:09.000Z',
     )).toBe(false);
     expect(isAuthorityTranslationFailureRetrySourceMatch(undefined, '2026-05-08T06:00:09.000Z')).toBe(false);
+  });
+
+  it('only prunes stale failures that cannot be retried against current records', () => {
+    expect(isPrunableAuthorityTranslationFailure({ skipReason: 'authority_record_not_found' })).toBe(true);
+    expect(isPrunableAuthorityTranslationFailure({ skipReason: 'source_updated_at_mismatch' })).toBe(true);
+    expect(isPrunableAuthorityTranslationFailure({ skipReason: undefined })).toBe(false);
   });
 });

@@ -38,6 +38,13 @@ export interface AuthorityTranslationFailureRetryPlan {
   skippedFailures: AuthorityTranslationFailureRetryCandidate[];
 }
 
+export function isPrunableAuthorityTranslationFailure(
+  candidate: Pick<AuthorityTranslationFailureRetryCandidate, 'skipReason'>,
+): boolean {
+  return candidate.skipReason === 'authority_record_not_found'
+    || candidate.skipReason === 'source_updated_at_mismatch';
+}
+
 function normalizeMessage(value: unknown): string {
   return typeof value === 'string' && value.trim()
     ? value.trim().replace(/\s+/g, ' ').slice(0, 240)
