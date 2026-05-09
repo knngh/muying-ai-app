@@ -111,6 +111,57 @@ export interface BuildKnowledgeDailyOpsReportInput {
   translationFailureRetryReport?: KnowledgeDailyOpsTranslationFailureRetryReport | null;
 }
 
+function resolveBlockedExternalSources(input: BuildKnowledgeDailyOpsReportInput): Array<{
+  sourceId: string;
+  blockedEntryUrl?: string;
+  blockedStatus?: number | null;
+}> {
+  const blockedSources: Array<{ sourceId: string; blockedEntryUrl?: string; blockedStatus?: number | null }> = [];
+
+  for (const summary of input.sourceRefreshResult?.summaries || []) {
+    const sourceId = summary.sourceId;
+    if (!sourceId) {
+      continue;
+    }
+
+    const probe = summary.discoveryProbe;
+    if (!probe || Number(probe.discovered || 0) > 0) {
+      continue;
+    }
+
+    const blockedEntry = (probe.entryDiagnostics || []).find((entry) => entry.ok === false && entry.status);
+    if (!blockedEntry) {
+      continue;
+    }
+
+    blockedSources.push({
+      sourceId,
+      blockedEntryUrl: blockedEntry.entryUrl,
+      blockedStatus: blockedEntry.status,
+    });
+  }
+
+  return blockedSources;
+}
+
+function filterActionItemsForBlockedExternalSources(
+  actionItems: Array<{ priority?: string; area?: string; message?: string }>,
+  blockedExternalSources: Array<{ sourceId: string }>,
+): Array<{ priority?: string; area?: string; message?: string }> {
+  const blockedSourceIds = new Set(blockedExternalSources.map((source) => source.sourceId));
+  if (blockedSourceIds.size === 0) {
+    return actionItems;
+  }
+
+  return actionItems.filter((item) => {
+    if (item.area !== 'source_coverage') {
+      return true;
+    }
+
+    return !Array.from(blockedSourceIds).some((sourceId) => item.message?.includes(sourceId));
+  });
+}
+
 function buildNextActions(input: BuildKnowledgeDailyOpsReportInput): string[] {
   const actions: string[] = [];
   const failedCommands = input.commands.filter((command) => !command.ok && !command.skipped);
@@ -193,7 +244,12 @@ function summarizeKnowledgeReport(report?: KnowledgeDailyOpsKnowledgeReport | nu
 export function buildKnowledgeDailyOpsReport(input: BuildKnowledgeDailyOpsReportInput) {
   const failedCommands = input.commands.filter((command) => !command.ok && !command.skipped);
   const knowledgeSummary = summarizeKnowledgeReport(input.knowledgeReport);
-  const actionItems = knowledgeSummary.actionItems;
+  const blockedExternalSources = resolveBlockedExternalSources(input);
+  const actionItems = filterActionItemsForBlockedExternalSources(
+    knowledgeSummary.actionItems,
+    blockedExternalSources,
+  );
+  knowledgeSummary.actionItems = actionItems;
   const nextActions = buildNextActions(input);
   const status = failedCommands.length > 0
     ? 'failed'
@@ -220,6 +276,7 @@ export function buildKnowledgeDailyOpsReport(input: BuildKnowledgeDailyOpsReport
       translationCleanup: input.translationCleanupReport || null,
       translationFailureRetry: input.translationFailureRetryReport || null,
     },
+    blockedExternalSources,
     nextActions,
   };
 }

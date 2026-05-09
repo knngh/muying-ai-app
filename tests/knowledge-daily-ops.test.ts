@@ -102,6 +102,12 @@ describe('knowledge daily ops report', () => {
       commands: [
         { name: 'low_coverage_source_refresh', command: 'npm run ops:authority:refresh-low-coverage', ok: true, exitCode: 0, durationMs: 100 },
       ],
+      knowledgeReport: {
+        actionItems: [
+          { priority: 'P2', area: 'source_coverage', message: 'mayo-clinic-zh has 0/10 published authority records' },
+          { priority: 'P2', area: 'translation_cache', message: '2 translation failures need retry or diagnosis' },
+        ],
+      },
       sourceRefreshResult: {
         dryRun: true,
         selectedSources: [
@@ -133,6 +139,16 @@ describe('knowledge daily ops report', () => {
     expect(report.nextActions).toEqual(expect.arrayContaining([
       'mayo-clinic-zh discovery entry is blocked upstream (403): https://www.mayoclinic.org/chinese_condition_consolidated_concepts.xml',
     ]));
+    expect(report.blockedExternalSources).toEqual([
+      {
+        sourceId: 'mayo-clinic-zh',
+        blockedEntryUrl: 'https://www.mayoclinic.org/chinese_condition_consolidated_concepts.xml',
+        blockedStatus: 403,
+      },
+    ]);
+    expect(report.knowledge.actionItems).toEqual([
+      { priority: 'P2', area: 'translation_cache', message: '2 translation failures need retry or diagnosis' },
+    ]);
     expect(report.nextActions).not.toEqual(expect.arrayContaining([
       'mayo-clinic-zh discovery probe found 0 candidate URL(s); safe to run a controlled source refresh for that source.',
     ]));
