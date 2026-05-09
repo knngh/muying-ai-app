@@ -1,4 +1,5 @@
 import { cleanAuthorityTranslationCache } from '../src/utils/authority-translation-cache-cleaner';
+import { normalizeAuthorityTranslationRecord } from '../src/services/authority-translation.service';
 
 describe('authority translation cache cleaner', () => {
   it('removes prompt leaks and placeholder translations while keeping valid cache entries', () => {
@@ -41,5 +42,37 @@ describe('authority translation cache cleaner', () => {
       { slug: 'promptLeak', reason: 'prompt_leak' },
       { slug: 'placeholder', reason: 'empty_or_invalid_content' },
     ]);
+  });
+
+  it('normalizes cached records with the same guards used before writes', () => {
+    expect(normalizeAuthorityTranslationRecord({
+      slug: 'valid',
+      translatedTitle: '儿童发热',
+      translatedSummary: '摘要',
+      translatedContent: '正文内容较完整。',
+      translationNotice: '辅助翻译',
+      updatedAt: '2026-05-07T00:00:00.000Z',
+    })).toEqual(expect.objectContaining({
+      translatedTitle: '儿童发热',
+      translatedContent: '正文内容较完整。',
+    }));
+
+    expect(normalizeAuthorityTranslationRecord({
+      slug: 'placeholder',
+      translatedTitle: '...',
+      translatedSummary: '...',
+      translatedContent: '...',
+      translationNotice: '辅助翻译',
+      updatedAt: '2026-05-07T00:00:00.000Z',
+    })).toBeNull();
+
+    expect(normalizeAuthorityTranslationRecord({
+      slug: 'prompt-leak',
+      translatedTitle: '服用甲苯咪唑期间的怀孕、母乳喂养和生育能力',
+      translatedSummary: '摘要',
+      translatedContent: 'Let me translate:\n</think>\n<translated_content>正文</translated_content>',
+      translationNotice: '辅助翻译',
+      updatedAt: '2026-05-07T00:00:00.000Z',
+    })).toBeNull();
   });
 });

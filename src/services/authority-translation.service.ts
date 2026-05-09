@@ -473,7 +473,7 @@ function resolveWritableTranslationCachePath(): string {
   return existingDurablePath || durablePath;
 }
 
-function normalizeAuthorityTranslationRecord(
+export function normalizeAuthorityTranslationRecord(
   translation: AuthorityTranslationCacheRecord,
 ): AuthorityTranslationCacheRecord | null {
   const normalized: AuthorityTranslationCacheRecord = {
@@ -498,7 +498,15 @@ function readTranslationCacheFile(cachePath: string): Record<string, AuthorityTr
   try {
     const raw = fs.readFileSync(cachePath, 'utf-8');
     const parsed = JSON.parse(raw) as Record<string, AuthorityTranslationCacheRecord>;
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return {};
+    }
+
+    return Object.fromEntries(
+      Object.entries(parsed)
+        .map(([slug, translation]) => [slug, normalizeAuthorityTranslationRecord(translation)] as const)
+        .filter((entry): entry is [string, AuthorityTranslationCacheRecord] => Boolean(entry[1])),
+    );
   } catch {
     return {};
   }
