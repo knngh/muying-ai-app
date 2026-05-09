@@ -159,6 +159,11 @@ export function isAIGatewayModalDirectRateLimitError(error: unknown): boolean {
     && gatewayError.gatewayStatus === 429;
 }
 
+export function isAIGatewayProviderError(error: unknown, provider: string): boolean {
+  const gatewayError = error as AIGatewayProviderError | null;
+  return gatewayError?.gatewayProvider === provider;
+}
+
 export type AITaskModelRole = 'glm_classify' | 'kimi_reason' | 'minimax_render';
 
 export interface AIGatewayRouteInfo {
@@ -792,6 +797,7 @@ export async function callTaskModelDetailed(
     temperature?: number;
     maxTokens?: number;
     timeoutMs?: number;
+    stopOnProviderFailure?: string[];
   } = {}
 ): Promise<AIGatewayTextResult> {
   const providers = resolveTaskProviderChain(taskRole);
@@ -810,7 +816,10 @@ export async function callTaskModelDetailed(
     } catch (error) {
       lastError = error;
       console.error(`[AI Task Router] Provider failed: ${taskRole} -> ${provider.label}`, error);
-      if (isAIGatewayModalDirectRateLimitError(error)) {
+      if (
+        isAIGatewayModalDirectRateLimitError(error)
+        || options.stopOnProviderFailure?.includes(provider.provider)
+      ) {
         throw error;
       }
     }

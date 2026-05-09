@@ -78,4 +78,33 @@ describe('AI gateway Modal Direct provider', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+
+  it('can stop task fallback after any Modal Direct provider failure', async () => {
+    process.env.AI_MODAL_DIRECT_KEY = 'test-modal-key';
+    delete process.env.AI_GLM_KEY;
+    delete process.env.AI_GLM_URL;
+    delete process.env.AI_GLM_MODEL;
+    delete process.env.AI_GLM_PROVIDER;
+    process.env.AI_GATEWAY_KEY = 'legacy-key';
+    process.env.AI_OPENROUTER_KEY = 'legacy-key';
+
+    const fetchMock = jest.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(
+      JSON.stringify({ choices: [{ message: { role: 'assistant' } }] }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    ));
+
+    let callTaskModelDetailed: typeof import('../src/services/ai-gateway.service').callTaskModelDetailed;
+    jest.isolateModules(() => {
+      const aiGateway = require('../src/services/ai-gateway.service') as typeof import('../src/services/ai-gateway.service');
+      callTaskModelDetailed = aiGateway.callTaskModelDetailed;
+    });
+
+    await expect(callTaskModelDetailed('glm_classify', [
+      { role: 'user', content: 'ping' },
+    ], {
+      stopOnProviderFailure: ['modal-direct'],
+    })).rejects.toThrow('AI provider returned empty response');
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });

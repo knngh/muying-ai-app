@@ -141,6 +141,7 @@ describe('authority translation warmup', () => {
 
     let moduleApi: {
       isModalDirectGlmFirstForTranslation: typeof import('../src/services/authority-translation.service').__authorityTranslationInternalTestUtils.isModalDirectGlmFirstForTranslation;
+      shouldStopAfterTranslationTaskFailure: typeof import('../src/services/authority-translation.service').__authorityTranslationInternalTestUtils.shouldStopAfterTranslationTaskFailure;
       warmPublishedAuthorityTranslations: typeof import('../src/services/authority-translation.service').warmPublishedAuthorityTranslations;
     } | null = null;
 
@@ -148,12 +149,14 @@ describe('authority translation warmup', () => {
       const translationService = require('../src/services/authority-translation.service') as typeof import('../src/services/authority-translation.service');
       moduleApi = {
         isModalDirectGlmFirstForTranslation: translationService.__authorityTranslationInternalTestUtils.isModalDirectGlmFirstForTranslation,
+        shouldStopAfterTranslationTaskFailure: translationService.__authorityTranslationInternalTestUtils.shouldStopAfterTranslationTaskFailure,
         warmPublishedAuthorityTranslations: translationService.warmPublishedAuthorityTranslations,
       };
     });
 
     expect(moduleApi).not.toBeNull();
     expect(moduleApi.isModalDirectGlmFirstForTranslation()).toBe(true);
+    expect(moduleApi.shouldStopAfterTranslationTaskFailure('glm_classify', new Error('AI provider returned empty response'))).toBe(true);
 
     const result = await moduleApi.warmPublishedAuthorityTranslations({
       delayMs: 0,

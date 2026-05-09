@@ -3,6 +3,7 @@ import path from 'path';
 import {
   callTaskModelDetailed,
   getAIGatewayErrorOpsMessage,
+  isAIGatewayProviderError,
   isAIGatewayModalDirectRateLimitError,
   type AITaskModelRole,
 } from './ai-gateway.service';
@@ -712,6 +713,12 @@ function isModalDirectGlmFirstForTranslation(): boolean {
     || Boolean(process.env.AI_MODAL_DIRECT_KEY || process.env.MODAL_DIRECT_API_KEY);
 }
 
+function shouldStopAfterTranslationTaskFailure(taskRole: AITaskModelRole, error: unknown): boolean {
+  return taskRole === 'glm_classify'
+    && isModalDirectGlmFirstForTranslation()
+    && (isAIGatewayProviderError(error, 'modal-direct') || error instanceof Error);
+}
+
 function recordAuthorityTranslationFailure(slug: string, sourceUpdatedAt: string | undefined, error: unknown): void {
   const failureCache = loadAuthorityTranslationFailureCache();
   const message = getAIGatewayErrorOpsMessage(error);
@@ -1010,11 +1017,14 @@ export async function translateAuthorityRecord(
         temperature: 0.2,
         maxTokens: AUTHORITY_TRANSLATION_MAX_TOKENS,
         timeoutMs: AUTHORITY_TRANSLATION_PROVIDER_TIMEOUT_MS,
+        stopOnProviderFailure: taskRole === 'glm_classify' && isModalDirectGlmFirstForTranslation()
+          ? ['modal-direct']
+          : undefined,
       });
     } catch (error) {
       lastError = error;
       console.error(`[Authority Translation] Task failed for ${slug} via ${taskRole}:`, error);
-      if (isAIGatewayModalDirectRateLimitError(error)) {
+      if (isAIGatewayModalDirectRateLimitError(error) || shouldStopAfterTranslationTaskFailure(taskRole, error)) {
         break;
       }
       continue;
@@ -1191,5 +1201,6 @@ export async function warmPublishedAuthorityTranslations(
 
 export const __authorityTranslationInternalTestUtils = {
   isModalDirectGlmFirstForTranslation,
+  shouldStopAfterTranslationTaskFailure,
   resolveActiveAuthorityTranslationQuotaBlock,
 };
