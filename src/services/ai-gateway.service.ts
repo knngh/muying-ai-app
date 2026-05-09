@@ -119,11 +119,23 @@ interface GatewayProvider {
 interface AIGatewayProviderError extends Error {
   gatewayStatus?: number;
   gatewayErrorText?: string;
+  gatewayProvider?: string;
+  gatewayProviderLabel?: string;
+  gatewayModel?: string;
 }
 
-function createGatewayError(status: number, errorText: string): AIGatewayProviderError {
+function createGatewayError(
+  status: number,
+  errorText: string,
+  provider?: Pick<GatewayProvider, 'provider' | 'label' | 'model'>,
+): AIGatewayProviderError {
   const error = new Error(`AI Gateway error: ${status}`) as AIGatewayProviderError;
   error.gatewayStatus = status;
+  if (provider) {
+    error.gatewayProvider = provider.provider;
+    error.gatewayProviderLabel = provider.label;
+    error.gatewayModel = provider.model;
+  }
   const compact = errorText.trim().replace(/\s+/g, ' ');
   if (compact) {
     error.gatewayErrorText = compact.slice(0, 500);
@@ -139,6 +151,12 @@ export function getAIGatewayErrorOpsMessage(error: unknown): string {
     : '';
 
   return gatewayErrorText ? `${message}: ${gatewayErrorText}` : message;
+}
+
+export function isAIGatewayModalDirectRateLimitError(error: unknown): boolean {
+  const gatewayError = error as AIGatewayProviderError | null;
+  return gatewayError?.gatewayProvider === 'modal-direct'
+    && gatewayError.gatewayStatus === 429;
 }
 
 export type AITaskModelRole = 'glm_classify' | 'kimi_reason' | 'minimax_render';
@@ -598,7 +616,7 @@ async function callProvider(
   if (!response.ok) {
     const errorText = await response.text();
     console.error(`[AI Gateway:${provider.label}] Error:`, response.status, errorText);
-    throw createGatewayError(response.status, errorText);
+    throw createGatewayError(response.status, errorText, provider);
   }
 
   const data: ChatResponse = await response.json() as ChatResponse;
@@ -642,7 +660,7 @@ async function* streamProvider(
   if (!response.ok) {
     const errorText = await response.text();
     console.error(`[AI Gateway Stream:${provider.label}] Error:`, response.status, errorText);
-    throw createGatewayError(response.status, errorText);
+    throw createGatewayError(response.status, errorText, provider);
   }
 
   const reader = response.body?.getReader();
@@ -792,6 +810,9 @@ export async function callTaskModelDetailed(
     } catch (error) {
       lastError = error;
       console.error(`[AI Task Router] Provider failed: ${taskRole} -> ${provider.label}`, error);
+      if (isAIGatewayModalDirectRateLimitError(error)) {
+        throw error;
+      }
     }
   }
 

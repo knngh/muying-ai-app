@@ -38,6 +38,30 @@ describe('authority translation failure retry planner', () => {
     expect(plan.skippedFailures.map((candidate) => candidate.slug)).toEqual(['authority-aap-2']);
   });
 
+  it('backs off Modal Direct concurrency failures before retrying translation', () => {
+    const plan = buildAuthorityTranslationFailureRetryPlan({
+      'authority-aap-modal': {
+        slug: 'authority-aap-modal',
+        message: 'AI Gateway error: 429: {"error": "Too many concurrent requests for this model"}',
+        attempts: 1,
+        failedAt: '2026-05-09T07:00:00.000Z',
+        retryAfterAt: '2026-05-09T07:30:00.000Z',
+      },
+    }, {
+      now: '2026-05-09T07:10:00.000Z',
+      limit: 10,
+    });
+
+    expect(plan.retryableFailures).toBe(0);
+    expect(plan.blockedFailures).toBe(1);
+    expect(plan.skippedFailures).toEqual([
+      expect.objectContaining({
+        slug: 'authority-aap-modal',
+        blockedReason: 'retry_after_pending',
+      }),
+    ]);
+  });
+
   it('can include blocked failures and apply slug/limit filters', () => {
     const plan = buildAuthorityTranslationFailureRetryPlan({
       'authority-aap-1': {

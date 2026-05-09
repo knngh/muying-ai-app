@@ -3,6 +3,7 @@ import path from 'path';
 import {
   callTaskModelDetailed,
   getAIGatewayErrorOpsMessage,
+  isAIGatewayModalDirectRateLimitError,
   type AITaskModelRole,
 } from './ai-gateway.service';
 import { isLikelyEnglishNavigationShell, sanitizeAuthorityTitle } from './authority-adapters/base.adapter';
@@ -666,7 +667,7 @@ function getAuthorityTranslationFailureRetryDelayMs(message: string, attempts: n
   const normalized = message.toLowerCase();
   const safeAttempts = Math.max(1, attempts);
 
-  if (/529|overload|timeout|timed out|temporar|短暂繁忙|超时/u.test(normalized)) {
+  if (/529|overload|timeout|timed out|temporar|too many concurrent|concurrent requests|rate limit|短暂繁忙|超时/u.test(normalized)) {
     return Math.min(2 * 60 * 60 * 1000, 30 * 60 * 1000 * safeAttempts);
   }
 
@@ -1013,6 +1014,9 @@ export async function translateAuthorityRecord(
     } catch (error) {
       lastError = error;
       console.error(`[Authority Translation] Task failed for ${slug} via ${taskRole}:`, error);
+      if (isAIGatewayModalDirectRateLimitError(error)) {
+        break;
+      }
       continue;
     }
 

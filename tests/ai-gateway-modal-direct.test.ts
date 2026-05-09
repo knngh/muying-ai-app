@@ -5,6 +5,8 @@ describe('AI gateway Modal Direct provider', () => {
     AI_GLM_URL: process.env.AI_GLM_URL,
     AI_GLM_MODEL: process.env.AI_GLM_MODEL,
     AI_GLM_PROVIDER: process.env.AI_GLM_PROVIDER,
+    AI_GATEWAY_KEY: process.env.AI_GATEWAY_KEY,
+    AI_OPENROUTER_KEY: process.env.AI_OPENROUTER_KEY,
   };
 
   function restoreEnv() {
@@ -19,6 +21,7 @@ describe('AI gateway Modal Direct provider', () => {
 
   afterEach(() => {
     jest.resetModules();
+    jest.restoreAllMocks();
     restoreEnv();
   });
 
@@ -40,5 +43,39 @@ describe('AI gateway Modal Direct provider', () => {
         configured: true,
       });
     });
+  });
+
+  it('does not fall back to legacy providers when Modal Direct is concurrency limited', async () => {
+    process.env.AI_MODAL_DIRECT_KEY = 'test-modal-key';
+    delete process.env.AI_GLM_KEY;
+    delete process.env.AI_GLM_URL;
+    delete process.env.AI_GLM_MODEL;
+    delete process.env.AI_GLM_PROVIDER;
+    process.env.AI_GATEWAY_KEY = 'legacy-key';
+    process.env.AI_OPENROUTER_KEY = 'legacy-key';
+
+    const fetchMock = jest.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(
+      JSON.stringify({ error: 'Too many concurrent requests for this model' }),
+      { status: 429, headers: { 'Content-Type': 'application/json' } },
+    ));
+
+    let moduleApi: Pick<typeof import('../src/services/ai-gateway.service'), 'callTaskModelDetailed' | 'isAIGatewayModalDirectRateLimitError'> | null = null;
+    jest.isolateModules(() => {
+      const aiGateway = require('../src/services/ai-gateway.service') as typeof import('../src/services/ai-gateway.service');
+      moduleApi = {
+        callTaskModelDetailed: aiGateway.callTaskModelDetailed,
+        isAIGatewayModalDirectRateLimitError: aiGateway.isAIGatewayModalDirectRateLimitError,
+      };
+    });
+
+    expect(moduleApi).not.toBeNull();
+    await expect(moduleApi.callTaskModelDetailed('glm_classify', [
+      { role: 'user', content: 'ping' },
+    ])).rejects.toMatchObject({
+      gatewayStatus: 429,
+      gatewayProvider: 'modal-direct',
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
