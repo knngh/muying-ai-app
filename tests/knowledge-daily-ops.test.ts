@@ -95,7 +95,7 @@ describe('knowledge daily ops report', () => {
     ]));
   });
 
-  it('flags upstream entry access failures before source refresh is applied', () => {
+  it('downgrades upstream entry access failures when no source refresh can be applied', () => {
     const report = buildKnowledgeDailyOpsReport({
       generatedAt: '2026-05-08T00:00:00.000Z',
       applyFixes: false,
@@ -105,7 +105,6 @@ describe('knowledge daily ops report', () => {
       knowledgeReport: {
         actionItems: [
           { priority: 'P2', area: 'source_coverage', message: 'mayo-clinic-zh has 0/10 published authority records' },
-          { priority: 'P2', area: 'translation_cache', message: '2 translation failures need retry or diagnosis' },
         ],
       },
       sourceRefreshResult: {
@@ -136,9 +135,7 @@ describe('knowledge daily ops report', () => {
       },
     });
 
-    expect(report.nextActions).toEqual(expect.arrayContaining([
-      'mayo-clinic-zh discovery entry is blocked upstream (403): https://www.mayoclinic.org/chinese_condition_consolidated_concepts.xml',
-    ]));
+    expect(report.status).toBe('ok');
     expect(report.blockedExternalSources).toEqual([
       {
         sourceId: 'mayo-clinic-zh',
@@ -146,10 +143,11 @@ describe('knowledge daily ops report', () => {
         blockedStatus: 403,
       },
     ]);
-    expect(report.knowledge.actionItems).toEqual([
-      { priority: 'P2', area: 'translation_cache', message: '2 translation failures need retry or diagnosis' },
-    ]);
+    expect(report.knowledge.actionItems).toEqual([]);
+    expect(report.nextActions).toEqual([]);
     expect(report.nextActions).not.toEqual(expect.arrayContaining([
+      'Review low-coverage source dry-run output, then run KNOWLEDGE_DAILY_APPLY_FIXES=true npm run ops:knowledge:daily when ready.',
+      'mayo-clinic-zh discovery entry is blocked upstream (403): https://www.mayoclinic.org/chinese_condition_consolidated_concepts.xml',
       'mayo-clinic-zh discovery probe found 0 candidate URL(s); safe to run a controlled source refresh for that source.',
     ]));
   });

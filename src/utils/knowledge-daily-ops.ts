@@ -165,11 +165,14 @@ function filterActionItemsForBlockedExternalSources(
 function buildNextActions(input: BuildKnowledgeDailyOpsReportInput): string[] {
   const actions: string[] = [];
   const failedCommands = input.commands.filter((command) => !command.ok && !command.skipped);
-  const sourceRefreshCount = input.sourceRefreshResult?.selectedSources?.length || 0;
   const removedTranslations = input.translationCleanupReport?.removed || 0;
   const retryableTranslationFailures = input.translationFailureRetryReport?.retryableFailures || 0;
   const selectedTranslationFailures = input.translationFailureRetryReport?.selectedFailures?.length || 0;
   const coverageRate = input.knowledgeReport?.coverage?.coverageRate ?? 100;
+  const blockedExternalSources = resolveBlockedExternalSources(input);
+  const blockedExternalSourceIds = new Set(blockedExternalSources.map((source) => source.sourceId));
+  const refreshableSources = (input.sourceRefreshResult?.selectedSources || [])
+    .filter((source) => source.sourceId && !blockedExternalSourceIds.has(source.sourceId));
 
   if (failedCommands.length > 0) {
     actions.push(`Inspect failed daily ops command(s): ${failedCommands.map((command) => command.name).join(', ')}`);
@@ -177,7 +180,7 @@ function buildNextActions(input: BuildKnowledgeDailyOpsReportInput): string[] {
   if (coverageRate < 60) {
     actions.push(`Authority coverage is below P2 target: ${coverageRate}% < 60%`);
   }
-  if (sourceRefreshCount > 0 && input.sourceRefreshResult?.dryRun !== false) {
+  if (refreshableSources.length > 0 && input.sourceRefreshResult?.dryRun !== false) {
     actions.push('Review low-coverage source dry-run output, then run KNOWLEDGE_DAILY_APPLY_FIXES=true npm run ops:knowledge:daily when ready.');
   }
   for (const summary of input.sourceRefreshResult?.summaries || []) {
@@ -189,7 +192,9 @@ function buildNextActions(input: BuildKnowledgeDailyOpsReportInput): string[] {
 
     const blockedEntry = (probe.entryDiagnostics || []).find((entry) => entry.ok === false && entry.status);
     if (blockedEntry?.entryUrl) {
-      actions.push(`${sourceId} discovery entry is blocked upstream (${blockedEntry.status}): ${blockedEntry.entryUrl}`);
+      if (!blockedExternalSourceIds.has(sourceId)) {
+        actions.push(`${sourceId} discovery entry is blocked upstream (${blockedEntry.status}): ${blockedEntry.entryUrl}`);
+      }
       continue;
     }
 
