@@ -125,17 +125,25 @@ const AUTHORITY_SOURCE_PATTERN = /who\.int|cdc\.gov|healthychildren\.org|acog\.o
 const PROMOTION_CASE_FORM_PATTERN = /全部症状|发病时间|治疗情况|患者性别|患者年龄|病情描述|想得到怎样的帮助/u;
 const PROMOTION_URGENT_RISK_PATTERN = /高烧|高热|发烧|发热|咳嗽|腹泻|呕吐|便秘|红疹|皮疹|湿疹|黄疸|出血|见红|疼|痛|呼吸困难|喘不过气|抽搐|惊厥|意识异常|昏迷|大出血|脱水|胎动消失|胎动明显减少|拒奶.*精神差|精神差.*拒奶|吃什么药|用什么药/u;
 const PROMOTION_PERSONAL_CASE_PATTERN = /(?:^|[，。？！\s])(我|我的|本人|老婆|老公|亲戚|男朋友|女朋友)|上个月|这个月|今天|昨天|这几天|最近|前几天|医生|医院|检查|B超|彩超|输液|打针|退烧药|治疗情况|我应该怎么办|该怎么办|怎么办|怎么回事|不胖|硬疙瘩|不吃奶|不吃奶粉|没怎么吃奶/u;
+const PROMOTION_TREATMENT_REQUEST_PATTERN = /吃什么药|用什么药|服用什么药|能不能吃药|药量|剂量|退烧药|抗生素|消炎药|输液|打针|针剂|地塞米松|布洛芬|双氯芬酸|手术|治疗方案|治疗情况/u;
+const PROMOTION_RED_FLAG_SOURCE_PATTERN = /呼吸困难|喘不过气|抽搐|惊厥|意识异常|昏迷|大出血|严重脱水|胎动消失|胎动明显减少|拒奶.*精神差|精神差.*拒奶/u;
 const PROMOTION_CARE_BOUNDARY_PATTERN = /何时就医|什么时候需要就医|就医信号|红旗信号/u;
 const PROMOTION_GENERIC_INTENT_PATTERNS = [
   /(?:宝宝|婴儿|孩子).{0,12}辅食.{0,12}(?:怎么|如何|注意|添加|顺序)/u,
   /(?:辅食).{0,12}(?:怎么|如何|注意|添加|顺序)/u,
   /(?:宝宝|婴儿|孩子).{0,12}(?:母乳|奶量|喂养|吃奶).{0,12}(?:怎么|如何|注意|多少)/u,
+  /(?:宝宝|婴儿|孩子).{0,12}喂养.{0,12}(?:怎么观察|要注意|注意)/u,
   /(?:宝宝|婴儿|孩子).{0,12}(?:睡眠|夜醒|作息|安抚|哄睡).{0,12}(?:怎么|如何|注意|怎么办)/u,
   /(?:发育|里程碑).{0,12}(?:怎么|如何|注意|观察)/u,
   /胎动.{0,8}(?:怎么数|如何数|注意)/u,
+  /孕(?:早|中|晚)?期.{0,12}(?:怎么|如何|注意|准备)/u,
+  /孕期.{0,12}(?:腹痛|出血).{0,12}(?:就医|注意)/u,
   /(?:产检|待产|入院准备).{0,12}(?:怎么|如何|注意|准备|项目|时间)/u,
   /(?:孕期营养|叶酸|体重增长).{0,12}(?:怎么|如何|注意|多少)/u,
   /(?:疫苗|接种).{0,12}(?:时间|程序|注意|反应观察)/u,
+  /(?:疫苗|接种).{0,12}(?:哪些情况|什么时候).{0,8}就医/u,
+  /新生儿.{0,12}(?:黄疸|脐带|护理).{0,12}(?:怎么|如何|注意|就医)/u,
+  /哺乳期.{0,12}喂养.{0,12}(?:怎么|如何|注意)/u,
   PROMOTION_CARE_BOUNDARY_PATTERN,
 ];
 const PROMOTION_MAX_QUESTION_LENGTH = 72;
@@ -533,6 +541,358 @@ function isOfficialPromotionReference(reference: KnowledgeOpsReference): boolean
   return AUTHORITY_SOURCE_PATTERN.test(sourceText);
 }
 
+function normalizePromotionText(value?: string): string {
+  return (value || '').replace(/\s+/g, ' ').trim();
+}
+
+function getPromotionSourceText(record: KnowledgeOpsQaRecord): string {
+  return [
+    record.question,
+    record.category,
+    record.topic,
+    record.audience,
+    ...(record.tags || []),
+  ].filter(Boolean).join(' ');
+}
+
+function hasAnyTargetStage(record: KnowledgeOpsQaRecord, stages: string[]): boolean {
+  if (!Array.isArray(record.target_stage)) {
+    return false;
+  }
+
+  return record.target_stage.some((stage) => stages.includes(stage));
+}
+
+function resolvePregnancyStageLabel(record: KnowledgeOpsQaRecord, text: string): string {
+  if (hasAnyTargetStage(record, ['first-trimester']) || /孕早期|早孕|孕\s*(?:[1-9]|1[0-3])\s*周/u.test(text)) {
+    return '孕早期';
+  }
+
+  if (hasAnyTargetStage(record, ['second-trimester']) || /孕中期|孕\s*(?:1[4-9]|2[0-7])\s*周|胎动|四维|大排畸|糖耐/u.test(text)) {
+    return '孕中期';
+  }
+
+  if (hasAnyTargetStage(record, ['third-trimester']) || /孕晚期|孕\s*(?:2[8-9]|3\d|4[0-2])\s*周|待产|入院|宫缩/u.test(text)) {
+    return '孕晚期';
+  }
+
+  return '孕期';
+}
+
+function isPregnancyPromotionRecord(record: KnowledgeOpsQaRecord, text: string): boolean {
+  return (record.category || '').startsWith('pregnancy-')
+    || record.topic === 'pregnancy'
+    || /备孕|怀孕|孕期|孕妇|孕周|胎儿|胎动|产检|待产|分娩/u.test(text);
+}
+
+function isInfantPromotionRecord(record: KnowledgeOpsQaRecord, text: string): boolean {
+  return (record.category || '').startsWith('parenting-')
+    || ['newborn', 'feeding', 'vaccination', 'development'].includes(record.topic || '')
+    || /宝宝|婴儿|新生儿|婴幼儿|孩子|小孩|辅食|喂养|疫苗|接种/u.test(text);
+}
+
+function hasUnsafePromotionSourceShape(question: string): boolean {
+  return PROMOTION_CASE_FORM_PATTERN.test(question)
+    || PROMOTION_TREATMENT_REQUEST_PATTERN.test(question)
+    || PROMOTION_RED_FLAG_SOURCE_PATTERN.test(question);
+}
+
+function hasUnsafePromotionOutputShape(question: string): boolean {
+  const allowsCareBoundary = PROMOTION_CARE_BOUNDARY_PATTERN.test(question);
+  return question.length > PROMOTION_MAX_QUESTION_LENGTH
+    || PROMOTION_CASE_FORM_PATTERN.test(question)
+    || (PROMOTION_URGENT_RISK_PATTERN.test(question) && !allowsCareBoundary)
+    || PROMOTION_PERSONAL_CASE_PATTERN.test(question)
+    || PROMOTION_TREATMENT_REQUEST_PATTERN.test(question);
+}
+
+function hasSupportedPromotionIntent(question: string): boolean {
+  return PROMOTION_GENERIC_INTENT_PATTERNS.some((pattern) => pattern.test(question));
+}
+
+type PromotionQuestionTopic =
+  | 'feeding'
+  | 'vaccination'
+  | 'development'
+  | 'sleep'
+  | 'newborn'
+  | 'jaundice'
+  | 'cord-care'
+  | 'pregnancy-symptoms'
+  | 'pregnancy-checkup'
+  | 'pregnancy-nutrition'
+  | 'fetal-movement'
+  | 'fever'
+  | 'vomiting-diarrhea'
+  | 'rash'
+  | 'baby-symptoms';
+
+function inferPromotionQuestionTopic(question: string): PromotionQuestionTopic | null {
+  if (/辅食|喂养|母乳|奶量|配方奶|吃奶|哺乳/u.test(question)) {
+    return 'feeding';
+  }
+
+  if (/疫苗|接种|预防针|卡介|乙肝疫苗|百白破|麻腮风/u.test(question)) {
+    return 'vaccination';
+  }
+
+  if (/发育|里程碑|翻身|爬行|走路|说话|语言/u.test(question)) {
+    return 'development';
+  }
+
+  if (/睡眠|夜醒|作息|安抚|哄睡/u.test(question)) {
+    return 'sleep';
+  }
+
+  if (/黄疸|黄胆/u.test(question)) {
+    return 'jaundice';
+  }
+
+  if (/脐带|肚脐/u.test(question)) {
+    return 'cord-care';
+  }
+
+  if (/新生儿|出生后|胎便/u.test(question)) {
+    return 'newborn';
+  }
+
+  if (/胎动/u.test(question)) {
+    return 'fetal-movement';
+  }
+
+  if (/产检|检查|B超|彩超|四维|唐筛|糖耐|入院|待产/u.test(question)) {
+    return 'pregnancy-checkup';
+  }
+
+  if (/孕期营养|叶酸|体重|补钙|贫血|饮食/u.test(question)) {
+    return 'pregnancy-nutrition';
+  }
+
+  if (/孕期|怀孕|孕妇|孕早期|孕中期|孕晚期|腹痛|肚子痛|出血|见红|不适/u.test(question)) {
+    return 'pregnancy-symptoms';
+  }
+
+  if (/腹泻|拉肚子|呕吐|吐奶/u.test(question)) {
+    return 'vomiting-diarrhea';
+  }
+
+  if (/皮疹|红疹|湿疹|疹子/u.test(question)) {
+    return 'rash';
+  }
+
+  if (/发烧|发热|高烧|高热/u.test(question)) {
+    return 'fever';
+  }
+
+  if (/宝宝常见症状|宝宝.*就医/u.test(question)) {
+    return 'baby-symptoms';
+  }
+
+  return null;
+}
+
+function getPromotionReferenceText(reference: KnowledgeOpsReference): string {
+  return [
+    reference.title,
+    reference.url,
+    reference.sourceOrg,
+    reference.org,
+    reference.sourceClass,
+  ].filter(Boolean).join(' ').toLowerCase();
+}
+
+function isPromotionReferenceAligned(question: string, reference: KnowledgeOpsReference): boolean {
+  const topic = inferPromotionQuestionTopic(question);
+  if (!topic) {
+    return false;
+  }
+
+  const referenceText = getPromotionReferenceText(reference);
+  const sourceClass = reference.sourceClass || '';
+
+  if (topic === 'feeding') {
+    if (/辅食|断奶|米粉|solid foods?|complementary feeding|weaning/u.test(question)) {
+      return /婴幼儿喂养|infant feeding|feeding guidance|辅食|断奶|米粉|solid foods?|complementary feeding|weaning/u.test(referenceText);
+    }
+
+    if (/哺乳|母乳|喂奶/u.test(question)) {
+      return /breastfeed|breastfeeding|breast milk|lactation|母乳|哺乳/u.test(referenceText);
+    }
+
+    return /feeding problems?|formula|喂养问题|配方奶/u.test(referenceText);
+  }
+
+  if (topic === 'vaccination') {
+    return /vaccine|vaccin|immuni|immunization|疫苗|接种|乙肝|百白破|麻腮风/u.test(referenceText);
+  }
+
+  if (topic === 'development') {
+    return /development|milestone|growth|language|发育|里程碑|成长/u.test(referenceText);
+  }
+
+  if (topic === 'sleep') {
+    return /sleep|睡眠/u.test(referenceText);
+  }
+
+  if (topic === 'newborn' || topic === 'cord-care') {
+    if (topic === 'cord-care') {
+      return /umbilical|cord|navel|脐带|肚脐/u.test(referenceText);
+    }
+
+    return /newborn care|care of newborns|caring for (?:a )?(?:newborn|baby)|neonatal care|新生儿护理|新生儿照护|新生儿保健/u.test(referenceText);
+  }
+
+  if (topic === 'jaundice') {
+    return /jaundice|黄疸|黄胆/u.test(referenceText);
+  }
+
+  if (topic === 'fetal-movement') {
+    return /fetal movement|kick count|胎动/u.test(referenceText);
+  }
+
+  if (topic === 'pregnancy-checkup') {
+    return /prenatal|antenatal|pregnancy|pregnan|产检|孕期|妊娠|超声|ultrasound|screening/u.test(referenceText);
+  }
+
+  if (topic === 'pregnancy-nutrition') {
+    return /nutrition|diet|folic|iron|calcium|anaemia|anemia|vitamin|营养|饮食|叶酸|铁|钙|贫血/u.test(referenceText);
+  }
+
+  if (topic === 'pregnancy-symptoms') {
+    return /pregnancy|pregnan|prenatal|antenatal|bleeding|pain|nausea|vomit|morning sickness|孕期|妊娠|怀孕|腹痛|出血|见红|孕吐/u.test(referenceText);
+  }
+
+  if (topic === 'fever') {
+    return /fever|temperature|high temperature|发热|发烧|高温/u.test(referenceText);
+  }
+
+  if (topic === 'vomiting-diarrhea') {
+    if (/pregnancy|pregnan|孕期|妊娠|怀孕/u.test(referenceText) && !/baby|child|children|infant|newborn|儿童|婴儿|宝宝|新生儿/u.test(referenceText)) {
+      return false;
+    }
+
+    return /vomit|diarrh|gastro|stool|urine|nausea|呕吐|腹泻|吐奶|大便|大小便/u.test(referenceText);
+  }
+
+  if (topic === 'rash') {
+    return /rash|eczema|dermatitis|skin|皮疹|湿疹|皮肤/u.test(referenceText);
+  }
+
+  if (topic === 'baby-symptoms') {
+    return sourceClass === 'official' && /child|children|infant|baby|newborn|儿童|婴儿|宝宝|新生儿/u.test(referenceText);
+  }
+
+  return false;
+}
+
+function buildStandardizedPromotionQuestion(record: KnowledgeOpsQaRecord): string | undefined {
+  const text = getPromotionSourceText(record);
+  const topic = normalizeKey(record.topic);
+  const category = normalizeKey(record.category);
+  const pregnancyStageLabel = resolvePregnancyStageLabel(record, text);
+  const isPregnancy = isPregnancyPromotionRecord(record, text);
+  const isInfant = isInfantPromotionRecord(record, text);
+
+  if (topic === 'vaccination' || /疫苗|接种|预防针|卡介|乙肝疫苗|百白破|麻腮风/u.test(text)) {
+    return '宝宝疫苗接种后哪些情况需要就医？';
+  }
+
+  if (topic === 'feeding' || category === 'nutrition-baby' || /辅食|喂养|母乳|奶量|配方奶|吃奶|哺乳/u.test(text)) {
+    if (/辅食|断奶|米粉/u.test(text) || category === 'nutrition-baby') {
+      return '6 个月宝宝添加辅食要注意什么？';
+    }
+
+    if (/哺乳|母乳|喂奶/u.test(text) && isPregnancy) {
+      return '哺乳期喂养要注意什么？';
+    }
+
+    if (isInfant) {
+      return '宝宝喂养怎么观察是否合适？';
+    }
+  }
+
+  if (topic === 'development' || /发育|里程碑|翻身|爬行|走路|说话|语言/u.test(text)) {
+    return '宝宝发育里程碑怎么观察？';
+  }
+
+  if (/睡眠|夜醒|作息|安抚|哄睡/u.test(text)) {
+    return '宝宝睡眠作息要注意什么？';
+  }
+
+  if (topic === 'newborn' || /新生儿|出生后|脐带|黄疸|胎便/u.test(text)) {
+    if (/黄疸|黄胆/u.test(text)) {
+      return '新生儿黄疸什么时候需要就医？';
+    }
+
+    if (/脐带|肚脐/u.test(text)) {
+      return '新生儿脐带护理要注意什么？';
+    }
+
+    return '新生儿护理要注意什么？';
+  }
+
+  if (topic === 'common-symptoms' || /发烧|发热|咳嗽|腹泻|呕吐|便秘|皮疹|红疹|湿疹|黄疸|腹痛|出血|见红|不适/u.test(text)) {
+    if (isPregnancy) {
+      if (/腹痛|肚子痛|出血|见红/u.test(text)) {
+        return '孕期腹痛或出血什么时候需要就医？';
+      }
+
+      return '孕期不适什么时候需要就医？';
+    }
+
+    if (/黄疸|黄胆/u.test(text)) {
+      return '新生儿黄疸什么时候需要就医？';
+    }
+
+    if (/腹泻|拉肚子|呕吐|吐奶/u.test(text)) {
+      return '宝宝呕吐或腹泻什么时候需要就医？';
+    }
+
+    if (/皮疹|红疹|湿疹|疹子/u.test(text)) {
+      return '宝宝皮疹或湿疹什么时候需要就医？';
+    }
+
+    if (/发烧|发热|高烧|高热/u.test(text)) {
+      return '宝宝发热什么时候需要就医？';
+    }
+
+    if (isInfant) {
+      return '宝宝常见症状什么时候需要就医？';
+    }
+  }
+
+  if (isPregnancy) {
+    if (/胎动/u.test(text) || category === 'pregnancy-mid') {
+      return '孕中期胎动怎么数？';
+    }
+
+    if (/产检|检查|B超|彩超|四维|唐筛|糖耐|入院|待产/u.test(text)) {
+      return `${pregnancyStageLabel}产检要注意什么？`;
+    }
+
+    if (/营养|叶酸|体重|补钙|贫血|饮食/u.test(text)) {
+      return '孕期营养要注意什么？';
+    }
+
+    return `${pregnancyStageLabel}要注意什么？`;
+  }
+
+  return undefined;
+}
+
+function resolvePromotionQuestion(record: KnowledgeOpsQaRecord): string | undefined {
+  const question = normalizePromotionText(record.question);
+  if (
+    question
+    && !hasUnsafePromotionOutputShape(question)
+    && hasSupportedPromotionIntent(question)
+  ) {
+    return question;
+  }
+
+  return buildStandardizedPromotionQuestion(record);
+}
+
 function buildPromotionSafeQuestionCandidates(records: KnowledgeOpsQaRecord[], sampleLimit: number) {
   const excluded = {
     missingQuestion: 0,
@@ -540,36 +900,23 @@ function buildPromotionSafeQuestionCandidates(records: KnowledgeOpsQaRecord[], s
     unsupportedPromotionIntent: 0,
     contentGuard: 0,
     missingAuthorityReference: 0,
+    authorityReferenceMismatch: 0,
     redRisk: 0,
     unsupportedRisk: 0,
+    duplicateStandardizedQuestion: 0,
   };
   const candidates: KnowledgeOpsPromotionQuestionCandidate[] = [];
+  const candidateByQuestion = new Map<string, KnowledgeOpsPromotionQuestionCandidate>();
 
   for (const record of records) {
-    const question = (record.question || '').trim();
-    if (!question) {
+    const sourceQuestion = normalizePromotionText(record.question);
+    if (!sourceQuestion) {
       excluded.missingQuestion += 1;
       continue;
     }
 
-    const allowsCareBoundary = PROMOTION_CARE_BOUNDARY_PATTERN.test(question);
-    if (
-      question.length > PROMOTION_MAX_QUESTION_LENGTH
-      || PROMOTION_CASE_FORM_PATTERN.test(question)
-      || (PROMOTION_URGENT_RISK_PATTERN.test(question) && !allowsCareBoundary)
-      || PROMOTION_PERSONAL_CASE_PATTERN.test(question)
-    ) {
+    if (hasUnsafePromotionSourceShape(sourceQuestion)) {
       excluded.unsafeQuestionShape += 1;
-      continue;
-    }
-
-    if (!PROMOTION_GENERIC_INTENT_PATTERNS.some((pattern) => pattern.test(question))) {
-      excluded.unsupportedPromotionIntent += 1;
-      continue;
-    }
-
-    if (getDatasetKnowledgeDropReason(record)) {
-      excluded.contentGuard += 1;
       continue;
     }
 
@@ -589,7 +936,33 @@ function buildPromotionSafeQuestionCandidates(records: KnowledgeOpsQaRecord[], s
       continue;
     }
 
-    candidates.push({
+    if (getDatasetKnowledgeDropReason(record)) {
+      excluded.contentGuard += 1;
+      continue;
+    }
+
+    const question = resolvePromotionQuestion(record);
+    if (!question || !hasSupportedPromotionIntent(question)) {
+      excluded.unsupportedPromotionIntent += 1;
+      continue;
+    }
+
+    if (!isPromotionReferenceAligned(question, authorityReference)) {
+      excluded.authorityReferenceMismatch += 1;
+      continue;
+    }
+
+    if (hasUnsafePromotionOutputShape(question) || getDatasetKnowledgeDropReason({
+      ...record,
+      question,
+      summary: '',
+      answer: '',
+    })) {
+      excluded.unsafeQuestionShape += 1;
+      continue;
+    }
+
+    const candidate: KnowledgeOpsPromotionQuestionCandidate = {
       id: record.id || record.original_id,
       question,
       category: record.category,
@@ -607,8 +980,20 @@ function buildPromotionSafeQuestionCandidates(records: KnowledgeOpsQaRecord[], s
         sourceClass: authorityReference.sourceClass,
         authoritative: authorityReference.authoritative === true || authorityReference.sourceClass === 'official',
       },
-    });
+    };
+    const existing = candidateByQuestion.get(question);
+    if (existing) {
+      excluded.duplicateStandardizedQuestion += 1;
+      if (existing.riskLevel === 'green' && candidate.riskLevel === 'yellow') {
+        candidateByQuestion.set(question, candidate);
+      }
+      continue;
+    }
+
+    candidateByQuestion.set(question, candidate);
   }
+
+  candidates.push(...candidateByQuestion.values());
 
   const sortedCandidates = candidates.sort((left, right) => {
     const riskOrder = left.riskLevel.localeCompare(right.riskLevel);

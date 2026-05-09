@@ -324,4 +324,290 @@ describe('knowledge ops report', () => {
       boundaryNote: '仅用于科普与就医准备，不作为诊断或治疗建议。',
     });
   });
+
+  it('generates standardized promotion-safe titles from official covered case-style QA records', () => {
+    const officialReference = {
+      authoritative: true,
+      sourceClass: 'official',
+      sourceOrg: '中国疾病预防控制中心营养与健康所',
+      title: '婴幼儿喂养建议',
+      url: 'https://www.chinacdc.cn/example.html',
+    };
+
+    const report = buildKnowledgeOpsReport({
+      qaRecords: [],
+      enrichedQaRecords: [
+        qaFixture({
+          id: 'qa-case-feeding',
+          question: '我家的宝宝现在已经6个月大了，不知道能不能添加辅食，最近大便也不是很好，请问怎么办？',
+          category: 'nutrition-baby',
+          topic: 'feeding',
+          risk_level_default: 'green',
+          target_stage: ['6-12-months'],
+          references: [officialReference],
+        }),
+        qaFixture({
+          id: 'qa-case-fetal-movement',
+          question: '我怀孕24周了，想知道胎动应该怎么数，最近去医院检查医生也让我注意胎动。',
+          category: 'pregnancy-mid',
+          topic: 'pregnancy',
+          risk_level_default: 'green',
+          target_stage: ['second-trimester'],
+          references: [{
+            authoritative: true,
+            sourceClass: 'official',
+            sourceOrg: 'ACOG',
+            title: 'Fetal movement guidance',
+            url: 'https://www.acog.org/example',
+          }],
+        }),
+        qaFixture({
+          id: 'qa-case-fever',
+          question: '宝宝昨天晚上开始高烧，今天精神也不太好，家里人都很着急，请问该怎么办？',
+          category: 'common-symptoms',
+          topic: 'common-symptoms',
+          risk_level_default: 'yellow',
+          target_stage: ['0-6-months'],
+          references: [{
+            authoritative: true,
+            sourceClass: 'official',
+            sourceOrg: 'AAP',
+            title: 'Fever in children',
+            url: 'https://www.healthychildren.org/English/health-issues/conditions/fever/Pages/default.aspx',
+          }],
+        }),
+        qaFixture({
+          id: 'qa-case-red',
+          question: '宝宝发热什么时候需要就医？',
+          category: 'common-symptoms',
+          topic: 'common-symptoms',
+          risk_level_default: 'red',
+          target_stage: ['0-6-months'],
+          references: [officialReference],
+        }),
+        qaFixture({
+          id: 'qa-case-missing-reference',
+          question: '6 个月宝宝添加辅食要注意什么？',
+          category: 'nutrition-baby',
+          topic: 'feeding',
+          risk_level_default: 'green',
+          target_stage: ['6-12-months'],
+        }),
+        qaFixture({
+          id: 'qa-case-unsupported',
+          question: '宝宝用品怎么买更划算？',
+          category: 'shopping',
+          topic: 'shopping',
+          risk_level_default: 'green',
+          references: [officialReference],
+        }),
+      ],
+      authorityRecords: [],
+    }, {
+      sampleLimit: 10,
+      watchedSourceIds: [],
+    });
+
+    expect(report.promotion.safeQuestionCandidates).toMatchObject({
+      total: 3,
+      excluded: {
+        missingAuthorityReference: 1,
+        redRisk: 1,
+        unsupportedPromotionIntent: 1,
+      },
+    });
+    expect(report.promotion.safeQuestionCandidates.candidates).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'qa-case-feeding',
+        question: '6 个月宝宝添加辅食要注意什么？',
+        riskLevel: 'green',
+        suggestedUse: 'general_education',
+      }),
+      expect.objectContaining({
+        id: 'qa-case-fetal-movement',
+        question: '孕中期胎动怎么数？',
+        riskLevel: 'green',
+        suggestedUse: 'general_education',
+      }),
+      expect.objectContaining({
+        id: 'qa-case-fever',
+        question: '宝宝发热什么时候需要就医？',
+        riskLevel: 'yellow',
+        suggestedUse: 'care_boundary',
+        boundaryNote: '仅用于科普与就医准备，不作为诊断或治疗建议。',
+      }),
+    ]));
+  });
+
+  it('does not invent promotion topics from generic answers or broad stage arrays', () => {
+    const report = buildKnowledgeOpsReport({
+      qaRecords: [],
+      enrichedQaRecords: [
+        qaFixture({
+          id: 'qa-generic-answer',
+          question: '哺乳感觉浑身发冷四肢无力恶心，是感冒吗？',
+          answer: '观察症状，注意饮食，保证休息，必要时就医。',
+          category: 'common-symptoms',
+          topic: 'common-symptoms',
+          risk_level_default: 'yellow',
+          target_stage: ['0-6-months', '6-12-months', 'first-trimester'],
+          references: [{
+            authoritative: true,
+            sourceClass: 'official',
+            sourceOrg: 'ACOG',
+            title: 'Nausea and Vomiting of Pregnancy',
+            url: 'https://www.acog.org/example',
+          }],
+        }),
+        qaFixture({
+          id: 'qa-reference-mismatch',
+          question: '宝宝脸上起红疹什么时候需要就医？',
+          category: 'common-symptoms',
+          topic: 'common-symptoms',
+          risk_level_default: 'yellow',
+          target_stage: ['0-6-months'],
+          references: [{
+            authoritative: true,
+            sourceClass: 'official',
+            sourceOrg: 'NHS',
+            title: 'Ibuprofen for children: medicine for pain and high temperature',
+            url: 'https://www.nhs.uk/medicines/ibuprofen-for-children/',
+          }],
+        }),
+        qaFixture({
+          id: 'qa-reference-match',
+          question: '宝宝发热什么时候需要就医？',
+          category: 'common-symptoms',
+          topic: 'common-symptoms',
+          risk_level_default: 'yellow',
+          target_stage: ['0-6-months'],
+          references: [{
+            authoritative: true,
+            sourceClass: 'official',
+            sourceOrg: 'NHS',
+            title: 'Ibuprofen for children: medicine for pain and high temperature',
+            url: 'https://www.nhs.uk/medicines/ibuprofen-for-children/',
+          }],
+        }),
+      ],
+      authorityRecords: [],
+    }, {
+      sampleLimit: 10,
+      watchedSourceIds: [],
+    });
+
+    expect(report.promotion.safeQuestionCandidates).toMatchObject({
+      total: 1,
+      excluded: {
+        unsupportedPromotionIntent: 1,
+        authorityReferenceMismatch: 1,
+      },
+    });
+    expect(report.promotion.safeQuestionCandidates.candidates).toEqual([
+      expect.objectContaining({
+        id: 'qa-reference-match',
+        question: '宝宝发热什么时候需要就医？',
+      }),
+    ]);
+  });
+
+  it('requires specific authority reference alignment for standardized promotion titles', () => {
+    const report = buildKnowledgeOpsReport({
+      qaRecords: [],
+      enrichedQaRecords: [
+        qaFixture({
+          id: 'qa-feeding-mismatch',
+          question: '宝宝 6 个月开始添加辅食要注意什么？',
+          category: 'parenting-0-1',
+          topic: 'feeding',
+          risk_level_default: 'green',
+          target_stage: ['6-12-months'],
+          references: [{
+            authoritative: true,
+            sourceClass: 'official',
+            sourceOrg: 'NHS',
+            title: 'Breastfeeding in public',
+            url: 'https://www.nhs.uk/baby/breastfeeding-and-bottle-feeding/breastfeeding/breastfeeding-in-public/',
+          }],
+        }),
+        qaFixture({
+          id: 'qa-diarrhea-mismatch',
+          question: '宝宝呕吐和腹泻什么时候需要就医？',
+          category: 'common-symptoms',
+          topic: 'common-symptoms',
+          risk_level_default: 'yellow',
+          target_stage: ['0-6-months'],
+          references: [{
+            authoritative: true,
+            sourceClass: 'official',
+            sourceOrg: 'ACOG',
+            title: 'Nausea and Vomiting of Pregnancy',
+            url: 'https://www.acog.org/example',
+          }],
+        }),
+        qaFixture({
+          id: 'qa-newborn-mismatch',
+          question: '新生儿护理要注意什么？',
+          category: 'parenting-0-1',
+          topic: 'newborn',
+          risk_level_default: 'green',
+          target_stage: ['newborn'],
+          references: [{
+            authoritative: true,
+            sourceClass: 'official',
+            sourceOrg: 'MSD Manuals',
+            title: '风湿热 - 儿童的健康问题',
+            url: 'https://www.msdmanuals.cn/home/children-s-health-issues/bacterial-infections-in-infants-and-children/rheumatic-fever',
+          }],
+        }),
+        qaFixture({
+          id: 'qa-nutrition-mismatch',
+          question: '孕期营养要注意什么？',
+          category: 'pregnancy-early',
+          topic: 'pregnancy',
+          risk_level_default: 'green',
+          target_stage: ['first-trimester'],
+          references: [{
+            authoritative: true,
+            sourceClass: 'official',
+            sourceOrg: 'NHS',
+            title: 'Antenatal checks and tests',
+            url: 'https://www.nhs.uk/pregnancy/your-pregnancy-care/antenatal-checks-and-tests/',
+          }],
+        }),
+        qaFixture({
+          id: 'qa-specific-match',
+          question: '宝宝皮疹或湿疹什么时候需要就医？',
+          category: 'common-symptoms',
+          topic: 'common-symptoms',
+          risk_level_default: 'yellow',
+          target_stage: ['0-6-months'],
+          references: [{
+            authoritative: true,
+            sourceClass: 'official',
+            sourceOrg: 'MSD Manuals',
+            title: '儿童皮疹 - 儿童的健康问题',
+            url: 'https://www.msdmanuals.cn/home/children-s-health-issues/symptoms-in-infants-and-children/rashes-in-children',
+          }],
+        }),
+      ],
+      authorityRecords: [],
+    }, {
+      sampleLimit: 10,
+      watchedSourceIds: [],
+    });
+
+    expect(report.promotion.safeQuestionCandidates).toMatchObject({
+      total: 1,
+      excluded: {
+        authorityReferenceMismatch: 4,
+      },
+    });
+    expect(report.promotion.safeQuestionCandidates.candidates).toEqual([
+      expect.objectContaining({
+        id: 'qa-specific-match',
+        question: '宝宝皮疹或湿疹什么时候需要就医？',
+      }),
+    ]);
+  });
 });

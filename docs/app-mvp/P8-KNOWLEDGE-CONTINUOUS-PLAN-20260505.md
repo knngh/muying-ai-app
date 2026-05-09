@@ -231,6 +231,8 @@ DRY_RUN=false npm run retry:authority-translation-failures
 
 2026-05-09 P3 起步切片：`ops:knowledge:report` 新增 `promotion.safeQuestionCandidates`，从 `expanded-qa-data-5000.enriched.json` 中生成“推广素材可用问题库”候选。候选规则是：必须有官方权威引用，`red` 风险排除，`green` 标记为 `general_education`，`yellow` 标记为 `care_boundary` 并附带“仅用于科普与就医准备，不作为诊断或治疗建议。”边界说明。`ops:knowledge:status` 也会在摘要里展示该候选池概览。
 
+2026-05-09 P3-2 切片：`promotion.safeQuestionCandidates` 从“直接筛原始问句”升级为“标准化推广选题生成”。原始 QA 如果是病例式、个人经历式或问诊表单式内容，不会直接进入候选；系统只在通过官方引用、风险等级、内容 guard 后，按结构化分类 / topic / 阶段信号生成标准题名，例如“6 个月宝宝添加辅食要注意什么？”“孕中期胎动怎么数？”“宝宝发热什么时候需要就医？”。同时新增 `authorityReferenceMismatch` 排除统计，候选题必须和官方引用主题匹配，避免用不相关权威来源支撑推广题。
+
 ## 7.1 P3：知识运营与推广联动
 
 目标：在 P2 已完成的基础上，把权威覆盖继续推进到 `80%+`，并让知识库成果直接服务安全推广。
@@ -242,6 +244,7 @@ DRY_RUN=false npm run retry:authority-translation-failures
 3. 使用 `promotion.safeQuestionCandidates` 作为推广素材问题池，运营只从官方引用充足、风险边界明确的问题里选题。
 4. 对 `yellow` 候选只做科普与就医准备表达，不做诊断、治疗、疗效或承诺式转化文案。
 5. `mayo-clinic-zh` 暂不作为刷新任务推进；除非服务器出口访问策略改变，继续把它作为外部阻断源记录。
+6. P3-2 已完成标准化推广选题生成：候选题不直接复用病例问句，且必须通过官方引用主题匹配。
 
 默认读取 `tmp/knowledge-ops-report.json` 中 `sourceCoverage.watchedSources` 的 `missing` / `low` 源，先 dry-run 打印将刷新列表；显式 `DRY_RUN=false` 后按源调用现有 `sync:authority` 能力刷新。可用 `AUTHORITY_SOURCE_IDS=mayo-clinic-zh,chinacdc-nutrition` 限定源。
 

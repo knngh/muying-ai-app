@@ -355,7 +355,7 @@
 推广要依赖产品可信度。2026-05-09 P2 知识运营已收口：生产 `ops:knowledge:status` 为 `ok`，权威覆盖率 `76.05%`，翻译失败和 invalid translation cache 均为 `0`。下阶段开发进入 P3 知识运营与推广联动：
 
 1. 把权威覆盖率从 `76.05%` 推进到 `80%+`。
-2. 使用 `ops:knowledge:report` 的 `promotion.safeQuestionCandidates` 建立“推广素材可用问题库”：只选官方权威引用充足、风险边界清楚的问题对外传播。
+2. 使用 `ops:knowledge:report` 的 `promotion.safeQuestionCandidates` 建立“推广素材可用问题库”：只选官方权威引用充足、风险边界清楚的问题对外传播。P3-2 已把候选池升级为标准化选题生成，不直接拿病例式原始问句做推广，并用 `authorityReferenceMismatch` 排除引用主题不匹配的素材。
 3. `green` 候选可做一般科普选题，`yellow` 候选只做科普与就医准备，不做诊断、治疗或疗效承诺。
 4. 增强答案里的来源、风险等级和就医边界展示。
 5. 为首访用户补一个按阶段推荐问题的轻量入口。
