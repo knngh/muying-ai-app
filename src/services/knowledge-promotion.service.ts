@@ -188,14 +188,8 @@ function normalizeCandidateTargetStage(
 ): KnowledgeRecommendedQuestionStage[] {
   const text = `${question} ${candidate.category || ''} ${candidate.topic || ''}`;
 
-  if (/辅食|6\s*个月|6个月|6-12|feeding/iu.test(text)) {
-    return ['6-12-months'];
-  }
-  if (/新生儿|黄疸|脐带|newborn/iu.test(text)) {
-    return ['newborn'];
-  }
-  if (/发育里程碑|1-3|toddler|development/iu.test(text)) {
-    return ['1-3-years'];
+  if (/哺乳|母乳喂养|产后|postpartum|breastfeeding/iu.test(text)) {
+    return ['postpartum'];
   }
   if (/孕早期|早孕|first-trimester|preparation/iu.test(text)) {
     return ['first-trimester'];
@@ -206,10 +200,30 @@ function normalizeCandidateTargetStage(
   if (/孕晚期|入院|待产|宫缩|third-trimester/iu.test(text)) {
     return ['third-trimester'];
   }
-  if (/哺乳|产后|postpartum/iu.test(text)) {
-    return ['postpartum'];
+  if (/孕期不适|孕期.{0,8}就医|孕产|怀孕|孕期|pregnancy/iu.test(text)) {
+    return ['first-trimester', 'second-trimester', 'third-trimester'];
   }
-
+  if (/宝宝|婴儿|儿童|孩子|皮疹|湿疹|发热|发烧|baby|child|children/iu.test(text)) {
+    if (/发育里程碑|1-3|toddler|development/iu.test(text)) {
+      return ['1-3-years'];
+    }
+    if (/新生儿|黄疸|脐带|newborn/iu.test(text)) {
+      return ['newborn'];
+    }
+    if (/辅食|6\s*个月|6个月|6-12|feeding/iu.test(text)) {
+      return ['6-12-months'];
+    }
+    return ['newborn', '0-6-months', '6-12-months', '1-3-years'];
+  }
+  if (/辅食|6\s*个月|6个月|6-12|feeding/iu.test(text)) {
+    return ['6-12-months'];
+  }
+  if (/新生儿|黄疸|脐带|newborn/iu.test(text)) {
+    return ['newborn'];
+  }
+  if (/发育里程碑|1-3|toddler|development/iu.test(text)) {
+    return ['1-3-years'];
+  }
   return (candidate.targetStage || [])
     .filter((item): item is KnowledgeRecommendedQuestionStage => isKnowledgeRecommendedQuestionStage(item));
 }
@@ -279,7 +293,7 @@ export function buildKnowledgeRecommendedQuestions(
   const source = reportQuestions.length > 0 ? 'knowledge_ops_report' : 'fallback';
   const sourceQuestions = reportQuestions.length > 0 ? reportQuestions : FALLBACK_QUESTIONS;
   const matched = sourceQuestions.filter((question) => stageMatches(question, stage));
-  const selected = (matched.length > 0 ? matched : sourceQuestions).slice(0, limit);
+  const selected = (stage ? matched : sourceQuestions).slice(0, limit);
 
   return {
     stage,

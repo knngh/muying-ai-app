@@ -104,6 +104,78 @@ describe('knowledge promotion recommendations', () => {
     expect(result.questions[0].targetStage).toEqual(['first-trimester']);
   });
 
+  it('does not expose baby symptom questions to pregnancy stages when raw stage arrays are broad', () => {
+    const result = buildKnowledgeRecommendedQuestions({
+      report: {
+        promotion: {
+          safeQuestionCandidates: {
+            candidates: [
+              {
+                id: 'qa-baby-fever',
+                question: '宝宝发热什么时候需要就医？',
+                category: 'common-symptoms',
+                topic: 'common-symptoms',
+                targetStage: ['0-6-months', '6-12-months', '1-3-years', 'first-trimester', 'second-trimester', 'third-trimester'],
+                riskLevel: 'yellow',
+                suggestedUse: 'care_boundary',
+                authorityReference: {
+                  sourceOrg: 'NHS',
+                  title: 'Ibuprofen for children',
+                },
+              },
+              {
+                id: 'qa-pregnancy-care',
+                question: '孕期不适什么时候需要就医？',
+                category: 'common-symptoms',
+                topic: 'pregnancy',
+                targetStage: ['first-trimester'],
+                riskLevel: 'yellow',
+                suggestedUse: 'care_boundary',
+                authorityReference: {
+                  sourceOrg: 'CDC',
+                  title: 'Medicine and Pregnancy',
+                },
+              },
+            ],
+          },
+        },
+      },
+      stage: 'first-trimester',
+    });
+
+    expect(result.questions.map((item) => item.id)).toEqual(['qa-pregnancy-care']);
+    expect(result.questions[0].targetStage).toEqual(['first-trimester', 'second-trimester', 'third-trimester']);
+  });
+
+  it('keeps breastfeeding questions in postpartum instead of baby feeding stages', () => {
+    const result = buildKnowledgeRecommendedQuestions({
+      report: {
+        promotion: {
+          safeQuestionCandidates: {
+            candidates: [
+              {
+                id: 'qa-breastfeeding',
+                question: '哺乳期喂养要注意什么？',
+                category: 'pregnancy-mid',
+                topic: 'feeding',
+                targetStage: ['second-trimester'],
+                riskLevel: 'green',
+                suggestedUse: 'general_education',
+                authorityReference: {
+                  sourceOrg: 'MSD Manuals',
+                  title: 'Medication and substance use during breastfeeding',
+                },
+              },
+            ],
+          },
+        },
+      },
+      stage: '6-12-months',
+    });
+
+    expect(result.questions).toEqual([]);
+  });
+
   it('preserves care-boundary notes for yellow candidates', () => {
     const result = buildKnowledgeRecommendedQuestions({
       report: {
