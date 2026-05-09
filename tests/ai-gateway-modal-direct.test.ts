@@ -5,6 +5,7 @@ describe('AI gateway Modal Direct provider', () => {
     AI_GLM_URL: process.env.AI_GLM_URL,
     AI_GLM_MODEL: process.env.AI_GLM_MODEL,
     AI_GLM_PROVIDER: process.env.AI_GLM_PROVIDER,
+    AI_MODAL_DIRECT_MIN_COMPLETION_TOKENS: process.env.AI_MODAL_DIRECT_MIN_COMPLETION_TOKENS,
     AI_GATEWAY_KEY: process.env.AI_GATEWAY_KEY,
     AI_OPENROUTER_KEY: process.env.AI_OPENROUTER_KEY,
   };
@@ -106,5 +107,50 @@ describe('AI gateway Modal Direct provider', () => {
     })).rejects.toThrow('AI provider returned empty response');
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('reserves enough completion budget for Modal Direct reasoning models', async () => {
+    process.env.AI_MODAL_DIRECT_KEY = 'test-modal-key';
+    process.env.AI_MODAL_DIRECT_MIN_COMPLETION_TOKENS = '1000';
+    delete process.env.AI_GLM_KEY;
+    delete process.env.AI_GLM_URL;
+    delete process.env.AI_GLM_MODEL;
+    delete process.env.AI_GLM_PROVIDER;
+
+    const fetchMock = jest.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(
+      JSON.stringify({
+        choices: [{
+          message: {
+            role: 'assistant',
+            content: 'There are three r letters.',
+            reasoning_content: 'reasoning omitted',
+          },
+          finish_reason: 'stop',
+        }],
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    ));
+
+    let callTaskModelDetailed: typeof import('../src/services/ai-gateway.service').callTaskModelDetailed;
+    jest.isolateModules(() => {
+      const aiGateway = require('../src/services/ai-gateway.service') as typeof import('../src/services/ai-gateway.service');
+      callTaskModelDetailed = aiGateway.callTaskModelDetailed;
+    });
+
+    await expect(callTaskModelDetailed('glm_classify', [
+      { role: 'user', content: 'ping' },
+    ], {
+      maxTokens: 80,
+      temperature: 0,
+    })).resolves.toMatchObject({
+      answer: 'There are three r letters.',
+      route: {
+        provider: 'modal-direct',
+        model: 'zai-org/GLM-5.1-FP8',
+      },
+    });
+
+    const requestBody = JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string) as { max_tokens?: number };
+    expect(requestBody.max_tokens).toBe(1000);
   });
 });

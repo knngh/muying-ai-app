@@ -29,6 +29,10 @@ const AI_MODAL_DIRECT_URL = process.env.AI_MODAL_DIRECT_URL || 'https://api.us-w
 const AI_MODAL_DIRECT_KEY = process.env.AI_MODAL_DIRECT_KEY || process.env.MODAL_DIRECT_API_KEY || '';
 const AI_MODAL_DIRECT_MODEL = process.env.AI_MODAL_DIRECT_MODEL || 'zai-org/GLM-5.1-FP8';
 const AI_MODAL_DIRECT_PROVIDER = process.env.AI_MODAL_DIRECT_PROVIDER || 'modal-direct';
+const AI_MODAL_DIRECT_MIN_COMPLETION_TOKENS = Math.max(
+  1000,
+  Number.parseInt(process.env.AI_MODAL_DIRECT_MIN_COMPLETION_TOKENS || '1000', 10) || 1000,
+);
 const AI_GLM_URL = process.env.AI_GLM_URL || (AI_MODAL_DIRECT_KEY ? AI_MODAL_DIRECT_URL : OPENROUTER_BASE_URL);
 const AI_GLM_KEY = process.env.AI_GLM_KEY || AI_MODAL_DIRECT_KEY || OPENROUTER_KEY;
 const AI_GLM_MODEL = process.env.AI_GLM_MODEL || (AI_MODAL_DIRECT_KEY ? AI_MODAL_DIRECT_MODEL : OPENROUTER_MODEL);
@@ -91,7 +95,8 @@ interface ChatResponse {
     index: number;
     message?: {
       role: string;
-      content: string;
+      content?: string | Array<{ type?: string; text?: string }>;
+      reasoning_content?: string;
     };
     delta?: {
       content?: string;
@@ -550,6 +555,31 @@ function buildGatewayHeaders(provider: GatewayProvider, stream = false): Record<
   return headers;
 }
 
+function resolveProviderMaxTokens(provider: GatewayProvider, requestedMaxTokens?: number): number {
+  const maxTokens = requestedMaxTokens ?? 2000;
+  if (provider.provider === 'modal-direct') {
+    return Math.max(maxTokens, AI_MODAL_DIRECT_MIN_COMPLETION_TOKENS);
+  }
+
+  return maxTokens;
+}
+
+function extractChatMessageContent(data: ChatResponse): string | null {
+  const content = data.choices?.[0]?.message?.content;
+  if (typeof content === 'string') {
+    return content || null;
+  }
+
+  if (Array.isArray(content)) {
+    const text = content
+      .map(part => typeof part?.text === 'string' ? part.text : '')
+      .join('');
+    return text || null;
+  }
+
+  return null;
+}
+
 function buildMessagesWithKnowledgeContext(
   messages: ChatMessage[],
   context?: string
@@ -583,7 +613,7 @@ async function requestProvider(
     model: provider.model,
     messages,
     temperature: options.temperature ?? 0.7,
-    max_tokens: options.maxTokens ?? 2000,
+    max_tokens: resolveProviderMaxTokens(provider, options.maxTokens),
     stream: options.stream ?? false,
   };
 
@@ -625,7 +655,7 @@ async function callProvider(
   }
 
   const data: ChatResponse = await response.json() as ChatResponse;
-  const content = data.choices?.[0]?.message?.content;
+  const content = extractChatMessageContent(data);
   if (content == null) {
     throw new Error('AI provider returned empty response');
   }
