@@ -102,7 +102,7 @@ describe('knowledge enrichment', () => {
     });
   });
 
-  it('keeps non-target categories normalized but not authority-covered by default', () => {
+  it('covers expanded maternal-child categories by default', () => {
     const result = enrichKnowledgeBaseRecords(
       [
         qaFixture({
@@ -112,12 +112,26 @@ describe('knowledge enrichment', () => {
           answer: '记录胎动变化，结合产检和医生建议处理。',
         }),
       ],
-      [authorityFixture({ id: 'authority-acog-2' })],
+      [
+        authorityFixture({
+          id: 'authority-acog-fetal-movement',
+          question: 'Fetal movement in the second trimester',
+          answer: 'Fetal movement changes during pregnancy should be discussed during prenatal care, especially if movement seems reduced.'.repeat(8),
+          topic: 'pregnancy',
+          target_stage: ['second-trimester'],
+          tags: ['胎动', '孕中期'],
+        }),
+      ],
     );
 
-    expect(DEFAULT_KNOWLEDGE_ENRICHMENT_TARGET_CATEGORIES).not.toContain('pregnancy-mid');
-    expect(result.report.targetTotal).toBe(0);
-    expect(result.records[0]?.references).toBeUndefined();
+    expect(DEFAULT_KNOWLEDGE_ENRICHMENT_TARGET_CATEGORIES).toContain('pregnancy-mid');
+    expect(result.report.targetTotal).toBe(1);
+    expect(result.report.enriched).toBe(1);
+    expect(result.records[0]?.references?.[0]).toMatchObject({
+      sourceOrg: 'ACOG',
+      sourceClass: 'official',
+      authoritative: true,
+    });
     expect(result.records[0]?.topic).toBe('pregnancy');
     expect(result.records[0]?.target_stage).toContain('second-trimester');
     expect(result.records[0]?.risk_level_default).toBe('yellow');

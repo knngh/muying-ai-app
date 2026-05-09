@@ -6,12 +6,6 @@ import { getAuthorityKnowledgeDropReason, getDatasetKnowledgeDropReason } from '
 import { expandSearchTerms, normalizeSearchText } from './search-query-expansion';
 import type { AuthorityReference, KnowledgeRiskLevel, QAPair } from '../services/knowledge.service';
 
-export const DEFAULT_KNOWLEDGE_ENRICHMENT_TARGET_CATEGORIES = [
-  'pregnancy-early',
-  'parenting-0-1',
-  'common-symptoms',
-];
-
 const MATCH_VERSION = 'authority-enrichment-p1-20260505';
 const DEFAULT_MAX_REFERENCES = 1;
 const DEFAULT_MIN_SCORE = 34;
@@ -217,6 +211,8 @@ const CATEGORY_PROFILE_MAP: Record<string, {
     terms: ['第二针', '疫苗', '接种', 'vaccination'],
   },
 };
+
+export const DEFAULT_KNOWLEDGE_ENRICHMENT_TARGET_CATEGORIES = Object.keys(CATEGORY_PROFILE_MAP);
 
 const TOPIC_KEYWORD_HINTS: Array<{ topic: string; terms: string[] }> = [
   { topic: 'vaccination', terms: ['疫苗', '接种', '预防针', '卡介', '百白破', '乙肝疫苗', 'vaccine', 'vaccination', 'immunization'] },
