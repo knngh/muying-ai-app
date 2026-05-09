@@ -2,6 +2,7 @@ import {
   buildAuthorityTranslationFailureRetryPlan,
   isAuthorityTranslationFailureRetrySourceMatch,
   isPrunableAuthorityTranslationFailure,
+  resolveActiveAuthorityTranslationQuotaResetAt,
 } from '../src/utils/authority-translation-failure-retry';
 
 describe('authority translation failure retry planner', () => {
@@ -89,6 +90,31 @@ describe('authority translation failure retry planner', () => {
         retryAfterAt: '2026-05-10T16:00:00.000Z',
       }),
     ]);
+  });
+
+  it('reports the active AI Gateway quota reset time across cached failures', () => {
+    const resetAt = resolveActiveAuthorityTranslationQuotaResetAt({
+      'authority-aap-1': {
+        message: 'AI Gateway timeout after 45000ms',
+        retryAfterAt: '2026-05-09T08:00:00.000Z',
+      },
+      'authority-aap-2': {
+        message: 'AI Gateway error: 429: usage limit exceeded, weekly usage limit reached, resets at 2026-05-11T00:00:00+08:00',
+        retryAfterAt: '2026-05-09T06:00:00.000Z',
+      },
+    }, {
+      now: '2026-05-09T07:00:00.000Z',
+    });
+
+    expect(resetAt).toBe('2026-05-10T16:00:00.000Z');
+
+    expect(resolveActiveAuthorityTranslationQuotaResetAt({
+      'authority-aap-2': {
+        message: 'AI Gateway error: 429: usage limit exceeded, weekly usage limit reached, resets at 2026-05-11T00:00:00+08:00',
+      },
+    }, {
+      now: '2026-05-10T16:00:00.000Z',
+    })).toBeUndefined();
   });
 
   it('requires sourceUpdatedAt to match the current authority record before retrying', () => {

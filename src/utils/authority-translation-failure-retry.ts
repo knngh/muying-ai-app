@@ -43,6 +43,10 @@ export interface AuthorityTranslationFailureRetryPlan {
   skippedFailures: AuthorityTranslationFailureRetryCandidate[];
 }
 
+export interface AuthorityTranslationQuotaBlockOptions {
+  now?: string;
+}
+
 export function isPrunableAuthorityTranslationFailure(
   candidate: Pick<AuthorityTranslationFailureRetryCandidate, 'skipReason'>,
 ): boolean {
@@ -90,6 +94,26 @@ function resolveFailureRetryState(
     retryable,
     blockedReason: retryable ? undefined : 'retry_after_pending',
   };
+}
+
+export function resolveActiveAuthorityTranslationQuotaResetAt(
+  failures: Record<string, AuthorityTranslationFailureRecord>,
+  options: AuthorityTranslationQuotaBlockOptions = {},
+): string | undefined {
+  const generatedAt = options.now || new Date().toISOString();
+  const nowMs = Date.parse(generatedAt);
+  const effectiveNowMs = Number.isFinite(nowMs) ? nowMs : Date.now();
+  const activeResetTimes = Object.values(failures || {})
+    .map((failure) => {
+      if (!isAiGatewayUsageLimitBlocked(failure?.message, effectiveNowMs)) {
+        return undefined;
+      }
+
+      return resolveAiGatewayUsageLimitRetryAfterAt(failure?.message);
+    })
+    .filter((value): value is string => Boolean(value));
+
+  return activeResetTimes.sort()[0];
 }
 
 function candidateSortKey(candidate: AuthorityTranslationFailureRetryCandidate): string {

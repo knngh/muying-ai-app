@@ -15,6 +15,7 @@ import {
   stripCodeFence,
 } from '../utils/article-translation';
 import { resolveAiGatewayUsageLimitRetryAfterAt } from '../utils/ai-gateway-quota';
+import { resolveActiveAuthorityTranslationQuotaResetAt } from '../utils/authority-translation-failure-retry';
 
 export interface AuthorityCacheRecord {
   id: string;
@@ -89,13 +90,16 @@ export interface WarmAuthorityTranslationsResult {
   warmed: number;
   failed: number;
   failures: Array<{ slug: string; message: string }>;
+  quotaBlocked?: boolean;
+  quotaResetAt?: string;
 }
 
 const AUTHORITY_CACHE_PATHS = [
+  process.env.AUTHORITY_KNOWLEDGE_CACHE_PATH || '',
   '/tmp/authority-knowledge-cache.json',
   path.join(process.cwd(), 'data', 'authority-knowledge-cache.json'),
   path.join(__dirname, '../../data/authority-knowledge-cache.json'),
-];
+].filter(Boolean);
 const AUTHORITY_TRANSLATION_CACHE_PATH = process.env.AUTHORITY_TRANSLATION_CACHE_PATH || '';
 const AUTHORITY_TRANSLATION_CACHE_PATHS = [
   AUTHORITY_TRANSLATION_CACHE_PATH,
@@ -688,6 +692,12 @@ function shouldSkipRecentlyFailedAuthorityTranslation(slug: string, sourceUpdate
   return Number.isFinite(retryAt) && retryAt > Date.now();
 }
 
+function resolveActiveAuthorityTranslationQuotaBlock(nowMs = Date.now()): string | undefined {
+  return resolveActiveAuthorityTranslationQuotaResetAt(loadAuthorityTranslationFailureCache(), {
+    now: new Date(nowMs).toISOString(),
+  });
+}
+
 function recordAuthorityTranslationFailure(slug: string, sourceUpdatedAt: string | undefined, error: unknown): void {
   const failureCache = loadAuthorityTranslationFailureCache();
   const message = getAIGatewayErrorOpsMessage(error);
@@ -1085,6 +1095,8 @@ export async function warmPublishedAuthorityTranslations(
   const candidates: Array<{ slug: string; record: AuthorityCacheRecord }> = [];
   let cached = 0;
   let skipped = 0;
+  const quotaResetAt = options.slug ? undefined : resolveActiveAuthorityTranslationQuotaBlock();
+  const quotaBlocked = Boolean(quotaResetAt);
 
   records.forEach((record, index) => {
     const slug = buildAuthoritySlug(record, index);
@@ -1118,33 +1130,46 @@ export async function warmPublishedAuthorityTranslations(
   const selected = limit > 0 ? candidates.slice(0, limit) : [];
   let warmed = 0;
 
-  for (let index = 0; index < selected.length; index += 1) {
-    const item = selected[index];
-    try {
-      await getOrCreateAuthorityTranslation(item.slug, item.record);
-      clearAuthorityTranslationFailure(item.slug, resolveAuthorityTranslationSourceUpdatedAt(item.record));
-      warmed += 1;
-    } catch (error) {
-      recordAuthorityTranslationFailure(item.slug, resolveAuthorityTranslationSourceUpdatedAt(item.record), error);
-      failures.push({
-        slug: item.slug,
-        message: error instanceof Error ? error.message : String(error),
-      });
-    }
+  if (!quotaBlocked) {
+    for (let index = 0; index < selected.length; index += 1) {
+      const item = selected[index];
+      try {
+        await getOrCreateAuthorityTranslation(item.slug, item.record);
+        clearAuthorityTranslationFailure(item.slug, resolveAuthorityTranslationSourceUpdatedAt(item.record));
+        warmed += 1;
+      } catch (error) {
+        recordAuthorityTranslationFailure(item.slug, resolveAuthorityTranslationSourceUpdatedAt(item.record), error);
+        failures.push({
+          slug: item.slug,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
 
-    if (index < selected.length - 1 && delayMs > 0) {
-      await sleep(delayMs);
+      if (index < selected.length - 1 && delayMs > 0) {
+        await sleep(delayMs);
+      }
     }
   }
+
+  const effectiveSelected = quotaBlocked ? 0 : selected.length;
+  const effectiveSkipped = quotaBlocked ? skipped + selected.length : skipped;
 
   return {
     scanned: records.length,
     candidates: candidates.length,
-    selected: selected.length,
+    selected: effectiveSelected,
     cached,
-    skipped,
+    skipped: effectiveSkipped,
     warmed,
     failed: failures.length,
     failures,
+    ...(quotaBlocked ? {
+      quotaBlocked: true,
+      quotaResetAt,
+    } : {}),
   };
 }
+
+export const __authorityTranslationInternalTestUtils = {
+  resolveActiveAuthorityTranslationQuotaBlock,
+};
