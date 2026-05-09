@@ -17,7 +17,10 @@ import {
   stripCodeFence,
 } from '../utils/article-translation';
 import { resolveAiGatewayUsageLimitRetryAfterAt } from '../utils/ai-gateway-quota';
-import { resolveActiveAuthorityTranslationQuotaResetAt } from '../utils/authority-translation-failure-retry';
+import {
+  resolveActiveAuthorityTranslationQuotaResetAt,
+  resolveActiveAuthorityTranslationTransientBlockUntil,
+} from '../utils/authority-translation-failure-retry';
 
 export interface AuthorityCacheRecord {
   id: string;
@@ -700,6 +703,12 @@ function resolveActiveAuthorityTranslationQuotaBlock(nowMs = Date.now()): string
   });
 }
 
+function resolveActiveAuthorityTranslationTransientBlock(nowMs = Date.now()): string | undefined {
+  return resolveActiveAuthorityTranslationTransientBlockUntil(loadAuthorityTranslationFailureCache(), {
+    now: new Date(nowMs).toISOString(),
+  });
+}
+
 function isModalDirectGlmFirstForTranslation(): boolean {
   const firstRole = AUTHORITY_TRANSLATION_TASK_ROLES[0];
   if (firstRole !== 'glm_classify') {
@@ -1122,9 +1131,11 @@ export async function warmPublishedAuthorityTranslations(
   const candidates: Array<{ slug: string; record: AuthorityCacheRecord }> = [];
   let cached = 0;
   let skipped = 0;
-  const quotaResetAt = options.slug || isModalDirectGlmFirstForTranslation()
+  const quotaResetAt = options.slug
     ? undefined
-    : resolveActiveAuthorityTranslationQuotaBlock();
+    : (isModalDirectGlmFirstForTranslation()
+      ? resolveActiveAuthorityTranslationTransientBlock()
+      : resolveActiveAuthorityTranslationQuotaBlock());
   const quotaBlocked = Boolean(quotaResetAt);
 
   records.forEach((record, index) => {
@@ -1203,4 +1214,5 @@ export const __authorityTranslationInternalTestUtils = {
   isModalDirectGlmFirstForTranslation,
   shouldStopAfterTranslationTaskFailure,
   resolveActiveAuthorityTranslationQuotaBlock,
+  resolveActiveAuthorityTranslationTransientBlock,
 };

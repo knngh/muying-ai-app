@@ -173,4 +173,77 @@ describe('authority translation warmup', () => {
     }));
     expect(result.quotaBlocked).toBeUndefined();
   });
+
+  it('pauses Modal Direct batch warmup while a transient provider failure is pending', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'authority-translation-warmup-'));
+    const authorityCachePath = path.join(tmpDir, 'authority-knowledge-cache.json');
+    const translationCachePath = path.join(tmpDir, 'authority-translation-cache.json');
+    const failureCachePath = path.join(tmpDir, 'authority-translation-failures.json');
+
+    fs.writeFileSync(authorityCachePath, JSON.stringify([
+      {
+        id: 'aap-1',
+        question: 'Your baby first solid foods',
+        summary: 'How to introduce solid foods.',
+        answer: 'Start around six months when the baby shows readiness. Offer iron-rich foods and avoid choking hazards.',
+        source_language: 'en',
+        source_url: 'https://www.healthychildren.org/example',
+        updated_at: '2026-05-09T00:00:00.000Z',
+      },
+    ]), 'utf-8');
+    fs.writeFileSync(translationCachePath, '{}', 'utf-8');
+    fs.writeFileSync(failureCachePath, JSON.stringify({
+      'authority-aap-modal': {
+        slug: 'authority-aap-modal',
+        message: 'AI Gateway error: 429: {"error": "Too many concurrent requests for this model"}',
+        attempts: 1,
+        failedAt: '2026-05-09T07:00:00.000Z',
+        retryAfterAt: '2026-05-09T07:30:00.000Z',
+      },
+    }), 'utf-8');
+
+    process.env.AUTHORITY_KNOWLEDGE_CACHE_PATH = authorityCachePath;
+    process.env.AUTHORITY_TRANSLATION_CACHE_PATH = translationCachePath;
+    process.env.AUTHORITY_TRANSLATION_FAILURE_CACHE_PATH = failureCachePath;
+    process.env.AUTHORITY_TRANSLATION_SYNC_LIMIT = '10';
+    process.env.AUTHORITY_TRANSLATION_SYNC_DELAY_MS = '0';
+    process.env.AUTHORITY_TRANSLATION_TASK_ROLES = 'glm_classify,minimax_render';
+    process.env.AI_GLM_PROVIDER = 'modal-direct';
+    process.env.AI_GLM_MODEL = 'zai-org/GLM-5.1-FP8';
+    process.env.AI_MODAL_DIRECT_KEY = 'test-modal-key';
+
+    jest.useFakeTimers().setSystemTime(new Date('2026-05-09T07:10:00.000Z'));
+
+    let moduleApi: {
+      resolveActiveAuthorityTranslationTransientBlock: typeof import('../src/services/authority-translation.service').__authorityTranslationInternalTestUtils.resolveActiveAuthorityTranslationTransientBlock;
+      warmPublishedAuthorityTranslations: typeof import('../src/services/authority-translation.service').warmPublishedAuthorityTranslations;
+    } | null = null;
+
+    jest.isolateModules(() => {
+      const translationService = require('../src/services/authority-translation.service') as typeof import('../src/services/authority-translation.service');
+      moduleApi = {
+        resolveActiveAuthorityTranslationTransientBlock: translationService.__authorityTranslationInternalTestUtils.resolveActiveAuthorityTranslationTransientBlock,
+        warmPublishedAuthorityTranslations: translationService.warmPublishedAuthorityTranslations,
+      };
+    });
+
+    expect(moduleApi).not.toBeNull();
+    expect(moduleApi.resolveActiveAuthorityTranslationTransientBlock()).toBe('2026-05-09T07:30:00.000Z');
+
+    const result = await moduleApi.warmPublishedAuthorityTranslations({
+      delayMs: 0,
+      limit: 10,
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      scanned: 1,
+      candidates: 1,
+      selected: 0,
+      skipped: 1,
+      warmed: 0,
+      failed: 0,
+      quotaBlocked: true,
+      quotaResetAt: '2026-05-09T07:30:00.000Z',
+    }));
+  });
 });

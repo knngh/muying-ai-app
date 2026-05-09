@@ -3,6 +3,7 @@ import {
   isAuthorityTranslationFailureRetrySourceMatch,
   isPrunableAuthorityTranslationFailure,
   resolveActiveAuthorityTranslationQuotaResetAt,
+  resolveActiveAuthorityTranslationTransientBlockUntil,
 } from '../src/utils/authority-translation-failure-retry';
 
 describe('authority translation failure retry planner', () => {
@@ -60,6 +61,24 @@ describe('authority translation failure retry planner', () => {
         blockedReason: 'retry_after_pending',
       }),
     ]);
+  });
+
+  it('reports active transient translation failures for batch warmup pause', () => {
+    const blockedUntil = resolveActiveAuthorityTranslationTransientBlockUntil({
+      'authority-aap-modal': {
+        message: 'AI Gateway error: 429: {"error": "Too many concurrent requests for this model"}',
+        failedAt: '2026-05-09T07:00:00.000Z',
+        retryAfterAt: '2026-05-09T07:30:00.000Z',
+      },
+      'authority-aap-weekly': {
+        message: 'AI Gateway error: 429: usage limit exceeded, weekly usage limit reached, resets at 2026-05-11T00:00:00+08:00',
+        retryAfterAt: '2026-05-10T16:00:00.000Z',
+      },
+    }, {
+      now: '2026-05-09T07:10:00.000Z',
+    });
+
+    expect(blockedUntil).toBe('2026-05-09T07:30:00.000Z');
   });
 
   it('can include blocked failures and apply slug/limit filters', () => {

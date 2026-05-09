@@ -116,6 +116,32 @@ export function resolveActiveAuthorityTranslationQuotaResetAt(
   return activeResetTimes.sort()[0];
 }
 
+export function resolveActiveAuthorityTranslationTransientBlockUntil(
+  failures: Record<string, AuthorityTranslationFailureRecord>,
+  options: AuthorityTranslationQuotaBlockOptions = {},
+): string | undefined {
+  const generatedAt = options.now || new Date().toISOString();
+  const nowMs = Date.parse(generatedAt);
+  const effectiveNowMs = Number.isFinite(nowMs) ? nowMs : Date.now();
+  const blockedUntilTimes = Object.values(failures || {})
+    .map((failure) => {
+      const message = String(failure?.message || '');
+      if (!/too many concurrent|concurrent requests|timeout|empty response/i.test(message)) {
+        return undefined;
+      }
+
+      const retryAfterMs = Date.parse(failure?.retryAfterAt || '');
+      if (!Number.isFinite(retryAfterMs) || retryAfterMs <= effectiveNowMs) {
+        return undefined;
+      }
+
+      return new Date(retryAfterMs).toISOString();
+    })
+    .filter((value): value is string => Boolean(value));
+
+  return blockedUntilTimes.sort()[0];
+}
+
 function candidateSortKey(candidate: AuthorityTranslationFailureRetryCandidate): string {
   return [
     candidate.retryable ? '0' : '1',
