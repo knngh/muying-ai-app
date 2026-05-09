@@ -1,5 +1,8 @@
 import { cleanAuthorityTranslationCache } from '../src/utils/authority-translation-cache-cleaner';
-import { normalizeAuthorityTranslationRecord } from '../src/services/authority-translation.service';
+import {
+  __authorityTranslationTestUtils,
+  normalizeAuthorityTranslationRecord,
+} from '../src/services/authority-translation.service';
 
 describe('authority translation cache cleaner', () => {
   it('removes prompt leaks and placeholder translations while keeping valid cache entries', () => {
@@ -74,5 +77,24 @@ describe('authority translation cache cleaner', () => {
       translationNotice: '辅助翻译',
       updatedAt: '2026-05-07T00:00:00.000Z',
     })).toBeNull();
+  });
+
+  it('keeps fallback task roles after configured translation role', () => {
+    const originalRoles = process.env.AUTHORITY_TRANSLATION_TASK_ROLES;
+    try {
+      process.env.AUTHORITY_TRANSLATION_TASK_ROLES = 'minimax_render';
+
+      expect(__authorityTranslationTestUtils.resolveAuthorityTranslationTaskRoles()).toEqual([
+        'minimax_render',
+        'glm_classify',
+        'kimi_reason',
+      ]);
+    } finally {
+      if (originalRoles === undefined) {
+        delete process.env.AUTHORITY_TRANSLATION_TASK_ROLES;
+      } else {
+        process.env.AUTHORITY_TRANSLATION_TASK_ROLES = originalRoles;
+      }
+    }
   });
 });
