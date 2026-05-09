@@ -1,5 +1,6 @@
 import { cleanAuthorityTranslationCache } from './authority-translation-cache-cleaner';
 import { getDatasetKnowledgeDropReason } from './knowledge-content-guard';
+import { normalizeKnowledgePromotionTargetStage } from './knowledge-promotion-stage';
 
 export type KnowledgeOpsRiskLevel = 'red' | 'yellow' | 'green' | 'unknown';
 
@@ -967,7 +968,7 @@ function buildPromotionSafeQuestionCandidates(records: KnowledgeOpsQaRecord[], s
       question,
       category: record.category,
       topic: record.topic,
-      targetStage: Array.isArray(record.target_stage) ? record.target_stage.filter(Boolean) : [],
+      targetStage: normalizeKnowledgePromotionTargetStage(record, question),
       riskLevel,
       suggestedUse: riskLevel === 'green' ? 'general_education' : 'care_boundary',
       boundaryNote: riskLevel === 'yellow'

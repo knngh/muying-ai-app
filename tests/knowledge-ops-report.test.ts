@@ -647,4 +647,74 @@ describe('knowledge ops report', () => {
       }),
     ]);
   });
+
+  it('normalizes promotion candidate stages before writing the ops report', () => {
+    const report = buildKnowledgeOpsReport({
+      qaRecords: [],
+      enrichedQaRecords: [
+        qaFixture({
+          id: 'qa-broad-feeding',
+          question: '6 个月宝宝添加辅食要注意什么？',
+          category: 'parenting-0-1',
+          topic: 'feeding',
+          risk_level_default: 'green',
+          target_stage: ['first-trimester', '0-6-months', '6-12-months'],
+          references: [{
+            authoritative: true,
+            sourceClass: 'official',
+            sourceOrg: 'NHS',
+            title: 'Your baby first solid foods',
+            url: 'https://www.nhs.uk/baby/weaning-and-feeding/babys-first-solid-foods/',
+          }],
+        }),
+        qaFixture({
+          id: 'qa-broad-fever',
+          question: '宝宝发热什么时候需要就医？',
+          category: 'common-symptoms',
+          topic: 'common-symptoms',
+          risk_level_default: 'yellow',
+          target_stage: ['0-6-months', '6-12-months', '1-3-years', 'first-trimester', 'second-trimester', 'third-trimester'],
+          references: [{
+            authoritative: true,
+            sourceClass: 'official',
+            sourceOrg: 'AAP',
+            title: 'Fever in children',
+            url: 'https://www.healthychildren.org/English/health-issues/conditions/fever/Pages/default.aspx',
+          }],
+        }),
+        qaFixture({
+          id: 'qa-breastfeeding',
+          question: '哺乳期喂养要注意什么？',
+          category: 'pregnancy-mid',
+          topic: 'feeding',
+          risk_level_default: 'green',
+          target_stage: ['second-trimester'],
+          references: [{
+            authoritative: true,
+            sourceClass: 'official',
+            sourceOrg: 'MSD Manuals',
+            title: 'Medication and substance use during breastfeeding',
+            url: 'https://www.msdmanuals.cn/home/women-s-health-issues/medication-and-substance-use-during-pregnancy/medication-and-substance-use-during-breastfeeding',
+          }],
+        }),
+      ],
+      authorityRecords: [],
+    }, {
+      sampleLimit: 10,
+      watchedSourceIds: [],
+    });
+
+    const candidatesById = new Map(
+      report.promotion.safeQuestionCandidates.candidates.map((candidate) => [candidate.id, candidate]),
+    );
+
+    expect(candidatesById.get('qa-broad-feeding')?.targetStage).toEqual(['6-12-months']);
+    expect(candidatesById.get('qa-broad-fever')?.targetStage).toEqual([
+      'newborn',
+      '0-6-months',
+      '6-12-months',
+      '1-3-years',
+    ]);
+    expect(candidatesById.get('qa-breastfeeding')?.targetStage).toEqual(['postpartum']);
+  });
 });
