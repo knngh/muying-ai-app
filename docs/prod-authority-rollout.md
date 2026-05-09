@@ -6,7 +6,7 @@
 
 包含：
 
-- `GLM 5 + Kimi 2.5 + MiniMax 2.5`
+- `Modal Direct GLM-5.1-FP8 + Kimi 2.5 + MiniMax 2.5`
 - 小程序社区下线，知识库主入口上线
 - 权威来源抓取、审核、发布
 
@@ -21,12 +21,17 @@
 
 ```env
 AI_ROUTING_ENABLED=true
-AI_DEFAULT_MODEL=glm-5
+AI_DEFAULT_MODEL=MiniMax-M2.7
 
-AI_GLM_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
-AI_GLM_KEY=your-bailian-api-key
-AI_GLM_MODEL=glm-5
-AI_GLM_PROVIDER=glm
+AI_MODAL_DIRECT_URL=https://api.us-west-2.modal.direct/v1
+AI_MODAL_DIRECT_KEY=your-modal-direct-api-key
+AI_MODAL_DIRECT_MODEL=zai-org/GLM-5.1-FP8
+AI_MODAL_DIRECT_PROVIDER=modal-direct
+AI_GLM_URL=https://api.us-west-2.modal.direct/v1
+AI_GLM_KEY=your-modal-direct-api-key
+AI_GLM_MODEL=zai-org/GLM-5.1-FP8
+AI_GLM_PROVIDER=modal-direct
+AUTHORITY_TRANSLATION_TASK_ROLES=glm_classify,minimax_render
 
 AI_KIMI_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
 AI_KIMI_KEY=your-bailian-api-key

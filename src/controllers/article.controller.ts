@@ -135,7 +135,7 @@ const AUTHORITY_TRANSLATION_PROVIDER_TIMEOUT_MS = Math.min(
   Math.max(3000, Number.parseInt(process.env.AUTHORITY_TRANSLATION_PROVIDER_TIMEOUT_MS || '45000', 10) || 45000),
 );
 function resolveAuthorityTranslationTaskRoles(): AITaskModelRole[] {
-  const configured = (process.env.AUTHORITY_TRANSLATION_TASK_ROLES || 'minimax_render')
+  const configured = (process.env.AUTHORITY_TRANSLATION_TASK_ROLES || 'glm_classify,minimax_render')
     .split(',')
     .map((item) => item.trim())
     .filter(Boolean);

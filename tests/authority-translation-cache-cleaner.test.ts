@@ -79,6 +79,14 @@ describe('authority translation cache cleaner', () => {
     })).toBeNull();
   });
 
+  it('uses GLM first for translation while keeping fallback task roles', () => {
+    expect(__authorityTranslationTestUtils.resolveAuthorityTranslationTaskRoles()).toEqual([
+      'glm_classify',
+      'minimax_render',
+      'kimi_reason',
+    ]);
+  });
+
   it('keeps fallback task roles after configured translation role', () => {
     const originalRoles = process.env.AUTHORITY_TRANSLATION_TASK_ROLES;
     try {

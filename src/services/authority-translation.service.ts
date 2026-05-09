@@ -153,7 +153,7 @@ const AUTHORITY_TRANSLATION_SYNC_LIMIT = parseNonNegativeInt(process.env.AUTHORI
 const AUTHORITY_TRANSLATION_SYNC_DELAY_MS = parseNonNegativeInt(process.env.AUTHORITY_TRANSLATION_SYNC_DELAY_MS, 30000);
 
 function resolveAuthorityTranslationTaskRoles(): AITaskModelRole[] {
-  const configured = (process.env.AUTHORITY_TRANSLATION_TASK_ROLES || 'minimax_render')
+  const configured = (process.env.AUTHORITY_TRANSLATION_TASK_ROLES || 'glm_classify,minimax_render')
     .split(',')
     .map((item) => item.trim())
     .filter(Boolean);
@@ -698,6 +698,19 @@ function resolveActiveAuthorityTranslationQuotaBlock(nowMs = Date.now()): string
   });
 }
 
+function isModalDirectGlmFirstForTranslation(): boolean {
+  const firstRole = AUTHORITY_TRANSLATION_TASK_ROLES[0];
+  if (firstRole !== 'glm_classify') {
+    return false;
+  }
+
+  const provider = (process.env.AI_GLM_PROVIDER || '').toLowerCase();
+  const model = process.env.AI_GLM_MODEL || '';
+  return provider.includes('modal')
+    || /glm-5\.1-fp8/i.test(model)
+    || Boolean(process.env.AI_MODAL_DIRECT_KEY || process.env.MODAL_DIRECT_API_KEY);
+}
+
 function recordAuthorityTranslationFailure(slug: string, sourceUpdatedAt: string | undefined, error: unknown): void {
   const failureCache = loadAuthorityTranslationFailureCache();
   const message = getAIGatewayErrorOpsMessage(error);
@@ -1095,7 +1108,9 @@ export async function warmPublishedAuthorityTranslations(
   const candidates: Array<{ slug: string; record: AuthorityCacheRecord }> = [];
   let cached = 0;
   let skipped = 0;
-  const quotaResetAt = options.slug ? undefined : resolveActiveAuthorityTranslationQuotaBlock();
+  const quotaResetAt = options.slug || isModalDirectGlmFirstForTranslation()
+    ? undefined
+    : resolveActiveAuthorityTranslationQuotaBlock();
   const quotaBlocked = Boolean(quotaResetAt);
 
   records.forEach((record, index) => {
@@ -1171,5 +1186,6 @@ export async function warmPublishedAuthorityTranslations(
 }
 
 export const __authorityTranslationInternalTestUtils = {
+  isModalDirectGlmFirstForTranslation,
   resolveActiveAuthorityTranslationQuotaBlock,
 };

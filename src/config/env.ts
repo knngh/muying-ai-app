@@ -8,6 +8,8 @@ const REQUIRED_ENV = ['JWT_SECRET', 'DATABASE_URL'] as const;
 const AI_PROVIDER_KEYS = [
   'AI_GENERAL_KEY',
   'SILICONFLOW_API_KEY',
+  'AI_MODAL_DIRECT_KEY',
+  'MODAL_DIRECT_API_KEY',
   'AI_KIMI_KEY',
   'AI_MINIMAX_KEY',
   'AI_GLM_KEY',
@@ -56,7 +58,9 @@ export function validateEnv(): void {
 
   if (process.env.AI_ROUTING_ENABLED === 'true') {
     const missingRouteKeys: string[] = [];
-    if (!process.env.AI_GLM_KEY && !process.env.AI_GATEWAY_KEY) missingRouteKeys.push('AI_GLM_KEY (分诊)');
+    if (!process.env.AI_GLM_KEY && !process.env.AI_MODAL_DIRECT_KEY && !process.env.MODAL_DIRECT_API_KEY && !process.env.AI_GATEWAY_KEY) {
+      missingRouteKeys.push('AI_GLM_KEY / AI_MODAL_DIRECT_KEY (分诊)');
+    }
     if (!process.env.AI_KIMI_KEY && !process.env.AI_GATEWAY_KEY) missingRouteKeys.push('AI_KIMI_KEY (推理)');
     if (!process.env.AI_MINIMAX_KEY && !process.env.AI_GATEWAY_KEY) missingRouteKeys.push('AI_MINIMAX_KEY (润色)');
     if (missingRouteKeys.length > 0) {

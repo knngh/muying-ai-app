@@ -25,10 +25,14 @@ const AI_MINIMAX_URL = process.env.AI_MINIMAX_URL || OPENROUTER_BASE_URL;
 const AI_MINIMAX_KEY = process.env.AI_MINIMAX_KEY || OPENROUTER_KEY;
 const AI_MINIMAX_MODEL = process.env.AI_MINIMAX_MODEL || OPENROUTER_MODEL;
 const AI_MINIMAX_PROVIDER = process.env.AI_MINIMAX_PROVIDER || OPENROUTER_PROVIDER;
-const AI_GLM_URL = process.env.AI_GLM_URL || OPENROUTER_BASE_URL;
-const AI_GLM_KEY = process.env.AI_GLM_KEY || OPENROUTER_KEY;
-const AI_GLM_MODEL = process.env.AI_GLM_MODEL || OPENROUTER_MODEL;
-const AI_GLM_PROVIDER = process.env.AI_GLM_PROVIDER || OPENROUTER_PROVIDER;
+const AI_MODAL_DIRECT_URL = process.env.AI_MODAL_DIRECT_URL || 'https://api.us-west-2.modal.direct/v1';
+const AI_MODAL_DIRECT_KEY = process.env.AI_MODAL_DIRECT_KEY || process.env.MODAL_DIRECT_API_KEY || '';
+const AI_MODAL_DIRECT_MODEL = process.env.AI_MODAL_DIRECT_MODEL || 'zai-org/GLM-5.1-FP8';
+const AI_MODAL_DIRECT_PROVIDER = process.env.AI_MODAL_DIRECT_PROVIDER || 'modal-direct';
+const AI_GLM_URL = process.env.AI_GLM_URL || (AI_MODAL_DIRECT_KEY ? AI_MODAL_DIRECT_URL : OPENROUTER_BASE_URL);
+const AI_GLM_KEY = process.env.AI_GLM_KEY || AI_MODAL_DIRECT_KEY || OPENROUTER_KEY;
+const AI_GLM_MODEL = process.env.AI_GLM_MODEL || (AI_MODAL_DIRECT_KEY ? AI_MODAL_DIRECT_MODEL : OPENROUTER_MODEL);
+const AI_GLM_PROVIDER = process.env.AI_GLM_PROVIDER || (AI_MODAL_DIRECT_KEY ? AI_MODAL_DIRECT_PROVIDER : OPENROUTER_PROVIDER);
 const AI_MEDICAL_PRIMARY_URL = process.env.AI_MEDICAL_PRIMARY_URL || OPENROUTER_BASE_URL;
 const AI_MEDICAL_PRIMARY_KEY = process.env.AI_MEDICAL_PRIMARY_KEY || OPENROUTER_KEY;
 const AI_MEDICAL_PRIMARY_MODEL = process.env.AI_MEDICAL_PRIMARY_MODEL || process.env.AI_DEFAULT_MODEL || OPENROUTER_MODEL;
@@ -49,6 +53,9 @@ const MODEL_ALIASES: Record<string, string> = {
   'glm5': OPENROUTER_MODEL,
   'glm-5': OPENROUTER_MODEL,
   'glm-5-flash': OPENROUTER_MODEL,
+  'glm-5.1-fp8': AI_MODAL_DIRECT_MODEL,
+  'GLM-5.1-FP8': AI_MODAL_DIRECT_MODEL,
+  'zai-org/GLM-5.1-FP8': AI_MODAL_DIRECT_MODEL,
   'minimax2.5': OPENROUTER_MODEL,
   'minmax2.5': OPENROUTER_MODEL,
   'minimax-2.5': OPENROUTER_MODEL,
@@ -248,6 +255,9 @@ function inferProviderName(url: string, model: string, fallback: string): string
   }
   if (text.includes('openrouter')) {
     return 'openrouter';
+  }
+  if (text.includes('modal.direct') || text.includes('modal-direct')) {
+    return 'modal-direct';
   }
   if (text.includes('baichuan')) {
     return 'baichuan';

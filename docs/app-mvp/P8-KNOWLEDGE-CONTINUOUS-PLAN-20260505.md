@@ -241,6 +241,8 @@ DRY_RUN=false npm run retry:authority-translation-failures
 
 2026-05-09 P3-6 切片：翻译预热新增 AI Gateway 周额度全局熔断。只要失败缓存里存在未过期的 `usage limit exceeded` reset 时间，`warmPublishedAuthorityTranslations()` 的常规批量预热会直接返回 `quotaBlocked=true` / `quotaResetAt=...`，本轮不再选择新的文章调用 AI Gateway，避免 authority worker 每 15 分钟继续制造新的 429 失败和日志噪音；指定 `SLUG` 的人工重试仍保留原有显式操作语义。
 
+2026-05-09 P3-7 切片：新增 Modal Direct `zai-org/GLM-5.1-FP8` 作为免费 GLM 任务通道，权威翻译默认优先 `glm_classify`，再回退 `minimax_render` / `kimi_reason`。如果 GLM 首选通道配置为 Modal Direct，旧 MiniMax 周额度 429 熔断不会阻止新的免费 GLM 翻译预热继续推进。
+
 ## 7.1 P3：知识运营与推广联动
 
 目标：在 P2 已完成的基础上，把权威覆盖继续推进到 `80%+`，并让知识库成果直接服务安全推广。
@@ -256,6 +258,7 @@ DRY_RUN=false npm run retry:authority-translation-failures
 7. P3-4 已完成候选池阶段归一化前移：运营报告、推荐 API、小程序首页推荐入口使用一致的阶段语义，避免把育儿题推给孕期用户或把哺乳期题推给宝宝辅食阶段。
 8. P3-5 已完成 AI Gateway 周额度 429 退避修正：带 reset 时间的额度失败不会在重置前反复触发翻译重试行动项。
 9. P3-6 已完成翻译预热全局额度熔断：额度重置前常规 worker 预热会暂停选新任务，避免继续消耗失败缓存和告警注意力。
+10. P3-7 已完成免费 Modal Direct GLM 翻译优先路由：生产可用 `AI_MODAL_DIRECT_KEY` / `AI_GLM_KEY` 指向 `zai-org/GLM-5.1-FP8`，让翻译任务优先走免费通道。
 
 默认读取 `tmp/knowledge-ops-report.json` 中 `sourceCoverage.watchedSources` 的 `missing` / `low` 源，先 dry-run 打印将刷新列表；显式 `DRY_RUN=false` 后按源调用现有 `sync:authority` 能力刷新。可用 `AUTHORITY_SOURCE_IDS=mayo-clinic-zh,chinacdc-nutrition` 限定源。
 
