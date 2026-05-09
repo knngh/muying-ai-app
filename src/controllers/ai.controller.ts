@@ -23,6 +23,10 @@ import {
 } from '../services/ai-context.service';
 import { buildAIActionCards } from '../services/ai-action-card.service';
 import { buildAIServiceDisclosure } from '../services/ai-disclosure.service';
+import {
+  buildKnowledgeRecommendedQuestions,
+  type KnowledgeRecommendedQuestionStage,
+} from '../services/knowledge-promotion.service';
 import { logger, genRequestId } from '../utils/logger';
 
 const DEFAULT_MODEL_ID = getDefaultModel();
@@ -452,6 +456,19 @@ export const searchKnowledge = async (req: Request, res: Response, next: NextFun
       query: q,
       personalized: searchQuery !== q,
     }));
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getRecommendedKnowledgeQuestions = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const result = buildKnowledgeRecommendedQuestions({
+      stage: req.query.stage ? String(req.query.stage) as KnowledgeRecommendedQuestionStage : null,
+      limit: Number(req.query.limit || 6),
+    });
+
+    res.json(successResponse(result));
   } catch (error) {
     next(error);
   }

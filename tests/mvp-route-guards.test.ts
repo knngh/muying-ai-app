@@ -24,6 +24,7 @@ const deleteConversation = Object.assign((_req: unknown, _res: unknown, next: ()
 const getModels = Object.assign((_req: unknown, _res: unknown, next: () => void) => next(), { _id: 'getModels' });
 const checkHealth = Object.assign((_req: unknown, _res: unknown, next: () => void) => next(), { _id: 'checkHealth' });
 const searchKnowledge = Object.assign((_req: unknown, _res: unknown, next: () => void) => next(), { _id: 'searchKnowledge' });
+const getRecommendedKnowledgeQuestions = Object.assign((_req: unknown, _res: unknown, next: () => void) => next(), { _id: 'getRecommendedKnowledgeQuestions' });
 const submitFeedback = Object.assign((_req: unknown, _res: unknown, next: () => void) => next(), { _id: 'submitFeedback' });
 const getKnowledgeBaseStats = Object.assign((_req: unknown, _res: unknown, next: () => void) => next(), { _id: 'getKnowledgeBaseStats' });
 const getGrowthProfile = Object.assign((_req: unknown, _res: unknown, next: () => void) => next(), { _id: 'getGrowthProfile' });
@@ -54,6 +55,7 @@ jest.mock('../src/controllers/ai.controller', () => ({
   getModels,
   checkHealth,
   searchKnowledge,
+  getRecommendedKnowledgeQuestions,
   submitFeedback,
   getKnowledgeBaseStats,
 }));
@@ -169,6 +171,14 @@ describe('MVP 路由守卫回归测试', () => {
     expect(searchHandles[0]).toBe(aiRateLimiter);
     expect((searchHandles[1] as { _id?: string })._id).toBe('validate:query');
     expect(searchHandles[searchHandles.length - 1]).toBe(searchKnowledge);
+  });
+
+  it('首访推荐问题路由必须限流并校验 query', () => {
+    const handles = getRouteHandles(aiRoutes, '/knowledge/recommended-questions', 'get');
+
+    expect(handles[0]).toBe(queryRateLimiter);
+    expect((handles[1] as { _id?: string })._id).toBe('validate:query');
+    expect(handles[handles.length - 1]).toBe(getRecommendedKnowledgeQuestions);
   });
 
   it('成长档案写入和列表查询必须经过输入校验', () => {

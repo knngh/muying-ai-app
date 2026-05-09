@@ -172,6 +172,39 @@ export interface ChatResponse {
   degraded?: boolean
 }
 
+export type KnowledgeRecommendedQuestionStage =
+  | 'preparation'
+  | 'first-trimester'
+  | 'second-trimester'
+  | 'third-trimester'
+  | 'postpartum'
+  | 'newborn'
+  | '0-6-months'
+  | '6-12-months'
+  | '1-3-years'
+  | '3-years-plus'
+
+export interface KnowledgeRecommendedQuestion {
+  id?: string
+  question: string
+  searchKeyword: string
+  category?: string
+  topic?: string
+  targetStage: string[]
+  riskLevel: 'green' | 'yellow'
+  suggestedUse: 'general_education' | 'care_boundary'
+  boundaryNote?: string
+  sourceOrg?: string
+  sourceTitle?: string
+}
+
+export interface KnowledgeRecommendedQuestionsResponse {
+  stage: KnowledgeRecommendedQuestionStage | null
+  source: 'knowledge_ops_report' | 'fallback'
+  total: number
+  questions: KnowledgeRecommendedQuestion[]
+}
+
 // WebSocket 消息协议
 export interface WsClientMessage {
   type: 'ask_stream' | 'chat_stream'

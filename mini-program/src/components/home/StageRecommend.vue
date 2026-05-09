@@ -41,7 +41,7 @@ defineEmits<{
 </script>
 
 <style scoped>
-.stage-recommend-card { margin-top: 22rpx; padding: 28rpx; border-radius: 26rpx; background: rgba(255, 255, 255, 0.92); border: 1rpx solid rgba(31, 42, 55, 0.06); box-shadow: 0 12rpx 30rpx rgba(31, 42, 55, 0.02); }
+.stage-recommend-card { margin: 22rpx 0; padding: 28rpx; border-radius: 26rpx; background: rgba(255, 255, 255, 0.92); border: 1rpx solid rgba(31, 42, 55, 0.06); box-shadow: 0 12rpx 30rpx rgba(31, 42, 55, 0.02); }
 .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 18rpx; }
 .section-title { font-size: 31rpx; line-height: 1.35; font-weight: 900; color: #444; }
 .section-caption--block { display: block; margin-top: 6rpx; font-size: 22rpx; color: #8a96a3; }

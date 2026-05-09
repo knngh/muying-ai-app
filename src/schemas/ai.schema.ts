@@ -50,6 +50,22 @@ export const searchKnowledgeQuery = z.object({
   limit: z.coerce.number().int().min(1).max(20).default(10),
 });
 
+export const recommendedKnowledgeQuestionsQuery = z.object({
+  stage: z.enum([
+    'preparation',
+    'first-trimester',
+    'second-trimester',
+    'third-trimester',
+    'postpartum',
+    'newborn',
+    '0-6-months',
+    '6-12-months',
+    '1-3-years',
+    '3-years-plus',
+  ]).optional(),
+  limit: z.coerce.number().int().min(1).max(12).default(6),
+});
+
 export const feedbackBody = z.object({
   qaId: z.string().min(1, '请提供问答 ID'),
   feedback: z.enum(['helpful', 'not_helpful', 'wrong']),

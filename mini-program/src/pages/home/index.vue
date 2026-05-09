@@ -9,6 +9,14 @@
       <text class="hero-subtitle">{{ heroSubtitle }}</text>
     </view>
 
+    <StageRecommend
+      title="按当前阶段先看这几题"
+      caption="来自权威知识库安全候选，先搜索资料，不替代医生判断。"
+      :badge="recommendationBadge"
+      :items="stageRecommendations"
+      @openRecommendation="openStageRecommendation"
+    />
+
     <view class="home-card-list">
       <view
         v-for="item in primaryEntries"
@@ -50,12 +58,20 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { onShareAppMessage, onShareTimeline, onShow } from '@dcloudio/uni-app'
+import { aiApi, type KnowledgeRecommendedQuestionStage } from '@/api/ai'
+import StageRecommend from '@/components/home/StageRecommend.vue'
 import { useAppStore } from '@/stores/app'
+import { useKnowledgeStore } from '@/stores/knowledge'
 import { calculatePregnancyWeekFromDueDate } from '@/utils'
 import { getKnowledgeDisplayTitle } from '@/utils/knowledge-format'
-import { type RecentKnowledgeItem } from '@/utils/home-helpers'
+import {
+  getStageRecommendationItems,
+  type RecentKnowledgeItem,
+  type StageRecommendationItem,
+} from '@/utils/home-helpers'
 
 const appStore = useAppStore()
+const knowledgeStore = useKnowledgeStore()
 const RECENT_KNOWLEDGE_STORAGE_KEY = 'recentKnowledgeArticles'
 
 const TAB_PAGES = new Set([
@@ -74,6 +90,9 @@ const PUBLIC_PAGES = new Set([
 const sessionLoggedIn = ref(Boolean(uni.getStorageSync('token')))
 const storedWeek = ref<number | null>(null)
 const recentKnowledge = ref<RecentKnowledgeItem[]>([])
+const apiStageRecommendations = ref<StageRecommendationItem[]>([])
+const recommendationSource = ref<'knowledge_ops_report' | 'fallback' | 'local'>('local')
+const recommendationStage = ref<KnowledgeRecommendedQuestionStage | null>(null)
 
 const syncHomeState = () => {
   uni.removeStorageSync('pendingChatDraft')
@@ -107,6 +126,14 @@ const pregnancyStageLabel = computed(() => {
   if (week <= 12) return `孕早期 · 第 ${week} 周`
   if (week <= 27) return `孕中期 · 第 ${week} 周`
   return `孕晚期 · 第 ${week} 周`
+})
+
+const knowledgeStage = computed<KnowledgeRecommendedQuestionStage | null>(() => {
+  const week = currentWeek.value
+  if (!week) return null
+  if (week <= 12) return 'first-trimester'
+  if (week <= 27) return 'second-trimester'
+  return 'third-trimester'
 })
 
 const loginStateLabel = computed(() => (isLoggedIn.value ? '已守护' : '探索模式'))
@@ -153,6 +180,46 @@ const primaryEntries = computed(() => [
   },
 ])
 
+const localStageRecommendations = computed(() => getStageRecommendationItems(currentWeek.value))
+const stageRecommendations = computed(() => (
+  apiStageRecommendations.value.length > 0 ? apiStageRecommendations.value : localStageRecommendations.value
+))
+const recommendationBadge = computed(() => (
+  recommendationSource.value === 'knowledge_ops_report'
+    ? '权威候选'
+    : recommendationSource.value === 'fallback'
+      ? '默认题库'
+      : '阶段推荐'
+))
+
+async function loadStageRecommendations() {
+  const stage = knowledgeStage.value
+  if (stage === recommendationStage.value && apiStageRecommendations.value.length > 0) {
+    return
+  }
+
+  recommendationStage.value = stage
+  apiStageRecommendations.value = []
+  recommendationSource.value = 'local'
+
+  try {
+    const response = await aiApi.getRecommendedKnowledgeQuestions({ stage, limit: 3 })
+    recommendationSource.value = response.source
+    apiStageRecommendations.value = response.questions.slice(0, 3).map((item) => ({
+      key: item.id || item.question,
+      title: item.question,
+      desc: item.suggestedUse === 'care_boundary'
+        ? (item.boundaryNote || '仅用于科普与就医准备，不作为诊断或治疗建议。')
+        : `${item.sourceOrg || '权威来源'} · 适合先查看来源和阶段要点`,
+      keyword: item.searchKeyword || item.question,
+      stage: item.targetStage.includes(stage || '') ? stage : item.targetStage[0] || stage,
+    }))
+  } catch {
+    recommendationSource.value = 'local'
+    apiStageRecommendations.value = []
+  }
+}
+
 const checkLogin = (): boolean => {
   if (!isLoggedIn.value) {
     uni.showToast({ title: '登录后可保存你的进度', icon: 'none' })
@@ -166,6 +233,15 @@ function openRecentKnowledge(slug: string) {
   uni.navigateTo({ url: `/pages/knowledge-detail/index?slug=${encodeURIComponent(slug)}` })
 }
 
+function openStageRecommendation(item: StageRecommendationItem) {
+  void knowledgeStore.applyFilters({
+    keyword: item.keyword,
+    source: 'all',
+    stage: item.stage,
+  })
+  uni.switchTab({ url: '/pages/knowledge/index' })
+}
+
 const navigateTo = (url: string) => {
   if (!PUBLIC_PAGES.has(url) && !checkLogin()) return
   if (TAB_PAGES.has(url)) { uni.switchTab({ url }); return }
@@ -174,7 +250,13 @@ const navigateTo = (url: string) => {
 
 onShow(() => {
   syncHomeState()
-  if (sessionLoggedIn.value && !appStore.user) { void appStore.fetchUser() }
+  if (sessionLoggedIn.value && !appStore.user) {
+    void appStore.fetchUser().finally(() => {
+      void loadStageRecommendations()
+    })
+    return
+  }
+  void loadStageRecommendations()
 })
 
 onShareAppMessage(() => ({ title: '贝护妈妈：科学护航，安心陪伴每一天', path: '/pages/home/index', query: '' }))

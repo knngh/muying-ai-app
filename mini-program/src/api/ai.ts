@@ -1,8 +1,20 @@
 import api from './request'
-import type { AIMessage, AskResponse, ChatResponse, ChatSession } from '../../../shared/types'
+import type {
+  AIMessage,
+  AskResponse,
+  ChatResponse,
+  ChatSession,
+  KnowledgeRecommendedQuestionStage,
+  KnowledgeRecommendedQuestionsResponse,
+} from '../../../shared/types'
 
 export type { AIMessage, AskResponse, ChatResponse, ChatSession }
-export type { SourceReference } from '../../../shared/types'
+export type {
+  KnowledgeRecommendedQuestion,
+  KnowledgeRecommendedQuestionStage,
+  KnowledgeRecommendedQuestionsResponse,
+  SourceReference,
+} from '../../../shared/types'
 
 type ChatContext = string | Record<string, string | number | boolean | null>
 
@@ -102,6 +114,15 @@ export const aiApi = {
   },
   deleteConversation: async (conversationId: string) => {
     await api.delete(`/ai/conversations/${conversationId}`)
+  },
+  getRecommendedKnowledgeQuestions: async (params?: {
+    stage?: KnowledgeRecommendedQuestionStage | null
+    limit?: number
+  }) => {
+    return api.get<KnowledgeRecommendedQuestionsResponse>('/ai/knowledge/recommended-questions', {
+      stage: params?.stage || undefined,
+      limit: params?.limit || 6,
+    })
   },
 }
 

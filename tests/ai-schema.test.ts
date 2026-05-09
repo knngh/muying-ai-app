@@ -3,6 +3,7 @@ import {
   chatBody,
   conversationIdParam,
   conversationsQuery,
+  recommendedKnowledgeQuestionsQuery,
   searchKnowledgeQuery,
 } from '../src/schemas/ai.schema';
 
@@ -15,6 +16,19 @@ describe('AI schemas', () => {
     expect(searchKnowledgeQuery.parse({ q: '母乳喂养', limit: '20' })).toEqual({ q: '母乳喂养', limit: 20 });
     expect(searchKnowledgeQuery.safeParse({ q: '   ' }).success).toBe(false);
     expect(searchKnowledgeQuery.safeParse({ q: '母乳喂养', limit: '0' }).success).toBe(false);
+  });
+
+  it('bounds recommended knowledge question filters', () => {
+    expect(recommendedKnowledgeQuestionsQuery.parse({
+      stage: '6-12-months',
+      limit: '12',
+    })).toEqual({
+      stage: '6-12-months',
+      limit: 12,
+    });
+    expect(recommendedKnowledgeQuestionsQuery.parse({})).toEqual({ limit: 6 });
+    expect(recommendedKnowledgeQuestionsQuery.safeParse({ stage: 'adult', limit: '3' }).success).toBe(false);
+    expect(recommendedKnowledgeQuestionsQuery.safeParse({ stage: 'newborn', limit: '13' }).success).toBe(false);
   });
 
   it('rejects malformed conversation ids before database lookups', () => {

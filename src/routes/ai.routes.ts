@@ -10,13 +10,22 @@ import {
   getModels,
   checkHealth,
   searchKnowledge,
+  getRecommendedKnowledgeQuestions,
   submitFeedback,
   getKnowledgeBaseStats,
 } from '../controllers/ai.controller';
 import { authMiddleware } from '../middlewares/auth.middleware';
 import { aiRateLimiter, queryRateLimiter, writeRateLimiter } from '../middlewares/rateLimiter.middleware';
 import { validate } from '../middlewares/validate.middleware';
-import { askQuestionBody, chatBody, conversationIdParam, conversationsQuery, feedbackBody, searchKnowledgeQuery } from '../schemas/ai.schema';
+import {
+  askQuestionBody,
+  chatBody,
+  conversationIdParam,
+  conversationsQuery,
+  feedbackBody,
+  recommendedKnowledgeQuestionsQuery,
+  searchKnowledgeQuery,
+} from '../schemas/ai.schema';
 import { quotaCheckMiddleware } from '../middlewares/quota.middleware';
 import { subscriptionContextMiddleware } from '../middlewares/subscription.middleware';
 
@@ -30,6 +39,14 @@ router.get('/models', queryRateLimiter, getModels);
 
 // 知识库统计（无需认证）
 router.get('/knowledge/stats', queryRateLimiter, getKnowledgeBaseStats);
+
+// 首访推荐问题（无需认证）
+router.get(
+  '/knowledge/recommended-questions',
+  queryRateLimiter,
+  validate({ query: recommendedKnowledgeQuestionsQuery }),
+  getRecommendedKnowledgeQuestions,
+);
 
 // 以下路由需要认证
 router.use(authMiddleware);
