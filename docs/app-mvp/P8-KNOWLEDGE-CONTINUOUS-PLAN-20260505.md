@@ -237,6 +237,8 @@ DRY_RUN=false npm run retry:authority-translation-failures
 
 2026-05-09 P3-4 切片：阶段归一化已前移到 `ops:knowledge:report` 生成 `promotion.safeQuestionCandidates` 时执行，接口层和报告层共用同一套 `knowledge-promotion-stage` 规则。运营报告里的候选题不再保留原始宽泛 `target_stage`：例如“6 个月宝宝添加辅食要注意什么？”只归到 `6-12-months`，“哺乳期喂养要注意什么？”归到 `postpartum`，“宝宝发热什么时候需要就医？”只归到宝宝阶段，不再混入孕早 / 孕中 / 孕晚阶段。
 
+2026-05-09 P3-5 切片：翻译预热遇到 AI Gateway `usage limit exceeded` / weekly quota 429 时，错误会保留上游响应体中的 `resets at ...` 时间；翻译失败缓存和重试计划会把这类失败阻塞到真实额度重置时间，而不是按默认 1 小时退避反复进入 retryable。当前生产额度重置点是 `2026-05-11T00:00:00+08:00`，在此之前该类失败应作为 quota-limited blocked failure 处理。
+
 ## 7.1 P3：知识运营与推广联动
 
 目标：在 P2 已完成的基础上，把权威覆盖继续推进到 `80%+`，并让知识库成果直接服务安全推广。
@@ -250,6 +252,7 @@ DRY_RUN=false npm run retry:authority-translation-failures
 5. `mayo-clinic-zh` 暂不作为刷新任务推进；除非服务器出口访问策略改变，继续把它作为外部阻断源记录。
 6. P3-2 已完成标准化推广选题生成：候选题不直接复用病例问句，且必须通过官方引用主题匹配。
 7. P3-4 已完成候选池阶段归一化前移：运营报告、推荐 API、小程序首页推荐入口使用一致的阶段语义，避免把育儿题推给孕期用户或把哺乳期题推给宝宝辅食阶段。
+8. P3-5 已完成 AI Gateway 周额度 429 退避修正：带 reset 时间的额度失败不会在重置前反复触发翻译重试行动项。
 
 默认读取 `tmp/knowledge-ops-report.json` 中 `sourceCoverage.watchedSources` 的 `missing` / `low` 源，先 dry-run 打印将刷新列表；显式 `DRY_RUN=false` 后按源调用现有 `sync:authority` 能力刷新。可用 `AUTHORITY_SOURCE_IDS=mayo-clinic-zh,chinacdc-nutrition` 限定源。
 

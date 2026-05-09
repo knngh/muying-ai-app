@@ -1,3 +1,8 @@
+import {
+  isAiGatewayUsageLimitBlocked,
+  resolveAiGatewayUsageLimitRetryAfterAt,
+} from './ai-gateway-quota';
+
 export interface AuthorityTranslationFailureRecord {
   slug?: string;
   sourceUpdatedAt?: string;
@@ -23,7 +28,7 @@ export interface AuthorityTranslationFailureRetryCandidate {
   failedAt?: string;
   retryAfterAt?: string;
   retryable: boolean;
-  blockedReason?: 'retry_after_pending';
+  blockedReason?: 'retry_after_pending' | 'ai_gateway_usage_limit';
   skipReason?: 'authority_record_not_found' | 'source_updated_at_mismatch';
 }
 
@@ -66,6 +71,27 @@ function isRetryableAt(retryAfterAt: string | undefined, nowMs: number): boolean
   return !Number.isFinite(retryAt) || retryAt <= nowMs;
 }
 
+function resolveFailureRetryState(
+  failure: AuthorityTranslationFailureRecord,
+  nowMs: number,
+): Pick<AuthorityTranslationFailureRetryCandidate, 'retryAfterAt' | 'retryable' | 'blockedReason'> {
+  const usageLimitRetryAfterAt = resolveAiGatewayUsageLimitRetryAfterAt(failure?.message);
+  if (usageLimitRetryAfterAt && isAiGatewayUsageLimitBlocked(failure?.message, nowMs)) {
+    return {
+      retryAfterAt: usageLimitRetryAfterAt,
+      retryable: false,
+      blockedReason: 'ai_gateway_usage_limit',
+    };
+  }
+
+  const retryable = isRetryableAt(failure?.retryAfterAt, nowMs);
+  return {
+    retryAfterAt: usageLimitRetryAfterAt || failure?.retryAfterAt,
+    retryable,
+    blockedReason: retryable ? undefined : 'retry_after_pending',
+  };
+}
+
 function candidateSortKey(candidate: AuthorityTranslationFailureRetryCandidate): string {
   return [
     candidate.retryable ? '0' : '1',
@@ -96,16 +122,14 @@ export function buildAuthorityTranslationFailureRetryPlan(
   const candidates = Object.entries(failures || {})
     .map(([cacheKey, failure]): AuthorityTranslationFailureRetryCandidate => {
       const slug = (failure?.slug || cacheKey).trim();
-      const retryable = isRetryableAt(failure?.retryAfterAt, effectiveNowMs);
+      const retryState = resolveFailureRetryState(failure, effectiveNowMs);
       return {
         slug,
         sourceUpdatedAt: failure?.sourceUpdatedAt,
         message: normalizeMessage(failure?.message),
         attempts: normalizeAttempts(failure?.attempts),
         failedAt: failure?.failedAt,
-        retryAfterAt: failure?.retryAfterAt,
-        retryable,
-        blockedReason: retryable ? undefined : 'retry_after_pending',
+        ...retryState,
       };
     })
     .filter((candidate) => candidate.slug)

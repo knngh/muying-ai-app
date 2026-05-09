@@ -109,6 +109,31 @@ interface GatewayProvider {
   supportsStreaming: boolean;
 }
 
+interface AIGatewayProviderError extends Error {
+  gatewayStatus?: number;
+  gatewayErrorText?: string;
+}
+
+function createGatewayError(status: number, errorText: string): AIGatewayProviderError {
+  const error = new Error(`AI Gateway error: ${status}`) as AIGatewayProviderError;
+  error.gatewayStatus = status;
+  const compact = errorText.trim().replace(/\s+/g, ' ');
+  if (compact) {
+    error.gatewayErrorText = compact.slice(0, 500);
+  }
+
+  return error;
+}
+
+export function getAIGatewayErrorOpsMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  const gatewayErrorText = typeof (error as AIGatewayProviderError | null)?.gatewayErrorText === 'string'
+    ? (error as AIGatewayProviderError).gatewayErrorText
+    : '';
+
+  return gatewayErrorText ? `${message}: ${gatewayErrorText}` : message;
+}
+
 export type AITaskModelRole = 'glm_classify' | 'kimi_reason' | 'minimax_render';
 
 export interface AIGatewayRouteInfo {
@@ -563,7 +588,7 @@ async function callProvider(
   if (!response.ok) {
     const errorText = await response.text();
     console.error(`[AI Gateway:${provider.label}] Error:`, response.status, errorText);
-    throw new Error(`AI Gateway error: ${response.status}`);
+    throw createGatewayError(response.status, errorText);
   }
 
   const data: ChatResponse = await response.json() as ChatResponse;
@@ -607,7 +632,7 @@ async function* streamProvider(
   if (!response.ok) {
     const errorText = await response.text();
     console.error(`[AI Gateway Stream:${provider.label}] Error:`, response.status, errorText);
-    throw new Error(`AI Gateway error: ${response.status}`);
+    throw createGatewayError(response.status, errorText);
   }
 
   const reader = response.body?.getReader();

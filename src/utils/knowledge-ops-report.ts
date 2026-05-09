@@ -1,4 +1,5 @@
 import { cleanAuthorityTranslationCache } from './authority-translation-cache-cleaner';
+import { isAiGatewayUsageLimitBlocked } from './ai-gateway-quota';
 import { getDatasetKnowledgeDropReason } from './knowledge-content-guard';
 import { normalizeKnowledgePromotionTargetStage } from './knowledge-promotion-stage';
 
@@ -423,6 +424,9 @@ function buildTranslationSummary(
 
   const failures = Object.entries(translationFailures || {});
   const retryableFailures = failures.filter(([, failure]) => {
+    if (isAiGatewayUsageLimitBlocked(failure.message, nowMs)) {
+      return false;
+    }
     const retryAt = Date.parse(failure.retryAfterAt || '');
     return !Number.isFinite(retryAt) || retryAt <= nowMs;
   });

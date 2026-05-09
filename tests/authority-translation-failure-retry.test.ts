@@ -64,6 +64,33 @@ describe('authority translation failure retry planner', () => {
     ]);
   });
 
+  it('keeps AI Gateway weekly quota failures blocked until the reset time', () => {
+    const plan = buildAuthorityTranslationFailureRetryPlan({
+      'authority-aap-429': {
+        slug: 'authority-aap-429',
+        message: 'AI Gateway error: 429: usage limit exceeded, weekly usage limit reached for Token Plan Starter (6000/6000 used), resets at 2026-05-11T00:00:00+08:00 (2056)',
+        attempts: 1,
+        failedAt: '2026-05-09T05:00:00.000Z',
+        retryAfterAt: '2026-05-09T06:00:00.000Z',
+      },
+    }, {
+      now: '2026-05-09T07:00:00.000Z',
+      limit: 10,
+    });
+
+    expect(plan.retryableFailures).toBe(0);
+    expect(plan.blockedFailures).toBe(1);
+    expect(plan.selectedFailures).toEqual([]);
+    expect(plan.skippedFailures).toEqual([
+      expect.objectContaining({
+        slug: 'authority-aap-429',
+        retryable: false,
+        blockedReason: 'ai_gateway_usage_limit',
+        retryAfterAt: '2026-05-10T16:00:00.000Z',
+      }),
+    ]);
+  });
+
   it('requires sourceUpdatedAt to match the current authority record before retrying', () => {
     expect(isAuthorityTranslationFailureRetrySourceMatch(
       '2026-05-02T11:55:51.000Z',

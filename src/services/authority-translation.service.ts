@@ -1,6 +1,10 @@
 import fs from 'fs';
 import path from 'path';
-import { callTaskModelDetailed, type AITaskModelRole } from './ai-gateway.service';
+import {
+  callTaskModelDetailed,
+  getAIGatewayErrorOpsMessage,
+  type AITaskModelRole,
+} from './ai-gateway.service';
 import { isLikelyEnglishNavigationShell, sanitizeAuthorityTitle } from './authority-adapters/base.adapter';
 import { shouldFilterAuthoritySourceUrl } from '../utils/authority-source-url';
 import {
@@ -10,6 +14,7 @@ import {
   sanitizeTranslationText,
   stripCodeFence,
 } from '../utils/article-translation';
+import { resolveAiGatewayUsageLimitRetryAfterAt } from '../utils/ai-gateway-quota';
 
 export interface AuthorityCacheRecord {
   id: string;
@@ -668,6 +673,11 @@ function getAuthorityTranslationFailureRetryDelayMs(message: string, attempts: n
   return Math.min(6 * 60 * 60 * 1000, 60 * 60 * 1000 * safeAttempts);
 }
 
+function resolveAuthorityTranslationFailureRetryAfterAt(message: string, failedAt: Date, attempts: number): string {
+  return resolveAiGatewayUsageLimitRetryAfterAt(message)
+    || new Date(failedAt.getTime() + getAuthorityTranslationFailureRetryDelayMs(message, attempts)).toISOString();
+}
+
 function shouldSkipRecentlyFailedAuthorityTranslation(slug: string, sourceUpdatedAt?: string): boolean {
   const cachedFailure = loadAuthorityTranslationFailureCache()[slug];
   if (!cachedFailure || cachedFailure.sourceUpdatedAt !== sourceUpdatedAt) {
@@ -680,7 +690,7 @@ function shouldSkipRecentlyFailedAuthorityTranslation(slug: string, sourceUpdate
 
 function recordAuthorityTranslationFailure(slug: string, sourceUpdatedAt: string | undefined, error: unknown): void {
   const failureCache = loadAuthorityTranslationFailureCache();
-  const message = error instanceof Error ? error.message : String(error);
+  const message = getAIGatewayErrorOpsMessage(error);
   const previous = failureCache[slug]?.sourceUpdatedAt === sourceUpdatedAt ? failureCache[slug] : null;
   const attempts = (previous?.attempts || 0) + 1;
   const failedAt = new Date();
@@ -691,7 +701,7 @@ function recordAuthorityTranslationFailure(slug: string, sourceUpdatedAt: string
     message,
     attempts,
     failedAt: failedAt.toISOString(),
-    retryAfterAt: new Date(failedAt.getTime() + getAuthorityTranslationFailureRetryDelayMs(message, attempts)).toISOString(),
+    retryAfterAt: resolveAuthorityTranslationFailureRetryAfterAt(message, failedAt, attempts),
   };
   saveAuthorityTranslationFailureCache(failureCache);
 }

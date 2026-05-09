@@ -233,6 +233,43 @@ describe('knowledge ops report', () => {
     expect(report.actionItems).toEqual([]);
   });
 
+  it('keeps AI Gateway weekly quota failures blocked until the reset time', () => {
+    const authority = [
+      authorityFixture({
+        id: 'authority-aap-fever',
+        source_updated_at: '2026-05-01T00:00:00.000Z',
+      }),
+    ];
+    const slug = buildKnowledgeOpsAuthoritySlug(authority[0], 0);
+
+    const report = buildKnowledgeOpsReport({
+      qaRecords: [
+        qaFixture({ id: 'qa-covered', references: [{ authoritative: true, sourceOrg: 'AAP' }] }),
+      ],
+      authorityRecords: authority,
+      translationFailures: {
+        [slug]: {
+          slug,
+          sourceUpdatedAt: '2026-05-01T00:00:00.000Z',
+          message: 'AI Gateway error: 429: usage limit exceeded, weekly usage limit reached for Token Plan Starter (6000/6000 used), resets at 2026-05-11T00:00:00+08:00 (2056)',
+          attempts: 1,
+          failedAt: '2026-05-09T05:00:00.000Z',
+          retryAfterAt: '2026-05-09T06:00:00.000Z',
+        },
+      },
+    }, {
+      now: '2026-05-09T12:00:00.000Z',
+      watchedSourceIds: [],
+    });
+
+    expect(report.translations).toMatchObject({
+      failureEntries: 1,
+      retryableFailures: 0,
+      blockedFailures: 1,
+    });
+    expect(report.actionItems).toEqual([]);
+  });
+
   it('keeps watched authority sources in low status until they reach the configured minimum', () => {
     const chinacdcRecords = Array.from({ length: 10 }, (_, index) => authorityFixture({
       id: `authority-chinacdc-nutrition-${index + 1}`,
