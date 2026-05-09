@@ -196,6 +196,43 @@ describe('knowledge ops report', () => {
     });
   });
 
+  it('keeps retry-after blocked translation failures out of operator action items', () => {
+    const authority = [
+      authorityFixture({
+        id: 'authority-aap-fever',
+        source_updated_at: '2026-05-01T00:00:00.000Z',
+      }),
+    ];
+    const slug = buildKnowledgeOpsAuthoritySlug(authority[0], 0);
+
+    const report = buildKnowledgeOpsReport({
+      qaRecords: [
+        qaFixture({ id: 'qa-covered', references: [{ authoritative: true, sourceOrg: 'AAP' }] }),
+      ],
+      authorityRecords: authority,
+      translationFailures: {
+        [slug]: {
+          slug,
+          sourceUpdatedAt: '2026-05-01T00:00:00.000Z',
+          message: 'AI Gateway 429 weekly usage limit exceeded',
+          attempts: 3,
+          failedAt: '2026-05-09T01:00:00.000Z',
+          retryAfterAt: '2026-05-11T00:00:00.000Z',
+        },
+      },
+    }, {
+      now: '2026-05-09T12:00:00.000Z',
+      watchedSourceIds: [],
+    });
+
+    expect(report.translations).toMatchObject({
+      failureEntries: 1,
+      retryableFailures: 0,
+      blockedFailures: 1,
+    });
+    expect(report.actionItems).toEqual([]);
+  });
+
   it('keeps watched authority sources in low status until they reach the configured minimum', () => {
     const chinacdcRecords = Array.from({ length: 10 }, (_, index) => authorityFixture({
       id: `authority-chinacdc-nutrition-${index + 1}`,

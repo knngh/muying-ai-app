@@ -189,6 +189,73 @@ describe('knowledge daily ops report', () => {
     ]));
   });
 
+  it('keeps retry-after blocked translation failures as healthy when no operator action is available', () => {
+    const report = buildKnowledgeDailyOpsReport({
+      generatedAt: '2026-05-09T12:00:00.000Z',
+      applyFixes: false,
+      commands: [
+        { name: 'knowledge_ops_report', command: 'npm run ops:knowledge:report', ok: true, exitCode: 0, durationMs: 100 },
+        { name: 'authority_translation_failure_retry', command: 'npm run retry:authority-translation-failures', ok: true, exitCode: 0, durationMs: 100 },
+      ],
+      knowledgeReport: {
+        translations: {
+          recordsForTranslation: 628,
+          cacheEntries: 628,
+          invalidCacheEntries: 0,
+          failureEntries: 28,
+          retryableFailures: 0,
+          blockedFailures: 28,
+        },
+        actionItems: [
+          { priority: 'P2', area: 'translation_cache', message: '28 translation failures need retry or diagnosis' },
+        ],
+      },
+      translationFailureRetryReport: {
+        dryRun: true,
+        totalFailures: 28,
+        retryableFailures: 0,
+        blockedFailures: 28,
+        limit: 10,
+        selectedFailures: [],
+      },
+    });
+
+    expect(report.status).toBe('ok');
+    expect(report.knowledge.translations).toMatchObject({
+      failureEntries: 28,
+      retryableFailures: 0,
+      blockedFailures: 28,
+    });
+    expect(report.knowledge.actionItems).toEqual([]);
+    expect(report.nextActions).toEqual([]);
+  });
+
+  it('keeps legacy translation failure action items when retryability is unknown', () => {
+    const report = buildKnowledgeDailyOpsReport({
+      generatedAt: '2026-05-09T12:00:00.000Z',
+      applyFixes: false,
+      commands: [
+        { name: 'knowledge_ops_report', command: 'npm run ops:knowledge:report', ok: true, exitCode: 0, durationMs: 100 },
+      ],
+      knowledgeReport: {
+        translations: {
+          recordsForTranslation: 628,
+          cacheEntries: 628,
+          invalidCacheEntries: 0,
+          failureEntries: 2,
+        },
+        actionItems: [
+          { priority: 'P2', area: 'translation_cache', message: '2 translation failures need retry or diagnosis' },
+        ],
+      },
+    });
+
+    expect(report.status).toBe('attention');
+    expect(report.knowledge.actionItems).toEqual([
+      { priority: 'P2', area: 'translation_cache', message: '2 translation failures need retry or diagnosis' },
+    ]);
+  });
+
   it('includes promotion-safe question candidates without changing healthy status', () => {
     const report = buildKnowledgeDailyOpsReport({
       generatedAt: '2026-05-09T00:00:00.000Z',

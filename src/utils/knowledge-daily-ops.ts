@@ -179,6 +179,26 @@ function filterActionItemsForBlockedExternalSources(
   });
 }
 
+function filterActionItemsForBlockedTranslationFailures(
+  actionItems: Array<{ priority?: string; area?: string; message?: string }>,
+  translations?: KnowledgeDailyOpsKnowledgeReport['translations'],
+): Array<{ priority?: string; area?: string; message?: string }> {
+  if (!translations) {
+    return actionItems;
+  }
+
+  const hasFailureBreakdown = Number.isFinite(translations.retryableFailures)
+    && Number.isFinite(translations.blockedFailures);
+  const retryableFailures = Number(translations.retryableFailures || 0);
+  const blockedFailures = Number(translations.blockedFailures || 0);
+  const failureEntries = Number(translations.failureEntries || 0);
+  if (!hasFailureBreakdown || failureEntries === 0 || retryableFailures > 0 || blockedFailures < failureEntries) {
+    return actionItems;
+  }
+
+  return actionItems.filter((item) => item.area !== 'translation_cache' || item.message?.includes('invalid translation cache'));
+}
+
 function buildNextActions(input: BuildKnowledgeDailyOpsReportInput): string[] {
   const actions: string[] = [];
   const failedCommands = input.commands.filter((command) => !command.ok && !command.skipped);
@@ -282,7 +302,10 @@ export function buildKnowledgeDailyOpsReport(input: BuildKnowledgeDailyOpsReport
   const knowledgeSummary = summarizeKnowledgeReport(input.knowledgeReport);
   const blockedExternalSources = resolveBlockedExternalSources(input);
   const actionItems = filterActionItemsForBlockedExternalSources(
-    knowledgeSummary.actionItems,
+    filterActionItemsForBlockedTranslationFailures(
+      knowledgeSummary.actionItems,
+      knowledgeSummary.translations || undefined,
+    ),
     blockedExternalSources,
   );
   knowledgeSummary.actionItems = actionItems;

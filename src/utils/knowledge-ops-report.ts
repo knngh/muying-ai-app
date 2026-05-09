@@ -1044,11 +1044,11 @@ export function buildKnowledgeOpsReport(input: KnowledgeOpsReportInput, options:
         message: `authority coverage below 60%: ${coverage.coverageRate}%`,
       }
       : null,
-    translations.failureEntries > 0
+    translations.retryableFailures > 0
       ? {
         priority: 'P2',
         area: 'translation_cache',
-        message: `${translations.failureEntries} translation failures need retry or diagnosis`,
+        message: `${translations.retryableFailures} retryable translation failures need retry or diagnosis`,
       }
       : null,
     translations.invalidCacheEntries > 0
