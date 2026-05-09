@@ -233,4 +233,95 @@ describe('knowledge ops report', () => {
     });
     expect(report.actionItems.some((item) => item.message.includes('chinacdc-nutrition'))).toBe(false);
   });
+
+  it('builds a promotion-safe question candidate pool from enriched official QA coverage', () => {
+    const officialReference = {
+      authoritative: true,
+      sourceClass: 'official',
+      sourceOrg: '中国疾病预防控制中心营养与健康所',
+      title: '婴幼儿喂养建议',
+      url: 'https://www.chinacdc.cn/example.html',
+    };
+
+    const report = buildKnowledgeOpsReport({
+      qaRecords: [
+        qaFixture({ id: 'qa-raw', question: '宝宝辅食怎么添加？' }),
+      ],
+      enrichedQaRecords: [
+        qaFixture({
+          id: 'qa-green',
+          question: '6 个月宝宝添加辅食要注意什么？',
+          category: 'nutrition-baby',
+          topic: 'feeding',
+          risk_level_default: 'green',
+          target_stage: ['6-12-months'],
+          references: [officialReference],
+        }),
+        qaFixture({
+          id: 'qa-yellow',
+          question: '宝宝发烧什么时候需要就医？',
+          category: 'common-symptoms',
+          topic: 'common-symptoms',
+          risk_level_default: 'yellow',
+          references: [{
+            authoritative: true,
+            sourceClass: 'official',
+            sourceOrg: 'AAP',
+            title: 'Fever in children',
+            url: 'https://www.healthychildren.org/English/health-issues/conditions/fever/Pages/default.aspx',
+          }],
+        }),
+        qaFixture({
+          id: 'qa-red',
+          question: '宝宝睡眠安全要注意什么？',
+          risk_level_default: 'red',
+          references: [officialReference],
+        }),
+        qaFixture({
+          id: 'qa-missing-reference',
+          question: '宝宝辅食添加顺序要注意什么？',
+          risk_level_default: 'green',
+        }),
+        qaFixture({
+          id: 'qa-case-form',
+          question: '全部症状：宝宝高烧不退四五天，吃退烧药也不管用，发病时间及原因：最近几天，治疗情况：暂无',
+          risk_level_default: 'green',
+          references: [officialReference],
+        }),
+      ],
+      authorityRecords: [],
+    }, {
+      sampleLimit: 10,
+      watchedSourceIds: [],
+    });
+
+    expect(report.promotion.safeQuestionCandidates).toMatchObject({
+      total: 2,
+      excluded: {
+        missingAuthorityReference: 1,
+        redRisk: 1,
+        unsafeQuestionShape: 1,
+      },
+    });
+    expect(report.promotion.safeQuestionCandidates.candidates.map((item) => item.id)).toEqual([
+      'qa-green',
+      'qa-yellow',
+    ]);
+    expect(report.promotion.safeQuestionCandidates.candidates[0]).toMatchObject({
+      id: 'qa-green',
+      question: '6 个月宝宝添加辅食要注意什么？',
+      riskLevel: 'green',
+      suggestedUse: 'general_education',
+      authorityReference: {
+        sourceOrg: '中国疾病预防控制中心营养与健康所',
+        sourceClass: 'official',
+      },
+    });
+    expect(report.promotion.safeQuestionCandidates.candidates[1]).toMatchObject({
+      id: 'qa-yellow',
+      riskLevel: 'yellow',
+      suggestedUse: 'care_boundary',
+      boundaryNote: '仅用于科普与就医准备，不作为诊断或治疗建议。',
+    });
+  });
 });

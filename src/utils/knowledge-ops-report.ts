@@ -1,4 +1,5 @@
 import { cleanAuthorityTranslationCache } from './authority-translation-cache-cleaner';
+import { getDatasetKnowledgeDropReason } from './knowledge-content-guard';
 
 export type KnowledgeOpsRiskLevel = 'red' | 'yellow' | 'green' | 'unknown';
 
@@ -29,9 +30,12 @@ export interface KnowledgeOpsQaRecord {
   source_language?: string;
   source_updated_at?: string;
   url?: string;
+  audience?: string;
   topic?: string;
+  target_stage?: string[];
   risk_level_default?: string;
   region?: string;
+  metadata?: Record<string, unknown>;
   created_at?: string;
   updated_at?: string;
   published_at?: string;
@@ -97,9 +101,44 @@ export interface KnowledgeOpsReportOptions {
   fileStats?: Record<string, KnowledgeOpsFileStat>;
 }
 
+export interface KnowledgeOpsPromotionQuestionCandidate {
+  id?: string;
+  question: string;
+  category?: string;
+  topic?: string;
+  targetStage: string[];
+  riskLevel: 'green' | 'yellow';
+  suggestedUse: 'general_education' | 'care_boundary';
+  boundaryNote?: string;
+  authorityReference: {
+    title?: string;
+    url?: string;
+    sourceOrg?: string;
+    sourceClass?: string;
+    authoritative: boolean;
+  };
+}
+
 const DEFAULT_WATCHED_SOURCE_IDS = ['mayo-clinic-zh', 'chinacdc-nutrition'];
 const DEFAULT_WATCHED_SOURCE_MINIMUM_RECORDS = 10;
 const AUTHORITY_SOURCE_PATTERN = /who\.int|cdc\.gov|healthychildren\.org|acog\.org|mayoclinic\.org|msdmanuals\.cn|nhs\.uk|nih\.gov|fda\.gov|nhc\.gov\.cn|chinacdc\.cn|ndcpa\.gov\.cn|gov\.cn|who|cdc|aap|acog|mayo|nhs|卫健委|疾控|中国政府网|国家疾病预防控制局/iu;
+const PROMOTION_CASE_FORM_PATTERN = /全部症状|发病时间|治疗情况|患者性别|患者年龄|病情描述|想得到怎样的帮助/u;
+const PROMOTION_URGENT_RISK_PATTERN = /高烧|高热|发烧|发热|咳嗽|腹泻|呕吐|便秘|红疹|皮疹|湿疹|黄疸|出血|见红|疼|痛|呼吸困难|喘不过气|抽搐|惊厥|意识异常|昏迷|大出血|脱水|胎动消失|胎动明显减少|拒奶.*精神差|精神差.*拒奶|吃什么药|用什么药/u;
+const PROMOTION_PERSONAL_CASE_PATTERN = /(?:^|[，。？！\s])(我|我的|本人|老婆|老公|亲戚|男朋友|女朋友)|上个月|这个月|今天|昨天|这几天|最近|前几天|医生|医院|检查|B超|彩超|输液|打针|退烧药|治疗情况|我应该怎么办|该怎么办|怎么办|怎么回事|不胖|硬疙瘩|不吃奶|不吃奶粉|没怎么吃奶/u;
+const PROMOTION_CARE_BOUNDARY_PATTERN = /何时就医|什么时候需要就医|就医信号|红旗信号/u;
+const PROMOTION_GENERIC_INTENT_PATTERNS = [
+  /(?:宝宝|婴儿|孩子).{0,12}辅食.{0,12}(?:怎么|如何|注意|添加|顺序)/u,
+  /(?:辅食).{0,12}(?:怎么|如何|注意|添加|顺序)/u,
+  /(?:宝宝|婴儿|孩子).{0,12}(?:母乳|奶量|喂养|吃奶).{0,12}(?:怎么|如何|注意|多少)/u,
+  /(?:宝宝|婴儿|孩子).{0,12}(?:睡眠|夜醒|作息|安抚|哄睡).{0,12}(?:怎么|如何|注意|怎么办)/u,
+  /(?:发育|里程碑).{0,12}(?:怎么|如何|注意|观察)/u,
+  /胎动.{0,8}(?:怎么数|如何数|注意)/u,
+  /(?:产检|待产|入院准备).{0,12}(?:怎么|如何|注意|准备|项目|时间)/u,
+  /(?:孕期营养|叶酸|体重增长).{0,12}(?:怎么|如何|注意|多少)/u,
+  /(?:疫苗|接种).{0,12}(?:时间|程序|注意|反应观察)/u,
+  PROMOTION_CARE_BOUNDARY_PATTERN,
+];
+const PROMOTION_MAX_QUESTION_LENGTH = 72;
 
 function roundPercent(value: number): number {
   return Number(value.toFixed(2));
@@ -165,6 +204,27 @@ function hasAuthorityReference(reference?: KnowledgeOpsReference | null): boolea
 
   const sourceText = `${reference.org || ''} ${reference.sourceOrg || ''} ${reference.title || ''} ${reference.url || ''}`;
   return AUTHORITY_SOURCE_PATTERN.test(sourceText);
+}
+
+function resolveAuthorityReference(record: KnowledgeOpsQaRecord): KnowledgeOpsReference | undefined {
+  if (Array.isArray(record.references)) {
+    const reference = record.references.find(hasAuthorityReference);
+    if (reference) {
+      return reference;
+    }
+  }
+
+  if (hasAuthorityCoverage(record)) {
+    return {
+      sourceOrg: record.source_org || record.source,
+      sourceClass: record.source_class,
+      title: record.source || record.source_org,
+      url: record.source_url || record.url,
+      authoritative: record.source_class === 'official',
+    };
+  }
+
+  return undefined;
 }
 
 export function hasAuthorityCoverage(record: KnowledgeOpsQaRecord): boolean {
@@ -464,6 +524,111 @@ function buildSourceCoverageSummary(
   };
 }
 
+function isOfficialPromotionReference(reference: KnowledgeOpsReference): boolean {
+  if (reference.sourceClass === 'official') {
+    return true;
+  }
+
+  const sourceText = `${reference.org || ''} ${reference.sourceOrg || ''} ${reference.title || ''} ${reference.url || ''}`;
+  return AUTHORITY_SOURCE_PATTERN.test(sourceText);
+}
+
+function buildPromotionSafeQuestionCandidates(records: KnowledgeOpsQaRecord[], sampleLimit: number) {
+  const excluded = {
+    missingQuestion: 0,
+    unsafeQuestionShape: 0,
+    unsupportedPromotionIntent: 0,
+    contentGuard: 0,
+    missingAuthorityReference: 0,
+    redRisk: 0,
+    unsupportedRisk: 0,
+  };
+  const candidates: KnowledgeOpsPromotionQuestionCandidate[] = [];
+
+  for (const record of records) {
+    const question = (record.question || '').trim();
+    if (!question) {
+      excluded.missingQuestion += 1;
+      continue;
+    }
+
+    const allowsCareBoundary = PROMOTION_CARE_BOUNDARY_PATTERN.test(question);
+    if (
+      question.length > PROMOTION_MAX_QUESTION_LENGTH
+      || PROMOTION_CASE_FORM_PATTERN.test(question)
+      || (PROMOTION_URGENT_RISK_PATTERN.test(question) && !allowsCareBoundary)
+      || PROMOTION_PERSONAL_CASE_PATTERN.test(question)
+    ) {
+      excluded.unsafeQuestionShape += 1;
+      continue;
+    }
+
+    if (!PROMOTION_GENERIC_INTENT_PATTERNS.some((pattern) => pattern.test(question))) {
+      excluded.unsupportedPromotionIntent += 1;
+      continue;
+    }
+
+    if (getDatasetKnowledgeDropReason(record)) {
+      excluded.contentGuard += 1;
+      continue;
+    }
+
+    const authorityReference = resolveAuthorityReference(record);
+    if (!authorityReference || !isOfficialPromotionReference(authorityReference)) {
+      excluded.missingAuthorityReference += 1;
+      continue;
+    }
+
+    const riskLevel = normalizeRiskLevel(record.risk_level_default);
+    if (riskLevel === 'red') {
+      excluded.redRisk += 1;
+      continue;
+    }
+    if (riskLevel !== 'green' && riskLevel !== 'yellow') {
+      excluded.unsupportedRisk += 1;
+      continue;
+    }
+
+    candidates.push({
+      id: record.id || record.original_id,
+      question,
+      category: record.category,
+      topic: record.topic,
+      targetStage: Array.isArray(record.target_stage) ? record.target_stage.filter(Boolean) : [],
+      riskLevel,
+      suggestedUse: riskLevel === 'green' ? 'general_education' : 'care_boundary',
+      boundaryNote: riskLevel === 'yellow'
+        ? '仅用于科普与就医准备，不作为诊断或治疗建议。'
+        : undefined,
+      authorityReference: {
+        title: authorityReference.title,
+        url: authorityReference.url,
+        sourceOrg: authorityReference.sourceOrg || authorityReference.org,
+        sourceClass: authorityReference.sourceClass,
+        authoritative: authorityReference.authoritative === true || authorityReference.sourceClass === 'official',
+      },
+    });
+  }
+
+  const sortedCandidates = candidates.sort((left, right) => {
+    const riskOrder = left.riskLevel.localeCompare(right.riskLevel);
+    if (riskOrder !== 0) {
+      return riskOrder;
+    }
+    return (left.category || '').localeCompare(right.category || '') || left.question.localeCompare(right.question);
+  });
+
+  return {
+    source: 'enriched_qa',
+    eligibleInput: records.length,
+    total: sortedCandidates.length,
+    byCategory: topBy(sortedCandidates, (item) => item.category, 12),
+    byTopic: topBy(sortedCandidates, (item) => item.topic, 12),
+    excluded,
+    candidates: sortedCandidates.slice(0, sampleLimit),
+  };
+}
+
 export function buildKnowledgeOpsReport(input: KnowledgeOpsReportInput, options: KnowledgeOpsReportOptions = {}) {
   const now = options.now || new Date().toISOString();
   const sampleLimit = Math.max(1, Math.min(options.sampleLimit || 20, 100));
@@ -541,6 +706,9 @@ export function buildKnowledgeOpsReport(input: KnowledgeOpsReportInput, options:
     translations,
     review: buildReviewRiskSummary(authorityRecords, input.reviewQueueSummary, sampleLimit),
     sourceCoverage,
+    promotion: {
+      safeQuestionCandidates: buildPromotionSafeQuestionCandidates(enrichedQaRecords, sampleLimit),
+    },
     actionItems,
   };
 }

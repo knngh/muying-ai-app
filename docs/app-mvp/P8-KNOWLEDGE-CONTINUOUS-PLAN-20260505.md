@@ -1,6 +1,6 @@
 # P8 知识库持续补充计划
 
-更新时间：2026-05-05
+更新时间：2026-05-09
 
 ## 1. 当前后台状态
 
@@ -35,12 +35,21 @@
 
 ## 2. 直接结论
 
+2026-05-09 更新：
+
+- P2 知识运营已完成生产收口：`ops:knowledge:status` 返回 `status=ok`，`actionItems=[]`，`nextActions=[]`。
+- 生产权威覆盖率已达到 `76.05%`，高于 P2 目标 `60%`。
+- 翻译失败已清零，翻译缓存 invalid entries 已清零。
+- `chinacdc-nutrition` 已达 `15/10 healthy`。
+- `mayo-clinic-zh` 仍为 `0/10`，但生产服务器访问 Mayo sitemap 上游返回 `403 Access Denied`，已降级为外部访问阻断，不再作为 P2 阻塞项。
+- 下一阶段进入 P3 知识运营：目标是把权威覆盖率推进到 `80%+`，并把权威增强 QA 转化为可运营的推广素材候选池。
+
 5000 QA 任务不是已经完成的“一次性任务”，而是分成两层：
 
 - 旧 5000 QA 数据集：目前是 3346 条可检索的基础问答库，但不是权威增强版。
 - 权威知识补充链路：生产 worker 已持续运行，正在把 WHO / CDC / AAP / ACOG / NHS / 国内权威与医疗平台内容同步、发布、向量化和翻译预热。
 
-当前最关键的问题：
+原始关键问题：
 
 - 线上问答检索对常见 query 仍优先命中 `cMedQA2数据集`。
 - 5000 QA 自身没有生成 `enriched` 版本，权威覆盖率审计为 0。
@@ -217,6 +226,22 @@ DRY_RUN=false npm run retry:authority-translation-failures
 2026-05-08 已修复生产同步脚本：`ops:sync:prod` 不再打包同步 `data/`，避免本地旧 `authority-knowledge-cache.json` / 翻译缓存 / QA 快照覆盖生产运行态数据。同步期间曾把生产 authority cache 覆盖成本地旧 229 条；已立即用服务器 MySQL 执行 `AUTHORITY_VECTOR_PUBLISH_ENABLED=false npm run review:authority -- export` 重建快照，恢复后 `chinacdc-nutrition=15/10 healthy`，权威快照当前 `1077` 条。MySQL 中 `published` 全部 + `review` 非 red 理论为 `1810` 条，导出阶段会继续经 `shouldFilterAuthoritySourceUrl` 和 `getAuthorityKnowledgeDropReason` 过滤高风险/低质内容，所以文件条数低于 MySQL 可导出状态行数是当前规则结果。
 
 2026-05-08 最终复测：`SSH_IDENTITY_FILE=/Users/zhugehao/.ssh/id_server npm run ops:knowledge:status` 在服务器 MySQL 路径跑通，daily ops 子命令为 `6/6` 成功，生产状态仍为 `attention`。权威覆盖率 `51.81% < 60%`；`mayo-clinic-zh` 仍因服务器访问 sitemap `403 text/html` 为 `0/10 missing`；`chinacdc-nutrition` 保持 `15/10 healthy`；翻译缓存 `cacheEntries=636`、`invalidCacheEntries=0`、`failureEntries=20`（retryable `15`，blocked `5`），下一步只能做小批量、带 sourceUpdatedAt 校验的失败重试。
+
+2026-05-09 P2 最终收口：生产使用服务器 `.env` / MySQL 路径复跑 `SSH_IDENTITY_FILE=/Users/zhugehao/.ssh/id_server npm run ops:knowledge:status`，返回 `status=ok`，daily ops 子命令失败数为 `0`，`actionItems=[]`，`nextActions=[]`。权威覆盖率已提升到 `76.05%`（`2388` covered，`752` missing），翻译失败为 `0`，invalid translation cache 为 `0`，translation cache entries 为 `628`。`mayo-clinic-zh` 仍因服务器访问 sitemap 上游 `403 Access Denied` 为 `0/10`，但已作为外部访问阻断记录，不再触发 P2 行动项。`chinacdc-nutrition` 保持 `15/10 healthy`。
+
+2026-05-09 P3 起步切片：`ops:knowledge:report` 新增 `promotion.safeQuestionCandidates`，从 `expanded-qa-data-5000.enriched.json` 中生成“推广素材可用问题库”候选。候选规则是：必须有官方权威引用，`red` 风险排除，`green` 标记为 `general_education`，`yellow` 标记为 `care_boundary` 并附带“仅用于科普与就医准备，不作为诊断或治疗建议。”边界说明。`ops:knowledge:status` 也会在摘要里展示该候选池概览。
+
+## 7.1 P3：知识运营与推广联动
+
+目标：在 P2 已完成的基础上，把权威覆盖继续推进到 `80%+`，并让知识库成果直接服务安全推广。
+
+任务：
+
+1. 继续修补 `752` 条缺权威引用的 QA，优先处理高频分类和推广入口会展示的阶段问题。
+2. 维持每日 `ops:knowledge:status` 为 `ok`，翻译失败和 invalid cache entries 保持为 `0`。
+3. 使用 `promotion.safeQuestionCandidates` 作为推广素材问题池，运营只从官方引用充足、风险边界明确的问题里选题。
+4. 对 `yellow` 候选只做科普与就医准备表达，不做诊断、治疗、疗效或承诺式转化文案。
+5. `mayo-clinic-zh` 暂不作为刷新任务推进；除非服务器出口访问策略改变，继续把它作为外部阻断源记录。
 
 默认读取 `tmp/knowledge-ops-report.json` 中 `sourceCoverage.watchedSources` 的 `missing` / `low` 源，先 dry-run 打印将刷新列表；显式 `DRY_RUN=false` 后按源调用现有 `sync:authority` 能力刷新。可用 `AUTHORITY_SOURCE_IDS=mayo-clinic-zh,chinacdc-nutrition` 限定源。
 

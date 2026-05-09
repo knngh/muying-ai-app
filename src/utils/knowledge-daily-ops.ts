@@ -34,6 +34,23 @@ export interface KnowledgeDailyOpsKnowledgeReport {
       status?: string;
     }>;
   };
+  promotion?: {
+    safeQuestionCandidates?: {
+      eligibleInput?: number;
+      total?: number;
+      byCategory?: Array<{ key?: string; count?: number }>;
+      byTopic?: Array<{ key?: string; count?: number }>;
+      excluded?: Record<string, number>;
+      candidates?: Array<{
+        id?: string;
+        question?: string;
+        category?: string;
+        topic?: string;
+        riskLevel?: string;
+        suggestedUse?: string;
+      }>;
+    };
+  };
   actionItems?: Array<{ priority?: string; area?: string; message?: string }>;
 }
 
@@ -240,6 +257,20 @@ function summarizeKnowledgeReport(report?: KnowledgeDailyOpsKnowledgeReport | nu
     sourceCoverage: report?.sourceCoverage
       ? {
         watchedSources: report.sourceCoverage.watchedSources || [],
+      }
+      : null,
+    promotion: report?.promotion
+      ? {
+        safeQuestionCandidates: report.promotion.safeQuestionCandidates
+          ? {
+            eligibleInput: report.promotion.safeQuestionCandidates.eligibleInput,
+            total: report.promotion.safeQuestionCandidates.total,
+            byCategory: report.promotion.safeQuestionCandidates.byCategory || [],
+            byTopic: report.promotion.safeQuestionCandidates.byTopic || [],
+            excluded: report.promotion.safeQuestionCandidates.excluded || {},
+            candidates: (report.promotion.safeQuestionCandidates.candidates || []).slice(0, 5),
+          }
+          : null,
       }
       : null,
     actionItems: report?.actionItems || [],

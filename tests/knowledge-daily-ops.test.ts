@@ -189,6 +189,67 @@ describe('knowledge daily ops report', () => {
     ]));
   });
 
+  it('includes promotion-safe question candidates without changing healthy status', () => {
+    const report = buildKnowledgeDailyOpsReport({
+      generatedAt: '2026-05-09T00:00:00.000Z',
+      applyFixes: false,
+      commands: [
+        { name: 'knowledge_ops_report', command: 'npm run ops:knowledge:report', ok: true, exitCode: 0, durationMs: 100 },
+      ],
+      knowledgeReport: {
+        coverage: {
+          coverageRate: 76.05,
+          authorityCovered: 2388,
+          missingAuthorityCoverage: 752,
+        },
+        translations: {
+          recordsForTranslation: 628,
+          cacheEntries: 628,
+          invalidCacheEntries: 0,
+          failureEntries: 0,
+        },
+        promotion: {
+          safeQuestionCandidates: {
+            eligibleInput: 3140,
+            total: 2388,
+            byCategory: [{ key: 'nutrition-baby', count: 128 }],
+            byTopic: [{ key: 'feeding', count: 210 }],
+            excluded: { missingAuthorityReference: 752, redRisk: 12 },
+            candidates: [
+              {
+                id: 'qa-green',
+                question: '6 个月宝宝添加辅食要注意什么？',
+                category: 'nutrition-baby',
+                topic: 'feeding',
+                riskLevel: 'green',
+                suggestedUse: 'general_education',
+              },
+              {
+                id: 'qa-yellow',
+                question: '宝宝发烧什么时候需要就医？',
+                category: 'common-symptoms',
+                topic: 'common-symptoms',
+                riskLevel: 'yellow',
+                suggestedUse: 'care_boundary',
+              },
+            ],
+          },
+        },
+        actionItems: [],
+      },
+    });
+
+    expect(report.status).toBe('ok');
+    expect(report.knowledge.promotion?.safeQuestionCandidates).toMatchObject({
+      eligibleInput: 3140,
+      total: 2388,
+      candidates: [
+        { id: 'qa-green', suggestedUse: 'general_education' },
+        { id: 'qa-yellow', suggestedUse: 'care_boundary' },
+      ],
+    });
+  });
+
   it('marks report as failed when a command fails', () => {
     const report = buildKnowledgeDailyOpsReport({
       generatedAt: '2026-05-07T00:00:00.000Z',

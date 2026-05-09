@@ -129,6 +129,7 @@ if (dailyReport) {
     coverage: dailyReport.knowledge?.coverage,
     translations: dailyReport.knowledge?.translations,
     sourceCoverage: dailyReport.knowledge?.sourceCoverage?.watchedSources,
+    promotion: dailyReport.knowledge?.promotion,
     remediation: {
       sourceRefresh: {
         dryRun: dailyReport.remediation?.sourceRefresh?.dryRun,
@@ -187,6 +188,18 @@ console.log(JSON.stringify({
     layers: report.review?.layers,
   },
   sourceCoverage: report.sourceCoverage?.watchedSources,
+  promotion: report.promotion
+    ? {
+      safeQuestionCandidates: {
+        eligibleInput: report.promotion.safeQuestionCandidates?.eligibleInput,
+        total: report.promotion.safeQuestionCandidates?.total,
+        byCategory: report.promotion.safeQuestionCandidates?.byCategory,
+        byTopic: report.promotion.safeQuestionCandidates?.byTopic,
+        excluded: report.promotion.safeQuestionCandidates?.excluded,
+        candidates: (report.promotion.safeQuestionCandidates?.candidates || []).slice(0, 5),
+      },
+    }
+    : undefined,
   actionItems: report.actionItems,
 }, null, 2));
 NODE

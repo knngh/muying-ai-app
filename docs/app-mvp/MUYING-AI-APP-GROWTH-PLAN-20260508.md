@@ -352,13 +352,15 @@
 
 ## 13. 下阶段开发联动
 
-推广要依赖产品可信度，所以下阶段开发优先级应继续围绕 P2 知识运营：
+推广要依赖产品可信度。2026-05-09 P2 知识运营已收口：生产 `ops:knowledge:status` 为 `ok`，权威覆盖率 `76.05%`，翻译失败和 invalid translation cache 均为 `0`。下阶段开发进入 P3 知识运营与推广联动：
 
-1. 修复 `mayo-clinic-zh` 和 `chinacdc-nutrition` 低覆盖源。
-2. 把 `ops:knowledge:status` 输出变成运营能读懂的每日健康报告。
-3. 增强答案里的来源、风险等级和就医边界展示。
-4. 建立“推广素材可用问题库”：只选权威覆盖充分、风险边界清楚的问题对外传播。
+1. 把权威覆盖率从 `76.05%` 推进到 `80%+`。
+2. 使用 `ops:knowledge:report` 的 `promotion.safeQuestionCandidates` 建立“推广素材可用问题库”：只选官方权威引用充足、风险边界清楚的问题对外传播。
+3. `green` 候选可做一般科普选题，`yellow` 候选只做科普与就医准备，不做诊断、治疗或疗效承诺。
+4. 增强答案里的来源、风险等级和就医边界展示。
 5. 为首访用户补一个按阶段推荐问题的轻量入口。
+
+说明：`chinacdc-nutrition` 已达到 `15/10 healthy`；`mayo-clinic-zh` 是服务器访问 Mayo sitemap 上游 `403 Access Denied`，作为外部阻断源记录，不再作为 P2 阻塞任务。
 
 ## 14. 参考来源
 
