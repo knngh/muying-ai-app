@@ -28,6 +28,13 @@ describe('knowledge content guards', () => {
       category: 'common-symptoms',
       tags: ['母婴'],
     })).toBeNull();
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '孕吐什么时候需要就医？',
+      answer: '观察孕吐频率、饮水和尿量，必要时就医。',
+      category: 'pregnancy-early',
+      tags: ['母婴'],
+    })).toBeNull();
   });
 
   it('rejects adolescent, research, and high-sensitivity dataset records', () => {

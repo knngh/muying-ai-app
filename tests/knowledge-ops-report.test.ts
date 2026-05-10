@@ -791,4 +791,125 @@ describe('knowledge ops report', () => {
     ]);
     expect(candidatesById.get('qa-breastfeeding')?.targetStage).toEqual(['postpartum']);
   });
+
+  it('expands standardized promotion titles without dropping authority alignment', () => {
+    const report = buildKnowledgeOpsReport({
+      qaRecords: [],
+      enrichedQaRecords: [
+        qaFixture({
+          id: 'qa-pregnancy-medication',
+          question: '怀孕期间感冒用药要注意什么？',
+          category: 'common-symptoms',
+          topic: 'common-symptoms',
+          risk_level_default: 'yellow',
+          target_stage: ['first-trimester'],
+          references: [{
+            authoritative: true,
+            sourceClass: 'official',
+            sourceOrg: 'CDC',
+            title: 'Medicine and Pregnancy: An Overview',
+            url: 'https://www.cdc.gov/pregnancy/meds/index.html',
+          }],
+        }),
+        qaFixture({
+          id: 'qa-pregnancy-nausea',
+          question: '孕早期孕吐很明显要注意什么？',
+          category: 'pregnancy-early',
+          topic: 'pregnancy',
+          risk_level_default: 'yellow',
+          target_stage: ['first-trimester'],
+          references: [{
+            authoritative: true,
+            sourceClass: 'official',
+            sourceOrg: 'ACOG',
+            title: 'Nausea and Vomiting of Pregnancy',
+            url: 'https://www.acog.org/example',
+          }],
+        }),
+        qaFixture({
+          id: 'qa-formula-feeding',
+          question: '宝宝喝配方奶奶量怎么观察？',
+          category: 'parenting-0-1',
+          topic: 'feeding',
+          risk_level_default: 'green',
+          target_stage: ['0-6-months'],
+          references: [{
+            authoritative: true,
+            sourceClass: 'official',
+            sourceOrg: 'AAP',
+            title: 'How to Safely Prepare Baby Formula With Water',
+            url: 'https://www.healthychildren.org/example',
+          }],
+        }),
+        qaFixture({
+          id: 'qa-vaccine-schedule',
+          question: '宝宝疫苗接种时间间隔怎么安排？',
+          category: 'vaccine-schedule',
+          topic: 'vaccination',
+          risk_level_default: 'green',
+          target_stage: ['0-6-months'],
+          references: [{
+            authoritative: true,
+            sourceClass: 'official',
+            sourceOrg: '国家疾病预防控制局',
+            title: '国家免疫规划疫苗儿童免疫程序',
+            url: 'https://www.ndcpa.gov.cn/example',
+          }],
+        }),
+        qaFixture({
+          id: 'qa-vaccine-reaction',
+          question: '宝宝接种疫苗后发热红肿要注意什么？',
+          category: 'vaccine-reaction',
+          topic: 'vaccination',
+          risk_level_default: 'yellow',
+          target_stage: ['0-6-months'],
+          references: [{
+            authoritative: true,
+            sourceClass: 'official',
+            sourceOrg: 'CDC',
+            title: 'Possible Side Effects from Vaccines',
+            url: 'https://www.cdc.gov/vaccines/basics/possible-side-effects.html',
+          }],
+        }),
+      ],
+      authorityRecords: [],
+    }, {
+      sampleLimit: 10,
+      watchedSourceIds: [],
+    });
+
+    expect(report.promotion.safeQuestionCandidates).toMatchObject({
+      total: 5,
+      excluded: {
+        authorityReferenceMismatch: 0,
+      },
+    });
+    expect(report.promotion.safeQuestionCandidates.candidates).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'qa-pregnancy-medication',
+        question: '孕期用药要注意什么？',
+        riskLevel: 'yellow',
+      }),
+      expect.objectContaining({
+        id: 'qa-pregnancy-nausea',
+        question: '孕吐什么时候需要就医？',
+        riskLevel: 'yellow',
+      }),
+      expect.objectContaining({
+        id: 'qa-formula-feeding',
+        question: '宝宝配方奶喂养要注意什么？',
+        riskLevel: 'green',
+      }),
+      expect.objectContaining({
+        id: 'qa-vaccine-schedule',
+        question: '宝宝疫苗接种时间怎么安排？',
+        riskLevel: 'green',
+      }),
+      expect.objectContaining({
+        id: 'qa-vaccine-reaction',
+        question: '宝宝接种疫苗后反应怎么观察？',
+        riskLevel: 'yellow',
+      }),
+    ]));
+  });
 });

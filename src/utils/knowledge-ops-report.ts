@@ -142,7 +142,7 @@ const PROMOTION_GENERIC_INTENT_PATTERNS = [
   /孕期.{0,12}(?:腹痛|出血).{0,12}(?:就医|注意)/u,
   /(?:产检|待产|入院准备).{0,12}(?:怎么|如何|注意|准备|项目|时间)/u,
   /(?:孕期营养|叶酸|体重增长).{0,12}(?:怎么|如何|注意|多少)/u,
-  /(?:疫苗|接种).{0,12}(?:时间|程序|注意|反应观察)/u,
+  /(?:疫苗|接种).{0,12}(?:时间|程序|注意|反应.{0,4}观察)/u,
   /(?:疫苗|接种).{0,12}(?:哪些情况|什么时候).{0,8}就医/u,
   /新生儿.{0,12}(?:黄疸|脐带|护理).{0,12}(?:怎么|如何|注意|就医)/u,
   /哺乳期.{0,12}喂养.{0,12}(?:怎么|如何|注意)/u,
@@ -613,7 +613,10 @@ function hasSupportedPromotionIntent(question: string): boolean {
 
 type PromotionQuestionTopic =
   | 'feeding'
+  | 'formula-feeding'
+  | 'pregnancy-medication'
   | 'vaccination'
+  | 'vaccine-reaction'
   | 'development'
   | 'sleep'
   | 'newborn'
@@ -622,15 +625,30 @@ type PromotionQuestionTopic =
   | 'pregnancy-symptoms'
   | 'pregnancy-checkup'
   | 'pregnancy-nutrition'
+  | 'pregnancy-nausea'
   | 'fetal-movement'
   | 'fever'
+  | 'cough'
   | 'vomiting-diarrhea'
+  | 'constipation'
   | 'rash'
   | 'baby-symptoms';
 
 function inferPromotionQuestionTopic(question: string): PromotionQuestionTopic | null {
+  if (/孕期用药|孕妇用药|怀孕期间用药/u.test(question)) {
+    return 'pregnancy-medication';
+  }
+
+  if (/配方奶|奶粉|冲奶/u.test(question)) {
+    return 'formula-feeding';
+  }
+
   if (/辅食|喂养|母乳|奶量|配方奶|吃奶|哺乳/u.test(question)) {
     return 'feeding';
+  }
+
+  if (/疫苗|接种/u.test(question) && /反应|发热|红肿|就医/u.test(question)) {
+    return 'vaccine-reaction';
   }
 
   if (/疫苗|接种|预防针|卡介|乙肝疫苗|百白破|麻腮风/u.test(question)) {
@@ -669,8 +687,16 @@ function inferPromotionQuestionTopic(question: string): PromotionQuestionTopic |
     return 'pregnancy-nutrition';
   }
 
+  if (/孕吐|恶心|呕吐/u.test(question) && /孕/u.test(question)) {
+    return 'pregnancy-nausea';
+  }
+
   if (/孕期|怀孕|孕妇|孕早期|孕中期|孕晚期|腹痛|肚子痛|出血|见红|不适/u.test(question)) {
     return 'pregnancy-symptoms';
+  }
+
+  if (/便秘|大便/u.test(question)) {
+    return 'constipation';
   }
 
   if (/腹泻|拉肚子|呕吐|吐奶/u.test(question)) {
@@ -683,6 +709,10 @@ function inferPromotionQuestionTopic(question: string): PromotionQuestionTopic |
 
   if (/发烧|发热|高烧|高热/u.test(question)) {
     return 'fever';
+  }
+
+  if (/咳嗽|咳痰|喘/u.test(question)) {
+    return 'cough';
   }
 
   if (/宝宝常见症状|宝宝.*就医/u.test(question)) {
@@ -711,6 +741,14 @@ function isPromotionReferenceAligned(question: string, reference: KnowledgeOpsRe
   const referenceText = getPromotionReferenceText(reference);
   const sourceClass = reference.sourceClass || '';
 
+  if (topic === 'pregnancy-medication') {
+    return /medicine|medication|drug|substance|pregnancy|pregnan|孕期|妊娠|怀孕|用药|药物/u.test(referenceText);
+  }
+
+  if (topic === 'formula-feeding') {
+    return /formula|bottle[- ]?feeding|powdered milk|infant feeding|feeding guidance|配方奶|奶粉|喂养/u.test(referenceText);
+  }
+
   if (topic === 'feeding') {
     if (/辅食|断奶|米粉|solid foods?|complementary feeding|weaning/u.test(question)) {
       return /婴幼儿喂养|infant feeding|feeding guidance|辅食|断奶|米粉|solid foods?|complementary feeding|weaning/u.test(referenceText);
@@ -721,6 +759,10 @@ function isPromotionReferenceAligned(question: string, reference: KnowledgeOpsRe
     }
 
     return /feeding problems?|formula|喂养问题|配方奶/u.test(referenceText);
+  }
+
+  if (topic === 'vaccine-reaction') {
+    return /vaccine|vaccin|immuni|immunization|side effects?|reaction|after vaccination|fever|疫苗|接种|反应|发热|红肿/u.test(referenceText);
   }
 
   if (topic === 'vaccination') {
@@ -759,12 +801,24 @@ function isPromotionReferenceAligned(question: string, reference: KnowledgeOpsRe
     return /nutrition|diet|folic|iron|calcium|anaemia|anemia|vitamin|营养|饮食|叶酸|铁|钙|贫血/u.test(referenceText);
   }
 
+  if (topic === 'pregnancy-nausea') {
+    return /nausea|vomit|morning sickness|pregnancy|pregnan|孕吐|恶心|呕吐|妊娠/u.test(referenceText);
+  }
+
   if (topic === 'pregnancy-symptoms') {
     return /pregnancy|pregnan|prenatal|antenatal|bleeding|pain|nausea|vomit|morning sickness|孕期|妊娠|怀孕|腹痛|出血|见红|孕吐/u.test(referenceText);
   }
 
   if (topic === 'fever') {
     return /fever|temperature|high temperature|发热|发烧|高温/u.test(referenceText);
+  }
+
+  if (topic === 'cough') {
+    return /cough|respiratory|breath|wheeze|cold|咳嗽|呼吸|喘/u.test(referenceText);
+  }
+
+  if (topic === 'constipation') {
+    return /constipation|stool|bowel|poop|便秘|大便|排便/u.test(referenceText);
   }
 
   if (topic === 'vomiting-diarrhea') {
@@ -795,10 +849,22 @@ function buildStandardizedPromotionQuestion(record: KnowledgeOpsQaRecord): strin
   const isInfant = isInfantPromotionRecord(record, text);
 
   if (topic === 'vaccination' || /疫苗|接种|预防针|卡介|乙肝疫苗|百白破|麻腮风/u.test(text)) {
+    if (/反应|红肿|发热|发烧|接种后/u.test(text)) {
+      return '宝宝接种疫苗后反应怎么观察？';
+    }
+
+    if (/时间|程序|间隔|顺延|补种/u.test(text)) {
+      return '宝宝疫苗接种时间怎么安排？';
+    }
+
     return '宝宝疫苗接种后哪些情况需要就医？';
   }
 
   if (topic === 'feeding' || category === 'nutrition-baby' || /辅食|喂养|母乳|奶量|配方奶|吃奶|哺乳/u.test(text)) {
+    if (/配方奶|奶粉|冲奶/u.test(text)) {
+      return '宝宝配方奶喂养要注意什么？';
+    }
+
     if (/辅食|断奶|米粉/u.test(text) || category === 'nutrition-baby') {
       return '6 个月宝宝添加辅食要注意什么？';
     }
@@ -832,8 +898,16 @@ function buildStandardizedPromotionQuestion(record: KnowledgeOpsQaRecord): strin
     return '新生儿护理要注意什么？';
   }
 
-  if (topic === 'common-symptoms' || /发烧|发热|咳嗽|腹泻|呕吐|便秘|皮疹|红疹|湿疹|黄疸|腹痛|出血|见红|不适/u.test(text)) {
+  if (topic === 'common-symptoms' || /发烧|发热|咳嗽|腹泻|呕吐|孕吐|恶心|反胃|便秘|皮疹|红疹|湿疹|黄疸|腹痛|出血|见红|不适/u.test(text)) {
     if (isPregnancy) {
+      if (/用药|吃药|感冒药|药物|药/u.test(text)) {
+        return '孕期用药要注意什么？';
+      }
+
+      if (/孕吐|恶心|呕吐|反胃/u.test(text)) {
+        return '孕吐什么时候需要就医？';
+      }
+
       if (/腹痛|肚子痛|出血|见红/u.test(text)) {
         return '孕期腹痛或出血什么时候需要就医？';
       }
@@ -853,8 +927,16 @@ function buildStandardizedPromotionQuestion(record: KnowledgeOpsQaRecord): strin
       return '宝宝皮疹或湿疹什么时候需要就医？';
     }
 
+    if (/便秘|大便/u.test(text)) {
+      return '宝宝便秘什么时候需要就医？';
+    }
+
     if (/发烧|发热|高烧|高热/u.test(text)) {
       return '宝宝发热什么时候需要就医？';
+    }
+
+    if (/咳嗽|咳痰|喘/u.test(text)) {
+      return '宝宝咳嗽什么时候需要就医？';
     }
 
     if (isInfant) {
@@ -882,6 +964,11 @@ function buildStandardizedPromotionQuestion(record: KnowledgeOpsQaRecord): strin
 }
 
 function resolvePromotionQuestion(record: KnowledgeOpsQaRecord): string | undefined {
+  const standardizedQuestion = buildStandardizedPromotionQuestion(record);
+  if (standardizedQuestion) {
+    return standardizedQuestion;
+  }
+
   const question = normalizePromotionText(record.question);
   if (
     question
@@ -891,7 +978,7 @@ function resolvePromotionQuestion(record: KnowledgeOpsQaRecord): string | undefi
     return question;
   }
 
-  return buildStandardizedPromotionQuestion(record);
+  return undefined;
 }
 
 function buildPromotionSafeQuestionCandidates(records: KnowledgeOpsQaRecord[], sampleLimit: number) {
