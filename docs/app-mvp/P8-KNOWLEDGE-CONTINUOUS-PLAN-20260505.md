@@ -253,6 +253,8 @@ DRY_RUN=false npm run retry:authority-translation-failures
 
 2026-05-10 P3-12 切片：新增 `ops:ai:health` AI provider 健康探针，默认验证 `glm_classify` 是否能经生产配置调用 `zai-org/GLM-5.1-FP8` 并返回预期短答案，输出 `tmp/ai-provider-health-report.json`。报告只包含 role、provider、model、耗时、短答案和脱敏错误摘要，不输出 API key；可通过 `AI_HEALTH_TIMEOUT_MS` / `AI_HEALTH_TASK_ROLE` / `AI_HEALTH_EXPECTED_ANSWER` 调整探测参数。
 
+2026-05-10 P3-13 切片：`ops:knowledge:daily` 已接入 `ops:ai:health`，每日知识运营报告会在 `remediation.aiProviderHealth` 中展示 GLM 5.1 / Modal Direct 的健康状态、路由、模型和耗时。探针失败不会被误判成日报命令崩溃，而是进入 `nextActions`，让后续查看 `ops:knowledge:status` 时同时看到知识库状态与免费翻译通道可用性。
+
 ## 7.1 P3：知识运营与推广联动
 
 目标：在 P2 已完成的基础上，把权威覆盖继续推进到 `80%+`，并让知识库成果直接服务安全推广。
@@ -274,6 +276,7 @@ DRY_RUN=false npm run retry:authority-translation-failures
 13. P3-10 已完成安全推广候选题扩展：候选池新增更多高频标准题名，但继续要求官方引用对齐和内容 guard 通过后才可进入运营素材池。
 14. P3-11 已完成推广候选池容量拆分：推荐 API 读取的 `candidates` 不再被通用报告样本数截断。
 15. P3-12 已完成 AI provider 健康探针：后续可直接跑 `npm run ops:ai:health` 验证 GLM 5.1 / Modal Direct 可用性。
+16. P3-13 已完成 AI provider 健康摘要接入每日知识状态：`ops:knowledge:status` 可直接展示 `remediation.aiProviderHealth`，用于判断免费 GLM 通道是否可支撑翻译预热与后续运营任务。
 
 默认读取 `tmp/knowledge-ops-report.json` 中 `sourceCoverage.watchedSources` 的 `missing` / `low` 源，先 dry-run 打印将刷新列表；显式 `DRY_RUN=false` 后按源调用现有 `sync:authority` 能力刷新。可用 `AUTHORITY_SOURCE_IDS=mayo-clinic-zh,chinacdc-nutrition` 限定源。
 

@@ -317,6 +317,129 @@ describe('knowledge daily ops report', () => {
     });
   });
 
+  it('includes AI provider health in remediation without changing healthy status when ok', () => {
+    const report = buildKnowledgeDailyOpsReport({
+      generatedAt: '2026-05-10T00:00:00.000Z',
+      applyFixes: false,
+      commands: [
+        { name: 'knowledge_ops_report', command: 'npm run ops:knowledge:report', ok: true, exitCode: 0, durationMs: 100 },
+        { name: 'ai_provider_health', command: 'npm run ops:ai:health', ok: true, exitCode: 0, durationMs: 4200 },
+      ],
+      knowledgeReport: {
+        coverage: {
+          coverageRate: 76.05,
+          authorityCovered: 2388,
+          missingAuthorityCoverage: 752,
+        },
+        translations: {
+          recordsForTranslation: 633,
+          cacheEntries: 633,
+          invalidCacheEntries: 0,
+          failureEntries: 0,
+        },
+        actionItems: [],
+      },
+      aiProviderHealthReport: {
+        generatedAt: '2026-05-10T00:00:00.000Z',
+        status: 'ok',
+        taskRole: 'glm_classify',
+        timeoutMs: 45000,
+        maxTokens: 80,
+        binding: {
+          role: 'glm_classify',
+          provider: 'modal-direct',
+          model: 'zai-org/GLM-5.1-FP8',
+          configured: true,
+        },
+        call: {
+          attempted: true,
+          ok: true,
+          elapsedMs: 4261,
+          answerPreview: '3',
+          expectedMatched: true,
+          route: {
+            provider: 'modal-direct',
+            model: 'zai-org/GLM-5.1-FP8',
+            route: 'task',
+            label: 'task-glm',
+          },
+        },
+      },
+    });
+
+    expect(report.status).toBe('ok');
+    expect(report.remediation.aiProviderHealth).toMatchObject({
+      status: 'ok',
+      taskRole: 'glm_classify',
+      binding: {
+        provider: 'modal-direct',
+        model: 'zai-org/GLM-5.1-FP8',
+      },
+      call: {
+        ok: true,
+        answerPreview: '3',
+        route: {
+          provider: 'modal-direct',
+          model: 'zai-org/GLM-5.1-FP8',
+        },
+      },
+    });
+    expect(report.nextActions).toEqual([]);
+  });
+
+  it('marks the daily report attention when AI provider health fails', () => {
+    const report = buildKnowledgeDailyOpsReport({
+      generatedAt: '2026-05-10T00:00:00.000Z',
+      applyFixes: false,
+      commands: [
+        { name: 'knowledge_ops_report', command: 'npm run ops:knowledge:report', ok: true, exitCode: 0, durationMs: 100 },
+        { name: 'ai_provider_health', command: 'npm run ops:ai:health', ok: true, exitCode: 0, durationMs: 1000 },
+      ],
+      knowledgeReport: {
+        coverage: {
+          coverageRate: 76.05,
+          authorityCovered: 2388,
+          missingAuthorityCoverage: 752,
+        },
+        translations: {
+          recordsForTranslation: 633,
+          cacheEntries: 633,
+          invalidCacheEntries: 0,
+          failureEntries: 0,
+        },
+        actionItems: [],
+      },
+      aiProviderHealthReport: {
+        generatedAt: '2026-05-10T00:00:00.000Z',
+        status: 'failed',
+        taskRole: 'glm_classify',
+        timeoutMs: 45000,
+        maxTokens: 80,
+        binding: {
+          role: 'glm_classify',
+          provider: 'modal-direct',
+          model: 'zai-org/GLM-5.1-FP8',
+          configured: true,
+        },
+        call: {
+          attempted: true,
+          ok: false,
+          elapsedMs: 45000,
+          error: {
+            message: 'timeout',
+            gatewayProvider: 'modal-direct',
+            gatewayModel: 'zai-org/GLM-5.1-FP8',
+          },
+        },
+      },
+    });
+
+    expect(report.status).toBe('attention');
+    expect(report.nextActions).toEqual([
+      'AI provider health check failed for glm_classify (modal-direct / zai-org/GLM-5.1-FP8).',
+    ]);
+  });
+
   it('marks report as failed when a command fails', () => {
     const report = buildKnowledgeDailyOpsReport({
       generatedAt: '2026-05-07T00:00:00.000Z',

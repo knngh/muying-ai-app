@@ -138,6 +138,7 @@ if (dailyReport) {
       },
       translationCleanup: dailyReport.remediation?.translationCleanup,
       translationFailureRetry: dailyReport.remediation?.translationFailureRetry,
+      aiProviderHealth: dailyReport.remediation?.aiProviderHealth,
     },
     actionItems: dailyReport.knowledge?.actionItems,
     nextActions: dailyReport.nextActions,

@@ -118,6 +118,39 @@ export interface KnowledgeDailyOpsTranslationFailureRetryReport {
   retryFailed?: number;
 }
 
+export interface KnowledgeDailyOpsAIProviderHealthReport {
+  generatedAt?: string;
+  status?: 'ok' | 'failed' | string;
+  taskRole?: string;
+  timeoutMs?: number;
+  maxTokens?: number;
+  binding?: {
+    role?: string;
+    model?: string;
+    provider?: string;
+    configured?: boolean;
+  } | null;
+  call?: {
+    attempted?: boolean;
+    ok?: boolean;
+    elapsedMs?: number;
+    answerPreview?: string;
+    expectedMatched?: boolean;
+    route?: {
+      provider?: string;
+      model?: string;
+      route?: string;
+      label?: string;
+    };
+    error?: {
+      message?: string;
+      gatewayStatus?: number;
+      gatewayProvider?: string;
+      gatewayModel?: string;
+    };
+  };
+}
+
 export interface BuildKnowledgeDailyOpsReportInput {
   generatedAt: string;
   applyFixes: boolean;
@@ -126,6 +159,7 @@ export interface BuildKnowledgeDailyOpsReportInput {
   sourceRefreshResult?: KnowledgeDailyOpsSourceRefreshResult | null;
   translationCleanupReport?: KnowledgeDailyOpsTranslationCleanupReport | null;
   translationFailureRetryReport?: KnowledgeDailyOpsTranslationFailureRetryReport | null;
+  aiProviderHealthReport?: KnowledgeDailyOpsAIProviderHealthReport | null;
 }
 
 function resolveBlockedExternalSources(input: BuildKnowledgeDailyOpsReportInput): Array<{
@@ -210,9 +244,15 @@ function buildNextActions(input: BuildKnowledgeDailyOpsReportInput): string[] {
   const blockedExternalSourceIds = new Set(blockedExternalSources.map((source) => source.sourceId));
   const refreshableSources = (input.sourceRefreshResult?.selectedSources || [])
     .filter((source) => source.sourceId && !blockedExternalSourceIds.has(source.sourceId));
+  const aiHealth = input.aiProviderHealthReport;
 
   if (failedCommands.length > 0) {
     actions.push(`Inspect failed daily ops command(s): ${failedCommands.map((command) => command.name).join(', ')}`);
+  }
+  if (aiHealth?.status === 'failed') {
+    const provider = aiHealth.call?.route?.provider || aiHealth.binding?.provider || aiHealth.call?.error?.gatewayProvider || 'unknown-provider';
+    const model = aiHealth.call?.route?.model || aiHealth.binding?.model || aiHealth.call?.error?.gatewayModel || 'unknown-model';
+    actions.push(`AI provider health check failed for ${aiHealth.taskRole || 'unknown-role'} (${provider} / ${model}).`);
   }
   if (coverageRate < 60) {
     actions.push(`Authority coverage is below P2 target: ${coverageRate}% < 60%`);
@@ -334,6 +374,41 @@ export function buildKnowledgeDailyOpsReport(input: BuildKnowledgeDailyOpsReport
       },
       translationCleanup: input.translationCleanupReport || null,
       translationFailureRetry: input.translationFailureRetryReport || null,
+      aiProviderHealth: input.aiProviderHealthReport
+        ? {
+          generatedAt: input.aiProviderHealthReport.generatedAt,
+          status: input.aiProviderHealthReport.status,
+          taskRole: input.aiProviderHealthReport.taskRole,
+          timeoutMs: input.aiProviderHealthReport.timeoutMs,
+          maxTokens: input.aiProviderHealthReport.maxTokens,
+          binding: input.aiProviderHealthReport.binding
+            ? {
+              role: input.aiProviderHealthReport.binding.role,
+              provider: input.aiProviderHealthReport.binding.provider,
+              model: input.aiProviderHealthReport.binding.model,
+              configured: input.aiProviderHealthReport.binding.configured,
+            }
+            : null,
+          call: input.aiProviderHealthReport.call
+            ? {
+              attempted: input.aiProviderHealthReport.call.attempted,
+              ok: input.aiProviderHealthReport.call.ok,
+              elapsedMs: input.aiProviderHealthReport.call.elapsedMs,
+              answerPreview: input.aiProviderHealthReport.call.answerPreview,
+              expectedMatched: input.aiProviderHealthReport.call.expectedMatched,
+              route: input.aiProviderHealthReport.call.route,
+              error: input.aiProviderHealthReport.call.error
+                ? {
+                  message: input.aiProviderHealthReport.call.error.message,
+                  gatewayStatus: input.aiProviderHealthReport.call.error.gatewayStatus,
+                  gatewayProvider: input.aiProviderHealthReport.call.error.gatewayProvider,
+                  gatewayModel: input.aiProviderHealthReport.call.error.gatewayModel,
+                }
+                : undefined,
+            }
+            : undefined,
+        }
+        : null,
     },
     blockedExternalSources,
     nextActions,

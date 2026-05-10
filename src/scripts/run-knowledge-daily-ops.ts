@@ -5,6 +5,7 @@ import path from 'path';
 import {
   buildKnowledgeDailyOpsReport,
   type KnowledgeDailyOpsCommandResult,
+  type KnowledgeDailyOpsAIProviderHealthReport,
   type KnowledgeDailyOpsKnowledgeReport,
   type KnowledgeDailyOpsSourceRefreshResult,
   type KnowledgeDailyOpsTranslationCleanupReport,
@@ -17,6 +18,7 @@ const KNOWLEDGE_REPORT_FILE = process.env.KNOWLEDGE_REPORT_FILE || path.join(pro
 const SOURCE_REFRESH_REPORT_FILE = process.env.SOURCE_REFRESH_REPORT_FILE || path.join(process.cwd(), 'tmp', 'knowledge-low-coverage-source-refresh.json');
 const TRANSLATION_CLEAN_REPORT_FILE = process.env.TRANSLATION_CLEAN_REPORT_FILE || path.join(process.cwd(), 'tmp', 'authority-translation-cache-clean-report.json');
 const TRANSLATION_FAILURE_RETRY_REPORT_FILE = process.env.TRANSLATION_FAILURE_RETRY_REPORT_FILE || path.join(process.cwd(), 'tmp', 'authority-translation-failure-retry-report.json');
+const AI_PROVIDER_HEALTH_REPORT_FILE = process.env.AI_PROVIDER_HEALTH_REPORT_FILE || path.join(process.cwd(), 'tmp', 'ai-provider-health-report.json');
 const APPLY_FIXES = /^true$/i.test(process.env.KNOWLEDGE_DAILY_APPLY_FIXES || '');
 const STRICT = /^true$/i.test(process.env.KNOWLEDGE_DAILY_STRICT || '');
 
@@ -90,6 +92,11 @@ async function main() {
     LIMIT: process.env.AUTHORITY_TRANSLATION_FAILURE_RETRY_LIMIT || '5',
     REPORT_FILE: TRANSLATION_FAILURE_RETRY_REPORT_FILE,
   }));
+  commands.push(runCommand('ai_provider_health', 'npm run ops:ai:health', {
+    AI_HEALTH_STRICT: 'false',
+    AI_HEALTH_TIMEOUT_MS: process.env.AI_HEALTH_TIMEOUT_MS || '45000',
+    OUTPUT_FILE: AI_PROVIDER_HEALTH_REPORT_FILE,
+  }));
 
   const report = buildKnowledgeDailyOpsReport({
     generatedAt: new Date().toISOString(),
@@ -99,6 +106,7 @@ async function main() {
     sourceRefreshResult: readJsonFile<KnowledgeDailyOpsSourceRefreshResult>(SOURCE_REFRESH_REPORT_FILE),
     translationCleanupReport: readJsonFile<KnowledgeDailyOpsTranslationCleanupReport>(TRANSLATION_CLEAN_REPORT_FILE),
     translationFailureRetryReport: readJsonFile<KnowledgeDailyOpsTranslationFailureRetryReport>(TRANSLATION_FAILURE_RETRY_REPORT_FILE),
+    aiProviderHealthReport: readJsonFile<KnowledgeDailyOpsAIProviderHealthReport>(AI_PROVIDER_HEALTH_REPORT_FILE),
   });
 
   fs.mkdirSync(path.dirname(OUTPUT_FILE), { recursive: true });

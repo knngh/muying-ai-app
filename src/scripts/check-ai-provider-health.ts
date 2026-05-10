@@ -4,6 +4,7 @@ import path from 'path';
 import { buildAIProviderHealthReport } from '../utils/ai-provider-health';
 
 const OUTPUT_FILE = process.env.OUTPUT_FILE || path.join(process.cwd(), 'tmp', 'ai-provider-health-report.json');
+const STRICT = process.env.AI_HEALTH_STRICT !== 'false';
 
 async function main() {
   const report = await buildAIProviderHealthReport({
@@ -19,7 +20,7 @@ async function main() {
   fs.writeFileSync(OUTPUT_FILE, JSON.stringify(report, null, 2), 'utf-8');
   console.log(JSON.stringify(report, null, 2));
 
-  if (report.status !== 'ok') {
+  if (STRICT && report.status !== 'ok') {
     process.exitCode = 1;
   }
 }
