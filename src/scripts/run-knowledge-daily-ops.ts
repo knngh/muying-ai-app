@@ -2,6 +2,7 @@ import '../config/env';
 import { spawnSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
+import { buildKnowledgeOpsReportCommandEnv } from '../utils/knowledge-daily-ops-command-env';
 import {
   buildKnowledgeDailyOpsReport,
   type KnowledgeDailyOpsCommandResult,
@@ -75,7 +76,10 @@ async function main() {
     AUTHORITY_PUBLISH_STATUS: process.env.AUTHORITY_PUBLISH_STATUS || 'review',
     AUTHORITY_REVIEW_SUMMARY_OUTPUT_FILE: process.env.AUTHORITY_REVIEW_SUMMARY_OUTPUT_FILE || path.join(process.cwd(), 'tmp', 'authority-review-summary.json'),
   }));
-  commands.push(runCommand('knowledge_ops_report', 'npm run ops:knowledge:report'));
+  commands.push(runCommand('knowledge_ops_report', 'npm run ops:knowledge:report', buildKnowledgeOpsReportCommandEnv({
+    dailyCoverageAuditFile: DAILY_COVERAGE_AUDIT_FILE,
+    knowledgeReportFile: KNOWLEDGE_REPORT_FILE,
+  })));
 
   commands.push(runCommand('low_coverage_source_refresh', 'npm run ops:authority:refresh-low-coverage', {
     DRY_RUN: APPLY_FIXES ? 'false' : 'true',

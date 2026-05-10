@@ -82,6 +82,7 @@ function resolveInputFiles() {
     '/tmp/authority-translation-failures.json',
   ]);
   const coverageAudit = resolveFilePath([
+    ...(process.env.COVERAGE_AUDIT_FILE ? [process.env.COVERAGE_AUDIT_FILE] : []),
     path.join(process.cwd(), 'tmp', 'authority-coverage-audit.json'),
     '/tmp/authority-coverage-audit.json',
   ]);
