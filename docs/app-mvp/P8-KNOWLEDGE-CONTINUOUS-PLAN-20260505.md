@@ -249,6 +249,8 @@ DRY_RUN=false npm run retry:authority-translation-failures
 
 2026-05-10 P3-10 切片：扩展 `promotion.safeQuestionCandidates` 标准化推广题库，新增孕期用药、孕吐、配方奶喂养、疫苗接种时间、疫苗接种后反应、宝宝便秘、宝宝咳嗽等可运营选题。候选仍必须先通过官方/权威引用、非 red 风险、内容 guard、主题引用对齐和安全输出形态检查；系统优先生成标准题名，避免把病例式、个人化或治疗诉求原问句直接作为推广素材。
 
+2026-05-10 P3-11 切片：`promotion.safeQuestionCandidates` 的持久化候选容量已从通用 `SAMPLE_LIMIT` 中拆出，默认保留最多 `100` 条安全候选，避免运营候选总数已增长但推荐 API 只能读取报告前 20 条样本。普通 coverage / translation / review 样本仍沿用 `SAMPLE_LIMIT`，推广候选可用 `PROMOTION_CANDIDATE_LIMIT` 单独调整。
+
 ## 7.1 P3：知识运营与推广联动
 
 目标：在 P2 已完成的基础上，把权威覆盖继续推进到 `80%+`，并让知识库成果直接服务安全推广。
@@ -268,6 +270,7 @@ DRY_RUN=false npm run retry:authority-translation-failures
 11. P3-8 已完成 Modal Direct 真实可用性验证与网关保护：生产直连和应用网关均能返回正确答案，网关会为该 reasoning 模型保留足够输出预算并拒绝空答案。
 12. P3-9 已完成 Modal Direct 翻译失败保守退避：短问答可用性不等于批量翻译容量，worker / daily ops 不应在短退避后反复冲击免费通道。
 13. P3-10 已完成安全推广候选题扩展：候选池新增更多高频标准题名，但继续要求官方引用对齐和内容 guard 通过后才可进入运营素材池。
+14. P3-11 已完成推广候选池容量拆分：推荐 API 读取的 `candidates` 不再被通用报告样本数截断。
 
 默认读取 `tmp/knowledge-ops-report.json` 中 `sourceCoverage.watchedSources` 的 `missing` / `low` 源，先 dry-run 打印将刷新列表；显式 `DRY_RUN=false` 后按源调用现有 `sync:authority` 能力刷新。可用 `AUTHORITY_SOURCE_IDS=mayo-clinic-zh,chinacdc-nutrition` 限定源。
 

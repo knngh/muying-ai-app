@@ -912,4 +912,63 @@ describe('knowledge ops report', () => {
       }),
     ]));
   });
+
+  it('keeps promotion candidates separate from general report sample limits', () => {
+    const officialReference = {
+      authoritative: true,
+      sourceClass: 'official',
+      sourceOrg: 'AAP',
+      title: 'Fever in children',
+      url: 'https://www.healthychildren.org/English/health-issues/conditions/fever/Pages/default.aspx',
+    };
+    const report = buildKnowledgeOpsReport({
+      qaRecords: [],
+      enrichedQaRecords: [
+        qaFixture({
+          id: 'qa-1',
+          question: '宝宝发热什么时候需要就医？',
+          category: 'common-symptoms',
+          topic: 'common-symptoms',
+          risk_level_default: 'yellow',
+          references: [officialReference],
+        }),
+        qaFixture({
+          id: 'qa-2',
+          question: '宝宝咳嗽什么时候需要就医？',
+          category: 'common-symptoms',
+          topic: 'common-symptoms',
+          risk_level_default: 'yellow',
+          references: [{
+            authoritative: true,
+            sourceClass: 'official',
+            sourceOrg: 'CDC',
+            title: 'Cough and cold guidance for children',
+            url: 'https://www.cdc.gov/example',
+          }],
+        }),
+        qaFixture({
+          id: 'qa-3',
+          question: '宝宝便秘什么时候需要就医？',
+          category: 'common-symptoms',
+          topic: 'common-symptoms',
+          risk_level_default: 'yellow',
+          references: [{
+            authoritative: true,
+            sourceClass: 'official',
+            sourceOrg: 'NHS',
+            title: 'Constipation in children',
+            url: 'https://www.nhs.uk/example',
+          }],
+        }),
+      ],
+      authorityRecords: [],
+    }, {
+      sampleLimit: 2,
+      promotionCandidateLimit: 5,
+      watchedSourceIds: [],
+    });
+
+    expect(report.promotion.safeQuestionCandidates.total).toBe(3);
+    expect(report.promotion.safeQuestionCandidates.candidates).toHaveLength(3);
+  });
 });

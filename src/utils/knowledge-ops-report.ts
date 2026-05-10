@@ -98,6 +98,7 @@ export interface KnowledgeOpsReportInput {
 export interface KnowledgeOpsReportOptions {
   now?: string;
   sampleLimit?: number;
+  promotionCandidateLimit?: number;
   watchedSourceIds?: string[];
   watchedSourceMinimumRecords?: number;
   fileStats?: Record<string, KnowledgeOpsFileStat>;
@@ -123,6 +124,7 @@ export interface KnowledgeOpsPromotionQuestionCandidate {
 
 const DEFAULT_WATCHED_SOURCE_IDS = ['mayo-clinic-zh', 'chinacdc-nutrition'];
 const DEFAULT_WATCHED_SOURCE_MINIMUM_RECORDS = 10;
+const DEFAULT_PROMOTION_CANDIDATE_LIMIT = 100;
 const AUTHORITY_SOURCE_PATTERN = /who\.int|cdc\.gov|healthychildren\.org|acog\.org|mayoclinic\.org|msdmanuals\.cn|nhs\.uk|nih\.gov|fda\.gov|nhc\.gov\.cn|chinacdc\.cn|ndcpa\.gov\.cn|gov\.cn|who|cdc|aap|acog|mayo|nhs|卫健委|疾控|中国政府网|国家疾病预防控制局/iu;
 const PROMOTION_CASE_FORM_PATTERN = /全部症状|发病时间|治疗情况|患者性别|患者年龄|病情描述|想得到怎样的帮助/u;
 const PROMOTION_URGENT_RISK_PATTERN = /高烧|高热|发烧|发热|咳嗽|腹泻|呕吐|便秘|红疹|皮疹|湿疹|黄疸|出血|见红|疼|痛|呼吸困难|喘不过气|抽搐|惊厥|意识异常|昏迷|大出血|脱水|胎动消失|胎动明显减少|拒奶.*精神差|精神差.*拒奶|吃什么药|用什么药/u;
@@ -1105,6 +1107,10 @@ function buildPromotionSafeQuestionCandidates(records: KnowledgeOpsQaRecord[], s
 export function buildKnowledgeOpsReport(input: KnowledgeOpsReportInput, options: KnowledgeOpsReportOptions = {}) {
   const now = options.now || new Date().toISOString();
   const sampleLimit = Math.max(1, Math.min(options.sampleLimit || 20, 100));
+  const promotionCandidateLimit = Math.max(
+    1,
+    Math.min(options.promotionCandidateLimit || DEFAULT_PROMOTION_CANDIDATE_LIMIT, 500),
+  );
   const qaRecords = input.qaRecords || [];
   const enrichedQaRecords = input.enrichedQaRecords || [];
   const authorityRecords = input.authorityRecords || [];
@@ -1180,7 +1186,7 @@ export function buildKnowledgeOpsReport(input: KnowledgeOpsReportInput, options:
     review: buildReviewRiskSummary(authorityRecords, input.reviewQueueSummary, sampleLimit),
     sourceCoverage,
     promotion: {
-      safeQuestionCandidates: buildPromotionSafeQuestionCandidates(enrichedQaRecords, sampleLimit),
+      safeQuestionCandidates: buildPromotionSafeQuestionCandidates(enrichedQaRecords, promotionCandidateLimit),
     },
     actionItems,
   };
