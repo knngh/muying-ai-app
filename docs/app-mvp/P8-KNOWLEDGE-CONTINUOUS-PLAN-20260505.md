@@ -257,6 +257,8 @@ DRY_RUN=false npm run retry:authority-translation-failures
 
 2026-05-10 P3-14 切片：修正翻译失败日报误报。`retry:authority-translation-failures` 现在会区分 `actionableRetryableFailures` 和因 `source_updated_at_mismatch` / 记录缺失导致的 `staleRetryableFailures`；`ops:knowledge:daily` 只有在存在实际可选择重试的失败时才把 translation cache 标成行动项，避免旧失败记录已不可重试时让生产状态长期停在 `attention`。
 
+2026-05-10 P3-15 切片：`KNOWLEDGE_DAILY_APPLY_FIXES=true npm run ops:knowledge:daily` 现在会对 `retry:authority-translation-failures` 同步启用 `PRUNE_STALE=true`，在受控修复流程中清理因 `source_updated_at_mismatch` / 权威记录缺失导致的陈旧翻译失败缓存，避免旧失败长期堆积但又不可执行。
+
 ## 7.1 P3：知识运营与推广联动
 
 目标：在 P2 已完成的基础上，把权威覆盖继续推进到 `80%+`，并让知识库成果直接服务安全推广。
@@ -280,6 +282,7 @@ DRY_RUN=false npm run retry:authority-translation-failures
 15. P3-12 已完成 AI provider 健康探针：后续可直接跑 `npm run ops:ai:health` 验证 GLM 5.1 / Modal Direct 可用性。
 16. P3-13 已完成 AI provider 健康摘要接入每日知识状态：`ops:knowledge:status` 可直接展示 `remediation.aiProviderHealth`，用于判断免费 GLM 通道是否可支撑翻译预热与后续运营任务。
 17. P3-14 已完成翻译失败 retryable 误报修正：旧失败缓存如果已和当前权威记录版本不匹配，不再被当成需要人工重试的生产行动项。
+18. P3-15 已完成陈旧翻译失败缓存清理接入：daily ops 的 apply fixes 模式会自动修剪不可重试的 stale failure。
 
 默认读取 `tmp/knowledge-ops-report.json` 中 `sourceCoverage.watchedSources` 的 `missing` / `low` 源，先 dry-run 打印将刷新列表；显式 `DRY_RUN=false` 后按源调用现有 `sync:authority` 能力刷新。可用 `AUTHORITY_SOURCE_IDS=mayo-clinic-zh,chinacdc-nutrition` 限定源。
 

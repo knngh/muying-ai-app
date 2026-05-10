@@ -90,6 +90,7 @@ async function main() {
   commands.push(runCommand('authority_translation_failure_retry', 'npm run retry:authority-translation-failures', {
     DRY_RUN: APPLY_FIXES ? 'false' : 'true',
     LIMIT: process.env.AUTHORITY_TRANSLATION_FAILURE_RETRY_LIMIT || '5',
+    PRUNE_STALE: APPLY_FIXES ? 'true' : 'false',
     REPORT_FILE: TRANSLATION_FAILURE_RETRY_REPORT_FILE,
   }));
   commands.push(runCommand('ai_provider_health', 'npm run ops:ai:health', {
