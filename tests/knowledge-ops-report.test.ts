@@ -324,7 +324,15 @@ describe('knowledge ops report', () => {
         topic: 'development',
         missingCount: 1,
         authorityRecords: 1,
+        suggestedAction: 'inspect_matching_rules',
         topSources: [{ key: 'aap', count: 1 }],
+        missingByCategory: [{ key: 'common-development', count: 1 }],
+        missingSamples: [{
+          id: 'qa-development-missing',
+          question: '宝宝发育里程碑怎么观察',
+          category: 'common-development',
+          riskLevel: 'green',
+        }],
         sampleTitles: [{
           id: 'authority-aap-milestones',
           title: 'Developmental Milestones',
@@ -336,10 +344,18 @@ describe('knowledge ops report', () => {
         topic: 'newborn',
         missingCount: 1,
         authorityRecords: 2,
+        suggestedAction: 'inspect_matching_rules',
         topSources: [
           { key: 'aap', count: 1 },
           { key: 'nhs', count: 1 },
         ],
+        missingByCategory: [{ key: 'parenting-newborn', count: 1 }],
+        missingSamples: [{
+          id: 'qa-newborn-missing',
+          question: '新生儿黄疸什么时候需要就医',
+          category: 'parenting-newborn',
+          riskLevel: 'yellow',
+        }],
         sampleTitles: [
           {
             id: 'authority-aap-jaundice',
@@ -355,6 +371,47 @@ describe('knowledge ops report', () => {
           },
         ],
       },
+    ]);
+  });
+
+  it('marks target coverage gaps with no same-topic authority as source expansion work', () => {
+    const report = buildKnowledgeOpsReport({
+      qaRecords: [
+        qaFixture({
+          id: 'qa-sleep-missing',
+          question: '宝宝睡眠作息要注意什么',
+          category: 'sleep',
+          topic: 'sleep',
+          risk_level_default: 'green',
+        }),
+      ],
+      authorityRecords: [
+        authorityFixture({
+          id: 'authority-aap-jaundice',
+          question: 'Jaundice in Newborns',
+          category: 'parenting-newborn',
+          topic: 'newborn',
+        }),
+      ],
+    }, {
+      watchedSourceIds: [],
+    });
+
+    expect(report.coverage.target80.candidateAuthority.byMissingTopic).toEqual([
+      expect.objectContaining({
+        topic: 'sleep',
+        missingCount: 1,
+        authorityRecords: 0,
+        suggestedAction: 'add_authority_sources',
+        topSources: [],
+        sampleTitles: [],
+        missingSamples: [{
+          id: 'qa-sleep-missing',
+          question: '宝宝睡眠作息要注意什么',
+          category: 'sleep',
+          riskLevel: 'green',
+        }],
+      }),
     ]);
   });
 

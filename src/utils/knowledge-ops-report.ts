@@ -354,11 +354,20 @@ function buildCandidateAuthoritySummary(
   return {
     byMissingTopic: topBy(missingRecords, resolveCoverageTopic, 12).map((item) => {
       const records = authorityByTopic.get(item.key) || [];
+      const topicMissingRecords = missingRecords.filter((record) => resolveCoverageTopic(record) === item.key);
       return {
         topic: item.key,
         missingCount: item.count,
         authorityRecords: records.length,
+        suggestedAction: records.length > 0 ? 'inspect_matching_rules' : 'add_authority_sources',
         topSources: topBy(records, (record) => record.source_id || record.source_org || record.source, 8),
+        missingByCategory: topBy(topicMissingRecords, (record) => record.category, 8),
+        missingSamples: topicMissingRecords.slice(0, sampleLimit).map((record) => ({
+          id: record.id || record.original_id,
+          question: record.question,
+          category: record.category,
+          riskLevel: normalizeRiskLevel(record.risk_level_default),
+        })),
         sampleTitles: records.slice(0, sampleLimit).map((record) => ({
           id: record.id || record.original_id,
           title: record.question || record.summary || record.source,
