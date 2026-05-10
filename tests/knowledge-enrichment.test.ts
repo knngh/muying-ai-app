@@ -161,4 +161,105 @@ describe('knowledge enrichment', () => {
     expect(result.report.enriched).toBe(0);
     expect(result.records[0]?.references).toBeUndefined();
   });
+
+  it('does not enrich from generic consultation wording alone', () => {
+    const result = enrichKnowledgeBaseRecords(
+      [
+        qaFixture({
+          id: 'qa-generic-consult',
+          category: 'parenting-0-1',
+          question: '医生，宝宝这样是怎么回事，有什么影响，需要治疗吗？',
+          answer: '想了解是否需要处理。',
+        }),
+      ],
+      [
+        authorityFixture({
+          id: 'authority-unrelated-baby-condition',
+          question: '男宝宝尿道下裂不容忽视',
+          answer: '有些家长发现男宝宝尿道口位置异常，医生检查后诊断为尿道下裂，需要由专业医生评估。'.repeat(8),
+          topic: 'newborn',
+          category: 'newborn',
+          target_stage: ['0-6-months'],
+          source_id: 'cma-kepu-maternal-child',
+          source_org: '中华医学会',
+          source: '中华医学会',
+          source_url: 'https://www.cma.org.cn/art/2024/11/18/art_4584_59524.html',
+        }),
+      ],
+    );
+
+    expect(result.report.enriched).toBe(0);
+    expect(result.records[0]?.references).toBeUndefined();
+    expect(result.records[0]?.metadata?.authorityCoverage).toMatchObject({
+      status: 'missing',
+    });
+  });
+
+  it('does not enrich pregnancy QA from trimester wording alone', () => {
+    const result = enrichKnowledgeBaseRecords(
+      [
+        qaFixture({
+          id: 'qa-pregnancy-ultrasound',
+          category: 'pregnancy-early',
+          question: '孕早期 B 超显示胎儿偏小 2 周怎么办？',
+          answer: '想了解胎儿发育和复查安排。',
+        }),
+      ],
+      [
+        authorityFixture({
+          id: 'authority-syphilis-screening',
+          question: '孕早期为什么要做梅毒筛查？',
+          answer: '孕早期产检需要进行梅毒筛查，以便及时发现和规范管理感染风险。'.repeat(8),
+          topic: 'pregnancy',
+          category: 'pregnancy',
+          target_stage: ['first-trimester'],
+          tags: ['孕早期', '筛查'],
+          source_id: 'cma-kepu-maternal-child',
+          source_org: '中华医学会',
+          source: '中华医学会',
+          source_url: 'https://www.cma.org.cn/art/2024/11/18/art_4584_59523.html',
+        }),
+      ],
+    );
+
+    expect(result.report.enriched).toBe(0);
+    expect(result.records[0]?.references).toBeUndefined();
+    expect(result.records[0]?.metadata?.authorityCoverage).toMatchObject({
+      status: 'missing',
+    });
+  });
+
+  it('does not enrich child symptom QA from postpartum-specific symptom wording', () => {
+    const result = enrichKnowledgeBaseRecords(
+      [
+        qaFixture({
+          id: 'qa-child-cough',
+          category: 'parenting-3-6',
+          question: '4 岁孩子咳嗽怎么办？',
+          answer: '想了解家庭护理和什么时候就医。',
+        }),
+      ],
+      [
+        authorityFixture({
+          id: 'authority-postpartum-incontinence',
+          question: '产后咳嗽漏尿是怎么回事？',
+          answer: '部分产后女性在咳嗽、运动或用力时会出现漏尿，需要进行盆底功能评估。'.repeat(8),
+          topic: 'common-symptoms',
+          category: 'postpartum',
+          target_stage: ['postpartum'],
+          tags: ['产后', '尿失禁', '咳嗽'],
+          source_id: 'cma-kepu-maternal-child',
+          source_org: '中华医学会',
+          source: '中华医学会',
+          source_url: 'https://www.cma.org.cn/art/2024/11/18/art_4584_59525.html',
+        }),
+      ],
+    );
+
+    expect(result.report.enriched).toBe(0);
+    expect(result.records[0]?.references).toBeUndefined();
+    expect(result.records[0]?.metadata?.authorityCoverage).toMatchObject({
+      status: 'missing',
+    });
+  });
 });

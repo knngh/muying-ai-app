@@ -261,6 +261,8 @@ DRY_RUN=false npm run retry:authority-translation-failures
 
 2026-05-10 P3-16 切片：修正 apply fixes 模式下 `mayo-clinic-zh` 的误报。生产服务器访问 Mayo sitemap 已确认是上游 `403` 外部阻断，非 dry-run 低覆盖源刷新会因 preflight 失败跳过该源；日报现在会把 `mayo-clinic-zh` 的 `preflight_failed` 继续降级为外部阻断，不再重新产生 source coverage 行动项。
 
+2026-05-10 P3-17 切片：权威增强匹配规则已加固，避免用泛化问诊词、孕期阶段词或跨生命周期的单一症状词制造错误引用。生产快照 dry-run 说明，单纯降低 `MIN_SCORE` 只能把覆盖率从 `76.05%` 推到约 `78.3%`，且样本中出现“孕早期胎儿偏小误配梅毒筛查”“儿童咳嗽误配产后漏尿”等不安全命中；加固后本地生产快照 dry-run 为 `75.83%`（`2381/3140`），少量回退用于移除弱匹配。因此 80%+ 目标不能靠降阈值完成，下一步应补新生儿、发育、儿童症状等高缺口主题的更具体权威来源或主题规则。
+
 ## 7.1 P3：知识运营与推广联动
 
 目标：在 P2 已完成的基础上，把权威覆盖继续推进到 `80%+`，并让知识库成果直接服务安全推广。
@@ -286,6 +288,7 @@ DRY_RUN=false npm run retry:authority-translation-failures
 17. P3-14 已完成翻译失败 retryable 误报修正：旧失败缓存如果已和当前权威记录版本不匹配，不再被当成需要人工重试的生产行动项。
 18. P3-15 已完成陈旧翻译失败缓存清理接入：daily ops 的 apply fixes 模式会自动修剪不可重试的 stale failure。
 19. P3-16 已完成 Mayo preflight 误报修正：apply fixes 模式跳过上游 403 阻断源时仍保持生产状态健康。
+20. P3-17 已完成权威增强弱匹配加固：泛化问诊词和阶段词不再单独构成有效匹配，儿童阶段 QA 不会匹配到纯孕产/产后阶段权威文章；80%+ 覆盖推进改走主题补源或更具体规则。
 
 默认读取 `tmp/knowledge-ops-report.json` 中 `sourceCoverage.watchedSources` 的 `missing` / `low` 源，先 dry-run 打印将刷新列表；显式 `DRY_RUN=false` 后按源调用现有 `sync:authority` 能力刷新。可用 `AUTHORITY_SOURCE_IDS=mayo-clinic-zh,chinacdc-nutrition` 限定源。
 

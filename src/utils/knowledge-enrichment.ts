@@ -245,6 +245,11 @@ const GENERIC_TERMS = new Set([
   '孩子',
   '怀孕',
   '孕妇',
+  '孕早期',
+  '孕中期',
+  '孕晚期',
+  '怀孕初期',
+  '早孕',
   '需要',
   '注意',
   '怎么办',
@@ -273,6 +278,22 @@ const GENERIC_TERMS = new Set([
   'common',
   'symptoms',
   'general',
+  '医生',
+  '大夫',
+  '医师',
+  '专家',
+  '怎么回事',
+  '是怎么回事',
+  '怎么回事呢',
+  '什么原因',
+  '有什么影响',
+  '需要治疗吗',
+  '可以治疗吗',
+  '还有',
+  '而且',
+  '请问',
+  '咨询',
+  '想问',
   'months',
   'month',
   'first',
@@ -303,6 +324,11 @@ const BROAD_MATCH_TERMS = new Set([
   'first trimester',
   'second trimester',
   'third trimester',
+  '孕早期',
+  '孕中期',
+  '孕晚期',
+  '怀孕初期',
+  '早孕',
 ]);
 
 const FULL_BODY_ALLOWED_SPECIFIC_TERMS = new Set([
@@ -319,6 +345,10 @@ const FULL_BODY_ALLOWED_SPECIFIC_TERMS = new Set([
   'rash',
   'hepatitis b vaccine',
 ]);
+
+const MATERNAL_STAGES: AuthorityStage[] = ['preparation', 'first-trimester', 'second-trimester', 'third-trimester', 'postpartum'];
+const PREGNANCY_STAGES: AuthorityStage[] = ['first-trimester', 'second-trimester', 'third-trimester'];
+const CHILD_STAGES: AuthorityStage[] = ['newborn', '0-6-months', '6-12-months', '1-3-years', '3-years-plus'];
 
 function uniq<T>(values: T[]): T[] {
   return Array.from(new Set(values));
@@ -573,6 +603,9 @@ function collectSearchTerms(item: QAPair): string[] {
       if (term.length < 2 || GENERIC_TERMS.has(term) || /^\d+$/.test(term)) {
         return false;
       }
+      if (/^\d+(?:\s+)?(?:天|周|月|个月|年|cm|mm)$/iu.test(term)) {
+        return false;
+      }
       if (!/[\u4e00-\u9fff]/u.test(term) && !term.includes(' ') && term.length < 4) {
         return false;
       }
@@ -627,14 +660,39 @@ function getStageScore(qaStages: AuthorityStage[], candidateStages: AuthoritySta
     return Math.min(22, overlap.length * 8 + 10);
   }
 
-  const pregnancyStages: AuthorityStage[] = ['first-trimester', 'second-trimester', 'third-trimester'];
-  const qaPregnancy = qaStages.some((stage) => pregnancyStages.includes(stage));
-  const candidatePregnancy = candidateStages.some((stage) => pregnancyStages.includes(stage));
+  const qaMaternal = qaStages.some((stage) => MATERNAL_STAGES.includes(stage));
+  const candidateMaternal = candidateStages.some((stage) => MATERNAL_STAGES.includes(stage));
+  const qaChild = qaStages.some((stage) => CHILD_STAGES.includes(stage));
+  const candidateChild = candidateStages.some((stage) => CHILD_STAGES.includes(stage));
+  if ((qaMaternal && candidateChild && !candidateMaternal) || (qaChild && candidateMaternal && !candidateChild)) {
+    return -24;
+  }
+
+  const qaPregnancy = qaStages.some((stage) => PREGNANCY_STAGES.includes(stage));
+  const candidatePregnancy = candidateStages.some((stage) => PREGNANCY_STAGES.includes(stage));
   if (qaPregnancy !== candidatePregnancy) {
     return -16;
   }
 
   return -4;
+}
+
+function hasLifecycleStageConflict(qaStages: AuthorityStage[], candidateStages: AuthorityStage[]): boolean {
+  if (qaStages.length === 0 || candidateStages.length === 0) {
+    return false;
+  }
+
+  const overlap = qaStages.some((stage) => candidateStages.includes(stage));
+  if (overlap) {
+    return false;
+  }
+
+  const qaMaternal = qaStages.some((stage) => MATERNAL_STAGES.includes(stage));
+  const candidateMaternal = candidateStages.some((stage) => MATERNAL_STAGES.includes(stage));
+  const qaChild = qaStages.some((stage) => CHILD_STAGES.includes(stage));
+  const candidateChild = candidateStages.some((stage) => CHILD_STAGES.includes(stage));
+
+  return (qaMaternal && candidateChild && !candidateMaternal) || (qaChild && candidateMaternal && !candidateChild);
 }
 
 function findMatchedTerms(terms: string[], normalizedCandidateText: string): string[] {
@@ -739,14 +797,18 @@ function scoreCandidate(
   const sourceScore = candidate.authoritative ? 18 : 4;
   const chinaSourceScore = isChineseSource(candidate) ? 8 : 0;
   const intentSpecificScore = getIntentSpecificScore(item, candidate);
+  const lifecycleStageConflict = hasLifecycleStageConflict(qaStages, candidate.resolvedStages);
   const policyPenalty = candidate.resolvedTopic === 'policy' && qaTopic !== 'policy' ? -18 : 0;
   const answerLengthScore = candidate.answer.length >= 600 ? 4 : 0;
   const fullBodySpecificAllowed = specificFullMatchedTerms.some((term) => FULL_BODY_ALLOWED_SPECIFIC_TERMS.has(term));
-  const hasUsefulLexicalMatch = specificStrongMatchedTerms.length > 0
-    || (
-      fullBodySpecificAllowed
-      && topicScore > 0
-      && stageScore >= 0
+  const hasUsefulLexicalMatch = !lifecycleStageConflict
+    && (
+      specificStrongMatchedTerms.length > 0
+      || (
+        fullBodySpecificAllowed
+        && topicScore > 0
+        && stageScore >= 0
+      )
     );
   const weakFullBodyPenalty = specificStrongMatchedTerms.length === 0 ? -18 : 0;
   const score = sourceScore + chinaSourceScore + intentSpecificScore + topicScore + stageScore + termScore + policyPenalty + answerLengthScore + weakFullBodyPenalty;
