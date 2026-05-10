@@ -273,10 +273,12 @@ export function hasAuthorityCoverage(record: KnowledgeOpsQaRecord): boolean {
 
 function buildCoverageSummary(
   records: KnowledgeOpsQaRecord[],
+  authorityRecords: KnowledgeOpsQaRecord[],
   audit: KnowledgeOpsCoverageAudit | null | undefined,
   sampleLimit: number,
 ) {
-  const missing = records.filter((record) => !hasAuthorityCoverage(record));
+  const guardEligibleRecords = records.filter((record) => !getDatasetKnowledgeDropReason(record));
+  const missing = guardEligibleRecords.filter((record) => !hasAuthorityCoverage(record));
   if (
     audit
     && Number.isFinite(audit.total)
@@ -302,22 +304,28 @@ function buildCoverageSummary(
           count: Number(item.count || 0),
         }))
         .filter((item) => item.count > 0),
-      target80: buildCoverageTargetSummary(Number(audit.total), Number(audit.authorityCovered), missing),
+      target80: buildCoverageTargetSummary(Number(audit.total), Number(audit.authorityCovered), missing, authorityRecords, sampleLimit),
       remediationQueue: (audit.remediationQueue || []).slice(0, sampleLimit),
     };
   }
 
   return {
     source: 'computed',
-    total: records.length,
-    authorityCovered: records.length - missing.length,
+    total: guardEligibleRecords.length,
+    authorityCovered: guardEligibleRecords.length - missing.length,
     missingAuthorityCoverage: missing.length,
-    coverageRate: roundPercent(((records.length - missing.length) / Math.max(records.length, 1)) * 100),
+    coverageRate: roundPercent(((guardEligibleRecords.length - missing.length) / Math.max(guardEligibleRecords.length, 1)) * 100),
     missingByCategory: topBy(missing, (item) => item.category, 20).map((item) => ({
       category: item.key,
       count: item.count,
     })),
-    target80: buildCoverageTargetSummary(records.length, records.length - missing.length, missing),
+    target80: buildCoverageTargetSummary(
+      guardEligibleRecords.length,
+      guardEligibleRecords.length - missing.length,
+      missing,
+      authorityRecords,
+      sampleLimit,
+    ),
     remediationQueue: missing.slice(0, sampleLimit).map((item) => ({
       id: item.id,
       category: item.category,
@@ -326,15 +334,58 @@ function buildCoverageSummary(
   };
 }
 
-function buildCoverageTargetSummary(total: number, authorityCovered: number, missingRecords: KnowledgeOpsQaRecord[]) {
+function resolveCoverageTopic(record: KnowledgeOpsQaRecord): string {
+  return normalizeKey(record.topic || KNOWLEDGE_CATEGORY_TOPIC_FALLBACK[record.category || '']);
+}
+
+function buildCandidateAuthoritySummary(
+  missingRecords: KnowledgeOpsQaRecord[],
+  authorityRecords: KnowledgeOpsQaRecord[],
+  sampleLimit: number,
+) {
+  const authorityByTopic = new Map<string, KnowledgeOpsQaRecord[]>();
+  for (const record of authorityRecords) {
+    const topic = resolveCoverageTopic(record);
+    const existing = authorityByTopic.get(topic) || [];
+    existing.push(record);
+    authorityByTopic.set(topic, existing);
+  }
+
+  return {
+    byMissingTopic: topBy(missingRecords, resolveCoverageTopic, 12).map((item) => {
+      const records = authorityByTopic.get(item.key) || [];
+      return {
+        topic: item.key,
+        missingCount: item.count,
+        authorityRecords: records.length,
+        topSources: topBy(records, (record) => record.source_id || record.source_org || record.source, 8),
+        sampleTitles: records.slice(0, sampleLimit).map((record) => ({
+          id: record.id || record.original_id,
+          title: record.question || record.summary || record.source,
+          sourceId: record.source_id,
+          sourceOrg: record.source_org || record.source,
+        })),
+      };
+    }),
+  };
+}
+
+function buildCoverageTargetSummary(
+  total: number,
+  authorityCovered: number,
+  missingRecords: KnowledgeOpsQaRecord[],
+  authorityRecords: KnowledgeOpsQaRecord[],
+  sampleLimit: number,
+) {
   const targetCovered = Math.ceil(Math.max(total, 0) * (P3_AUTHORITY_COVERAGE_TARGET_RATE / 100));
   return {
     targetRate: P3_AUTHORITY_COVERAGE_TARGET_RATE,
     targetCovered,
     additionalCoveredNeeded: Math.max(0, targetCovered - Math.max(authorityCovered, 0)),
-    missingByTopic: topBy(missingRecords, (item) => item.topic || KNOWLEDGE_CATEGORY_TOPIC_FALLBACK[item.category || ''], 12),
+    missingByTopic: topBy(missingRecords, resolveCoverageTopic, 12),
     missingByCategory: topBy(missingRecords, (item) => item.category, 12),
     missingByRisk: countRisks(missingRecords),
+    candidateAuthority: buildCandidateAuthoritySummary(missingRecords, authorityRecords, sampleLimit),
   };
 }
 
@@ -1157,7 +1208,7 @@ export function buildKnowledgeOpsReport(input: KnowledgeOpsReportInput, options:
     options.watchedSourceMinimumRecords,
     DEFAULT_WATCHED_SOURCE_MINIMUM_RECORDS,
   );
-  const coverage = buildCoverageSummary(coverageRecords, input.coverageAudit, sampleLimit);
+  const coverage = buildCoverageSummary(coverageRecords, authorityRecords, input.coverageAudit, sampleLimit);
   const sourceCoverage = buildSourceCoverageSummary(authorityRecords, watchedSourceIds, watchedSourceMinimumRecords);
   const translations = buildTranslationSummary(
     authorityRecords,

@@ -269,6 +269,8 @@ DRY_RUN=false npm run retry:authority-translation-failures
 
 2026-05-10 P3-20 切片：修正 `ops:knowledge:daily` 与 `ops:knowledge:report` 的覆盖审计文件口径漂移。daily 生成的本轮审计文件会通过 `COVERAGE_AUDIT_FILE` 显式传给 report，同时把 `OUTPUT_FILE` 对齐到 `KNOWLEDGE_REPORT_FILE`，避免日报刚生成新 guard 口径但运营报告仍读取旧 `tmp/authority-coverage-audit.json`。
 
+2026-05-10 P3-21 切片：`ops:knowledge:report` 的 `coverage.target80` 缺口分析已和 dataset guard 对齐，guard 排除的错类 / 越界记录不再进入 topic/category/risk 缺口分布；同时新增只读 `candidateAuthority.byMissingTopic` 摘要，按缺口 topic 展示现有权威文章数量、来源分布和样例标题，用于判断下一步是补源还是细化安全匹配规则。
+
 ## 7.1 P3：知识运营与推广联动
 
 目标：在 P2 已完成的基础上，把权威覆盖继续推进到 `80%+`，并让知识库成果直接服务安全推广。
@@ -298,6 +300,7 @@ DRY_RUN=false npm run retry:authority-translation-failures
 21. P3-18 已完成 80% 覆盖缺口摘要：运营报告可直接查看还差多少条以及缺口 topic/category/risk 分布。
 22. P3-19 已完成覆盖分母错类清理：治疗医院选择、亲子归属判断、成人腰椎/产后乳房美容类记录不再进入知识库覆盖目标。
 23. P3-20 已完成 daily/report 覆盖审计文件对齐：每日状态会读取同一轮刚生成的 coverage audit。
+24. P3-21 已完成 target80 缺口诊断增强：缺口 breakdown 按 guard 后分母统计，并补充缺口 topic 对应的现有权威源候选摘要。
 
 默认读取 `tmp/knowledge-ops-report.json` 中 `sourceCoverage.watchedSources` 的 `missing` / `low` 源，先 dry-run 打印将刷新列表；显式 `DRY_RUN=false` 后按源调用现有 `sync:authority` 能力刷新。可用 `AUTHORITY_SOURCE_IDS=mayo-clinic-zh,chinacdc-nutrition` 限定源。
 

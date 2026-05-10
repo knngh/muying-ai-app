@@ -211,17 +211,151 @@ describe('knowledge ops report', () => {
         targetRate: 80,
         targetCovered: 2512,
         additionalCoveredNeeded: 853,
-        missingByTopic: [
-          { key: 'common-symptoms', count: 1 },
-        ],
+        missingByTopic: [],
         missingByRisk: {
           green: 0,
           yellow: 0,
           red: 0,
-          unknown: 1,
+          unknown: 0,
         },
       },
     });
+  });
+
+  it('aligns target coverage breakdowns with dataset content guards', () => {
+    const report = buildKnowledgeOpsReport({
+      qaRecords: [
+        qaFixture({
+          id: 'qa-covered',
+          question: '宝宝发烧怎么办',
+          references: [{ authoritative: true, sourceOrg: 'AAP' }],
+        }),
+        qaFixture({
+          id: 'qa-eligible-missing',
+          question: '新生儿黄疸什么时候需要就医',
+          category: 'parenting-newborn',
+          topic: 'newborn',
+          risk_level_default: 'yellow',
+        }),
+        qaFixture({
+          id: 'qa-guarded-missing',
+          question: '孩子青春期发育太快怎么办',
+          category: 'common-development',
+          topic: 'development',
+          risk_level_default: 'green',
+        }),
+      ],
+      authorityRecords: [],
+      coverageAudit: {
+        total: 2,
+        rawTotal: 3,
+        excludedByGuard: [{ reason: 'beyond_app_child_age', count: 1 }],
+        authorityCovered: 1,
+        missingAuthorityCoverage: 1,
+        coverageRate: 50,
+      },
+    }, {
+      watchedSourceIds: [],
+    });
+
+    expect(report.coverage.target80).toMatchObject({
+      missingByTopic: [{ key: 'newborn', count: 1 }],
+      missingByCategory: [{ key: 'parenting-newborn', count: 1 }],
+      missingByRisk: {
+        green: 0,
+        yellow: 1,
+        red: 0,
+        unknown: 0,
+      },
+    });
+  });
+
+  it('summarizes existing authority candidates for target coverage gaps', () => {
+    const report = buildKnowledgeOpsReport({
+      qaRecords: [
+        qaFixture({
+          id: 'qa-newborn-missing',
+          question: '新生儿黄疸什么时候需要就医',
+          category: 'parenting-newborn',
+          topic: 'newborn',
+          risk_level_default: 'yellow',
+        }),
+        qaFixture({
+          id: 'qa-development-missing',
+          question: '宝宝发育里程碑怎么观察',
+          category: 'common-development',
+          topic: 'development',
+          risk_level_default: 'green',
+        }),
+      ],
+      authorityRecords: [
+        authorityFixture({
+          id: 'authority-aap-jaundice',
+          question: 'Jaundice in Newborns',
+          category: 'parenting-newborn',
+          topic: 'newborn',
+          source_id: 'aap',
+          source_org: 'AAP',
+        }),
+        authorityFixture({
+          id: 'authority-nhs-newborn-care',
+          question: 'Newborn care',
+          category: 'parenting-newborn',
+          topic: 'newborn',
+          source_id: 'nhs',
+          source_org: 'NHS',
+          source_url: 'https://www.nhs.uk/example/newborn-care',
+        }),
+        authorityFixture({
+          id: 'authority-aap-milestones',
+          question: 'Developmental Milestones',
+          category: 'common-development',
+          topic: 'development',
+          source_id: 'aap',
+          source_org: 'AAP',
+        }),
+      ],
+    }, {
+      watchedSourceIds: [],
+    });
+
+    expect(report.coverage.target80.candidateAuthority.byMissingTopic).toEqual([
+      {
+        topic: 'development',
+        missingCount: 1,
+        authorityRecords: 1,
+        topSources: [{ key: 'aap', count: 1 }],
+        sampleTitles: [{
+          id: 'authority-aap-milestones',
+          title: 'Developmental Milestones',
+          sourceId: 'aap',
+          sourceOrg: 'AAP',
+        }],
+      },
+      {
+        topic: 'newborn',
+        missingCount: 1,
+        authorityRecords: 2,
+        topSources: [
+          { key: 'aap', count: 1 },
+          { key: 'nhs', count: 1 },
+        ],
+        sampleTitles: [
+          {
+            id: 'authority-aap-jaundice',
+            title: 'Jaundice in Newborns',
+            sourceId: 'aap',
+            sourceOrg: 'AAP',
+          },
+          {
+            id: 'authority-nhs-newborn-care',
+            title: 'Newborn care',
+            sourceId: 'nhs',
+            sourceOrg: 'NHS',
+          },
+        ],
+      },
+    ]);
   });
 
   it('keeps retry-after blocked translation failures out of operator action items', () => {
