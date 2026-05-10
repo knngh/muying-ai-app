@@ -230,6 +230,74 @@ describe('knowledge daily ops report', () => {
     expect(report.nextActions).toEqual([]);
   });
 
+  it('filters stale retryable translation failures when no retry action can be selected', () => {
+    const report = buildKnowledgeDailyOpsReport({
+      generatedAt: '2026-05-10T05:14:00.000Z',
+      applyFixes: false,
+      commands: [
+        { name: 'knowledge_ops_report', command: 'npm run ops:knowledge:report', ok: true, exitCode: 0, durationMs: 100 },
+        { name: 'authority_translation_failure_retry', command: 'npm run retry:authority-translation-failures', ok: true, exitCode: 0, durationMs: 100 },
+      ],
+      knowledgeReport: {
+        translations: {
+          recordsForTranslation: 677,
+          cacheEntries: 633,
+          invalidCacheEntries: 0,
+          failureEntries: 88,
+          retryableFailures: 4,
+          blockedFailures: 84,
+        },
+        actionItems: [
+          { priority: 'P2', area: 'translation_cache', message: '4 retryable translation failures need retry or diagnosis' },
+        ],
+      },
+      translationFailureRetryReport: {
+        dryRun: true,
+        totalFailures: 88,
+        retryableFailures: 4,
+        actionableRetryableFailures: 0,
+        staleRetryableFailures: 4,
+        blockedFailures: 84,
+        limit: 5,
+        selectedFailures: [],
+        skippedFailures: [
+          {
+            slug: 'authority-aap-5',
+            message: 'AI Gateway error: 429',
+            retryAfterAt: '2026-05-10T05:03:58.878Z',
+            retryable: true,
+            skipReason: 'source_updated_at_mismatch',
+          },
+          {
+            slug: 'authority-aap-6',
+            message: 'AI Gateway error: 429',
+            retryAfterAt: '2026-05-10T05:04:29.419Z',
+            retryable: true,
+            skipReason: 'source_updated_at_mismatch',
+          },
+          {
+            slug: 'authority-aap-8',
+            message: 'AI Gateway error: 429',
+            retryAfterAt: '2026-05-10T05:06:15.068Z',
+            retryable: true,
+            skipReason: 'source_updated_at_mismatch',
+          },
+          {
+            slug: 'authority-aap-9',
+            message: 'AI Gateway error: 429',
+            retryAfterAt: '2026-05-10T05:06:45.644Z',
+            retryable: true,
+            skipReason: 'source_updated_at_mismatch',
+          },
+        ],
+      },
+    });
+
+    expect(report.status).toBe('ok');
+    expect(report.knowledge.actionItems).toEqual([]);
+    expect(report.nextActions).toEqual([]);
+  });
+
   it('keeps legacy translation failure action items when retryability is unknown', () => {
     const report = buildKnowledgeDailyOpsReport({
       generatedAt: '2026-05-09T12:00:00.000Z',

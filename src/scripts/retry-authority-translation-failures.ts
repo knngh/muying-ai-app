@@ -90,6 +90,7 @@ async function main() {
 
   const retried: Array<{ slug: string; ok: boolean; message?: string; cleared?: boolean }> = [];
   const prunedFailures = plan.skippedFailures.filter(isPrunableAuthorityTranslationFailure);
+  const staleRetryableFailures = prunedFailures.filter((candidate) => candidate.retryable).length;
 
   if (!DRY_RUN) {
     for (const candidate of plan.selectedFailures) {
@@ -138,6 +139,8 @@ async function main() {
     reportFile: REPORT_FILE,
     dryRun: DRY_RUN,
     pruneStale: PRUNE_STALE,
+    actionableRetryableFailures: plan.selectedFailures.filter((candidate) => candidate.retryable).length,
+    staleRetryableFailures,
     prunedFailures: !DRY_RUN && PRUNE_STALE ? prunedFailures.map((candidate) => ({
       slug: candidate.slug,
       skipReason: candidate.skipReason,

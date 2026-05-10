@@ -98,6 +98,8 @@ export interface KnowledgeDailyOpsTranslationFailureRetryReport {
   dryRun?: boolean;
   totalFailures?: number;
   retryableFailures?: number;
+  actionableRetryableFailures?: number;
+  staleRetryableFailures?: number;
   blockedFailures?: number;
   limit?: number;
   selectedFailures?: Array<{
@@ -107,6 +109,16 @@ export interface KnowledgeDailyOpsTranslationFailureRetryReport {
     retryAfterAt?: string;
     retryable?: boolean;
     blockedReason?: string;
+    skipReason?: string;
+  }>;
+  skippedFailures?: Array<{
+    slug?: string;
+    message?: string;
+    attempts?: number;
+    retryAfterAt?: string;
+    retryable?: boolean;
+    blockedReason?: string;
+    skipReason?: string;
   }>;
   retried?: Array<{
     slug?: string;
@@ -233,6 +245,50 @@ function filterActionItemsForBlockedTranslationFailures(
   return actionItems.filter((item) => item.area !== 'translation_cache' || item.message?.includes('invalid translation cache'));
 }
 
+function isPrunableTranslationRetrySkip(skipReason?: string): boolean {
+  return skipReason === 'authority_record_not_found' || skipReason === 'source_updated_at_mismatch';
+}
+
+function filterActionItemsForNonActionableTranslationFailures(
+  actionItems: Array<{ priority?: string; area?: string; message?: string }>,
+  retryReport?: KnowledgeDailyOpsTranslationFailureRetryReport | null,
+): Array<{ priority?: string; area?: string; message?: string }> {
+  if (!retryReport) {
+    return actionItems;
+  }
+
+  const retryableFailures = Number(retryReport.retryableFailures || 0);
+  if (retryableFailures <= 0) {
+    return actionItems;
+  }
+
+  const selectedRetryableFailures = (retryReport.selectedFailures || [])
+    .filter((candidate) => candidate.retryable).length;
+  const actionableRetryableFailures = Number.isFinite(retryReport.actionableRetryableFailures)
+    ? Number(retryReport.actionableRetryableFailures)
+    : selectedRetryableFailures;
+  if (actionableRetryableFailures > 0 || selectedRetryableFailures > 0) {
+    return actionItems;
+  }
+
+  const retryableSkippedFailures = (retryReport.skippedFailures || [])
+    .filter((candidate) => candidate.retryable);
+  const staleRetryableFailures = Number.isFinite(retryReport.staleRetryableFailures)
+    ? Number(retryReport.staleRetryableFailures)
+    : retryableSkippedFailures.filter((candidate) => isPrunableTranslationRetrySkip(candidate.skipReason)).length;
+  if (staleRetryableFailures < retryableFailures) {
+    return actionItems;
+  }
+
+  return actionItems.filter((item) => {
+    if (item.area !== 'translation_cache') {
+      return true;
+    }
+
+    return Boolean(item.message?.includes('invalid translation cache'));
+  });
+}
+
 function buildNextActions(input: BuildKnowledgeDailyOpsReportInput): string[] {
   const actions: string[] = [];
   const failedCommands = input.commands.filter((command) => !command.ok && !command.skipped);
@@ -341,11 +397,16 @@ export function buildKnowledgeDailyOpsReport(input: BuildKnowledgeDailyOpsReport
   const failedCommands = input.commands.filter((command) => !command.ok && !command.skipped);
   const knowledgeSummary = summarizeKnowledgeReport(input.knowledgeReport);
   const blockedExternalSources = resolveBlockedExternalSources(input);
+  const actionItemsWithoutBlockedTranslationFailures = filterActionItemsForBlockedTranslationFailures(
+    knowledgeSummary.actionItems,
+    knowledgeSummary.translations || undefined,
+  );
+  const actionItemsWithoutNonActionableTranslationFailures = filterActionItemsForNonActionableTranslationFailures(
+    actionItemsWithoutBlockedTranslationFailures,
+    input.translationFailureRetryReport,
+  );
   const actionItems = filterActionItemsForBlockedExternalSources(
-    filterActionItemsForBlockedTranslationFailures(
-      knowledgeSummary.actionItems,
-      knowledgeSummary.translations || undefined,
-    ),
+    actionItemsWithoutNonActionableTranslationFailures,
     blockedExternalSources,
   );
   knowledgeSummary.actionItems = actionItems;
