@@ -251,6 +251,8 @@ DRY_RUN=false npm run retry:authority-translation-failures
 
 2026-05-10 P3-11 切片：`promotion.safeQuestionCandidates` 的持久化候选容量已从通用 `SAMPLE_LIMIT` 中拆出，默认保留最多 `100` 条安全候选，避免运营候选总数已增长但推荐 API 只能读取报告前 20 条样本。普通 coverage / translation / review 样本仍沿用 `SAMPLE_LIMIT`，推广候选可用 `PROMOTION_CANDIDATE_LIMIT` 单独调整。
 
+2026-05-10 P3-12 切片：新增 `ops:ai:health` AI provider 健康探针，默认验证 `glm_classify` 是否能经生产配置调用 `zai-org/GLM-5.1-FP8` 并返回预期短答案，输出 `tmp/ai-provider-health-report.json`。报告只包含 role、provider、model、耗时、短答案和脱敏错误摘要，不输出 API key；可通过 `AI_HEALTH_TIMEOUT_MS` / `AI_HEALTH_TASK_ROLE` / `AI_HEALTH_EXPECTED_ANSWER` 调整探测参数。
+
 ## 7.1 P3：知识运营与推广联动
 
 目标：在 P2 已完成的基础上，把权威覆盖继续推进到 `80%+`，并让知识库成果直接服务安全推广。
@@ -271,6 +273,7 @@ DRY_RUN=false npm run retry:authority-translation-failures
 12. P3-9 已完成 Modal Direct 翻译失败保守退避：短问答可用性不等于批量翻译容量，worker / daily ops 不应在短退避后反复冲击免费通道。
 13. P3-10 已完成安全推广候选题扩展：候选池新增更多高频标准题名，但继续要求官方引用对齐和内容 guard 通过后才可进入运营素材池。
 14. P3-11 已完成推广候选池容量拆分：推荐 API 读取的 `candidates` 不再被通用报告样本数截断。
+15. P3-12 已完成 AI provider 健康探针：后续可直接跑 `npm run ops:ai:health` 验证 GLM 5.1 / Modal Direct 可用性。
 
 默认读取 `tmp/knowledge-ops-report.json` 中 `sourceCoverage.watchedSources` 的 `missing` / `low` 源，先 dry-run 打印将刷新列表；显式 `DRY_RUN=false` 后按源调用现有 `sync:authority` 能力刷新。可用 `AUTHORITY_SOURCE_IDS=mayo-clinic-zh,chinacdc-nutrition` 限定源。
 
@@ -285,6 +288,7 @@ DRY_RUN=false npm run retry:authority-translation-failures
 - `tmp/knowledge-daily-ops-report.json`
 - `tmp/authority-review-summary.json`（生产状态脚本会生成）
 - `tmp/authority-translation-failure-retry-report.json`
+- `tmp/ai-provider-health-report.json`
 
 任务：
 
