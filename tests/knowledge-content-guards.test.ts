@@ -145,6 +145,43 @@ describe('knowledge content guards', () => {
       category: 'parenting-0-1',
       tags: ['母婴'],
     })).toBe('unsupported_service_request');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '广东最好白颠风的治疗医院是哪家，孩子这么小应如何治疗？',
+      answer: '症状处理建议',
+      category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBe('unsupported_service_request');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '我爱人腰椎间盘突出三年，最近由于帮儿子带孩子腰腿痛得厉害，请问如何治疗？',
+      answer: '症状处理建议',
+      category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBe('off_scope_adult_health');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '生孩子哺乳后乳房干瘪下垂怎么回事，有办法补救吗？',
+      answer: '症状处理建议',
+      category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBe('off_scope_adult_health');
+  });
+
+  it('rejects paternity and relationship attribution records from dataset coverage', () => {
+    expect(getDatasetKnowledgeDropReason({
+      question: 'B超结果比实际孕周小9天，请问孩子到底是谁的？',
+      answer: '症状处理建议',
+      category: 'common-safety',
+      tags: ['母婴'],
+    })).toBe('unsupported_service_request');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '醉酒与不认识的人发生关系，现在怀孕了宝宝会是谁的啊急救',
+      answer: '症状处理建议',
+      category: 'common-safety',
+      tags: ['母婴'],
+    })).toBe('unsupported_service_request');
   });
 
   it('rejects obvious off-scope search queries before random authority boosting', () => {

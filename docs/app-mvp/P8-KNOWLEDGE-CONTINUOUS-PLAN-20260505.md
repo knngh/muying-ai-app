@@ -265,6 +265,8 @@ DRY_RUN=false npm run retry:authority-translation-failures
 
 2026-05-10 P3-18 切片：`ops:knowledge:report` 的 `coverage` 新增 `target80` 摘要，直接输出 P3 80% 目标对应的 `targetCovered`、`additionalCoveredNeeded`，以及缺权威引用 QA 的 topic / category / risk 分布。后续补源或定向匹配规则应优先按该字段定位新生儿、发育、儿童症状等高缺口队列。
 
+2026-05-10 P3-19 切片：覆盖分母继续做质量清理，新增对治疗医院选择、亲子归属判断、成人腰椎/产后乳房美容类错类记录的 dataset guard。生产快照 dry-run 显示过滤数从 `166` 增至 `173`，目标分母从 `3140` 收至 `3133`，覆盖率为 `75.93%`；该切片不靠弱匹配增加引用，只移除不适合进入知识库运营和推广分母的记录。
+
 ## 7.1 P3：知识运营与推广联动
 
 目标：在 P2 已完成的基础上，把权威覆盖继续推进到 `80%+`，并让知识库成果直接服务安全推广。
@@ -292,6 +294,7 @@ DRY_RUN=false npm run retry:authority-translation-failures
 19. P3-16 已完成 Mayo preflight 误报修正：apply fixes 模式跳过上游 403 阻断源时仍保持生产状态健康。
 20. P3-17 已完成权威增强弱匹配加固：泛化问诊词和阶段词不再单独构成有效匹配，儿童阶段 QA 不会匹配到纯孕产/产后阶段权威文章；80%+ 覆盖推进改走主题补源或更具体规则。
 21. P3-18 已完成 80% 覆盖缺口摘要：运营报告可直接查看还差多少条以及缺口 topic/category/risk 分布。
+22. P3-19 已完成覆盖分母错类清理：治疗医院选择、亲子归属判断、成人腰椎/产后乳房美容类记录不再进入知识库覆盖目标。
 
 默认读取 `tmp/knowledge-ops-report.json` 中 `sourceCoverage.watchedSources` 的 `missing` / `low` 源，先 dry-run 打印将刷新列表；显式 `DRY_RUN=false` 后按源调用现有 `sync:authority` 能力刷新。可用 `AUTHORITY_SOURCE_IDS=mayo-clinic-zh,chinacdc-nutrition` 限定源。
 
