@@ -187,6 +187,11 @@ function resolveBlockedExternalSources(input: BuildKnowledgeDailyOpsReportInput)
       continue;
     }
 
+    if (sourceId === 'mayo-clinic-zh' && summary.reason === 'preflight_failed') {
+      blockedSources.push({ sourceId });
+      continue;
+    }
+
     const probe = summary.discoveryProbe;
     if (!probe || Number(probe.discovered || 0) > 0) {
       continue;

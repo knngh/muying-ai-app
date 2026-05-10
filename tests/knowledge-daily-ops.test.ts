@@ -152,6 +152,39 @@ describe('knowledge daily ops report', () => {
     ]));
   });
 
+  it('keeps Mayo preflight failures downgraded during apply fixes runs', () => {
+    const report = buildKnowledgeDailyOpsReport({
+      generatedAt: '2026-05-10T05:30:00.000Z',
+      applyFixes: true,
+      commands: [
+        { name: 'low_coverage_source_refresh', command: 'npm run ops:authority:refresh-low-coverage', ok: true, exitCode: 0, durationMs: 100 },
+      ],
+      knowledgeReport: {
+        actionItems: [
+          { priority: 'P2', area: 'source_coverage', message: 'mayo-clinic-zh has 0/10 published authority records' },
+        ],
+      },
+      sourceRefreshResult: {
+        dryRun: false,
+        selectedSources: [
+          { sourceId: 'mayo-clinic-zh', count: 0, minimumPublishedRecords: 10, status: 'missing' },
+        ],
+        summaries: [
+          {
+            sourceId: 'mayo-clinic-zh',
+            skipped: true,
+            reason: 'preflight_failed',
+          },
+        ],
+      },
+    });
+
+    expect(report.status).toBe('ok');
+    expect(report.blockedExternalSources).toEqual([{ sourceId: 'mayo-clinic-zh' }]);
+    expect(report.knowledge.actionItems).toEqual([]);
+    expect(report.nextActions).toEqual([]);
+  });
+
   it('surfaces retryable translation failures as an operator action', () => {
     const report = buildKnowledgeDailyOpsReport({
       generatedAt: '2026-05-08T00:00:00.000Z',
