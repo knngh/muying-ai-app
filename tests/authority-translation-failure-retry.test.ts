@@ -1,5 +1,6 @@
 import {
   buildAuthorityTranslationFailureRetryPlan,
+  resolveAuthorityTranslationFailureRetryAfterAt,
   isAuthorityTranslationFailureRetrySourceMatch,
   isPrunableAuthorityTranslationFailure,
   resolveActiveAuthorityTranslationQuotaResetAt,
@@ -11,8 +12,8 @@ describe('authority translation failure retry planner', () => {
     const plan = buildAuthorityTranslationFailureRetryPlan({
       'authority-aap-1': {
         slug: 'authority-aap-1',
-        message: 'AI Gateway timeout after 45000ms',
-        attempts: 2,
+        message: 'AI Gateway error: 500',
+        attempts: 1,
         failedAt: '2026-05-08T08:00:00.000Z',
         retryAfterAt: '2026-05-08T08:30:00.000Z',
       },
@@ -79,6 +80,46 @@ describe('authority translation failure retry planner', () => {
     });
 
     expect(blockedUntil).toBe('2026-05-09T07:30:00.000Z');
+  });
+
+  it('keeps Modal Direct transient failures on a conservative retry schedule', () => {
+    expect(resolveAuthorityTranslationFailureRetryAfterAt(
+      'AI Gateway error: 429: {"error": "Too many concurrent requests for this model"}',
+      new Date('2026-05-10T01:01:42.626Z'),
+      2,
+    )).toBe('2026-05-10T05:01:42.626Z');
+
+    expect(resolveAuthorityTranslationFailureRetryAfterAt(
+      'AI Gateway timeout after 45000ms',
+      new Date('2026-05-10T01:01:12.046Z'),
+      2,
+    )).toBe('2026-05-10T09:01:12.046Z');
+  });
+
+  it('uses conservative retry timing when old failure records had a shorter retryAfterAt', () => {
+    const plan = buildAuthorityTranslationFailureRetryPlan({
+      'authority-aap-timeout': {
+        slug: 'authority-aap-timeout',
+        message: 'AI Gateway timeout after 45000ms',
+        attempts: 2,
+        failedAt: '2026-05-10T01:01:12.046Z',
+        retryAfterAt: '2026-05-10T02:01:12.046Z',
+      },
+    }, {
+      now: '2026-05-10T02:08:12.212Z',
+      limit: 10,
+    });
+
+    expect(plan.retryableFailures).toBe(0);
+    expect(plan.blockedFailures).toBe(1);
+    expect(plan.skippedFailures).toEqual([
+      expect.objectContaining({
+        slug: 'authority-aap-timeout',
+        retryable: false,
+        retryAfterAt: '2026-05-10T09:01:12.046Z',
+        blockedReason: 'retry_after_pending',
+      }),
+    ]);
   });
 
   it('can include blocked failures and apply slug/limit filters', () => {

@@ -16,10 +16,10 @@ import {
   sanitizeTranslationText,
   stripCodeFence,
 } from '../utils/article-translation';
-import { resolveAiGatewayUsageLimitRetryAfterAt } from '../utils/ai-gateway-quota';
 import {
   resolveActiveAuthorityTranslationQuotaResetAt,
   resolveActiveAuthorityTranslationTransientBlockUntil,
+  resolveAuthorityTranslationFailureRetryAfterAt,
 } from '../utils/authority-translation-failure-retry';
 
 export interface AuthorityCacheRecord {
@@ -665,26 +665,6 @@ function saveAuthorityTranslationFailureCache(data: Record<string, AuthorityTran
     mtimeMs: stat.mtimeMs,
     data,
   };
-}
-
-function getAuthorityTranslationFailureRetryDelayMs(message: string, attempts: number): number {
-  const normalized = message.toLowerCase();
-  const safeAttempts = Math.max(1, attempts);
-
-  if (/529|overload|timeout|timed out|temporar|too many concurrent|concurrent requests|rate limit|短暂繁忙|超时/u.test(normalized)) {
-    return Math.min(2 * 60 * 60 * 1000, 30 * 60 * 1000 * safeAttempts);
-  }
-
-  if (/422|解析|empty translation|prompt leak|提示词/u.test(normalized)) {
-    return Math.min(24 * 60 * 60 * 1000, 6 * 60 * 60 * 1000 * safeAttempts);
-  }
-
-  return Math.min(6 * 60 * 60 * 1000, 60 * 60 * 1000 * safeAttempts);
-}
-
-function resolveAuthorityTranslationFailureRetryAfterAt(message: string, failedAt: Date, attempts: number): string {
-  return resolveAiGatewayUsageLimitRetryAfterAt(message)
-    || new Date(failedAt.getTime() + getAuthorityTranslationFailureRetryDelayMs(message, attempts)).toISOString();
 }
 
 function shouldSkipRecentlyFailedAuthorityTranslation(slug: string, sourceUpdatedAt?: string): boolean {

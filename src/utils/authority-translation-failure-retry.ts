@@ -47,6 +47,38 @@ export interface AuthorityTranslationQuotaBlockOptions {
   now?: string;
 }
 
+export function getAuthorityTranslationFailureRetryDelayMs(message: string, attempts: number): number {
+  const normalized = message.toLowerCase();
+  const safeAttempts = Math.max(1, attempts);
+
+  if (/too many concurrent|concurrent requests/i.test(normalized)) {
+    return Math.min(12 * 60 * 60 * 1000, 2 * 60 * 60 * 1000 * safeAttempts);
+  }
+
+  if (/timeout|timed out|empty response/i.test(normalized)) {
+    return Math.min(12 * 60 * 60 * 1000, 4 * 60 * 60 * 1000 * safeAttempts);
+  }
+
+  if (/529|overload|temporar|rate limit|短暂繁忙|超时/u.test(normalized)) {
+    return Math.min(2 * 60 * 60 * 1000, 30 * 60 * 1000 * safeAttempts);
+  }
+
+  if (/422|解析|empty translation|prompt leak|提示词/u.test(normalized)) {
+    return Math.min(24 * 60 * 60 * 1000, 6 * 60 * 60 * 1000 * safeAttempts);
+  }
+
+  return Math.min(6 * 60 * 60 * 1000, 60 * 60 * 1000 * safeAttempts);
+}
+
+export function resolveAuthorityTranslationFailureRetryAfterAt(
+  message: string,
+  failedAt: Date,
+  attempts: number,
+): string {
+  return resolveAiGatewayUsageLimitRetryAfterAt(message)
+    || new Date(failedAt.getTime() + getAuthorityTranslationFailureRetryDelayMs(message, attempts)).toISOString();
+}
+
 export function isPrunableAuthorityTranslationFailure(
   candidate: Pick<AuthorityTranslationFailureRetryCandidate, 'skipReason'>,
 ): boolean {
@@ -88,9 +120,20 @@ function resolveFailureRetryState(
     };
   }
 
-  const retryable = isRetryableAt(failure?.retryAfterAt, nowMs);
+  const failedAt = Date.parse(failure?.failedAt || '');
+  const conservativeRetryAfterAt = Number.isFinite(failedAt)
+    ? resolveAuthorityTranslationFailureRetryAfterAt(
+      normalizeMessage(failure?.message),
+      new Date(failedAt),
+      normalizeAttempts(failure?.attempts),
+    )
+    : undefined;
+  const retryAfterAt = conservativeRetryAfterAt && failure?.retryAfterAt
+    ? (Date.parse(conservativeRetryAfterAt) > Date.parse(failure.retryAfterAt) ? conservativeRetryAfterAt : failure.retryAfterAt)
+    : (conservativeRetryAfterAt || failure?.retryAfterAt);
+  const retryable = isRetryableAt(retryAfterAt, nowMs);
   return {
-    retryAfterAt: usageLimitRetryAfterAt || failure?.retryAfterAt,
+    retryAfterAt: usageLimitRetryAfterAt || retryAfterAt,
     retryable,
     blockedReason: retryable ? undefined : 'retry_after_pending',
   };

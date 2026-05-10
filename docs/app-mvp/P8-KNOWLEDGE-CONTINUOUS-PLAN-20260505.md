@@ -245,6 +245,8 @@ DRY_RUN=false npm run retry:authority-translation-failures
 
 2026-05-09 P3-8 切片：生产直连 Modal Direct 与生产应用 `callTaskModelDetailed("glm_classify")` 均实测通过，路由为 `modal-direct / zai-org/GLM-5.1-FP8`。实测发现该模型会先产生 `reasoning_content`，`max_tokens` 太小时可能返回 HTTP 200 但最终 `message.content` 为空；AI Gateway 已为 Modal Direct 保留至少 `1000` completion token，并把空正文视为失败，避免小任务或翻译预热误判成功。
 
+2026-05-10 P3-9 切片：生产确认 Modal Direct 短问答可用，但批量翻译仍会遇到 `Too many concurrent requests` / timeout。已把翻译失败退避收敛到共享工具：Modal 并发失败按 `2h * attempts`、timeout / empty response 按 `4h * attempts` 保守退避（最长 `12h`），并让报告按新退避时间重新评估旧失败，避免 1 小时后反复把同一批失败推成 retryable。
+
 ## 7.1 P3：知识运营与推广联动
 
 目标：在 P2 已完成的基础上，把权威覆盖继续推进到 `80%+`，并让知识库成果直接服务安全推广。
@@ -262,6 +264,7 @@ DRY_RUN=false npm run retry:authority-translation-failures
 9. P3-6 已完成翻译预热全局额度熔断：额度重置前常规 worker 预热会暂停选新任务，避免继续消耗失败缓存和告警注意力。
 10. P3-7 已完成免费 Modal Direct GLM 翻译优先路由：生产可用 `AI_MODAL_DIRECT_KEY` / `AI_GLM_KEY` 指向 `zai-org/GLM-5.1-FP8`，让翻译任务优先走免费通道。
 11. P3-8 已完成 Modal Direct 真实可用性验证与网关保护：生产直连和应用网关均能返回正确答案，网关会为该 reasoning 模型保留足够输出预算并拒绝空答案。
+12. P3-9 已完成 Modal Direct 翻译失败保守退避：短问答可用性不等于批量翻译容量，worker / daily ops 不应在短退避后反复冲击免费通道。
 
 默认读取 `tmp/knowledge-ops-report.json` 中 `sourceCoverage.watchedSources` 的 `missing` / `low` 源，先 dry-run 打印将刷新列表；显式 `DRY_RUN=false` 后按源调用现有 `sync:authority` 能力刷新。可用 `AUTHORITY_SOURCE_IDS=mayo-clinic-zh,chinacdc-nutrition` 限定源。
 
