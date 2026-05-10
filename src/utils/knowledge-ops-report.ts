@@ -1,5 +1,5 @@
 import { cleanAuthorityTranslationCache } from './authority-translation-cache-cleaner';
-import { isAiGatewayUsageLimitBlocked } from './ai-gateway-quota';
+import { buildAuthorityTranslationFailureRetryPlan } from './authority-translation-failure-retry';
 import { getDatasetKnowledgeDropReason } from './knowledge-content-guard';
 import { normalizeKnowledgePromotionTargetStage } from './knowledge-promotion-stage';
 
@@ -423,14 +423,10 @@ function buildTranslationSummary(
     }));
 
   const failures = Object.entries(translationFailures || {});
-  const retryableFailures = failures.filter(([, failure]) => {
-    if (isAiGatewayUsageLimitBlocked(failure.message, nowMs)) {
-      return false;
-    }
-    const retryAt = Date.parse(failure.retryAfterAt || '');
-    return !Number.isFinite(retryAt) || retryAt <= nowMs;
+  const failureRetryPlan = buildAuthorityTranslationFailureRetryPlan(translationFailures || {}, {
+    now: new Date(nowMs).toISOString(),
+    limit: 0,
   });
-  const blockedFailures = failures.length - retryableFailures.length;
   const failureMessageSummary = topBy(failures, ([, failure]) => normalizeFailureMessage(failure.message), 10);
   const cacheCleanResult = cleanAuthorityTranslationCache(translationCache || {});
 
@@ -445,8 +441,8 @@ function buildTranslationSummary(
     missingFreshTranslations: Math.max(0, translatableSlugs.length - translatableSlugs.filter((slug) => freshSlugs.has(slug)).length),
     cacheHitRate: roundPercent((translatableSlugs.filter((slug) => freshSlugs.has(slug)).length / Math.max(translatableSlugs.length, 1)) * 100),
     failureEntries: failures.length,
-    retryableFailures: retryableFailures.length,
-    blockedFailures,
+    retryableFailures: failureRetryPlan.retryableFailures,
+    blockedFailures: failureRetryPlan.blockedFailures,
     topFailureMessages: failureMessageSummary.map((item) => ({
       message: item.key,
       count: item.count,

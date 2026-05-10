@@ -270,6 +270,43 @@ describe('knowledge ops report', () => {
     expect(report.actionItems).toEqual([]);
   });
 
+  it('uses conservative transient retry timing in the translation summary', () => {
+    const authority = [
+      authorityFixture({
+        id: 'authority-aap-fever',
+        source_updated_at: '2026-05-09T20:18:59.000Z',
+      }),
+    ];
+    const slug = buildKnowledgeOpsAuthoritySlug(authority[0], 0);
+
+    const report = buildKnowledgeOpsReport({
+      qaRecords: [
+        qaFixture({ id: 'qa-covered', references: [{ authoritative: true, sourceOrg: 'AAP' }] }),
+      ],
+      authorityRecords: authority,
+      translationFailures: {
+        [slug]: {
+          slug,
+          sourceUpdatedAt: '2026-05-09T20:18:59.000Z',
+          message: 'AI Gateway timeout after 45000ms',
+          attempts: 2,
+          failedAt: '2026-05-10T01:01:12.046Z',
+          retryAfterAt: '2026-05-10T02:01:12.046Z',
+        },
+      },
+    }, {
+      now: '2026-05-10T02:08:12.212Z',
+      watchedSourceIds: [],
+    });
+
+    expect(report.translations).toMatchObject({
+      failureEntries: 1,
+      retryableFailures: 0,
+      blockedFailures: 1,
+    });
+    expect(report.actionItems).toEqual([]);
+  });
+
   it('keeps watched authority sources in low status until they reach the configured minimum', () => {
     const chinacdcRecords = Array.from({ length: 10 }, (_, index) => authorityFixture({
       id: `authority-chinacdc-nutrition-${index + 1}`,
