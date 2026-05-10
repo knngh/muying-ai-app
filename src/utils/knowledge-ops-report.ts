@@ -125,6 +125,7 @@ export interface KnowledgeOpsPromotionQuestionCandidate {
 const DEFAULT_WATCHED_SOURCE_IDS = ['mayo-clinic-zh', 'chinacdc-nutrition'];
 const DEFAULT_WATCHED_SOURCE_MINIMUM_RECORDS = 10;
 const DEFAULT_PROMOTION_CANDIDATE_LIMIT = 100;
+const P3_AUTHORITY_COVERAGE_TARGET_RATE = 80;
 const AUTHORITY_SOURCE_PATTERN = /who\.int|cdc\.gov|healthychildren\.org|acog\.org|mayoclinic\.org|msdmanuals\.cn|nhs\.uk|nih\.gov|fda\.gov|nhc\.gov\.cn|chinacdc\.cn|ndcpa\.gov\.cn|gov\.cn|who|cdc|aap|acog|mayo|nhs|卫健委|疾控|中国政府网|国家疾病预防控制局/iu;
 const PROMOTION_CASE_FORM_PATTERN = /全部症状|发病时间|治疗情况|患者性别|患者年龄|病情描述|想得到怎样的帮助/u;
 const PROMOTION_URGENT_RISK_PATTERN = /高烧|高热|发烧|发热|咳嗽|腹泻|呕吐|便秘|红疹|皮疹|湿疹|黄疸|出血|见红|疼|痛|呼吸困难|喘不过气|抽搐|惊厥|意识异常|昏迷|大出血|脱水|胎动消失|胎动明显减少|拒奶.*精神差|精神差.*拒奶|吃什么药|用什么药/u;
@@ -151,6 +152,28 @@ const PROMOTION_GENERIC_INTENT_PATTERNS = [
   PROMOTION_CARE_BOUNDARY_PATTERN,
 ];
 const PROMOTION_MAX_QUESTION_LENGTH = 72;
+const KNOWLEDGE_CATEGORY_TOPIC_FALLBACK: Record<string, string> = {
+  'pregnancy-prep': 'pregnancy',
+  'pregnancy-early': 'pregnancy',
+  'pregnancy-mid': 'pregnancy',
+  'pregnancy-late': 'pregnancy',
+  'pregnancy-birth': 'postpartum',
+  'parenting-newborn': 'newborn',
+  'parenting-0-1': 'newborn',
+  'parenting-1-3': 'development',
+  'parenting-3-6': 'development',
+  'common-symptoms': 'common-symptoms',
+  'common-disease': 'common-symptoms',
+  'common-development': 'development',
+  'common-safety': 'development',
+  'nutrition-pregnancy': 'feeding',
+  'nutrition-baby': 'feeding',
+  'nutrition-child': 'feeding',
+  'vaccine-schedule': 'vaccination',
+  'vaccine-reaction': 'vaccination',
+  'vaccine-first': 'vaccination',
+  'vaccine-second': 'vaccination',
+};
 
 function roundPercent(value: number): number {
   return Number(value.toFixed(2));
@@ -253,6 +276,7 @@ function buildCoverageSummary(
   audit: KnowledgeOpsCoverageAudit | null | undefined,
   sampleLimit: number,
 ) {
+  const missing = records.filter((record) => !hasAuthorityCoverage(record));
   if (
     audit
     && Number.isFinite(audit.total)
@@ -278,11 +302,11 @@ function buildCoverageSummary(
           count: Number(item.count || 0),
         }))
         .filter((item) => item.count > 0),
+      target80: buildCoverageTargetSummary(Number(audit.total), Number(audit.authorityCovered), missing),
       remediationQueue: (audit.remediationQueue || []).slice(0, sampleLimit),
     };
   }
 
-  const missing = records.filter((record) => !hasAuthorityCoverage(record));
   return {
     source: 'computed',
     total: records.length,
@@ -293,11 +317,24 @@ function buildCoverageSummary(
       category: item.key,
       count: item.count,
     })),
+    target80: buildCoverageTargetSummary(records.length, records.length - missing.length, missing),
     remediationQueue: missing.slice(0, sampleLimit).map((item) => ({
       id: item.id,
       category: item.category,
       question: item.question,
     })),
+  };
+}
+
+function buildCoverageTargetSummary(total: number, authorityCovered: number, missingRecords: KnowledgeOpsQaRecord[]) {
+  const targetCovered = Math.ceil(Math.max(total, 0) * (P3_AUTHORITY_COVERAGE_TARGET_RATE / 100));
+  return {
+    targetRate: P3_AUTHORITY_COVERAGE_TARGET_RATE,
+    targetCovered,
+    additionalCoveredNeeded: Math.max(0, targetCovered - Math.max(authorityCovered, 0)),
+    missingByTopic: topBy(missingRecords, (item) => item.topic || KNOWLEDGE_CATEGORY_TOPIC_FALLBACK[item.category || ''], 12),
+    missingByCategory: topBy(missingRecords, (item) => item.category, 12),
+    missingByRisk: countRisks(missingRecords),
   };
 }
 

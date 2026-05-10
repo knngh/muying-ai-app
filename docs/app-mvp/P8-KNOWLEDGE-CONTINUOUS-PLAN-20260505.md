@@ -263,6 +263,8 @@ DRY_RUN=false npm run retry:authority-translation-failures
 
 2026-05-10 P3-17 切片：权威增强匹配规则已加固，避免用泛化问诊词、孕期阶段词或跨生命周期的单一症状词制造错误引用。生产快照 dry-run 说明，单纯降低 `MIN_SCORE` 只能把覆盖率从 `76.05%` 推到约 `78.3%`，且样本中出现“孕早期胎儿偏小误配梅毒筛查”“儿童咳嗽误配产后漏尿”等不安全命中；加固后本地生产快照 dry-run 为 `75.83%`（`2381/3140`），少量回退用于移除弱匹配。因此 80%+ 目标不能靠降阈值完成，下一步应补新生儿、发育、儿童症状等高缺口主题的更具体权威来源或主题规则。
 
+2026-05-10 P3-18 切片：`ops:knowledge:report` 的 `coverage` 新增 `target80` 摘要，直接输出 P3 80% 目标对应的 `targetCovered`、`additionalCoveredNeeded`，以及缺权威引用 QA 的 topic / category / risk 分布。后续补源或定向匹配规则应优先按该字段定位新生儿、发育、儿童症状等高缺口队列。
+
 ## 7.1 P3：知识运营与推广联动
 
 目标：在 P2 已完成的基础上，把权威覆盖继续推进到 `80%+`，并让知识库成果直接服务安全推广。
@@ -289,6 +291,7 @@ DRY_RUN=false npm run retry:authority-translation-failures
 18. P3-15 已完成陈旧翻译失败缓存清理接入：daily ops 的 apply fixes 模式会自动修剪不可重试的 stale failure。
 19. P3-16 已完成 Mayo preflight 误报修正：apply fixes 模式跳过上游 403 阻断源时仍保持生产状态健康。
 20. P3-17 已完成权威增强弱匹配加固：泛化问诊词和阶段词不再单独构成有效匹配，儿童阶段 QA 不会匹配到纯孕产/产后阶段权威文章；80%+ 覆盖推进改走主题补源或更具体规则。
+21. P3-18 已完成 80% 覆盖缺口摘要：运营报告可直接查看还差多少条以及缺口 topic/category/risk 分布。
 
 默认读取 `tmp/knowledge-ops-report.json` 中 `sourceCoverage.watchedSources` 的 `missing` / `low` 源，先 dry-run 打印将刷新列表；显式 `DRY_RUN=false` 后按源调用现有 `sync:authority` 能力刷新。可用 `AUTHORITY_SOURCE_IDS=mayo-clinic-zh,chinacdc-nutrition` 限定源。
 

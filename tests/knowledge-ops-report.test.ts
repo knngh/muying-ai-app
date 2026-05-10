@@ -128,6 +128,20 @@ describe('knowledge ops report', () => {
       authorityCovered: 1,
       missingAuthorityCoverage: 1,
       coverageRate: 50,
+      target80: {
+        targetRate: 80,
+        targetCovered: 2,
+        additionalCoveredNeeded: 1,
+        missingByTopic: [
+          { key: 'newborn', count: 1 },
+        ],
+        missingByRisk: {
+          green: 0,
+          yellow: 0,
+          red: 0,
+          unknown: 1,
+        },
+      },
     });
     expect(report.translations).toMatchObject({
       recordsForTranslation: 2,
@@ -193,6 +207,20 @@ describe('knowledge ops report', () => {
       authorityCovered: 1659,
       missingAuthorityCoverage: 1481,
       coverageRate: 52.83,
+      target80: {
+        targetRate: 80,
+        targetCovered: 2512,
+        additionalCoveredNeeded: 853,
+        missingByTopic: [
+          { key: 'common-symptoms', count: 1 },
+        ],
+        missingByRisk: {
+          green: 0,
+          yellow: 0,
+          red: 0,
+          unknown: 1,
+        },
+      },
     });
   });
 
