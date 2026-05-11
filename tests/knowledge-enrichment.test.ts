@@ -384,4 +384,39 @@ describe('knowledge enrichment', () => {
       status: 'missing',
     });
   });
+
+  it('does not enrich vaccination reaction QA from vaccine schedule pages alone', () => {
+    const result = enrichKnowledgeBaseRecords(
+      [
+        qaFixture({
+          id: 'qa-vaccine-reaction-schedule-only',
+          category: 'parenting-0-1',
+          question: '5个月宝宝打完百白破反复低烧怎么办？',
+          answer: '想了解接种后低烧和红肿的观察边界。',
+        }),
+      ],
+      [
+        authorityFixture({
+          id: 'authority-ndcpa-vaccine-schedule-only',
+          question: '这4种孩子必打的疫苗，家长要记好（附具体接种时间）',
+          summary: '乙肝疫苗与卡介苗在新生儿出生伊始帮助对抗肝炎与结核病威胁；流脑疫苗抵御细菌性脑膜炎；麻腮风三联疫苗预防麻疹、腮腺炎和风疹。以下分别介绍这几种疫苗可预防的疾病以及接种方案。',
+          answer: '及时接种关键疫苗，是构筑儿童免疫防线的重要步骤。如何接种乙肝疫苗？按照免疫规划接种程序，新生儿在出生后24小时内接种第一针，满月时接种第二针，6月龄时接种第三针。流行性脑脊髓膜炎可出现发热和皮疹，麻腮风疫苗可预防相关传染病。'.repeat(8),
+          topic: 'vaccination',
+          category: 'vaccination',
+          tags: ['疫苗', '婴幼儿家长'],
+          target_stage: ['0-6-months', '6-12-months'],
+          source_id: 'ndcpa-immunization',
+          source_org: '国家疾病预防控制局',
+          source: '国家疾病预防控制局',
+          source_url: 'https://www.ndcpa.gov.cn/jbkzzx/c100040/common/content/content_1937753268497584128.html',
+        }),
+      ],
+    );
+
+    expect(result.report.enriched).toBe(0);
+    expect(result.records[0]?.references).toBeUndefined();
+    expect(result.records[0]?.metadata?.authorityCoverage).toMatchObject({
+      status: 'missing',
+    });
+  });
 });
