@@ -310,6 +310,7 @@ DRY_RUN=false npm run retry:authority-translation-failures
 25. P3-22 已完成 target80 缺口行动分流：缺口 topic 会输出 QA 样例、分类分布和 `inspect_matching_rules` / `add_authority_sources` 建议动作。
 26. P3-23 已完成治疗诉求和严重确诊病例分流：个人用药/治疗请求与已确诊严重疾病追问不再进入自动覆盖目标。
 27. P3-24 已完成 AI health 降级语义：Modal Direct 临时 5xx 不再把每日状态拉成 attention，真实配置/认证/答案错误仍告警。
+28. P3-25 已完成 AI health 超时降级语义：已配置 provider 的健康探针超时会记录为 `degraded` 并带上绑定的 provider/model 元数据，避免 Modal Direct 上游慢响应把每日状态误报为 attention。
 
 默认读取 `tmp/knowledge-ops-report.json` 中 `sourceCoverage.watchedSources` 的 `missing` / `low` 源，先 dry-run 打印将刷新列表；显式 `DRY_RUN=false` 后按源调用现有 `sync:authority` 能力刷新。可用 `AUTHORITY_SOURCE_IDS=mayo-clinic-zh,chinacdc-nutrition` 限定源。
 

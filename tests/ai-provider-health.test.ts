@@ -110,6 +110,32 @@ describe('AI provider health report', () => {
     });
   });
 
+  it('marks configured provider health timeouts as degraded with binding metadata', async () => {
+    const report = await buildAIProviderHealthReport({
+      now: '2026-05-11T00:00:00.000Z',
+      callTaskModel: jest.fn().mockRejectedValue(new Error('AI Gateway timeout after 45000ms')),
+      getBindings: jest.fn().mockReturnValue([{
+        role: 'glm_classify',
+        model: 'zai-org/GLM-5.1-FP8',
+        provider: 'modal-direct',
+        configured: true,
+      }]),
+    });
+
+    expect(report).toMatchObject({
+      status: 'degraded',
+      call: {
+        attempted: true,
+        ok: false,
+        error: {
+          message: 'AI Gateway timeout after 45000ms',
+          gatewayProvider: 'modal-direct',
+          gatewayModel: 'zai-org/GLM-5.1-FP8',
+        },
+      },
+    });
+  });
+
   it('fails without attempting a call for unsupported task roles', async () => {
     const callTaskModel = jest.fn();
     const report = await buildAIProviderHealthReport({

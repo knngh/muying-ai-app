@@ -89,6 +89,14 @@ function isTransientGatewayFailure(status?: number): boolean {
   return typeof status === 'number' && status >= 500 && status < 600;
 }
 
+function isProviderTimeout(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  return /^AI Gateway timeout after \d+ms$/u.test(error.message);
+}
+
 export async function buildAIProviderHealthReport(
   options: AIProviderHealthOptions = {},
 ): Promise<AIProviderHealthReport> {
@@ -158,10 +166,14 @@ export async function buildAIProviderHealthReport(
       gatewayProvider?: string;
       gatewayModel?: string;
     };
+    const gatewayProvider = gatewayError.gatewayProvider || binding?.provider;
+    const gatewayModel = gatewayError.gatewayModel || binding?.model;
+    const degraded = isTransientGatewayFailure(gatewayError.gatewayStatus)
+      || (Boolean(binding?.configured && binding.provider) && isProviderTimeout(error));
 
     return {
       generatedAt: options.now || new Date().toISOString(),
-      status: isTransientGatewayFailure(gatewayError.gatewayStatus) ? 'degraded' : 'failed',
+      status: degraded ? 'degraded' : 'failed',
       taskRole,
       timeoutMs,
       maxTokens,
@@ -174,8 +186,8 @@ export async function buildAIProviderHealthReport(
         error: {
           message: redactedErrorMessage(error),
           gatewayStatus: gatewayError.gatewayStatus,
-          gatewayProvider: gatewayError.gatewayProvider,
-          gatewayModel: gatewayError.gatewayModel,
+          gatewayProvider,
+          gatewayModel,
         },
       },
     };
