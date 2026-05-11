@@ -301,4 +301,87 @@ describe('knowledge enrichment', () => {
       sourceIds: ['msd-manuals-cn'],
     });
   });
+
+  it('prefers vaccination reaction care records over broad immunization policy pages', () => {
+    const result = enrichKnowledgeBaseRecords(
+      [
+        qaFixture({
+          id: 'qa-vaccine-reaction-policy-risk',
+          category: 'parenting-0-1',
+          question: '五个半月的宝宝今天打完白百破预防针，晚上眼睛周围起了好多小红疙瘩怎么办？',
+          answer: '想了解接种后红肿、皮疹和瘙痒的家庭观察边界。',
+        }),
+      ],
+      [
+        authorityFixture({
+          id: 'authority-chinacdc-immunization-plan',
+          question: '为贯彻温家宝总理在十届全国人大五次会议上提出的“扩大国家免疫规划范围，将甲肝、流脑等１５种可以通过接种疫苗有效预防的传染病纳入国家免疫规划”的精神，落实扩大国家免疫规划的目标和任务，规范和指导各地科学实施扩大国家免疫规划工作，有效预防和控制相关传染病，制订本方案。',
+          answer: '为贯彻扩大国家免疫规划范围要求，明确目标和任务，组织实施免疫程序调整，提高适龄儿童国家免疫规划疫苗接种率。在现行全国范围内使用的乙肝疫苗、卡介苗、脊灰疫苗、百白破疫苗、麻疹疫苗基础上，将甲肝、流脑等疫苗纳入国家免疫规划。'.repeat(8),
+          topic: 'vaccination',
+          category: 'vaccination',
+          tags: ['免疫规划', '百白破', '疫苗'],
+          target_stage: ['0-6-months', '6-12-months'],
+          source_id: 'chinacdc-immunization',
+          source_org: '中国疾病预防控制中心',
+          source: '中国疾病预防控制中心',
+          source_url: 'https://www.chinacdc.cn/jkyj/mygh02/jswj_mygh/myfw_mygh/202409/t20240925_300934.html',
+        }),
+        authorityFixture({
+          id: 'authority-msd-vaccine-reaction',
+          question: '儿童疫苗接种 - 儿童的健康问题',
+          summary: '儿童疫苗接种后的常见副作用包括轻微发热、局部红肿、皮疹，家长应观察严重过敏反应和需要就医的情况。',
+          answer: '儿童疫苗接种可以预防多种感染。疫苗接种后可能会出现轻微发热、局部红肿、皮疹等反应，家长应观察精神状态和严重过敏表现。'.repeat(8),
+          topic: 'vaccination',
+          category: 'vaccination',
+          tags: ['疫苗', '接种后反应', '婴幼儿家长'],
+          target_stage: ['0-6-months', '6-12-months'],
+          source_id: 'msd-manuals-cn',
+          source_org: 'MSD Manuals',
+          source: 'MSD Manuals',
+          source_url: 'https://www.msdmanuals.cn/home/children-s-health-issues/vaccination/childhood-vaccination',
+        }),
+      ],
+    );
+
+    expect(result.report.enriched).toBe(1);
+    expect(result.records[0]?.metadata?.authorityCoverage).toMatchObject({
+      status: 'matched',
+      authorityIds: ['authority-msd-vaccine-reaction'],
+      sourceIds: ['msd-manuals-cn'],
+    });
+  });
+
+  it('does not enrich vaccination reaction QA from immunization policy pages alone', () => {
+    const result = enrichKnowledgeBaseRecords(
+      [
+        qaFixture({
+          id: 'qa-vaccine-reaction-policy-only',
+          category: 'parenting-0-1',
+          question: '五个半月的宝宝今天打完白百破预防针，晚上眼睛周围起了好多小红疙瘩怎么办？',
+          answer: '想了解接种后红肿、皮疹和瘙痒的家庭观察边界。',
+        }),
+      ],
+      [
+        authorityFixture({
+          id: 'authority-chinacdc-immunization-plan-only',
+          question: '为贯彻温家宝总理在十届全国人大五次会议上提出的“扩大国家免疫规划范围，将甲肝、流脑等１５种可以通过接种疫苗有效预防的传染病纳入国家免疫规划”的精神，落实扩大国家免疫规划的目标和任务，规范和指导各地科学实施扩大国家免疫规划工作，有效预防和控制相关传染病，制订本方案。',
+          answer: '为贯彻扩大国家免疫规划范围要求，明确目标和任务，组织实施免疫程序调整，提高适龄儿童国家免疫规划疫苗接种率。在现行全国范围内使用的乙肝疫苗、卡介苗、脊灰疫苗、百白破疫苗、麻疹疫苗基础上，将甲肝、流脑等疫苗纳入国家免疫规划。'.repeat(8),
+          topic: 'vaccination',
+          category: 'vaccination',
+          tags: ['免疫规划', '百白破', '疫苗'],
+          target_stage: ['0-6-months', '6-12-months'],
+          source_id: 'chinacdc-immunization',
+          source_org: '中国疾病预防控制中心',
+          source: '中国疾病预防控制中心',
+          source_url: 'https://www.chinacdc.cn/jkyj/mygh02/jswj_mygh/myfw_mygh/202409/t20240925_300934.html',
+        }),
+      ],
+    );
+
+    expect(result.report.enriched).toBe(0);
+    expect(result.records[0]?.references).toBeUndefined();
+    expect(result.records[0]?.metadata?.authorityCoverage).toMatchObject({
+      status: 'missing',
+    });
+  });
 });

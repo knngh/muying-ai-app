@@ -61,6 +61,7 @@ interface MatchResult {
   matchType: 'lexical' | 'category_fallback';
   matchedTerms: string[];
   hasUsefulLexicalMatch: boolean;
+  isDisallowedForIntent: boolean;
 }
 
 const CATEGORY_PROFILE_MAP: Record<string, {
@@ -236,8 +237,12 @@ const DOMAIN_TERM_EXPANSIONS: Array<{ terms: string[]; expansions: string[] }> =
   { terms: ['乙肝疫苗'], expansions: ['hepatitis b vaccine'] },
 ];
 
-const VACCINATION_REACTION_INTENT_PATTERN = /打完(?:针|疫苗)|接种后|预防针|百白破|白百破|脊灰|流脑|腮腺炎|红肿|低烧|发热|发烧|小红疙瘩|针眼/u;
+const VACCINATION_TERM_PATTERN = /疫苗|接种|预防针|打针|打完针|百白破|白百破|脊灰|流脑|腮腺炎|卡介|乙肝|麻腮风|vaccine|vaccination|immunization|immunisation|shot/u;
+const POST_VACCINATION_CARE_INTENT_PATTERN = /打完(?:针|疫苗)|接种后|针眼|红肿|低烧|发热|发烧|小红疙瘩|红疹|皮疹|不良反应|副作用|过敏|洗澡|护理/u;
 const VACCINATION_AUTHORITY_PATTERN = /vaccine|vaccination|immunization|immunisation|after vaccination|side effects?|reaction|疫苗|接种|免疫/u;
+const VACCINATION_CARE_AUTHORITY_PATTERN = /after vaccination|side effects?|adverse reactions?|vaccine reactions?|reaction|fever|swelling|redness|rash|allerg|接种后|疫苗反应|不良反应|副作用|发热|发烧|低烧|红肿|皮疹|红疹|小红疙瘩|过敏|针眼|护理|洗澡/u;
+const BROAD_VACCINATION_POLICY_PATTERN = /国家免疫规划|扩大国家免疫规划|免疫规划范围|免疫程序调整|目标和任务|贯彻|组织实施|工作方案|工作通知|政策解读|接种率|预防接种证|查验|追溯|监管/u;
+const VACCINATION_POLICY_STRONG_PATTERN = /国家免疫规划|扩大国家免疫规划|免疫规划范围|免疫程序调整|目标和任务|贯彻|组织实施|工作方案|工作通知|政策解读/u;
 
 const MEDICAL_YELLOW_PATTERN = /发烧|发热|咳嗽|腹泻|拉肚子|呕吐|便秘|湿疹|黄疸|腹痛|出血|见红|流血|宫缩|水肿|胎动|疫苗|接种|用药|感冒|感染|过敏|疼|痛|fever|diarrhea|vomit|bleeding|vaccine|medication/i;
 const MEDICAL_RED_PATTERN = /呼吸困难|抽搐|惊厥|意识异常|昏迷|大出血|破水|胎动消失|高热不退|脱水|shortness of breath|seizure|unresponsive/i;
@@ -753,6 +758,55 @@ function isChineseSource(candidate: AuthorityCandidate): boolean {
   return /CN|zh|nhc|chinacdc|govcn|ndcpa|msd-manuals-cn|ncwch|mchscn|cnsoc|chinanutri|cma-kepu|中国|国家|疾控|卫健委|msdmanuals\.cn/i.test(text);
 }
 
+function hasPostVaccinationCareIntent(intentText: string): boolean {
+  return VACCINATION_TERM_PATTERN.test(intentText) && POST_VACCINATION_CARE_INTENT_PATTERN.test(intentText);
+}
+
+function getVaccinationReactionAuthorityScore(item: QAPair, candidate: AuthorityCandidate): number {
+  const intentText = buildIntentText(item).toLowerCase();
+  if (
+    candidate.resolvedTopic !== 'vaccination'
+    || !hasPostVaccinationCareIntent(intentText)
+    || !VACCINATION_AUTHORITY_PATTERN.test(candidate.normalizedStrongText)
+  ) {
+    return 0;
+  }
+
+  const authorityText = candidate.normalizedText;
+  if (VACCINATION_POLICY_STRONG_PATTERN.test(candidate.normalizedStrongText)) {
+    return -54;
+  }
+
+  if (VACCINATION_CARE_AUTHORITY_PATTERN.test(authorityText)) {
+    return 16;
+  }
+
+  if (BROAD_VACCINATION_POLICY_PATTERN.test(authorityText)) {
+    return -54;
+  }
+
+  return -24;
+}
+
+function isDisallowedForIntent(item: QAPair, candidate: AuthorityCandidate): boolean {
+  const intentText = buildIntentText(item).toLowerCase();
+  if (
+    candidate.resolvedTopic === 'vaccination'
+    && hasPostVaccinationCareIntent(intentText)
+    && (
+      VACCINATION_POLICY_STRONG_PATTERN.test(candidate.normalizedStrongText)
+      || (
+        !VACCINATION_CARE_AUTHORITY_PATTERN.test(candidate.normalizedText)
+        && BROAD_VACCINATION_POLICY_PATTERN.test(candidate.normalizedText)
+      )
+    )
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
 function getIntentSpecificScore(item: QAPair, candidate: AuthorityCandidate): number {
   const intentText = buildIntentText(item).toLowerCase();
   const strongText = candidate.normalizedStrongText;
@@ -773,11 +827,7 @@ function getIntentSpecificScore(item: QAPair, candidate: AuthorityCandidate): nu
     score += 18;
   }
 
-  if (candidate.resolvedTopic === 'vaccination'
-    && VACCINATION_REACTION_INTENT_PATTERN.test(intentText)
-    && VACCINATION_AUTHORITY_PATTERN.test(strongText)) {
-    score += 12;
-  }
+  score += getVaccinationReactionAuthorityScore(item, candidate);
 
   if (/vitamin k shot|newborn needs a vitamin k/u.test(strongText)
     && !/(维生素\s*k|vitamin\s*k|新生儿|出生|脐带)/iu.test(intentText)) {
@@ -828,6 +878,7 @@ function scoreCandidate(
     matchType: matchedTerms.length > 0 ? 'lexical' : 'category_fallback',
     matchedTerms,
     hasUsefulLexicalMatch,
+    isDisallowedForIntent: isDisallowedForIntent(item, candidate),
   };
 }
 
@@ -844,7 +895,8 @@ function findAuthorityMatches(
     .filter((candidate) => !options.requireOfficialReference || candidate.authoritative)
     .map((candidate) => scoreCandidate(item, candidate, qaTopic, qaStages, searchTerms))
     .filter((match) => (
-      match.hasUsefulLexicalMatch
+      !match.isDisallowedForIntent
+      && match.hasUsefulLexicalMatch
       && match.score >= options.minScore
     ))
     .sort((left, right) => {
