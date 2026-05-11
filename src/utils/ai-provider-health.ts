@@ -16,7 +16,7 @@ const SUPPORTED_TASK_ROLES = new Set<AITaskModelRole>(['glm_classify', 'kimi_rea
 
 export interface AIProviderHealthReport {
   generatedAt: string;
-  status: 'ok' | 'failed';
+  status: 'ok' | 'failed' | 'degraded';
   taskRole: AITaskModelRole | string;
   timeoutMs: number;
   maxTokens: number;
@@ -83,6 +83,10 @@ function answerMatchesExpected(answer: string, expectedAnswer: string): boolean 
 
   return new RegExp(`(^|\\D)${normalizedExpected.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\D|$)`, 'u')
     .test(normalizedAnswer);
+}
+
+function isTransientGatewayFailure(status?: number): boolean {
+  return typeof status === 'number' && status >= 500 && status < 600;
 }
 
 export async function buildAIProviderHealthReport(
@@ -157,7 +161,7 @@ export async function buildAIProviderHealthReport(
 
     return {
       generatedAt: options.now || new Date().toISOString(),
-      status: 'failed',
+      status: isTransientGatewayFailure(gatewayError.gatewayStatus) ? 'degraded' : 'failed',
       taskRole,
       timeoutMs,
       maxTokens,

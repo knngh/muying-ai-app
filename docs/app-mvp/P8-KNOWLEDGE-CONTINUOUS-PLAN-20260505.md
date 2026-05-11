@@ -275,6 +275,8 @@ DRY_RUN=false npm run retry:authority-translation-failures
 
 2026-05-11 P3-23 切片：根据 P3-22 暴露的缺口样例，dataset guard 新增 `personal_treatment_request` 和 `diagnosed_case_followup` 分流，用于排除具体用药/药膏/治疗方案请求，以及已确诊严重疾病后的个人病例追问；普通疫苗反应、宝宝发热、孕期就医边界等仍保留在知识库覆盖目标中。该切片继续按质量收紧分母，不靠降低匹配阈值提升覆盖。
 
+2026-05-11 P3-24 切片：AI provider 健康探针区分“临时上游 5xx 降级”和“配置/认证/答案错误失败”。Modal Direct / GLM 5.1 返回 503 这类上游短暂不可用时，`ops:ai:health` 输出 `status=degraded` 并保留错误摘要，但每日知识状态不再因此进入 `attention`；401、配置缺失、答案不匹配仍保持失败告警。
+
 ## 7.1 P3：知识运营与推广联动
 
 目标：在 P2 已完成的基础上，把权威覆盖继续推进到 `80%+`，并让知识库成果直接服务安全推广。
@@ -307,6 +309,7 @@ DRY_RUN=false npm run retry:authority-translation-failures
 24. P3-21 已完成 target80 缺口诊断增强：缺口 breakdown 按 guard 后分母统计，并补充缺口 topic 对应的现有权威源候选摘要。
 25. P3-22 已完成 target80 缺口行动分流：缺口 topic 会输出 QA 样例、分类分布和 `inspect_matching_rules` / `add_authority_sources` 建议动作。
 26. P3-23 已完成治疗诉求和严重确诊病例分流：个人用药/治疗请求与已确诊严重疾病追问不再进入自动覆盖目标。
+27. P3-24 已完成 AI health 降级语义：Modal Direct 临时 5xx 不再把每日状态拉成 attention，真实配置/认证/答案错误仍告警。
 
 默认读取 `tmp/knowledge-ops-report.json` 中 `sourceCoverage.watchedSources` 的 `missing` / `low` 源，先 dry-run 打印将刷新列表；显式 `DRY_RUN=false` 后按源调用现有 `sync:authority` 能力刷新。可用 `AUTHORITY_SOURCE_IDS=mayo-clinic-zh,chinacdc-nutrition` 限定源。
 

@@ -541,6 +541,59 @@ describe('knowledge daily ops report', () => {
     ]);
   });
 
+  it('keeps the daily report ok when AI provider health is transiently degraded', () => {
+    const report = buildKnowledgeDailyOpsReport({
+      generatedAt: '2026-05-11T00:00:00.000Z',
+      applyFixes: false,
+      commands: [
+        { name: 'knowledge_ops_report', command: 'npm run ops:knowledge:report', ok: true, exitCode: 0, durationMs: 100 },
+        { name: 'ai_provider_health', command: 'npm run ops:ai:health', ok: true, exitCode: 0, durationMs: 1000 },
+      ],
+      knowledgeReport: {
+        coverage: {
+          coverageRate: 76.76,
+          authorityCovered: 2305,
+          missingAuthorityCoverage: 698,
+        },
+        translations: {
+          recordsForTranslation: 633,
+          cacheEntries: 633,
+          invalidCacheEntries: 0,
+          failureEntries: 0,
+        },
+        actionItems: [],
+      },
+      aiProviderHealthReport: {
+        generatedAt: '2026-05-11T00:00:00.000Z',
+        status: 'degraded',
+        taskRole: 'glm_classify',
+        timeoutMs: 45000,
+        maxTokens: 80,
+        binding: {
+          role: 'glm_classify',
+          provider: 'modal-direct',
+          model: 'zai-org/GLM-5.1-FP8',
+          configured: true,
+        },
+        call: {
+          attempted: true,
+          ok: false,
+          elapsedMs: 723,
+          error: {
+            message: 'AI Gateway error: 503',
+            gatewayStatus: 503,
+            gatewayProvider: 'modal-direct',
+            gatewayModel: 'zai-org/GLM-5.1-FP8',
+          },
+        },
+      },
+    });
+
+    expect(report.status).toBe('ok');
+    expect(report.remediation.aiProviderHealth?.status).toBe('degraded');
+    expect(report.nextActions).toEqual([]);
+  });
+
   it('marks report as failed when a command fails', () => {
     const report = buildKnowledgeDailyOpsReport({
       generatedAt: '2026-05-07T00:00:00.000Z',

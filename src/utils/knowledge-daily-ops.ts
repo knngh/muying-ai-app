@@ -132,7 +132,7 @@ export interface KnowledgeDailyOpsTranslationFailureRetryReport {
 
 export interface KnowledgeDailyOpsAIProviderHealthReport {
   generatedAt?: string;
-  status?: 'ok' | 'failed' | string;
+  status?: 'ok' | 'failed' | 'degraded' | string;
   taskRole?: string;
   timeoutMs?: number;
   maxTokens?: number;

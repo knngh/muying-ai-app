@@ -75,6 +75,41 @@ describe('AI provider health report', () => {
     expect(report.call.error?.message).not.toContain('secret-key-456');
   });
 
+  it('marks transient provider 5xx failures as degraded instead of failed', async () => {
+    const error = new Error('AI Gateway error: 503') as Error & {
+      gatewayStatus?: number;
+      gatewayProvider?: string;
+      gatewayModel?: string;
+    };
+    error.gatewayStatus = 503;
+    error.gatewayProvider = 'modal-direct';
+    error.gatewayModel = 'zai-org/GLM-5.1-FP8';
+
+    const report = await buildAIProviderHealthReport({
+      now: '2026-05-11T00:00:00.000Z',
+      callTaskModel: jest.fn().mockRejectedValue(error),
+      getBindings: jest.fn().mockReturnValue([{
+        role: 'glm_classify',
+        model: 'zai-org/GLM-5.1-FP8',
+        provider: 'modal-direct',
+        configured: true,
+      }]),
+    });
+
+    expect(report).toMatchObject({
+      status: 'degraded',
+      call: {
+        attempted: true,
+        ok: false,
+        error: {
+          gatewayStatus: 503,
+          gatewayProvider: 'modal-direct',
+          gatewayModel: 'zai-org/GLM-5.1-FP8',
+        },
+      },
+    });
+  });
+
   it('fails without attempting a call for unsupported task roles', async () => {
     const callTaskModel = jest.fn();
     const report = await buildAIProviderHealthReport({
