@@ -214,6 +214,80 @@ describe('knowledge content guards', () => {
     })).toBeNull();
   });
 
+  it('rejects low-information forms, adult reproductive cases, and biometric calculation records', () => {
+    expect(getDatasetKnowledgeDropReason({
+      question: '全部症状：发病时间及原因：治疗情况：一直不知道对孩子不会所以就没当回事。',
+      answer: '症状处理建议',
+      category: 'common-symptoms',
+      tags: ['母婴'],
+    })).toBe('low_information_case_template');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '我生完小孩后，给小孩断奶后，发现自己的乳房一变大一变小，穿衣服都很明显怎么办？',
+      answer: '症状处理建议',
+      category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBe('adult_reproductive_case');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '每次月经十多天才干净，生完孩子后做过利普刀，现在还是这样是什么原因？',
+      answer: '症状处理建议',
+      category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBe('adult_reproductive_case');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '帮忙算下胎儿多重双顶径9.0cm，股骨长7.1cm，腹围98，这个可以算出宝宝多重吗',
+      answer: '症状处理建议',
+      category: 'pregnancy-early',
+      tags: ['母婴'],
+    })).toBe('biometric_measurement_case');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '宝宝头围30.7cm，腹围29.9cm，肱骨长5.5cm，股骨长6.6cm可以算出宝宝有多重吗？',
+      answer: '症状处理建议',
+      category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBe('biometric_measurement_case');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '孕妇用补充DHA吗，有人说吃孕妇DHA胶囊对宝宝大脑视力发育好是真的吗？',
+      answer: '孕期营养补充建议',
+      category: 'common-development',
+      tags: ['母婴'],
+    })).toBeNull();
+  });
+
+  it('rejects emergency ingestion and complex diagnosed follow-up records without blocking common care questions', () => {
+    expect(getDatasetKnowledgeDropReason({
+      question: '我家孩子把水银吃了，一岁了，怎么办啊，都有哪些明显症状？',
+      answer: '症状处理建议',
+      category: 'common-symptoms',
+      tags: ['母婴'],
+    })).toBe('emergency_or_poisoning_case');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '宝宝8个月不会主动伸手拿东西，坐不稳，不会扶站。检查运动神经发育迟缓，核磁共振结果是第三脑室稍饱满。应该怎样治疗，要治疗多久康复？',
+      answer: '症状处理建议',
+      category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBe('diagnosed_case_followup');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '宝宝8个月不会主动伸手拿东西，坐不稳怎么办',
+      answer: '观察发育表现，必要时就医评估。',
+      category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBeNull();
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '宝宝发烧怎么办',
+      answer: '发热时观察体温、精神状态和进食情况。',
+      category: 'common-symptoms',
+      tags: ['母婴'],
+    })).toBeNull();
+  });
+
   it('rejects obvious off-scope search queries before random authority boosting', () => {
     expect(isOutOfScopeKnowledgeQuery('中文调研')).toBe(true);
     expect(isOutOfScopeKnowledgeQuery('青春期发育')).toBe(true);

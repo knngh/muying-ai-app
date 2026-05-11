@@ -44,9 +44,30 @@ const UNSUPPORTED_SERVICE_REQUEST_PATTERN = /哪家医院(?:最好|好)|(?:医�
 
 const PERSONAL_TREATMENT_REQUEST_PATTERN = /(?:用|抹|涂|吃|服用|注射).{0,10}(?:药|药膏|康瑞保|美皮护|抗生素|消炎药|退烧药|针剂).{0,12}(?:有用|管用|可以|行吗|能用|能吃)|(?:如何|怎么|怎样).{0,8}(?:治疗|用药)|(?:应如何|怎么).{0,8}治疗/u;
 
-const DIAGNOSED_CASE_FOLLOWUP_PATTERN = /(?:去医院检查|医院检查|检查了|检查说|医生说|诊断为|确诊为|患有|得了).{0,24}(?:支气管哮喘|脑桥小脑角综合征|脑积水|白癜风|胆囊癌|肿瘤|癌|综合征|罕见病)|(?:医生建议|配合治疗|治疗方案|复查结果|检查结果).{0,24}(?:治疗|用药|手术|饮食习惯|注意事项)/u;
+const DIAGNOSED_CASE_FOLLOWUP_PATTERN = /(?:去医院检查|医院检查|检查了|检查说|医生说|诊断为|确诊为|患有|得了).{0,30}(?:支气管哮喘|脑桥小脑角综合征|脑积水|白癜风|胆囊癌|肿瘤|癌|综合征|罕见病|发育迟缓|脑室|侧脑室|颅后窝池|颅骨骨折|鼻漏|肾.{0,8}(?:囊肿|发育不正常)|巨型输尿管)|(?:医生建议|配合治疗|治疗方案|复查结果|检查结果|核磁共振|磁共振|脑电图|心脏彩超).{0,30}(?:治疗|用药|手术|康复|多久|饮食习惯|注意事项)|(?:重型手足口病|脑炎|颅骨骨折|鼻漏|运动神经发育迟缓|第三脑室|巨型输尿管|肾.{0,8}(?:囊肿|发育不正常)).{0,36}(?:怎么办|治疗|康复|影响|生活能行|严重吗)/u;
 
-const HIGH_SENSITIVITY_PATTERN = /人流|人工流产|引产|堕胎|坠胎|清宫|药流|打掉(?:孩子|小孩|胎儿)|流掉(?:孩子|小孩|胎儿)|不要(?:这个)?(?:孩子|小孩|胎儿)|不想要(?:这个)?(?:孩子|小孩|胎儿)|宫外孕|异位妊娠|胎停|稽留流产|胎死|死胎|死产|死亡|猝死|畸形|大出血|脑内出血|缺氧|心脏发育异常|唐氏儿|癌|肿瘤/u;
+const LOW_INFORMATION_CASE_TEMPLATE_PATTERN = /全部症状[:：]\s*(?:发病时间|治疗情况)|发病时间及原因[:：]\s*治疗情况|想要得到什么帮助[（(]5个汉字以上[）)]/u;
+
+const ADULT_REPRODUCTIVE_CASE_PATTERN = /(?:月经|大姨妈|房事|同房|紧急避孕药|安全期|宫颈(?:糜|靡)烂|利普刀|尿血|血块|膀胱下坠|尿急尿痛|妇科病).{0,36}(?:怀孕|宝宝|孩子|小孩|怎么办|什么原因|影响)|(?:生完(?:小孩|孩子)|产后|断奶后).{0,36}(?:会阴撕裂|宫颈(?:糜|靡)烂|利普刀|月经|乳房.{0,12}(?:一变大一变小|明显|大小不一)|尿血|膀胱下坠)/u;
+
+const EMERGENCY_OR_POISONING_CASE_PATTERN = /(?:水银|纽扣电池|异物|颗粒|硬币).{0,20}(?:吃了|吞了|入口|进嘴|误食|误吞)|(?:呼吸困难|喘气不匀|昏睡|抽搐|抽风|窒息).{0,24}(?:宝宝|孩子|小孩|婴儿|新生儿|预防针|接种)|(?:宝宝|孩子|小孩|婴儿|新生儿).{0,24}(?:呼吸困难|喘气不匀|昏睡|抽搐|抽风|窒息)/u;
+
+const BIOMETRIC_MEASUREMENT_PATTERNS = [
+  /双顶[径颈]/u,
+  /股骨长/u,
+  /头围/u,
+  /腹围/u,
+  /肱骨长/u,
+  /羊水(?:指数|量|最大深度)?/u,
+  /侧脑室/u,
+  /颅后窝池/u,
+  /脐动脉|S\/D/u,
+  /B超|彩超|三维|四维/u,
+];
+
+const BIOMETRIC_CALCULATION_INTENT_PATTERN = /算(?:出|下)?|估计|大概|多重|多长|体重|身高|腿长|腿短|发育正常|正常吗/u;
+
+const HIGH_SENSITIVITY_PATTERN = /人流|人工流产|想要流产|引产|堕胎|坠胎|清宫|药流|打掉(?:孩子|小孩|胎儿)|流掉(?:孩子|小孩|胎儿)|不要(?:这个)?(?:孩子|小孩|胎儿)|不想要(?:这个)?(?:孩子|小孩|胎儿)|不能要(?:了|这个)?(?:孩子|小孩|宝宝|胎儿)|孩子是不是不能要|宫外孕|异位妊娠|胎停|稽留流产|胎死|死胎|死产|死亡|猝死|畸形|大出血|脑内出血|缺氧|心脏发育异常|唐氏儿|癌|肿瘤/u;
 
 // Product-level blocklist for knowledge articles and authority cache records.
 // Death-related terms are intentionally broad: even statistical/public-policy
@@ -207,6 +228,16 @@ function hasCategoryScopeConflict(record: KnowledgeGuardRecord): boolean {
   return false;
 }
 
+function isBiometricMeasurementCase(question: string): boolean {
+  const matchedCount = BIOMETRIC_MEASUREMENT_PATTERNS.filter((pattern) => pattern.test(question)).length;
+  if (matchedCount >= 2 && BIOMETRIC_CALCULATION_INTENT_PATTERN.test(question)) {
+    return true;
+  }
+
+  return /(?:胎儿|宝宝|孩子).{0,18}(?:多重|多长|体重|身高)|(?:多重|多长|体重|身高).{0,18}(?:胎儿|宝宝|孩子)/u.test(question)
+    && /(?:cm|mm|厘米|CM|MM|双顶|股骨|头围|腹围|肱骨)/u.test(question);
+}
+
 export function getDatasetKnowledgeDropReason(record: KnowledgeGuardRecord): string | null {
   const question = getQuestion(record);
   if (!question || question.length < 4) {
@@ -216,6 +247,10 @@ export function getDatasetKnowledgeDropReason(record: KnowledgeGuardRecord): str
   const text = getRecordText(record);
   if (NON_CONTENT_PATTERN.test(text)) {
     return 'non_content_or_research';
+  }
+
+  if (LOW_INFORMATION_CASE_TEMPLATE_PATTERN.test(question)) {
+    return 'low_information_case_template';
   }
 
   if (UNSUPPORTED_SERVICE_REQUEST_PATTERN.test(question)) {
@@ -238,12 +273,24 @@ export function getDatasetKnowledgeDropReason(record: KnowledgeGuardRecord): str
     return 'high_sensitivity_dataset_topic';
   }
 
-  if (PERSONAL_TREATMENT_REQUEST_PATTERN.test(question)) {
-    return 'personal_treatment_request';
+  if (ADULT_REPRODUCTIVE_CASE_PATTERN.test(question)) {
+    return 'adult_reproductive_case';
   }
 
   if (DIAGNOSED_CASE_FOLLOWUP_PATTERN.test(question)) {
     return 'diagnosed_case_followup';
+  }
+
+  if (EMERGENCY_OR_POISONING_CASE_PATTERN.test(question)) {
+    return 'emergency_or_poisoning_case';
+  }
+
+  if (isBiometricMeasurementCase(question)) {
+    return 'biometric_measurement_case';
+  }
+
+  if (PERSONAL_TREATMENT_REQUEST_PATTERN.test(question)) {
+    return 'personal_treatment_request';
   }
 
   const authorityReason = getAuthorityKnowledgeDropReason(record);

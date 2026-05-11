@@ -277,6 +277,10 @@ DRY_RUN=false npm run retry:authority-translation-failures
 
 2026-05-11 P3-24 切片：AI provider 健康探针区分“临时上游 5xx 降级”和“配置/认证/答案错误失败”。Modal Direct / GLM 5.1 返回 503 这类上游短暂不可用时，`ops:ai:health` 输出 `status=degraded` 并保留错误摘要，但每日知识状态不再因此进入 `attention`；401、配置缺失、答案不匹配仍保持失败告警。
 
+2026-05-11 P3-25 切片：AI provider 健康探针继续补齐超时降级语义。已配置 provider 的健康探针超时会记录为 `degraded` 并补齐绑定的 provider/model 元数据，避免 Modal Direct 上游慢响应把每日知识状态误报为 attention；生产复测时 Modal Direct 返回 503，daily 仍保持 `status=ok`。
+
+2026-05-11 P3-26 切片：根据 target80 缺口样例继续收紧 dataset guard，新增低信息病例表单、成人产后/妇科个案、胎儿/宝宝 B 超测量估重计算、误食/呼吸困难等急症个案分流，并扩展严重确诊病例追问识别。该切片继续优先清理不适合自动覆盖目标和推广池的记录，不靠放宽权威匹配提升覆盖。
+
 ## 7.1 P3：知识运营与推广联动
 
 目标：在 P2 已完成的基础上，把权威覆盖继续推进到 `80%+`，并让知识库成果直接服务安全推广。
@@ -311,6 +315,7 @@ DRY_RUN=false npm run retry:authority-translation-failures
 26. P3-23 已完成治疗诉求和严重确诊病例分流：个人用药/治疗请求与已确诊严重疾病追问不再进入自动覆盖目标。
 27. P3-24 已完成 AI health 降级语义：Modal Direct 临时 5xx 不再把每日状态拉成 attention，真实配置/认证/答案错误仍告警。
 28. P3-25 已完成 AI health 超时降级语义：已配置 provider 的健康探针超时会记录为 `degraded` 并带上绑定的 provider/model 元数据，避免 Modal Direct 上游慢响应把每日状态误报为 attention。
+29. P3-26 已完成 target80 缺口质量清理：低信息病例表单、成人产后/妇科个案、B 超测量估重计算、误食/呼吸困难急症个案和复杂确诊追问不再进入自动覆盖目标。
 
 默认读取 `tmp/knowledge-ops-report.json` 中 `sourceCoverage.watchedSources` 的 `missing` / `low` 源，先 dry-run 打印将刷新列表；显式 `DRY_RUN=false` 后按源调用现有 `sync:authority` 能力刷新。可用 `AUTHORITY_SOURCE_IDS=mayo-clinic-zh,chinacdc-nutrition` 限定源。
 
