@@ -42,6 +42,10 @@ const SUPPORT_POLICY_QUERY_PATTERN = /育儿补贴|生育保险|个税|个人所
 
 const UNSUPPORTED_SERVICE_REQUEST_PATTERN = /哪家医院(?:最好|好)|(?:医院|儿科|产科|妇产科|治疗医院).{0,12}(?:最好|好一点|哪家)|(?:免费治疗|接受免费治疗)|(?:孩子|宝宝).{0,12}(?:是谁的|谁的)|(?:是谁的|谁的).{0,12}(?:孩子|宝宝)/u;
 
+const PERSONAL_TREATMENT_REQUEST_PATTERN = /(?:用|抹|涂|吃|服用|注射).{0,10}(?:药|药膏|康瑞保|美皮护|抗生素|消炎药|退烧药|针剂).{0,12}(?:有用|管用|可以|行吗|能用|能吃)|(?:如何|怎么|怎样).{0,8}(?:治疗|用药)|(?:应如何|怎么).{0,8}治疗/u;
+
+const DIAGNOSED_CASE_FOLLOWUP_PATTERN = /(?:去医院检查|医院检查|检查了|检查说|医生说|诊断为|确诊为|患有|得了).{0,24}(?:支气管哮喘|脑桥小脑角综合征|脑积水|白癜风|胆囊癌|肿瘤|癌|综合征|罕见病)|(?:医生建议|配合治疗|治疗方案|复查结果|检查结果).{0,24}(?:治疗|用药|手术|饮食习惯|注意事项)/u;
+
 const HIGH_SENSITIVITY_PATTERN = /人流|人工流产|引产|堕胎|坠胎|清宫|药流|打掉(?:孩子|小孩|胎儿)|流掉(?:孩子|小孩|胎儿)|不要(?:这个)?(?:孩子|小孩|胎儿)|不想要(?:这个)?(?:孩子|小孩|胎儿)|宫外孕|异位妊娠|胎停|稽留流产|胎死|死胎|死产|死亡|猝死|畸形|大出血|脑内出血|缺氧|心脏发育异常|唐氏儿|癌|肿瘤/u;
 
 // Product-level blocklist for knowledge articles and authority cache records.
@@ -230,15 +234,23 @@ export function getDatasetKnowledgeDropReason(record: KnowledgeGuardRecord): str
     return 'off_scope_adult_health';
   }
 
+  if (HIGH_SENSITIVITY_PATTERN.test(text)) {
+    return 'high_sensitivity_dataset_topic';
+  }
+
+  if (PERSONAL_TREATMENT_REQUEST_PATTERN.test(question)) {
+    return 'personal_treatment_request';
+  }
+
+  if (DIAGNOSED_CASE_FOLLOWUP_PATTERN.test(question)) {
+    return 'diagnosed_case_followup';
+  }
+
   const authorityReason = getAuthorityKnowledgeDropReason(record);
   if (authorityReason) {
     return authorityReason === 'death_related_term' || authorityReason === 'high_sensitivity_topic'
       ? 'high_sensitivity_dataset_topic'
       : authorityReason;
-  }
-
-  if (HIGH_SENSITIVITY_PATTERN.test(text)) {
-    return 'high_sensitivity_dataset_topic';
   }
 
   if (hasCategoryScopeConflict(record)) {

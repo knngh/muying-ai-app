@@ -273,6 +273,8 @@ DRY_RUN=false npm run retry:authority-translation-failures
 
 2026-05-10 P3-22 切片：`coverage.target80.candidateAuthority.byMissingTopic` 继续补充缺口 QA 样例、缺口分类分布和建议动作。若同 topic 已有权威源，标记 `inspect_matching_rules`，优先诊断安全匹配规则；若同 topic 没有权威源，标记 `add_authority_sources`，再进入补源流程。该切片仍只读，不改变权威增强匹配阈值或生产数据。
 
+2026-05-11 P3-23 切片：根据 P3-22 暴露的缺口样例，dataset guard 新增 `personal_treatment_request` 和 `diagnosed_case_followup` 分流，用于排除具体用药/药膏/治疗方案请求，以及已确诊严重疾病后的个人病例追问；普通疫苗反应、宝宝发热、孕期就医边界等仍保留在知识库覆盖目标中。该切片继续按质量收紧分母，不靠降低匹配阈值提升覆盖。
+
 ## 7.1 P3：知识运营与推广联动
 
 目标：在 P2 已完成的基础上，把权威覆盖继续推进到 `80%+`，并让知识库成果直接服务安全推广。
@@ -304,6 +306,7 @@ DRY_RUN=false npm run retry:authority-translation-failures
 23. P3-20 已完成 daily/report 覆盖审计文件对齐：每日状态会读取同一轮刚生成的 coverage audit。
 24. P3-21 已完成 target80 缺口诊断增强：缺口 breakdown 按 guard 后分母统计，并补充缺口 topic 对应的现有权威源候选摘要。
 25. P3-22 已完成 target80 缺口行动分流：缺口 topic 会输出 QA 样例、分类分布和 `inspect_matching_rules` / `add_authority_sources` 建议动作。
+26. P3-23 已完成治疗诉求和严重确诊病例分流：个人用药/治疗请求与已确诊严重疾病追问不再进入自动覆盖目标。
 
 默认读取 `tmp/knowledge-ops-report.json` 中 `sourceCoverage.watchedSources` 的 `missing` / `low` 源，先 dry-run 打印将刷新列表；显式 `DRY_RUN=false` 后按源调用现有 `sync:authority` 能力刷新。可用 `AUTHORITY_SOURCE_IDS=mayo-clinic-zh,chinacdc-nutrition` 限定源。
 

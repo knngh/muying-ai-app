@@ -184,6 +184,36 @@ describe('knowledge content guards', () => {
     })).toBe('unsupported_service_request');
   });
 
+  it('rejects treatment-seeking and severe diagnosed case records from dataset coverage', () => {
+    expect(getDatasetKnowledgeDropReason({
+      question: '孩子额头受伤很深，拆线后瘢痕凸起，用康瑞保和美皮护有用吗？',
+      answer: '症状处理建议',
+      category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBe('personal_treatment_request');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '我家小孩子最近总是呼吸困难，去医院检查说是支气管哮喘，医生建议及时配合治疗和注意饮食习惯。',
+      answer: '症状处理建议',
+      category: 'parenting-3-6',
+      tags: ['母婴'],
+    })).toBe('diagnosed_case_followup');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '孩子检查说是脑桥小脑角综合征，这个病容易与哪些症状混淆？',
+      answer: '症状处理建议',
+      category: 'common-symptoms',
+      tags: ['母婴'],
+    })).toBe('diagnosed_case_followup');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '宝宝接种百白破后眼睛周围起小红疙瘩怎么办？',
+      answer: '观察皮疹、精神状态和呼吸情况，必要时就医。',
+      category: 'vaccine-reaction',
+      tags: ['母婴'],
+    })).toBeNull();
+  });
+
   it('rejects obvious off-scope search queries before random authority boosting', () => {
     expect(isOutOfScopeKnowledgeQuery('中文调研')).toBe(true);
     expect(isOutOfScopeKnowledgeQuery('青春期发育')).toBe(true);
