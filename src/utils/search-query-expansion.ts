@@ -45,7 +45,7 @@ const GLOSSARY: GlossaryEntry[] = [
   { terms: ['宝宝', '婴儿'], expansions: ['baby', 'infant'] },
   { terms: ['幼儿'], expansions: ['toddler'] },
   { terms: ['孩子', '儿童'], expansions: ['child', 'children'] },
-  { terms: ['疫苗', '接种', '打针'], expansions: ['vaccine', 'vaccination', 'immunization', 'shot'] },
+  { terms: ['疫苗', '接种', '打针', '打完针', '预防针', '百白破', '白百破', '脊灰', '流脑', '腮腺炎'], expansions: ['vaccine', 'vaccination', 'immunization', 'shot'] },
   { terms: ['同伴', '同龄人'], expansions: ['peer', 'peers'] },
   { terms: ['社交'], expansions: ['social', 'social skills'] },
   { terms: ['学校'], expansions: ['school'] },

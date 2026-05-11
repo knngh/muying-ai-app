@@ -262,4 +262,43 @@ describe('knowledge enrichment', () => {
       status: 'missing',
     });
   });
+
+  it('matches infant post-vaccination reaction QA to vaccination authority records', () => {
+    const result = enrichKnowledgeBaseRecords(
+      [
+        qaFixture({
+          id: 'qa-vaccine-reaction',
+          category: 'parenting-0-1',
+          question: '五个半月的宝宝今天打完百白破预防针，晚上眼睛周围起了小红疙瘩怎么办？',
+          answer: '想了解接种后皮疹和低烧的家庭观察边界。',
+        }),
+      ],
+      [
+        authorityFixture({
+          id: 'authority-msd-vaccine',
+          question: '儿童疫苗接种 - 儿童的健康问题',
+          answer: '儿童疫苗接种可以预防多种感染。疫苗接种后可能会出现轻微发热、局部红肿等反应，家长应观察精神状态和严重过敏表现。'.repeat(8),
+          topic: 'vaccination',
+          category: 'vaccination',
+          tags: ['疫苗', '婴幼儿家长'],
+          target_stage: ['0-6-months', '6-12-months'],
+          source_id: 'msd-manuals-cn',
+          source_org: 'MSD Manuals',
+          source: 'MSD Manuals',
+          source_url: 'https://www.msdmanuals.cn/home/children-s-health-issues/vaccination/childhood-vaccination',
+        }),
+      ],
+    );
+
+    expect(result.report.enriched).toBe(1);
+    expect(result.records[0]?.references?.[0]).toMatchObject({
+      sourceOrg: 'MSD Manuals',
+      sourceClass: 'official',
+      authoritative: true,
+    });
+    expect(result.records[0]?.metadata?.authorityCoverage).toMatchObject({
+      status: 'matched',
+      sourceIds: ['msd-manuals-cn'],
+    });
+  });
 });

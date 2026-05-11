@@ -236,6 +236,9 @@ const DOMAIN_TERM_EXPANSIONS: Array<{ terms: string[]; expansions: string[] }> =
   { terms: ['乙肝疫苗'], expansions: ['hepatitis b vaccine'] },
 ];
 
+const VACCINATION_REACTION_INTENT_PATTERN = /打完(?:针|疫苗)|接种后|预防针|百白破|白百破|脊灰|流脑|腮腺炎|红肿|低烧|发热|发烧|小红疙瘩|针眼/u;
+const VACCINATION_AUTHORITY_PATTERN = /vaccine|vaccination|immunization|immunisation|after vaccination|side effects?|reaction|疫苗|接种|免疫/u;
+
 const MEDICAL_YELLOW_PATTERN = /发烧|发热|咳嗽|腹泻|拉肚子|呕吐|便秘|湿疹|黄疸|腹痛|出血|见红|流血|宫缩|水肿|胎动|疫苗|接种|用药|感冒|感染|过敏|疼|痛|fever|diarrhea|vomit|bleeding|vaccine|medication/i;
 const MEDICAL_RED_PATTERN = /呼吸困难|抽搐|惊厥|意识异常|昏迷|大出血|破水|胎动消失|高热不退|脱水|shortness of breath|seizure|unresponsive/i;
 const GENERIC_TERMS = new Set([
@@ -768,6 +771,12 @@ function getIntentSpecificScore(item: QAPair, candidate: AuthorityCandidate): nu
   if (/(乙肝|百白破|麻腮风|卡介|疫苗|接种|预防针)/u.test(intentText)
     && /vaccine|vaccination|immunization|疫苗|接种|免疫/u.test(strongText)) {
     score += 18;
+  }
+
+  if (candidate.resolvedTopic === 'vaccination'
+    && VACCINATION_REACTION_INTENT_PATTERN.test(intentText)
+    && VACCINATION_AUTHORITY_PATTERN.test(strongText)) {
+    score += 12;
   }
 
   if (/vitamin k shot|newborn needs a vitamin k/u.test(strongText)
