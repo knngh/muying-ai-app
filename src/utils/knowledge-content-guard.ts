@@ -42,13 +42,15 @@ const SUPPORT_POLICY_QUERY_PATTERN = /育儿补贴|生育保险|个税|个人所
 
 const UNSUPPORTED_SERVICE_REQUEST_PATTERN = /哪家医院(?:最好|好)|(?:医院|儿科|产科|妇产科|治疗医院).{0,12}(?:最好|好一点|哪家)|(?:免费治疗|接受免费治疗)|(?:孩子|宝宝).{0,12}(?:是谁的|谁的)|(?:是谁的|谁的).{0,12}(?:孩子|宝宝)/u;
 
+const CHILD_CARE_SUBJECT_PATTERN = /宝宝|婴儿|新生儿|幼儿|小孩|孩子|男孩|女孩|女儿|儿子|儿童|月龄/u;
+
 const PERSONAL_TREATMENT_REQUEST_PATTERN = /(?:用|抹|涂|吃|服用|注射).{0,10}(?:药|药膏|康瑞保|美皮护|抗生素|消炎药|退烧药|针剂).{0,12}(?:有用|管用|可以|行吗|能用|能吃)|(?:如何|怎么|怎样).{0,8}(?:治疗|用药)|(?:应如何|怎么).{0,8}治疗/u;
 
 const DIAGNOSED_CASE_FOLLOWUP_PATTERN = /(?:去医院检查|医院检查|检查了|检查说|医生说|诊断为|确诊为|患有|得了).{0,30}(?:支气管哮喘|脑桥小脑角综合征|脑积水|白癜风|胆囊癌|肿瘤|癌|综合征|罕见病|发育迟缓|脑室|侧脑室|颅后窝池|颅骨骨折|鼻漏|肾.{0,8}(?:囊肿|发育不正常)|巨型输尿管)|(?:医生建议|配合治疗|治疗方案|复查结果|检查结果|核磁共振|磁共振|脑电图|心脏彩超).{0,30}(?:治疗|用药|手术|康复|多久|饮食习惯|注意事项)|(?:重型手足口病|脑炎|颅骨骨折|鼻漏|运动神经发育迟缓|第三脑室|巨型输尿管|肾.{0,8}(?:囊肿|发育不正常)).{0,36}(?:怎么办|治疗|康复|影响|生活能行|严重吗)/u;
 
 const LOW_INFORMATION_CASE_TEMPLATE_PATTERN = /全部症状[:：]\s*(?:发病时间|治疗情况)|发病时间及原因[:：]\s*治疗情况|想要得到什么帮助[（(]5个汉字以上[）)]/u;
 
-const ADULT_REPRODUCTIVE_CASE_PATTERN = /(?:月经|大姨妈|房事|同房|紧急避孕药|安全期|宫颈(?:糜|靡)烂|利普刀|尿血|血块|膀胱下坠|尿急尿痛|妇科病).{0,36}(?:怀孕|宝宝|孩子|小孩|怎么办|什么原因|影响)|(?:生完(?:小孩|孩子)|产后|断奶后).{0,36}(?:会阴撕裂|宫颈(?:糜|靡)烂|利普刀|月经|乳房.{0,12}(?:一变大一变小|明显|大小不一)|尿血|膀胱下坠)/u;
+const ADULT_REPRODUCTIVE_CASE_PATTERN = /(?:月经|大姨妈|房事|同房|性生活|紧急避孕药|安全期|宫颈(?:糜|靡)烂|利普刀|尿血|血块|膀胱下坠|尿急尿痛|妇科病).{0,36}(?:怀孕|宝宝|孩子|小孩|怎么办|什么原因|影响)|(?:男性|男方|丈夫|老公).{0,18}(?:发烧|打针|吃药|用药|接种).{0,24}(?:性生活|怀孕|胎儿|宝宝)|(?:生完(?:小孩|孩子)|产后|断奶后).{0,36}(?:会阴撕裂|宫颈(?:糜|靡)烂|利普刀|月经|乳房.{0,12}(?:一变大一变小|明显|大小不一)|尿血|膀胱下坠)|(?:性生活|同房).{0,24}(?:怀孕|胎儿|宝宝|影响)/u;
 
 const EMERGENCY_OR_POISONING_CASE_PATTERN = /(?:水银|纽扣电池|异物|颗粒|硬币).{0,20}(?:吃了|吞了|入口|进嘴|误食|误吞)|(?:呼吸困难|喘气不匀|昏睡|抽搐|抽风|窒息).{0,24}(?:宝宝|孩子|小孩|婴儿|新生儿|预防针|接种)|(?:宝宝|孩子|小孩|婴儿|新生儿).{0,24}(?:呼吸困难|喘气不匀|昏睡|抽搐|抽风|窒息)/u;
 
@@ -198,7 +200,7 @@ function isInfantChildCareContext(text: string): boolean {
 }
 
 function isPregnancyPlanningContext(text: string): boolean {
-  return /备孕|孕前|准备要宝宝|想要宝宝|要宝宝|要孩子|准备要孩子|想要孩子|怀孕前|怀孕前期/u.test(text);
+  return /备孕|孕前|准备怀孕|想怀孕|计划怀孕|准备要宝宝|想要宝宝|要宝宝|要孩子|准备要孩子|想要孩子|怀孕前|怀孕前期/u.test(text);
 }
 
 function hasCategoryScopeConflict(record: KnowledgeGuardRecord): boolean {
@@ -214,6 +216,10 @@ function hasCategoryScopeConflict(record: KnowledgeGuardRecord): boolean {
   }
 
   if (category.startsWith('parenting-') && isPregnancyOrPostpartumContext(question) && !isInfantChildCareContext(question)) {
+    return true;
+  }
+
+  if (/^vaccine-/.test(category) && isPregnancyPlanningContext(question) && !CHILD_CARE_SUBJECT_PATTERN.test(question)) {
     return true;
   }
 

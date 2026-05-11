@@ -117,6 +117,13 @@ describe('knowledge content guards', () => {
     })).toBe('category_scope_conflict');
 
     expect(getDatasetKnowledgeDropReason({
+      question: '医生我是一名教师，目前学校很多学生发烧。我准备怀孕，请问如果打甲流疫苗后，要多久才能怀孕啊？',
+      answer: '疫苗接种后备孕时间咨询',
+      category: 'vaccine-reaction',
+      tags: ['母婴'],
+    })).toBe('category_scope_conflict');
+
+    expect(getDatasetKnowledgeDropReason({
       question: '宝宝8个月不会主动伸手拿东西，坐不稳怎么办',
       answer: '观察发育表现，必要时就医评估。',
       category: 'parenting-0-1',
@@ -233,6 +240,13 @@ describe('knowledge content guards', () => {
       question: '每次月经十多天才干净，生完孩子后做过利普刀，现在还是这样是什么原因？',
       answer: '症状处理建议',
       category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBe('adult_reproductive_case');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '男性发烧打针期间有性生活怀孕对胎儿有什么影响',
+      answer: '症状处理建议',
+      category: 'vaccine-reaction',
       tags: ['母婴'],
     })).toBe('adult_reproductive_case');
 

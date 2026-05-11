@@ -285,6 +285,8 @@ DRY_RUN=false npm run retry:authority-translation-failures
 
 2026-05-11 P3-27 质量收口：生产 `/tmp` 预览发现接种后反应 QA 会误匹配 ChinaCDC 国家免疫规划方案页。已补回归测试并收紧反应护理意图：候选权威必须包含接种后反应/副作用/发热红肿/护理等信号；`国家免疫规划`、`免疫程序调整`、`贯彻`、`目标和任务`、`政策解读` 等政策/规划页不能单独给疫苗反应 QA 记为覆盖，有护理页竞争时优先护理页。
 
+2026-05-11 P3-28 切片：继续收紧 `vaccine-reaction` 错类分母。成人备孕 / 性生活 / 男方打针后怀孕影响这类记录如果被错分到婴幼儿疫苗反应分类，不再进入自动权威覆盖目标；宝宝接种百白破后红肿、皮疹等真实护理题保持保留。本地审计分母从 `2642` 收至 `2639`，`vaccine-reaction` 缺口从 `20` 收至 `18`，覆盖率为 `51.69%`。
+
 ## 7.1 P3：知识运营与推广联动
 
 目标：在 P2 已完成的基础上，把权威覆盖继续推进到 `80%+`，并让知识库成果直接服务安全推广。
@@ -321,6 +323,7 @@ DRY_RUN=false npm run retry:authority-translation-failures
 28. P3-25 已完成 AI health 超时降级语义：已配置 provider 的健康探针超时会记录为 `degraded` 并带上绑定的 provider/model 元数据，避免 Modal Direct 上游慢响应把每日状态误报为 attention。
 29. P3-26 已完成 target80 缺口质量清理：低信息病例表单、成人产后/妇科个案、B 超测量估重计算、误食/呼吸困难急症个案和复杂确诊追问不再进入自动覆盖目标。
 30. P3-27 已完成窄版疫苗反应权威匹配与政策页误匹配收口：婴幼儿接种后红肿、低烧、皮疹等问题可匹配同 topic 官方护理/副作用资料，但国家免疫规划、免疫程序调整、政策解读等页面不能单独作为反应护理覆盖依据。
+31. P3-28 已完成疫苗反应错类分母收口：成人备孕、性生活、男方用药 / 打针后怀孕影响等误入 `vaccine-reaction` 的记录不再进入婴幼儿接种后反应覆盖目标。
 
 默认读取 `tmp/knowledge-ops-report.json` 中 `sourceCoverage.watchedSources` 的 `missing` / `low` 源，先 dry-run 打印将刷新列表；显式 `DRY_RUN=false` 后按源调用现有 `sync:authority` 能力刷新。可用 `AUTHORITY_SOURCE_IDS=mayo-clinic-zh,chinacdc-nutrition` 限定源。
 
