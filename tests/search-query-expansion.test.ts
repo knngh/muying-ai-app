@@ -26,6 +26,22 @@ describe('search query expansion', () => {
     expect(matchesExpandedSearch('孕吐怎么办', 'Morning sickness and nausea during early pregnancy')).toBe(true);
   });
 
+  it('expands fetal movement decline terms to english pregnancy search phrases', () => {
+    const terms = expandSearchTerms('孕中期胎动减少怎么办');
+
+    expect(terms).toContain('decreased fetal movement');
+    expect(terms).toContain('reduced fetal movement');
+    expect(terms).toContain('kick count');
+  });
+
+  it('expands contraction and labor terms to english pregnancy search phrases', () => {
+    const terms = expandSearchTerms('快到预产期了，假宫缩和临产怎么区分？');
+
+    expect(terms).toContain('false labor');
+    expect(terms).toContain('braxton hicks contractions');
+    expect(terms).toContain('labor signs');
+  });
+
   it('matches glucose screening terms against english authority content', () => {
     expect(matchesExpandedSearch('糖耐什么时候做', 'Oral glucose tolerance test screening in pregnancy')).toBe(true);
   });

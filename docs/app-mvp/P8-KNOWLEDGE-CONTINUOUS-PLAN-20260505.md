@@ -327,6 +327,7 @@ DRY_RUN=false npm run retry:authority-translation-failures
 30. P3-27 已完成窄版疫苗反应权威匹配与政策页误匹配收口：婴幼儿接种后红肿、低烧、皮疹等问题可匹配同 topic 官方护理/副作用资料，但国家免疫规划、免疫程序调整、政策解读等页面不能单独作为反应护理覆盖依据。
 31. P3-28 已完成疫苗反应错类分母收口：成人备孕、性生活、男方用药 / 打针后怀孕影响等误入 `vaccine-reaction` 的记录不再进入婴幼儿接种后反应覆盖目标。
 32. P3-29 已完成共享搜索词库的窄版喂养 / 发育扩展与收口：`奶粉`、`吐奶`、`鱼肝油`、`维生素D`、`坐不稳`、`不会伸手`、`不会逗笑` 等术语可以安全召回现有喂养与发育权威页，同时 `奶粉` + 鼻血 / 腹泻 / 过敏 这类非喂养症状题不会再被 generic feeding / newborn 页误吃。
+33. P3-30 已完成孕中 / 孕晚期胎动与临产的窄版扩展与收口：`胎动减少`、`胎动频繁`、`假宫缩`、`临产` 等术语可以安全召回正文级命中的孕期权威页，同时泛化孕期页不会因为 `fetal` / `pregnancy` / `cold` 这类宽词误配到胎动题。
 
 默认读取 `tmp/knowledge-ops-report.json` 中 `sourceCoverage.watchedSources` 的 `missing` / `low` 源，先 dry-run 打印将刷新列表；显式 `DRY_RUN=false` 后按源调用现有 `sync:authority` 能力刷新。可用 `AUTHORITY_SOURCE_IDS=mayo-clinic-zh,chinacdc-nutrition` 限定源。
 

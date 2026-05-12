@@ -250,6 +250,10 @@ const FEEDING_SPECIFIC_CARE_INTENT_PATTERN = /吐奶|溢奶|拍嗝|反流|奶量
 const FEEDING_NON_CARE_SYMPTOM_PATTERN = /流鼻血|鼻血|鼻出血|发烧|发热|咳嗽|腹泻|拉肚子|湿疹|红疹|皮疹|过敏|呕吐|便血|黑便|脱水|黄疸|鼻塞|流涕|发炎|疼|痛|抽搐|惊厥|呼吸困难|皮肤发紫|精神差|不吃奶/u;
 const FEEDING_FORMULA_AUTHORITY_PATTERN = /formula|formula milk|baby formula|powdered formula|bottle feeding/u;
 const FEEDING_CARE_AUTHORITY_PATTERN = /spit up|spit-up|spitting up|burping|hiccups|feeding amount|milk intake|breastfeeding|solid foods?|complementary feeding|vitamin d|vitamin d supplements|iron supplements|allerg(y|ic)|cow'?s milk|hypoallergenic|special formula/u;
+const PREGNANCY_FETAL_MOVEMENT_INTENT_PATTERN = /胎动|胎心|胎动减少|胎动变少|胎动少|胎动异常|胎动频繁|fetal movement|kick count/u;
+const PREGNANCY_FETAL_MOVEMENT_AUTHORITY_PATTERN = /胎动|胎心|fetal movements?|baby movements?|decreased fetal movement|reduced fetal movement|kick count|counting kicks/u;
+const PREGNANCY_LABOR_INTENT_PATTERN = /宫缩|假宫缩|假性宫缩|规律宫缩|阵痛|临产|待产|分娩征兆|破水|contractions?|labou?r/u;
+const PREGNANCY_LABOR_AUTHORITY_PATTERN = /宫缩|假宫缩|假性宫缩|规律宫缩|阵痛|临产|待产|分娩征兆|破水|见红|braxton hicks|false labou?r|practice contractions|regular contractions|true labou?r|labor signs|rupture of membranes|water broke|bloody show/u;
 
 const MEDICAL_YELLOW_PATTERN = /发烧|发热|咳嗽|腹泻|拉肚子|呕吐|便秘|湿疹|黄疸|腹痛|出血|见红|流血|宫缩|水肿|胎动|疫苗|接种|用药|感冒|感染|过敏|疼|痛|fever|diarrhea|vomit|bleeding|vaccine|medication/i;
 const MEDICAL_RED_PATTERN = /呼吸困难|抽搐|惊厥|意识异常|昏迷|大出血|破水|胎动消失|高热不退|脱水|shortness of breath|seizure|unresponsive/i;
@@ -317,6 +321,7 @@ const GENERIC_TERMS = new Set([
   'trimester',
   'early',
   'show',
+  'fetal',
 ]);
 
 const BROAD_MATCH_TERMS = new Set([
@@ -349,6 +354,30 @@ const BROAD_MATCH_TERMS = new Set([
 const FULL_BODY_ALLOWED_SPECIFIC_TERMS = new Set([
   'bleeding',
   'spotting',
+  '胎动',
+  '胎心',
+  'fetal movement',
+  'fetal movements',
+  'decreased fetal movement',
+  'reduced fetal movement',
+  'kick count',
+  'counting kicks',
+  '宫缩',
+  '假宫缩',
+  '假性宫缩',
+  '规律宫缩',
+  '阵痛',
+  '临产',
+  '待产',
+  'braxton hicks contractions',
+  'false labor',
+  'practice contractions',
+  'regular contractions',
+  'true labor',
+  'labor signs',
+  'rupture of membranes',
+  'water broke',
+  'bloody show',
   'fever',
   'cough',
   'cold',
@@ -795,6 +824,28 @@ function getVaccinationReactionAuthorityScore(item: QAPair, candidate: Authority
   return -24;
 }
 
+function hasPregnancyFocusMismatch(intentText: string, authorityText: string): boolean {
+  const fetalMovementIntent = PREGNANCY_FETAL_MOVEMENT_INTENT_PATTERN.test(intentText);
+  const laborIntent = PREGNANCY_LABOR_INTENT_PATTERN.test(intentText);
+
+  if (!fetalMovementIntent && !laborIntent) {
+    return false;
+  }
+
+  const fetalMovementAuthority = PREGNANCY_FETAL_MOVEMENT_AUTHORITY_PATTERN.test(authorityText);
+  const laborAuthority = PREGNANCY_LABOR_AUTHORITY_PATTERN.test(authorityText);
+
+  if (fetalMovementIntent && laborIntent) {
+    return !fetalMovementAuthority && !laborAuthority;
+  }
+
+  if (fetalMovementIntent) {
+    return !fetalMovementAuthority;
+  }
+
+  return !laborAuthority;
+}
+
 function isDisallowedForIntent(item: QAPair, candidate: AuthorityCandidate): boolean {
   const intentText = buildIntentText(item).toLowerCase();
   if (
@@ -820,6 +871,13 @@ function isDisallowedForIntent(item: QAPair, candidate: AuthorityCandidate): boo
         && BROAD_VACCINATION_POLICY_PATTERN.test(candidate.normalizedText)
       )
     )
+  ) {
+    return true;
+  }
+
+  if (
+    candidate.resolvedTopic === 'pregnancy'
+    && hasPregnancyFocusMismatch(intentText, candidate.normalizedText)
   ) {
     return true;
   }
@@ -853,6 +911,18 @@ function getIntentSpecificScore(item: QAPair, candidate: AuthorityCandidate): nu
   if (/(乙肝|百白破|麻腮风|卡介|疫苗|接种|预防针)/u.test(intentText)
     && /vaccine|vaccination|immunization|疫苗|接种|免疫/u.test(strongText)) {
     score += 18;
+  }
+
+  if (candidate.resolvedTopic === 'pregnancy') {
+    if (PREGNANCY_FETAL_MOVEMENT_INTENT_PATTERN.test(intentText)
+      && PREGNANCY_FETAL_MOVEMENT_AUTHORITY_PATTERN.test(candidate.normalizedText)) {
+      score += 22;
+    }
+
+    if (PREGNANCY_LABOR_INTENT_PATTERN.test(intentText)
+      && PREGNANCY_LABOR_AUTHORITY_PATTERN.test(candidate.normalizedText)) {
+      score += 22;
+    }
   }
 
   score += getVaccinationReactionAuthorityScore(item, candidate);

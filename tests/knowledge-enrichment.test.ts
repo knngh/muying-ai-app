@@ -263,6 +263,125 @@ describe('knowledge enrichment', () => {
     });
   });
 
+  it('matches fetal movement decline QA to pregnancy authority body text', () => {
+    const result = enrichKnowledgeBaseRecords(
+      [
+        qaFixture({
+          id: 'qa-pregnancy-fetal-movement-reduced',
+          category: 'pregnancy-mid',
+          question: '怀孕八个月了，宝宝胎动次数减少，前几天感冒来，有关系吗？',
+          answer: '想了解胎动变化和什么时候需要联系医生。',
+        }),
+      ],
+      [
+        authorityFixture({
+          id: 'authority-msd-fetal-movement',
+          question: 'Pregnancy week-by-week guidance',
+          summary: 'General late pregnancy observation guidance.',
+          answer: 'If fetal movements seem decreased or reduced, contact a health professional for pregnancy care. 胎动明显减少或消失需要及时联系医生。'.repeat(8),
+          topic: 'pregnancy',
+          category: 'pregnancy',
+          tags: ['孕期'],
+          target_stage: ['second-trimester', 'third-trimester'],
+          source_id: 'msd-manuals-cn',
+          source_org: 'MSD Manuals',
+          source: 'MSD Manuals',
+          source_url: 'https://www.msdmanuals.cn/home/women-s-health-issues/normal-pregnancy',
+        }),
+      ],
+    );
+
+    expect(result.report.enriched).toBe(1);
+    expect(result.records[0]?.metadata?.authorityCoverage).toMatchObject({
+      status: 'matched',
+      authorityIds: ['authority-msd-fetal-movement'],
+      sourceIds: ['msd-manuals-cn'],
+    });
+  });
+
+  it('does not enrich fetal movement QA from generic pregnancy symptom wording', () => {
+    const result = enrichKnowledgeBaseRecords(
+      [
+        qaFixture({
+          id: 'qa-pregnancy-fetal-movement-incidental-cold',
+          category: 'pregnancy-mid',
+          question: '怀孕八个月了，宝宝胎动次数减少，前几天感冒来，有关系吗？',
+          answer: '想了解胎动减少是否和感冒有关。',
+        }),
+      ],
+      [
+        authorityFixture({
+          id: 'authority-nhs-morning-sickness',
+          question: 'Vomiting and morning sickness',
+          summary: 'NHS explains nausea and vomiting during pregnancy.',
+          answer: 'Nausea and vomiting can happen during pregnancy. People with cold or flu symptoms can ask a midwife or doctor about medicines in pregnancy.'.repeat(8),
+          topic: 'pregnancy',
+          category: 'pregnancy',
+          tags: ['孕期'],
+          target_stage: ['first-trimester', 'second-trimester', 'third-trimester'],
+          source_id: 'nhs',
+          source_org: 'NHS',
+          source: 'NHS',
+          source_url: 'https://www.nhs.uk/pregnancy/common-symptoms/vomiting-and-morning-sickness/',
+        }),
+      ],
+    );
+
+    expect(result.report.enriched).toBe(0);
+    expect(result.records[0]?.references).toBeUndefined();
+    expect(result.records[0]?.metadata?.authorityCoverage).toMatchObject({
+      status: 'missing',
+    });
+  });
+
+  it('matches contraction and labor QA to pregnancy authority body text', () => {
+    const result = enrichKnowledgeBaseRecords(
+      [
+        qaFixture({
+          id: 'qa-pregnancy-false-labor',
+          category: 'pregnancy-late',
+          question: '快到预产期了，假宫缩和临产怎么区分？',
+          answer: '想了解假宫缩、规律宫缩和出现临产信号时的就医边界。',
+        }),
+      ],
+      [
+        authorityFixture({
+          id: 'authority-acog-labor-signs-policy',
+          question: 'Use of Nitrous Oxide in Labor and Delivery',
+          answer: 'This policy page discusses labor analgesia, delivery medication, and professional practice details.'.repeat(8),
+          topic: 'policy',
+          category: 'policy',
+          target_stage: ['third-trimester'],
+          source_id: 'acog',
+          source_org: 'ACOG',
+          source: 'ACOG',
+          source_url: 'https://www.acog.org/clinical/clinical-guidance/practice-advisory/articles/2021/07/use-of-nitrous-oxide-in-labor',
+        }),
+        authorityFixture({
+          id: 'authority-msd-labor-signs',
+          question: 'Late pregnancy observation guidance',
+          summary: 'General guidance for the final weeks of pregnancy.',
+          answer: 'Braxton Hicks contractions are sometimes called false labor. Labor signs can include regular contractions, water breaking, or bloody show near delivery. 假宫缩和临产信号需要结合宫缩规律、破水和见红观察。'.repeat(8),
+          topic: 'pregnancy',
+          category: 'pregnancy',
+          tags: ['孕晚期'],
+          target_stage: ['third-trimester'],
+          source_id: 'msd-manuals-cn',
+          source_org: 'MSD Manuals',
+          source: 'MSD Manuals',
+          source_url: 'https://www.msdmanuals.cn/home/women-s-health-issues/normal-labor-and-delivery',
+        }),
+      ],
+    );
+
+    expect(result.report.enriched).toBe(1);
+    expect(result.records[0]?.metadata?.authorityCoverage).toMatchObject({
+      status: 'matched',
+      authorityIds: ['authority-msd-labor-signs'],
+      sourceIds: ['msd-manuals-cn'],
+    });
+  });
+
   it('matches formula spit-up QA to infant feeding authority records', () => {
     const result = enrichKnowledgeBaseRecords(
       [
