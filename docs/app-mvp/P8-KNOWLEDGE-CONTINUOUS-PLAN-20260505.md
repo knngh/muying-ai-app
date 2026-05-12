@@ -297,6 +297,8 @@ DRY_RUN=false npm run retry:authority-translation-failures
 
 2026-05-12 P3-33 切片：继续清理新生儿复杂确诊追问分母，新增对出生后先心病 / 室间隔缺损 / 卵圆孔未闭、核黄疸伴嗜睡拒奶、重度肺炎合并脑病等个案的 dataset guard；普通“宝宝黄疸高怎么办”科普题保持保留。本地 guard 预览中 `parenting-newborn` 仅新增 3 条 `diagnosed_case_followup`，用于避免严重确诊个案进入自动权威覆盖或推广分母。
 
+2026-05-12 P3-34 切片：继续清理医院行政服务类分母，新增对“四维多少钱 / 价钱 / 费用 / 预约时间 / 预约挂号 / 贵院是否有项目 / 证件资料”等价格与预约问题的 dataset guard；普通“怀孕23周不做四维彩超可以吗”这类检查科普题保持保留。本地 guard 预览中 `unsupported_service_request` 从 `17` 增至 `41`，新增样本集中在价格、预约、挂号和医院项目咨询。
+
 ## 7.1 P3：知识运营与推广联动
 
 目标：在 P2 已完成的基础上，把权威覆盖继续推进到 `80%+`，并让知识库成果直接服务安全推广。
@@ -339,6 +341,7 @@ DRY_RUN=false npm run retry:authority-translation-failures
 34. P3-31 已完成 `pregnancy-prep` 噪声分母收口：三重重复问句、学校体检隐私、挂号科室 / 哪家医院干预，以及“孩子能不能要”高敏决策题不再进入自动权威覆盖目标；普通孕前检查项目科普仍保留。
 35. P3-32 已完成个人治疗用药选择分流：`抹什么药`、`吃什么药`、`哪类药效果好`、`帮我配药` 等具体用药请求不再进入自动权威覆盖目标；一般照护科普问题继续保留。
 36. P3-33 已完成新生儿复杂确诊追问分流：先心病 / 室间隔缺损 / 核黄疸伴危险表现 / 重度肺炎合并脑病等个案不再进入自动权威覆盖目标；普通黄疸科普继续保留。
+37. P3-34 已完成医院行政服务类分流：四维 / 彩超 / 唐筛 / 产检等价格、费用、预约、挂号、医院项目和证件资料问题不再进入自动权威覆盖目标；一般检查科普继续保留。
 
 默认读取 `tmp/knowledge-ops-report.json` 中 `sourceCoverage.watchedSources` 的 `missing` / `low` 源，先 dry-run 打印将刷新列表；显式 `DRY_RUN=false` 后按源调用现有 `sync:authority` 能力刷新。可用 `AUTHORITY_SOURCE_IDS=mayo-clinic-zh,chinacdc-nutrition` 限定源。
 

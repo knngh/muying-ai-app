@@ -42,6 +42,8 @@ const SUPPORT_POLICY_QUERY_PATTERN = /育儿补贴|生育保险|个税|个人所
 
 const UNSUPPORTED_SERVICE_REQUEST_PATTERN = /哪家医院(?:最好|好)|(?:医院|儿科|产科|妇产科|治疗医院).{0,12}(?:最好|好一点|哪家)|哪家医院.{0,16}(?:孕前干预|干预|检查|治疗)|(?:孕前干预|产前诊断|遗传咨询).{0,20}哪家医院|(?:免费治疗|接受免费治疗)|(?:挂|看|预约).{0,8}(?:哪个|哪一个|什么|那个).{0,4}(?:科|科室)|(?:哪个|哪一个|什么|那个).{0,4}(?:科|科室).{0,8}(?:挂|看|预约)|(?:高考|学校).{0,8}体检.{0,30}(?:怀孕|孕|抽血|报告)|(?:怀孕|孕).{0,30}(?:高考|学校).{0,8}体检|(?:孩子|宝宝).{0,12}(?:是谁的|谁的)|(?:是谁的|谁的).{0,12}(?:孩子|宝宝)/u;
 
+const SERVICE_ADMIN_REQUEST_PATTERN = /(?:四维|彩超|唐氏|DNA|hcg|HCG|产检|检查|建大卡|怀孕|孕妇).{0,32}(?:多少钱|价钱|费用|准备多少钱)|(?:多少钱|价钱|费用|准备多少钱).{0,32}(?:四维|彩超|唐氏|DNA|hcg|HCG|产检|检查|建大卡|怀孕|孕妇)|(?:微量元素|四维|彩超|产检|检查).{0,24}(?:周日|什么时候出结果|挂号|挂什么|什么科|哪科|预约时间|预约挂号)|(?:你们医院|贵院|本院|我院|妇幼保健院|儿童医院).{0,40}(?:四维|彩超|预约|挂号|多少钱|费用|光盘|身份证|户口本|工作日|能做|是否有|什么时候能做|安排)/u;
+
 const CHILD_CARE_SUBJECT_PATTERN = /宝宝|婴儿|新生儿|幼儿|小孩|孩子|男孩|女孩|女儿|儿子|儿童|月龄/u;
 
 const PERSONAL_TREATMENT_REQUEST_PATTERN = /(?:用|抹|涂|吃|服用|注射).{0,10}(?:药|药膏|康瑞保|美皮护|抗生素|消炎药|退烧药|针剂).{0,12}(?:有用|管用|可以|行吗|能用|能吃)|(?:用|抹|涂|擦|吃|服用|服|喝).{0,8}(?:什么|哪种|哪类|哪两种|啥|什么样的).{0,6}(?:药|药膏|软膏|中成药|西药|抗生素|消炎药|退烧药)|(?:药(?!店)|药膏|软膏|中成药|西药).{0,12}(?:效果好|最好|更适合)|(?:请专家)?帮(?:我)?配药|(?:如何|怎么|怎样).{0,8}(?:治疗|用药)|(?:应如何|怎么).{0,8}治疗/u;
@@ -270,7 +272,7 @@ export function getDatasetKnowledgeDropReason(record: KnowledgeGuardRecord): str
     return 'low_information_case_template';
   }
 
-  if (UNSUPPORTED_SERVICE_REQUEST_PATTERN.test(question)) {
+  if (UNSUPPORTED_SERVICE_REQUEST_PATTERN.test(question) || SERVICE_ADMIN_REQUEST_PATTERN.test(question)) {
     return 'unsupported_service_request';
   }
 
@@ -333,6 +335,7 @@ export function isOutOfScopeKnowledgeQuery(query: string): boolean {
   return NON_CONTENT_PATTERN.test(normalized)
     || SUPPORT_POLICY_QUERY_PATTERN.test(normalized)
     || UNSUPPORTED_SERVICE_REQUEST_PATTERN.test(normalized)
+    || SERVICE_ADMIN_REQUEST_PATTERN.test(normalized)
     || BEYOND_CHILD_AGE_PATTERN.test(normalized)
     || OFF_SCOPE_ADULT_HEALTH_PATTERN.test(normalized)
     || HIGH_SENSITIVITY_PATTERN.test(normalized)

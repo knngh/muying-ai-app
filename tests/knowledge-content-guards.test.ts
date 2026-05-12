@@ -175,6 +175,36 @@ describe('knowledge content guards', () => {
     })).toBe('off_scope_adult_health');
   });
 
+  it('rejects hospital pricing and appointment service requests without blocking general prenatal scan education', () => {
+    expect(getDatasetKnowledgeDropReason({
+      question: '怀孕23周想去妇检做四维彩超需要预约吗？做四维彩超需要多少钱',
+      answer: '症状处理建议',
+      category: 'pregnancy-early',
+      tags: ['母婴'],
+    })).toBe('unsupported_service_request');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '你们医院能做四维彩超吗，孕妇做四维彩超需要多少钱',
+      answer: '症状处理建议',
+      category: 'pregnancy-early',
+      tags: ['母婴'],
+    })).toBe('unsupported_service_request');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '淮安妇幼保健院微量元素检查周日做吗，什么时候出结果，要挂号什么科？',
+      answer: '症状处理建议',
+      category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBe('unsupported_service_request');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '怀孕23周不做四维彩超可以吗？',
+      answer: '孕期检查科普',
+      category: 'pregnancy-mid',
+      tags: ['母婴'],
+    })).toBeNull();
+  });
+
   it('rejects paternity and relationship attribution records from dataset coverage', () => {
     expect(getDatasetKnowledgeDropReason({
       question: 'B超结果比实际孕周小9天，请问孩子到底是谁的？',
