@@ -221,6 +221,36 @@ describe('knowledge content guards', () => {
     })).toBeNull();
   });
 
+  it('rejects medication-selection requests without blocking general skin-care education', () => {
+    expect(getDatasetKnowledgeDropReason({
+      question: '宝宝屁股长尿布湿疹了抹什么药',
+      answer: '症状处理建议',
+      category: 'common-disease',
+      tags: ['母婴'],
+    })).toBe('personal_treatment_request');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '湿疹吃什么药，最好是西药。以前在一家中医看过，但医生给我开的中成药，也没有药名。',
+      answer: '症状处理建议',
+      category: 'common-disease',
+      tags: ['母婴'],
+    })).toBe('personal_treatment_request');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '请专家帮我配药，已经折磨我两年的皮肤病一到冬季皮肤瘙痒，一挠就会出现红色小疙瘩，很多医生说是湿疹。',
+      answer: '症状处理建议',
+      category: 'common-disease',
+      tags: ['母婴'],
+    })).toBe('personal_treatment_request');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '宝宝湿疹怎么护理？',
+      answer: '保持皮肤清洁保湿，避免刺激，严重或反复时就医评估。',
+      category: 'common-disease',
+      tags: ['母婴'],
+    })).toBeNull();
+  });
+
   it('rejects low-information forms, adult reproductive cases, and biometric calculation records', () => {
     expect(getDatasetKnowledgeDropReason({
       question: '全部症状：发病时间及原因：治疗情况：一直不知道对孩子不会所以就没当回事。',
