@@ -44,6 +44,29 @@ describe('search query expansion', () => {
     expect(terms).toContain('fever in infants');
   });
 
+  it('expands colloquial formula-feeding terms to english authority search phrases', () => {
+    const terms = expandSearchTerms('宝宝喝奶粉后经常吐奶怎么办');
+
+    expect(terms).toContain('formula');
+    expect(terms).toContain('spit up');
+    expect(terms).toContain('burping');
+  });
+
+  it('expands colloquial vitamin d terms to english authority search phrases', () => {
+    const terms = expandSearchTerms('宝宝纯母乳喂养需要补充鱼肝油吗');
+
+    expect(terms).toContain('vitamin d');
+    expect(terms).toContain('cod liver oil');
+  });
+
+  it('expands infant development milestone terms to english authority search phrases', () => {
+    const terms = expandSearchTerms('宝宝8个月不会主动伸手拿东西，坐不稳怎么办');
+
+    expect(terms).toContain('development');
+    expect(terms).toContain('developmental milestones');
+    expect(terms).toContain('movement milestones');
+  });
+
   it('parses rewrite output and dedupes normalized queries', () => {
     const parsed = parseSearchRewriteOutput('["fever in infants", "baby fever care", "fever in infants"]');
     expect(dedupeSearchQueries('宝宝发烧怎么办', parsed)).toEqual([

@@ -244,6 +244,12 @@ const VACCINATION_CARE_AUTHORITY_PATTERN = /after vaccination|vaccine side effec
 const BROAD_VACCINATION_POLICY_PATTERN = /国家免疫规划|扩大国家免疫规划|免疫规划范围|免疫程序调整|目标和任务|贯彻|组织实施|工作方案|工作通知|政策解读|接种率|预防接种证|查验|追溯|监管/u;
 const VACCINATION_POLICY_STRONG_PATTERN = /国家免疫规划|扩大国家免疫规划|免疫规划范围|免疫程序调整|目标和任务|贯彻|组织实施|工作方案|工作通知|政策解读/u;
 const VACCINATION_SCHEDULE_STRONG_PATTERN = /接种时间|接种方案|接种程序|免疫程序|必打|常规接种|接种\s*[一二三四五六七八九十\d]\s*剂|vaccination schedule|immunization schedule/u;
+const FEEDING_FORMULA_INTENT_PATTERN = /奶粉|配方奶|冲奶|奶瓶/u;
+const FEEDING_CARE_INTENT_PATTERN = /吐奶|溢奶|拍嗝|反流|奶量|厌奶|断奶|喂奶|吃奶|母乳|辅食|鱼肝油|维生素\s*d|维生素d|维d|维D/u;
+const FEEDING_SPECIFIC_CARE_INTENT_PATTERN = /吐奶|溢奶|拍嗝|反流|奶量|厌奶|断奶|辅食|鱼肝油|维生素\s*d|维生素d|维d|维D/u;
+const FEEDING_NON_CARE_SYMPTOM_PATTERN = /流鼻血|鼻血|鼻出血|发烧|发热|咳嗽|腹泻|拉肚子|湿疹|红疹|皮疹|过敏|呕吐|便血|黑便|脱水|黄疸|鼻塞|流涕|发炎|疼|痛|抽搐|惊厥|呼吸困难|皮肤发紫|精神差|不吃奶/u;
+const FEEDING_FORMULA_AUTHORITY_PATTERN = /formula|formula milk|baby formula|powdered formula|bottle feeding/u;
+const FEEDING_CARE_AUTHORITY_PATTERN = /spit up|spit-up|spitting up|burping|hiccups|feeding amount|milk intake|breastfeeding|solid foods?|complementary feeding|vitamin d|vitamin d supplements|iron supplements|allerg(y|ic)|cow'?s milk|hypoallergenic|special formula/u;
 
 const MEDICAL_YELLOW_PATTERN = /发烧|发热|咳嗽|腹泻|拉肚子|呕吐|便秘|湿疹|黄疸|腹痛|出血|见红|流血|宫缩|水肿|胎动|疫苗|接种|用药|感冒|感染|过敏|疼|痛|fever|diarrhea|vomit|bleeding|vaccine|medication/i;
 const MEDICAL_RED_PATTERN = /呼吸困难|抽搐|惊厥|意识异常|昏迷|大出血|破水|胎动消失|高热不退|脱水|shortness of breath|seizure|unresponsive/i;
@@ -792,6 +798,15 @@ function getVaccinationReactionAuthorityScore(item: QAPair, candidate: Authority
 function isDisallowedForIntent(item: QAPair, candidate: AuthorityCandidate): boolean {
   const intentText = buildIntentText(item).toLowerCase();
   if (
+    (candidate.resolvedTopic === 'feeding' || candidate.resolvedTopic === 'newborn')
+    && FEEDING_FORMULA_INTENT_PATTERN.test(intentText)
+    && FEEDING_NON_CARE_SYMPTOM_PATTERN.test(intentText)
+    && !FEEDING_SPECIFIC_CARE_INTENT_PATTERN.test(intentText)
+  ) {
+    return true;
+  }
+
+  if (
     candidate.resolvedTopic === 'vaccination'
     && hasPostVaccinationCareIntent(intentText)
     && (
@@ -816,6 +831,14 @@ function getIntentSpecificScore(item: QAPair, candidate: AuthorityCandidate): nu
   const intentText = buildIntentText(item).toLowerCase();
   const strongText = candidate.normalizedStrongText;
   let score = 0;
+
+  if (FEEDING_FORMULA_INTENT_PATTERN.test(intentText) && FEEDING_FORMULA_AUTHORITY_PATTERN.test(strongText)) {
+    score += 16;
+  }
+
+  if (FEEDING_CARE_INTENT_PATTERN.test(intentText) && FEEDING_CARE_AUTHORITY_PATTERN.test(strongText)) {
+    score += 18;
+  }
 
   if (/(感冒|吃药|用药|药物|感冒药|打针|针剂|输液|吊瓶)/u.test(intentText)
     && /medicine|medication|drug|medicines|taking|using|injection|medicine and pregnancy|medicine-and-pregnancy/u.test(strongText)) {

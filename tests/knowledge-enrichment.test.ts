@@ -263,6 +263,177 @@ describe('knowledge enrichment', () => {
     });
   });
 
+  it('matches formula spit-up QA to infant feeding authority records', () => {
+    const result = enrichKnowledgeBaseRecords(
+      [
+        qaFixture({
+          id: 'qa-formula-spit-up',
+          category: 'nutrition-baby',
+          question: '宝宝喝奶粉后经常吐奶怎么办？',
+          answer: '想了解配方奶喂养后吐奶的观察和护理边界。',
+        }),
+      ],
+      [
+        authorityFixture({
+          id: 'authority-aap-spit-up',
+          question: 'Baby Burping, Hiccups & Spit-Up',
+          summary: 'AAP explains burping during feedings and how to handle hiccups and spitting up.',
+          answer: 'Young babies may swallow air during feedings, including bottle feeding. Burping and feeding pauses can help, and parents should watch for warning signs when spit-up is frequent or forceful.'.repeat(8),
+          topic: 'feeding',
+          category: 'feeding',
+          tags: ['喂养', '婴幼儿家长'],
+          target_stage: ['0-6-months', '6-12-months'],
+          source_id: 'aap',
+          source_org: 'AAP',
+          source: 'AAP',
+          source_url: 'https://www.healthychildren.org/English/ages-stages/baby/feeding-nutrition/Pages/Burping-Hiccups-and-Spit-Up.aspx',
+        }),
+      ],
+    );
+
+    expect(result.report.enriched).toBe(1);
+    expect(result.records[0]?.metadata?.authorityCoverage).toMatchObject({
+      status: 'matched',
+      authorityIds: ['authority-aap-spit-up'],
+      sourceIds: ['aap'],
+    });
+  });
+
+  it('does not enrich infant symptom QA from generic formula wording alone', () => {
+    const result = enrichKnowledgeBaseRecords(
+      [
+        qaFixture({
+          id: 'qa-formula-incidental-symptom',
+          category: 'nutrition-baby',
+          question: '宝宝两个月了，有个鼻孔老是流鼻血，吃的是奶粉，会不会是吃奶粉引起的？',
+          answer: '想了解鼻出血和奶粉是否有关。',
+        }),
+      ],
+      [
+        authorityFixture({
+          id: 'authority-aap-formula-forms',
+          question: 'Forms of Baby Formula: Powder, Concentrate & Ready-to-Feed',
+          summary: 'AAP explains common baby formula forms and preparation differences.',
+          answer: 'Baby formula comes in several forms, including powder, concentrate, and ready-to-feed products. Families should follow preparation instructions and safe storage guidance.'.repeat(8),
+          topic: 'feeding',
+          category: 'feeding',
+          tags: ['喂养', '婴幼儿家长'],
+          target_stage: ['0-6-months', '6-12-months'],
+          source_id: 'aap',
+          source_org: 'AAP',
+          source: 'AAP',
+          source_url: 'https://www.healthychildren.org/English/ages-stages/baby/formula-feeding/Pages/Forms-of-Baby-Formula.aspx',
+        }),
+        authorityFixture({
+          id: 'authority-aap-responsive-feeding',
+          question: 'Is Your Baby Hungry or Full? Responsive Feeding Explained',
+          summary: 'AAP explains responsive feeding cues during breastfeeding, bottle feeding, and formula feeding.',
+          answer: 'Responsive feeding helps families notice hunger and fullness cues during breastfeeding, bottle feeding, and formula feeding. It does not cover nosebleeds or unrelated symptom causes.'.repeat(8),
+          topic: 'feeding',
+          category: 'feeding',
+          tags: ['喂养', '婴幼儿家长'],
+          target_stage: ['0-6-months', '6-12-months'],
+          source_id: 'aap',
+          source_org: 'AAP',
+          source: 'AAP',
+          source_url: 'https://www.healthychildren.org/English/ages-stages/baby/feeding-nutrition/Pages/Is-Your-Baby-Hungry-or-Full-Responsive-Feeding-Explained.aspx',
+        }),
+        authorityFixture({
+          id: 'authority-aap-vitamin-d-incidental',
+          question: 'Where We Stand: Vitamin D & Iron Supplements for Babies',
+          summary: 'AAP discusses vitamin d and iron supplements for infants and nursing mothers.',
+          answer: 'Vitamin D and iron supplementation can be discussed with a pediatrician for infants. This page is not about nosebleeds or formula-related symptom attribution.'.repeat(8),
+          topic: 'feeding',
+          category: 'feeding',
+          tags: ['喂养', '婴幼儿家长'],
+          target_stage: ['0-6-months', '6-12-months'],
+          source_id: 'aap',
+          source_org: 'AAP',
+          source: 'AAP',
+          source_url: 'https://www.healthychildren.org/English/ages-stages/baby/feeding-nutrition/Pages/Vitamin-D-Iron-Supplements.aspx',
+        }),
+      ],
+    );
+
+    expect(result.report.enriched).toBe(0);
+    expect(result.records[0]?.references).toBeUndefined();
+    expect(result.records[0]?.metadata?.authorityCoverage).toMatchObject({
+      status: 'missing',
+    });
+  });
+
+  it('matches colloquial vitamin d supplement QA to infant nutrition authority records', () => {
+    const result = enrichKnowledgeBaseRecords(
+      [
+        qaFixture({
+          id: 'qa-vitamin-d-fish-oil',
+          category: 'nutrition-baby',
+          question: '宝宝纯母乳喂养需要补充鱼肝油吗？',
+          answer: '想了解纯母乳喂养宝宝是否需要维生素D补充。',
+        }),
+      ],
+      [
+        authorityFixture({
+          id: 'authority-aap-vitamin-d',
+          question: 'Where We Stand: Vitamin D & Iron Supplements for Babies',
+          summary: 'AAP discusses vitamin d and iron supplements for infants, children, and nursing mothers.',
+          answer: 'The American Academy of Pediatrics discusses vitamin D and iron supplements for babies, including infants who are breastfed and may need supplementation based on pediatric guidance.'.repeat(8),
+          topic: 'feeding',
+          category: 'feeding',
+          tags: ['喂养', '婴幼儿家长'],
+          target_stage: ['0-6-months', '6-12-months'],
+          source_id: 'aap',
+          source_org: 'AAP',
+          source: 'AAP',
+          source_url: 'https://www.healthychildren.org/English/ages-stages/baby/feeding-nutrition/Pages/Vitamin-D-Iron-Supplements.aspx',
+        }),
+      ],
+    );
+
+    expect(result.report.enriched).toBe(1);
+    expect(result.records[0]?.metadata?.authorityCoverage).toMatchObject({
+      status: 'matched',
+      authorityIds: ['authority-aap-vitamin-d'],
+      sourceIds: ['aap'],
+    });
+  });
+
+  it('matches infant motor milestone concerns to child development authority records', () => {
+    const result = enrichKnowledgeBaseRecords(
+      [
+        qaFixture({
+          id: 'qa-infant-motor-milestone',
+          category: 'parenting-0-1',
+          question: '宝宝8个月不会主动伸手拿东西，坐不稳怎么办？',
+          answer: '想了解大运动和精细动作发育里程碑，以及什么时候咨询医生。',
+        }),
+      ],
+      [
+        authorityFixture({
+          id: 'authority-cdc-development-concern',
+          question: 'Concerned About Your Child’s Development?',
+          summary: 'CDC explains what to do if a child is not meeting milestones and when to ask for developmental screening.',
+          answer: 'If your child is not meeting milestones for their age or if you have concerns about development, talk with your child’s doctor and ask about developmental screening and early supports.'.repeat(8),
+          topic: 'development',
+          category: 'development',
+          tags: ['成长发育', '婴幼儿家长'],
+          target_stage: ['0-6-months', '6-12-months'],
+          source_id: 'cdc',
+          source_org: 'CDC',
+          source: 'CDC',
+          source_url: 'https://www.cdc.gov/ncbddd/actearly/concerned.html',
+        }),
+      ],
+    );
+
+    expect(result.report.enriched).toBe(1);
+    expect(result.records[0]?.metadata?.authorityCoverage).toMatchObject({
+      status: 'matched',
+      authorityIds: ['authority-cdc-development-concern'],
+      sourceIds: ['cdc'],
+    });
+  });
+
   it('matches infant post-vaccination reaction QA to vaccination authority records', () => {
     const result = enrichKnowledgeBaseRecords(
       [
