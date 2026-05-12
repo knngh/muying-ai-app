@@ -221,6 +221,36 @@ describe('knowledge content guards', () => {
     })).toBeNull();
   });
 
+  it('rejects complex neonatal diagnosed follow-up while keeping general jaundice education', () => {
+    expect(getDatasetKnowledgeDropReason({
+      question: '孩子出生查出室间隔于大动脉短轴切面相当于9-10钟处连续中断，大小约3mm彩色DOPPLE检查见一束五彩血流由左室进右室。诊断为先心病：室间隔缺损，新生儿卵圆孔未闭',
+      answer: '症状处理建议',
+      category: 'parenting-newborn',
+      tags: ['母婴'],
+    })).toBe('diagnosed_case_followup');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '小孩会得核黄疸吗？孩子出生第四天黄疸309，嗜睡，拒奶，吸允力变差，小孩得核黄疸的几率大吗？',
+      answer: '症状处理建议',
+      category: 'parenting-newborn',
+      tags: ['母婴'],
+    })).toBe('diagnosed_case_followup');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '孩子刚出生一天就被医生诊断重度肺炎，第四天又被诊断轻度脑病，现在每三小时能吃三十毫升奶。',
+      answer: '症状处理建议',
+      category: 'parenting-newborn',
+      tags: ['母婴'],
+    })).toBe('diagnosed_case_followup');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '宝宝黄疸高怎么办？',
+      answer: '观察黄疸变化、吃奶和精神状态，按医生建议复查胆红素。',
+      category: 'parenting-newborn',
+      tags: ['母婴'],
+    })).toBeNull();
+  });
+
   it('rejects medication-selection requests without blocking general skin-care education', () => {
     expect(getDatasetKnowledgeDropReason({
       question: '宝宝屁股长尿布湿疹了抹什么药',
