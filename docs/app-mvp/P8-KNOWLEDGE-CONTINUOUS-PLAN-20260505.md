@@ -289,6 +289,10 @@ DRY_RUN=false npm run retry:authority-translation-failures
 
 2026-05-12 P3-29 切片：补共享搜索词库的窄版母婴扩展词，新增 `奶粉/吐奶/鱼肝油/维生素D/坐不稳/不会伸手/不会逗笑` 等术语到 `search-query-expansion`，让知识增强和普通检索共用同一套更细的喂养与发育语义，不再只靠泛化 `宝宝/婴儿` 召回现有 AAP/CDC 权威页；同时对 `奶粉` + 鼻血 / 腹泻 / 过敏 这类非喂养症状题的 generic feeding / newborn 页做了收口，仍不改全局阈值。
 
+2026-05-12 P3-30 切片：孕中 / 孕晚期胎动与临产匹配已按窄规则收口，`胎动减少`、`胎动频繁`、`假宫缩`、`临产` 等术语只能在正文级命中且阶段对齐时召回孕期权威页；泛化孕期页不会因为 `fetal` / `pregnancy` / `cold` 这类宽词误配到胎动题。
+
+2026-05-12 P3-31 切片：继续清理 `pregnancy-prep` 覆盖分母，新增对三重重复问句模板、学校体检隐私 / 科室挂号 / 医院干预类服务路由，以及“孩子能不能要”这类高敏决策题的 dataset guard；正常“孕前检查项目”科普题保持保留。本地 guard 预览中 `pregnancy-prep` 为 `kept=56`，新增排除集中在 `unsupported_service_request`、`high_sensitivity_dataset_topic` 和 `low_information_case_template`，仍不靠降低权威匹配阈值提升覆盖。
+
 ## 7.1 P3：知识运营与推广联动
 
 目标：在 P2 已完成的基础上，把权威覆盖继续推进到 `80%+`，并让知识库成果直接服务安全推广。
@@ -328,6 +332,7 @@ DRY_RUN=false npm run retry:authority-translation-failures
 31. P3-28 已完成疫苗反应错类分母收口：成人备孕、性生活、男方用药 / 打针后怀孕影响等误入 `vaccine-reaction` 的记录不再进入婴幼儿接种后反应覆盖目标。
 32. P3-29 已完成共享搜索词库的窄版喂养 / 发育扩展与收口：`奶粉`、`吐奶`、`鱼肝油`、`维生素D`、`坐不稳`、`不会伸手`、`不会逗笑` 等术语可以安全召回现有喂养与发育权威页，同时 `奶粉` + 鼻血 / 腹泻 / 过敏 这类非喂养症状题不会再被 generic feeding / newborn 页误吃。
 33. P3-30 已完成孕中 / 孕晚期胎动与临产的窄版扩展与收口：`胎动减少`、`胎动频繁`、`假宫缩`、`临产` 等术语可以安全召回正文级命中的孕期权威页，同时泛化孕期页不会因为 `fetal` / `pregnancy` / `cold` 这类宽词误配到胎动题。
+34. P3-31 已完成 `pregnancy-prep` 噪声分母收口：三重重复问句、学校体检隐私、挂号科室 / 哪家医院干预，以及“孩子能不能要”高敏决策题不再进入自动权威覆盖目标；普通孕前检查项目科普仍保留。
 
 默认读取 `tmp/knowledge-ops-report.json` 中 `sourceCoverage.watchedSources` 的 `missing` / `low` 源，先 dry-run 打印将刷新列表；显式 `DRY_RUN=false` 后按源调用现有 `sync:authority` 能力刷新。可用 `AUTHORITY_SOURCE_IDS=mayo-clinic-zh,chinacdc-nutrition` 限定源。
 

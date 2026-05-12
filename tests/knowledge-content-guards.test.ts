@@ -272,6 +272,50 @@ describe('knowledge content guards', () => {
     })).toBeNull();
   });
 
+  it('rejects noisy pregnancy-prep service routing and high-sensitivity decision records', () => {
+    expect(getDatasetKnowledgeDropReason({
+      question: '四维彩超是什么怀孕20周能检查四维彩超吗具体检查什么呢？四维彩超是什么怀孕20周能检查四维彩超吗具体检查什么呢？四维彩超是什么怀孕20周能检查四维彩超吗具体检查什么呢？（）',
+      answer: '症状处理建议',
+      category: 'pregnancy-prep',
+      tags: ['母婴'],
+    })).toBe('low_information_case_template');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '高考体检会检查有无怀孕吗抽血的时候如果怀孕了抽血会检查出来填在报告上吗',
+      answer: '症状处理建议',
+      category: 'pregnancy-prep',
+      tags: ['母婴'],
+    })).toBe('unsupported_service_request');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '医生，我今年28岁，准备怀孕，但是查出来是贫血，现在想治疗贫血，但是去医院没有血液科，我应该挂哪个科',
+      answer: '症状处理建议',
+      category: 'pregnancy-prep',
+      tags: ['母婴'],
+    })).toBe('unsupported_service_request');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '我怀孕18周，O型血，老公A型血，溶血指数1：512。如何孕前干预？哪家医院可以孕前干预？',
+      answer: '症状处理建议',
+      category: 'pregnancy-prep',
+      tags: ['母婴'],
+    })).toBe('unsupported_service_request');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '不知道怀孕了，去做了一次体检的胸透，那时怀孕十天左右我想知道这孩子能不能要啊',
+      answer: '症状处理建议',
+      category: 'pregnancy-prep',
+      tags: ['母婴'],
+    })).toBe('high_sensitivity_dataset_topic');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '孕前需要做哪些检查项目？',
+      answer: '孕前检查项目科普',
+      category: 'pregnancy-prep',
+      tags: ['母婴'],
+    })).toBeNull();
+  });
+
   it('rejects emergency ingestion and complex diagnosed follow-up records without blocking common care questions', () => {
     expect(getDatasetKnowledgeDropReason({
       question: '我家孩子把水银吃了，一岁了，怎么办啊，都有哪些明显症状？',

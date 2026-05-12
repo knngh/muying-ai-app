@@ -40,7 +40,7 @@ const NON_CONTENT_PATTERN = /中文调研|调查问卷|问卷|调研|调查研�
 
 const SUPPORT_POLICY_QUERY_PATTERN = /育儿补贴|生育保险|个税|个人所得税|专项附加扣除|医保|托育服务|普惠托育|补贴申领/u;
 
-const UNSUPPORTED_SERVICE_REQUEST_PATTERN = /哪家医院(?:最好|好)|(?:医院|儿科|产科|妇产科|治疗医院).{0,12}(?:最好|好一点|哪家)|(?:免费治疗|接受免费治疗)|(?:孩子|宝宝).{0,12}(?:是谁的|谁的)|(?:是谁的|谁的).{0,12}(?:孩子|宝宝)/u;
+const UNSUPPORTED_SERVICE_REQUEST_PATTERN = /哪家医院(?:最好|好)|(?:医院|儿科|产科|妇产科|治疗医院).{0,12}(?:最好|好一点|哪家)|哪家医院.{0,16}(?:孕前干预|干预|检查|治疗)|(?:孕前干预|产前诊断|遗传咨询).{0,20}哪家医院|(?:免费治疗|接受免费治疗)|(?:挂|看|预约).{0,8}(?:哪个|哪一个|什么|那个).{0,4}(?:科|科室)|(?:哪个|哪一个|什么|那个).{0,4}(?:科|科室).{0,8}(?:挂|看|预约)|(?:高考|学校).{0,8}体检.{0,30}(?:怀孕|孕|抽血|报告)|(?:怀孕|孕).{0,30}(?:高考|学校).{0,8}体检|(?:孩子|宝宝).{0,12}(?:是谁的|谁的)|(?:是谁的|谁的).{0,12}(?:孩子|宝宝)/u;
 
 const CHILD_CARE_SUBJECT_PATTERN = /宝宝|婴儿|新生儿|幼儿|小孩|孩子|男孩|女孩|女儿|儿子|儿童|月龄/u;
 
@@ -69,7 +69,7 @@ const BIOMETRIC_MEASUREMENT_PATTERNS = [
 
 const BIOMETRIC_CALCULATION_INTENT_PATTERN = /算(?:出|下)?|估计|大概|多重|多长|体重|身高|腿长|腿短|发育正常|正常吗/u;
 
-const HIGH_SENSITIVITY_PATTERN = /人流|人工流产|想要流产|引产|堕胎|坠胎|清宫|药流|打掉(?:孩子|小孩|胎儿)|流掉(?:孩子|小孩|胎儿)|不要(?:这个)?(?:孩子|小孩|胎儿)|不想要(?:这个)?(?:孩子|小孩|胎儿)|不能要(?:了|这个)?(?:孩子|小孩|宝宝|胎儿)|孩子是不是不能要|宫外孕|异位妊娠|胎停|稽留流产|胎死|死胎|死产|死亡|猝死|畸形|大出血|脑内出血|缺氧|心脏发育异常|唐氏儿|癌|肿瘤/u;
+const HIGH_SENSITIVITY_PATTERN = /人流|人工流产|想要流产|引产|堕胎|坠胎|清宫|药流|打掉(?:孩子|小孩|胎儿)|流掉(?:孩子|小孩|胎儿)|不要(?:这个)?(?:孩子|小孩|胎儿)|不想要(?:这个)?(?:孩子|小孩|胎儿)|不能要(?:了|这个)?(?:孩子|小孩|宝宝|胎儿)|孩子是不是不能要|(?:孩子|小孩|宝宝|胎儿).{0,8}(?:能不能要|能要吗|能要么|可以要吗|还能要吗)|(?:能不能要|能要吗|能要么|可以要吗|还能要吗).{0,8}(?:孩子|小孩|宝宝|胎儿)|宫外孕|异位妊娠|胎停|稽留流产|胎死|死胎|死产|死亡|猝死|畸形|大出血|脑内出血|缺氧|心脏发育异常|唐氏儿|癌|肿瘤/u;
 
 // Product-level blocklist for knowledge articles and authority cache records.
 // Death-related terms are intentionally broad: even statistical/public-policy
@@ -244,6 +244,15 @@ function isBiometricMeasurementCase(question: string): boolean {
     && /(?:cm|mm|厘米|CM|MM|双顶|股骨|头围|腹围|肱骨)/u.test(question);
 }
 
+function isRepeatedQuestionTemplate(question: string): boolean {
+  const normalized = question.replace(/[\s（）()【】？?。.!！,，:：、；;'"“”‘’~～-]/gu, '');
+  if (normalized.length < 36) {
+    return false;
+  }
+
+  return /^(.{12,80})\1{2,}/u.test(normalized);
+}
+
 export function getDatasetKnowledgeDropReason(record: KnowledgeGuardRecord): string | null {
   const question = getQuestion(record);
   if (!question || question.length < 4) {
@@ -255,7 +264,7 @@ export function getDatasetKnowledgeDropReason(record: KnowledgeGuardRecord): str
     return 'non_content_or_research';
   }
 
-  if (LOW_INFORMATION_CASE_TEMPLATE_PATTERN.test(question)) {
+  if (LOW_INFORMATION_CASE_TEMPLATE_PATTERN.test(question) || isRepeatedQuestionTemplate(question)) {
     return 'low_information_case_template';
   }
 
