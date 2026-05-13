@@ -44,15 +44,19 @@ const UNSUPPORTED_SERVICE_REQUEST_PATTERN = /哪家医院(?:最好|好)|(?:医�
 
 const SERVICE_ADMIN_REQUEST_PATTERN = /(?:四维|彩超|唐氏|DNA|hcg|HCG|产检|检查|建大卡|怀孕|孕妇).{0,32}(?:多少钱|价钱|费用|准备多少钱)|(?:多少钱|价钱|费用|准备多少钱).{0,32}(?:四维|彩超|唐氏|DNA|hcg|HCG|产检|检查|建大卡|怀孕|孕妇)|(?:微量元素|四维|彩超|产检|检查).{0,24}(?:周日|什么时候出结果|挂号|挂什么|什么科|哪科|预约时间|预约挂号)|(?:你们医院|贵院|本院|我院|妇幼保健院|儿童医院).{0,40}(?:四维|彩超|预约|挂号|多少钱|费用|光盘|身份证|户口本|工作日|能做|是否有|什么时候能做|安排)/u;
 
+const ENVIRONMENTAL_DIAGNOSTIC_REQUEST_PATTERN = /(?:甲醛|装修).{0,50}(?:检测(?:宝宝|孩子|婴儿|新生儿).{0,12}(?:体内|含量)|一定会得病|如何补救|怎么补救)|(?:宝宝|孩子|婴儿|新生儿).{0,32}甲醛.{0,32}(?:检测|补救|得病)/u;
+
+const ADULT_VACCINE_OR_INJURY_PATTERN = /(?:成年人|成人).{0,20}(?:接种|疫苗)|(?:注射|接种).{0,16}疫苗.{0,24}(?:喝酒|头发麻|不清醒)|(?:狂犬疫苗|被狗咬).{0,48}(?:保护期|加强针|全程注射)/u;
+
 const CHILD_CARE_SUBJECT_PATTERN = /宝宝|婴儿|新生儿|幼儿|小孩|孩子|男孩|女孩|女儿|儿子|儿童|月龄/u;
 
-const PERSONAL_TREATMENT_REQUEST_PATTERN = /(?:用|抹|涂|吃|服用|注射).{0,10}(?:药|药膏|康瑞保|美皮护|抗生素|消炎药|退烧药|针剂).{0,12}(?:有用|管用|可以|行吗|能用|能吃)|(?:用|抹|涂|擦|吃|服用|服|喝).{0,8}(?:什么|哪种|哪类|哪两种|啥|什么样的).{0,6}(?:药|药膏|软膏|中成药|西药|抗生素|消炎药|退烧药)|(?:药(?!店)|药膏|软膏|中成药|西药).{0,12}(?:效果好|最好|更适合)|(?:请专家)?帮(?:我)?配药|(?:如何|怎么|怎样).{0,8}(?:治疗|用药)|(?:应如何|怎么).{0,8}治疗/u;
+const PERSONAL_TREATMENT_REQUEST_PATTERN = /(?:用|抹|涂|吃|服用|注射).{0,10}(?:药|药膏|康瑞保|美皮护|抗生素|消炎药|退烧药|针剂).{0,12}(?:有用|管用|可以|行吗|能用|能吃)|(?:用|抹|涂|擦|吃|服用|服|喝).{0,8}(?:什么|哪种|哪类|哪两种|啥|什么样的).{0,6}(?:药|药膏|软膏|中成药|西药|抗生素|消炎药|退烧药)|(?:用|抹|涂|擦|吃|服用|注射).{0,16}(?:行么|行吗|可以吗|能吗|能不能).{0,16}(?:湿疹|黄疸|腹泻|发烧|咳嗽|疫苗|药)|(?:什么|哪种|哪类|哪两种).{0,10}(?:药|药膏|软膏).{0,12}(?:治|治疗|擦|抹|效果|配合)|(?:药(?!店)|药膏|软膏|中成药|西药).{0,12}(?:效果好|最好|更适合)|(?:请专家)?帮(?:我)?配药|(?:如何|怎么|怎样).{0,8}(?:治疗|用药)|(?:应如何|怎么).{0,8}治疗/u;
 
 const DIAGNOSED_CASE_FOLLOWUP_PATTERN = /(?:去医院检查|医院检查|检查了|检查说|医生说|诊断为|确诊为|患有|得了).{0,30}(?:支气管哮喘|脑桥小脑角综合征|脑积水|白癜风|胆囊癌|肿瘤|癌|综合征|罕见病|发育迟缓|脑室|侧脑室|颅后窝池|颅骨骨折|鼻漏|肾.{0,8}(?:囊肿|发育不正常)|巨型输尿管)|(?:医生建议|配合治疗|治疗方案|复查结果|检查结果|核磁共振|磁共振|脑电图|心脏彩超).{0,30}(?:治疗|用药|手术|康复|多久|饮食习惯|注意事项)|(?:重型手足口病|脑炎|颅骨骨折|鼻漏|运动神经发育迟缓|第三脑室|巨型输尿管|肾.{0,8}(?:囊肿|发育不正常)).{0,36}(?:怎么办|治疗|康复|影响|生活能行|严重吗)/u;
 
 const COMPLEX_NEONATAL_DIAGNOSED_CASE_PATTERN = /(?:出生|新生儿|宝宝|孩子).{0,24}(?:查出|诊断|诊断为|确诊|发现).{0,40}(?:先心病|室间隔缺损|卵圆孔未闭|重度肺炎|轻度脑病|脑病|核黄疸|蛛网膜(?:下腔)?出血|颅内出血)|(?:诊断为|确诊为).{0,16}(?:先心病|室间隔缺损|卵圆孔未闭)|(?:核黄疸|胆红素\s*\d{3,}|黄疸\s*\d{3,}).{0,40}(?:嗜睡|拒奶|吸允力变差|精神差|严重|几率|怎么办)|(?:先心病|室间隔缺损|卵圆孔未闭|重度肺炎|轻度脑病|脑病|蛛网膜(?:下腔)?出血|颅内出血).{0,36}(?:怎么办|严重|影响|后遗症|治疗)/u;
 
-const LOW_INFORMATION_CASE_TEMPLATE_PATTERN = /全部症状[:：]\s*(?:发病时间|治疗情况)|发病时间及原因[:：]\s*治疗情况|想要得到什么帮助[（(]5个汉字以上[）)]/u;
+const LOW_INFORMATION_CASE_TEMPLATE_PATTERN = /全部症状[:：].{0,140}发病时间及原因[:：].{0,140}治疗情况|全部症状[:：]\s*(?:发病时间|治疗情况)|发病时间及原因[:：]\s*治疗情况|患者信息[:：].{0,140}曾经治疗情况(?:及是否有过敏)?|想要得到什么帮助[（(]5个汉字以上[）)]/u;
 
 const ADULT_REPRODUCTIVE_CASE_PATTERN = /(?:月经|大姨妈|房事|同房|性生活|紧急避孕药|安全期|宫颈(?:糜|靡)烂|利普刀|尿血|血块|膀胱下坠|尿急尿痛|妇科病).{0,36}(?:怀孕|宝宝|孩子|小孩|怎么办|什么原因|影响)|(?:男性|男方|丈夫|老公).{0,18}(?:发烧|打针|吃药|用药|接种).{0,24}(?:性生活|怀孕|胎儿|宝宝)|(?:生完(?:小孩|孩子)|产后|断奶后).{0,36}(?:会阴撕裂|宫颈(?:糜|靡)烂|利普刀|月经|乳房.{0,12}(?:一变大一变小|明显|大小不一)|尿血|膀胱下坠)|(?:性生活|同房).{0,24}(?:怀孕|胎儿|宝宝|影响)/u;
 
@@ -74,6 +78,8 @@ const BIOMETRIC_MEASUREMENT_PATTERNS = [
 const BIOMETRIC_CALCULATION_INTENT_PATTERN = /算(?:出|下)?|估计|大概|多重|多长|体重|身高|腿长|腿短|发育正常|正常吗/u;
 
 const HIGH_SENSITIVITY_PATTERN = /人流|人工流产|想要流产|引产|堕胎|坠胎|清宫|药流|打掉(?:孩子|小孩|胎儿)|流掉(?:孩子|小孩|胎儿)|不要(?:这个)?(?:孩子|小孩|胎儿)|不想要(?:这个)?(?:孩子|小孩|胎儿)|不能要(?:了|这个)?(?:孩子|小孩|宝宝|胎儿)|孩子是不是不能要|(?:孩子|小孩|宝宝|胎儿).{0,8}(?:能不能要|能要吗|能要么|可以要吗|还能要吗)|(?:能不能要|能要吗|能要么|可以要吗|还能要吗).{0,8}(?:孩子|小孩|宝宝|胎儿)|宫外孕|异位妊娠|胎停|稽留流产|胎死|死胎|死产|死亡|猝死|畸形|大出血|脑内出血|缺氧|心脏发育异常|唐氏儿|癌|肿瘤/u;
+
+const SENSITIVE_REPRODUCTIVE_DECISION_PATTERN = /(?:聋哑|遗传病|小三阳|大三阳|乙肝).{0,40}(?:可以|能不能|能否|是否).{0,8}(?:生孩子|要小孩|要孩子|怀孕)|(?:可以|能不能|能否|是否).{0,8}(?:生孩子|要小孩|要孩子|怀孕).{0,40}(?:聋哑|遗传病|小三阳|大三阳|乙肝)/u;
 
 // Product-level blocklist for knowledge articles and authority cache records.
 // Death-related terms are intentionally broad: even statistical/public-policy
@@ -207,6 +213,13 @@ function isPregnancyPlanningContext(text: string): boolean {
   return /备孕|孕前|准备怀孕|想怀孕|计划怀孕|准备要宝宝|想要宝宝|要宝宝|要孩子|准备要孩子|想要孩子|怀孕前|怀孕前期/u.test(text);
 }
 
+function isOffScopeAdultVaccineCase(text: string): boolean {
+  return ADULT_VACCINE_OR_INJURY_PATTERN.test(text)
+    && !isPregnancyOrPostpartumContext(text)
+    && !isPregnancyPlanningContext(text)
+    && !CHILD_CARE_SUBJECT_PATTERN.test(text);
+}
+
 function hasCategoryScopeConflict(record: KnowledgeGuardRecord): boolean {
   const category = record.category || '';
   const question = getQuestion(record);
@@ -272,7 +285,11 @@ export function getDatasetKnowledgeDropReason(record: KnowledgeGuardRecord): str
     return 'low_information_case_template';
   }
 
-  if (UNSUPPORTED_SERVICE_REQUEST_PATTERN.test(question) || SERVICE_ADMIN_REQUEST_PATTERN.test(question)) {
+  if (
+    UNSUPPORTED_SERVICE_REQUEST_PATTERN.test(question)
+    || SERVICE_ADMIN_REQUEST_PATTERN.test(question)
+    || ENVIRONMENTAL_DIAGNOSTIC_REQUEST_PATTERN.test(question)
+  ) {
     return 'unsupported_service_request';
   }
 
@@ -288,12 +305,16 @@ export function getDatasetKnowledgeDropReason(record: KnowledgeGuardRecord): str
     return 'off_scope_adult_health';
   }
 
-  if (HIGH_SENSITIVITY_PATTERN.test(text)) {
+  if (HIGH_SENSITIVITY_PATTERN.test(text) || SENSITIVE_REPRODUCTIVE_DECISION_PATTERN.test(question)) {
     return 'high_sensitivity_dataset_topic';
   }
 
   if (ADULT_REPRODUCTIVE_CASE_PATTERN.test(question)) {
     return 'adult_reproductive_case';
+  }
+
+  if (isOffScopeAdultVaccineCase(question)) {
+    return 'category_scope_conflict';
   }
 
   if (DIAGNOSED_CASE_FOLLOWUP_PATTERN.test(question) || COMPLEX_NEONATAL_DIAGNOSED_CASE_PATTERN.test(question)) {
@@ -336,9 +357,12 @@ export function isOutOfScopeKnowledgeQuery(query: string): boolean {
     || SUPPORT_POLICY_QUERY_PATTERN.test(normalized)
     || UNSUPPORTED_SERVICE_REQUEST_PATTERN.test(normalized)
     || SERVICE_ADMIN_REQUEST_PATTERN.test(normalized)
+    || ENVIRONMENTAL_DIAGNOSTIC_REQUEST_PATTERN.test(normalized)
+    || isOffScopeAdultVaccineCase(normalized)
     || BEYOND_CHILD_AGE_PATTERN.test(normalized)
     || OFF_SCOPE_ADULT_HEALTH_PATTERN.test(normalized)
     || HIGH_SENSITIVITY_PATTERN.test(normalized)
+    || SENSITIVE_REPRODUCTIVE_DECISION_PATTERN.test(normalized)
     || Boolean(isHighRiskOrClickbaitTitle(normalized))
     || containsDeathRelatedTerms(normalized);
 }

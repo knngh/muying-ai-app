@@ -304,6 +304,20 @@ describe('knowledge content guards', () => {
     })).toBe('personal_treatment_request');
 
     expect(getDatasetKnowledgeDropReason({
+      question: '宝宝用金蛇脂行么？去湿疹的。',
+      answer: '症状处理建议',
+      category: 'common-disease',
+      tags: ['母婴'],
+    })).toBe('personal_treatment_request');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '维生素b12和什么药配合才能治湿疹',
+      answer: '症状处理建议',
+      category: 'common-disease',
+      tags: ['母婴'],
+    })).toBe('personal_treatment_request');
+
+    expect(getDatasetKnowledgeDropReason({
       question: '宝宝湿疹怎么护理？',
       answer: '保持皮肤清洁保湿，避免刺激，严重或反复时就医评估。',
       category: 'common-disease',
@@ -339,6 +353,20 @@ describe('knowledge content guards', () => {
       category: 'vaccine-reaction',
       tags: ['母婴'],
     })).toBe('adult_reproductive_case');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '全部症状：宫缩频繁但是肚子不痛，平均5分钟宫缩一次。发病时间及原因：2011-10-28 19时30分左右治疗情况',
+      answer: '症状处理建议',
+      category: 'pregnancy-mid',
+      tags: ['母婴'],
+    })).toBe('low_information_case_template');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '患者信息：男1岁河北沧州医生建议宝宝半个小时后再喂奶，刚半个小时就喂奶了，是否影响药效曾经治疗情况及是否有过敏、遗传病史：没',
+      answer: '症状处理建议',
+      category: 'parenting-1-3',
+      tags: ['母婴'],
+    })).toBe('low_information_case_template');
 
     expect(getDatasetKnowledgeDropReason({
       question: '帮忙算下胎儿多重双顶径9.0cm，股骨长7.1cm，腹围98，这个可以算出宝宝多重吗',
@@ -401,6 +429,43 @@ describe('knowledge content guards', () => {
     expect(getDatasetKnowledgeDropReason({
       question: '孕前需要做哪些检查项目？',
       answer: '孕前检查项目科普',
+      category: 'pregnancy-prep',
+      tags: ['母婴'],
+    })).toBeNull();
+  });
+
+  it('rejects adult vaccine, environmental testing, and reproductive decision records', () => {
+    expect(getDatasetKnowledgeDropReason({
+      question: '（成年人）接种流感疫苗一周后，出现感冒症状，流涕，鼻塞，流眼泪，请问这是属于该疫苗的反应吗？',
+      answer: '症状处理建议',
+      category: 'vaccine-second',
+      tags: ['母婴'],
+    })).toBe('category_scope_conflict');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '我2014年10月全程注射过狂犬疫苗，今天被狗咬去了打了2针加强针，这2针加强针的保护期是多长时间？',
+      answer: '症状处理建议',
+      category: 'vaccine-schedule',
+      tags: ['母婴'],
+    })).toBe('category_scope_conflict');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '新生儿在有甲醛的房子里住三个月后如何补救，怎么样检测宝宝体内甲醛含量有多少？',
+      answer: '症状处理建议',
+      category: 'parenting-newborn',
+      tags: ['母婴'],
+    })).toBe('unsupported_service_request');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '舅舅、哥哥姐姐弟弟都是聋哑，我可以生孩子吗',
+      answer: '症状处理建议',
+      category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBe('high_sensitivity_dataset_topic');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '乙肝大三阳女怀孕前该做什么检查，如何防止孩子感染？',
+      answer: '孕前检查和母婴阻断科普',
       category: 'pregnancy-prep',
       tags: ['母婴'],
     })).toBeNull();
