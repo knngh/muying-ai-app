@@ -318,6 +318,27 @@ describe('knowledge content guards', () => {
     })).toBe('personal_treatment_request');
 
     expect(getDatasetKnowledgeDropReason({
+      question: '宝宝是母乳性黄疸，吃了一段时间茵栀黄，退了，停药后又黄了，茵栀黄吃多了是不是对宝宝不好？',
+      answer: '症状处理建议',
+      category: 'parenting-newborn',
+      tags: ['母婴'],
+    })).toBe('personal_treatment_request');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '医生说宝宝患的是肠炎，还有轻度脱水，现在宝宝没有拉了，可以给宝宝吃妈咪爱吗，还要吃腹泻奶粉吗',
+      answer: '症状处理建议',
+      category: 'nutrition-baby',
+      tags: ['母婴'],
+    })).toBe('personal_treatment_request');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '医生，一般宝宝得了黄胆值是140多，如果打几天护脑针的话，黄胆值会降下来吗？',
+      answer: '症状处理建议',
+      category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBe('personal_treatment_request');
+
+    expect(getDatasetKnowledgeDropReason({
       question: '宝宝湿疹怎么护理？',
       answer: '保持皮肤清洁保湿，避免刺激，严重或反复时就医评估。',
       category: 'common-disease',
@@ -346,6 +367,13 @@ describe('knowledge content guards', () => {
       category: 'parenting-0-1',
       tags: ['母婴'],
     })).toBe('adult_reproductive_case');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '在涂料厂上班，得了湿疹，手指很痒，起了很多水疱，反复发作，有半个月了',
+      answer: '症状处理建议',
+      category: 'common-disease',
+      tags: ['母婴'],
+    })).toBe('off_scope_adult_health');
 
     expect(getDatasetKnowledgeDropReason({
       question: '男性发烧打针期间有性生活怀孕对胎儿有什么影响',
@@ -480,6 +508,20 @@ describe('knowledge content guards', () => {
     })).toBe('emergency_or_poisoning_case');
 
     expect(getDatasetKnowledgeDropReason({
+      question: '医生宝宝接种b型流感嗜血杆菌疫苗后出现发烧嗜睡没精神，第二天还有点小烧',
+      answer: '症状处理建议',
+      category: 'vaccine-reaction',
+      tags: ['母婴'],
+    })).toBe('emergency_or_poisoning_case');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '五个半月的宝宝打完白百破预防针，晚上眼睛周围起了好多小红疙瘩，请问应该怎么办？急急急',
+      answer: '症状处理建议',
+      category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBe('emergency_or_poisoning_case');
+
+    expect(getDatasetKnowledgeDropReason({
       question: '宝宝8个月不会主动伸手拿东西，坐不稳，不会扶站。检查运动神经发育迟缓，核磁共振结果是第三脑室稍饱满。应该怎样治疗，要治疗多久康复？',
       answer: '症状处理建议',
       category: 'parenting-0-1',
@@ -497,6 +539,13 @@ describe('knowledge content guards', () => {
       question: '宝宝发烧怎么办',
       answer: '发热时观察体温、精神状态和进食情况。',
       category: 'common-symptoms',
+      tags: ['母婴'],
+    })).toBeNull();
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '宝宝接种后针眼周围有点红肿怎么办？',
+      answer: '观察局部红肿范围、体温和精神状态。',
+      category: 'vaccine-reaction',
       tags: ['母婴'],
     })).toBeNull();
   });
