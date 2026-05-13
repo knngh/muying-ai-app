@@ -411,6 +411,27 @@ describe('knowledge content guards', () => {
     })).toBe('biometric_measurement_case');
 
     expect(getDatasetKnowledgeDropReason({
+      question: '怀孕39周胎儿双顶径100mm股骨长78mm好生吗，一切都很正常请问可以顺产吗',
+      answer: '症状处理建议',
+      category: 'pregnancy-birth',
+      tags: ['母婴'],
+    })).toBe('biometric_measurement_case');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '怀孕刚四个月，去查宝宝双顶径是4.4，股骨是6.67，孩子发育正常不？',
+      answer: '症状处理建议',
+      category: 'common-development',
+      tags: ['母婴'],
+    })).toBe('biometric_measurement_case');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '38+2周B超显示羊水量右上象限0CM，双顶颈约9.4CM，股骨长约7.2CM，S/D值3.8，请专家给予最详细专业解释及办法',
+      answer: '症状处理建议',
+      category: 'pregnancy-early',
+      tags: ['母婴'],
+    })).toBe('biometric_measurement_case');
+
+    expect(getDatasetKnowledgeDropReason({
       question: '孕妇用补充DHA吗，有人说吃孕妇DHA胶囊对宝宝大脑视力发育好是真的吗？',
       answer: '孕期营养补充建议',
       category: 'common-development',
@@ -453,6 +474,34 @@ describe('knowledge content guards', () => {
       category: 'pregnancy-prep',
       tags: ['母婴'],
     })).toBe('high_sensitivity_dataset_topic');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '查出婴儿侧脑室前角宽，肾盂分离，医生说不算严重，我现在还有必要继续留下肚子里的这个孩子吗？',
+      answer: '症状处理建议',
+      category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBe('high_sensitivity_dataset_topic');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '宝宝出生后需要进一步检查以排除先天性风疹综合症吗？需要做哪些检查？什么时候查合适？',
+      answer: '症状处理建议',
+      category: 'parenting-newborn',
+      tags: ['母婴'],
+    })).toBe('diagnosed_case_followup');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '羊水过多一定要抽脐带血吗？医生建议做抽脐带血，32周了还用抽吗，对胎儿有什么影响吗？',
+      answer: '症状处理建议',
+      category: 'parenting-newborn',
+      tags: ['母婴'],
+    })).toBe('diagnosed_case_followup');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '我家小宝六个月检查说心脏心内膜垫缺损，需要手术治疗吗，什么时候是最佳手术时间？',
+      answer: '症状处理建议',
+      category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBe('diagnosed_case_followup');
 
     expect(getDatasetKnowledgeDropReason({
       question: '孕前需要做哪些检查项目？',
