@@ -122,6 +122,7 @@
 
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
+import { onShareAppMessage } from '@dcloudio/uni-app'
 import { useChatStore } from '@/stores/chat'
 import { getDisclaimer } from '@/api/ai'
 import { wsManager } from '@/utils/websocket'
@@ -237,6 +238,11 @@ onMounted(() => {
 onUnmounted(() => {
   // 不断开 WebSocket，其他页面可能也需要
 })
+
+onShareAppMessage(() => ({
+  title: '贝护妈妈：先查权威资料，再记录你的问题',
+  path: '/pages/chat/index',
+}))
 </script>
 
 <style scoped>

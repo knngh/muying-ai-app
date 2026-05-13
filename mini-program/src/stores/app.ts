@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { authApi } from '@/api/modules'
 import type { User } from '@/api/modules'
 import dayjs from 'dayjs'
-import { calculateDueDateFromPregnancyWeek, syncPregnancyWeekStorage } from '@/utils'
+import { calculateDueDateFromPregnancyWeek, clearLocalSession, isStoredAuthTokenUsable, syncPregnancyWeekStorage } from '@/utils'
 
 const normalizePregnancyStatus = (value: unknown) => {
   if (typeof value === 'number' && value >= 1 && value <= 3) return value
@@ -90,14 +90,23 @@ export const useAppStore = defineStore('app', {
       return updatedUser
     },
     async fetchUser() {
+      const token = uni.getStorageSync('token')
+      if (!isStoredAuthTokenUsable(token)) {
+        clearLocalSession()
+        this.setUser(null)
+        return null
+      }
+
       try {
         const userData = await authApi.me() as User
         this.setUser(userData)
         await this.restoreDueDateFromStoredWeek(userData)
+        return userData
       } catch (_e) {
         if (!uni.getStorageSync('token')) {
           this.setUser(null)
         }
+        return null
       }
     },
   },

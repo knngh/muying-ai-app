@@ -9,6 +9,48 @@ const PREGNANCY_STATUS_MAP: Record<string, number> = {
   pregnant: 2,
   postpartum: 3,
 }
+const BASE64_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+
+function decodeBase64UrlAscii(input: string): string | null {
+  const normalized = input.replace(/-/g, '+').replace(/_/g, '/')
+  let buffer = 0
+  let bits = 0
+  let output = ''
+
+  for (const char of normalized) {
+    if (char === '=') break
+    const value = BASE64_ALPHABET.indexOf(char)
+    if (value < 0) return null
+    buffer = (buffer << 6) | value
+    bits += 6
+    if (bits >= 8) {
+      bits -= 8
+      output += String.fromCharCode((buffer >> bits) & 0xff)
+    }
+  }
+
+  return output
+}
+
+export function isStoredAuthTokenUsable(value: unknown, nowMs = Date.now()): boolean {
+  const token = typeof value === 'string' ? value.trim() : ''
+  if (!token) return false
+
+  const parts = token.split('.')
+  if (parts.length !== 3 || !parts[1]) return false
+
+  try {
+    const payloadText = decodeBase64UrlAscii(parts[1])
+    if (!payloadText) return false
+    const payload = JSON.parse(payloadText) as { exp?: number | string }
+    const exp = typeof payload.exp === 'number' ? payload.exp : Number.parseInt(String(payload.exp || ''), 10)
+    if (!Number.isFinite(exp)) return false
+
+    return exp * 1000 > nowMs + 30 * 1000
+  } catch {
+    return false
+  }
+}
 
 export function v4(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {

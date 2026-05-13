@@ -3,57 +3,44 @@
     {
       "path": "pages/home/index",
       "style": {
-        "navigationBarTitleText": "贝护妈妈",
-        "enableShareAppMessage": true,
-        "enableShareTimeline": true
+        "navigationBarTitleText": "贝护妈妈"
       }
     },
     { "path": "pages/login/index", "style": { "navigationBarTitleText": "登录" } },
     {
       "path": "pages/calendar/index",
       "style": {
-        "navigationBarTitleText": "孕周日历",
-        "enableShareAppMessage": true,
-        "enableShareTimeline": true
+        "navigationBarTitleText": "孕周日历"
       }
     },
     {
       "path": "pages/chat/index",
       "style": {
-        "navigationBarTitleText": "服务",
-        "enableShareAppMessage": true
+        "navigationBarTitleText": "服务"
       }
     },
     {
       "path": "pages/pregnancy-profile/index",
       "style": {
-        "navigationBarTitleText": "孕期档案",
-        "enableShareAppMessage": true,
-        "enableShareTimeline": true
+        "navigationBarTitleText": "孕期档案"
       }
     },
     {
       "path": "pages/knowledge/index",
       "style": {
-        "navigationBarTitleText": "权威知识库",
-        "enableShareAppMessage": true,
-        "enableShareTimeline": true
+        "navigationBarTitleText": "权威知识库"
       }
     },
     {
       "path": "pages/knowledge-detail/index",
       "style": {
-        "navigationBarTitleText": "文章详情",
-        "enableShareAppMessage": true,
-        "enableShareTimeline": true
+        "navigationBarTitleText": "文章详情"
       }
     },
     {
       "path": "pages/trust-center/index",
       "style": {
-        "navigationBarTitleText": "内容可信说明",
-        "enableShareAppMessage": true,
-        "enableShareTimeline": true
+        "navigationBarTitleText": "内容可信说明"
       }
     },
     { "path": "pages/profile/index", "style": { "navigationBarTitleText": "我的" } },
