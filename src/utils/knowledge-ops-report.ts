@@ -1,5 +1,6 @@
 import { cleanAuthorityTranslationCache } from './authority-translation-cache-cleaner';
 import { buildAuthorityTranslationFailureRetryPlan } from './authority-translation-failure-retry';
+import { AUTHORITY_COVERAGE_TARGET_PHASE, AUTHORITY_COVERAGE_TARGET_RATE } from './knowledge-authority-coverage-policy';
 import { getDatasetKnowledgeDropReason } from './knowledge-content-guard';
 import { normalizeKnowledgePromotionTargetStage } from './knowledge-promotion-stage';
 
@@ -125,7 +126,6 @@ export interface KnowledgeOpsPromotionQuestionCandidate {
 const DEFAULT_WATCHED_SOURCE_IDS = ['mayo-clinic-zh', 'chinacdc-nutrition'];
 const DEFAULT_WATCHED_SOURCE_MINIMUM_RECORDS = 10;
 const DEFAULT_PROMOTION_CANDIDATE_LIMIT = 100;
-const P3_AUTHORITY_COVERAGE_TARGET_RATE = 80;
 const AUTHORITY_SOURCE_PATTERN = /who\.int|cdc\.gov|healthychildren\.org|acog\.org|mayoclinic\.org|msdmanuals\.cn|nhs\.uk|nih\.gov|fda\.gov|nhc\.gov\.cn|chinacdc\.cn|ndcpa\.gov\.cn|gov\.cn|who|cdc|aap|acog|mayo|nhs|卫健委|疾控|中国政府网|国家疾病预防控制局/iu;
 const PROMOTION_CASE_FORM_PATTERN = /全部症状|发病时间|治疗情况|患者性别|患者年龄|病情描述|想得到怎样的帮助/u;
 const PROMOTION_URGENT_RISK_PATTERN = /高烧|高热|发烧|发热|咳嗽|腹泻|呕吐|便秘|红疹|皮疹|湿疹|黄疸|出血|见红|疼|痛|呼吸困难|喘不过气|抽搐|惊厥|意识异常|昏迷|大出血|脱水|胎动消失|胎动明显减少|拒奶.*精神差|精神差.*拒奶|吃什么药|用什么药/u;
@@ -386,9 +386,9 @@ function buildCoverageTargetSummary(
   authorityRecords: KnowledgeOpsQaRecord[],
   sampleLimit: number,
 ) {
-  const targetCovered = Math.ceil(Math.max(total, 0) * (P3_AUTHORITY_COVERAGE_TARGET_RATE / 100));
+  const targetCovered = Math.ceil(Math.max(total, 0) * (AUTHORITY_COVERAGE_TARGET_RATE / 100));
   return {
-    targetRate: P3_AUTHORITY_COVERAGE_TARGET_RATE,
+    targetRate: AUTHORITY_COVERAGE_TARGET_RATE,
     targetCovered,
     additionalCoveredNeeded: Math.max(0, targetCovered - Math.max(authorityCovered, 0)),
     missingByTopic: topBy(missingRecords, resolveCoverageTopic, 12),
@@ -1228,11 +1228,11 @@ export function buildKnowledgeOpsReport(input: KnowledgeOpsReportInput, options:
   );
 
   const actionItems = [
-    coverage.coverageRate < 60
+    coverage.coverageRate < AUTHORITY_COVERAGE_TARGET_RATE
       ? {
-        priority: 'P2',
+        priority: AUTHORITY_COVERAGE_TARGET_PHASE,
         area: 'authority_coverage',
-        message: `authority coverage below 60%: ${coverage.coverageRate}%`,
+        message: `authority coverage below ${AUTHORITY_COVERAGE_TARGET_PHASE} target: ${coverage.coverageRate}% < ${AUTHORITY_COVERAGE_TARGET_RATE}%`,
       }
       : null,
     translations.retryableFailures > 0

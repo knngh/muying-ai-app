@@ -50,6 +50,12 @@
 - 使用生产 raw QA 与生产 authority cache 重新增强后，权威覆盖率为 `81.99%`（`1452/1771`，缺口 `319`，authority cache `1123` 条已加载），说明发布后重新生成 enriched 数据仍能稳定超过 P3 目标。
 - 本地默认 `data/expanded-qa-data-5000.enriched.json` 仍是较旧快照，默认审计不作为 P3 完成判定口径；P3 以生产快照和生产 cache 重新增强结果为准。
 
+2026-05-14 P4 发布收口更新：
+
+- P4 不再继续扩大 coverage guard 分母清理，而是把 P3 成果发布到生产运行态：部署最新 guard / ops 代码，在服务器使用生产 raw QA 与生产 authority cache 重新生成 `data/expanded-qa-data-5000.enriched.json`。
+- `ops:knowledge:report` 与 `ops:knowledge:daily` 的权威覆盖行动阈值已从旧 P2 `60%` 切换为 P4 `80%`，生产覆盖低于 `80%` 时才会产生 P4 action item；达到 `80%+` 后应保持 `status=ok`。
+- P4 验收以生产 `ops:knowledge:status` 和 `ops:smoke:prod` 为准：coverage `>=80%`、daily ops 命令失败数 `0`、翻译 invalid cache `0`、实际可执行 nextActions 为空、主 smoke 通过。
+
 5000 QA 任务不是已经完成的“一次性任务”，而是分成两层：
 
 - 旧 5000 QA 数据集：目前是 3346 条可检索的基础问答库，但不是权威增强版。

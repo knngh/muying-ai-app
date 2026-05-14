@@ -1,3 +1,5 @@
+import { AUTHORITY_COVERAGE_TARGET_PHASE, AUTHORITY_COVERAGE_TARGET_RATE } from './knowledge-authority-coverage-policy';
+
 export interface KnowledgeDailyOpsCommandResult {
   name: string;
   command: string;
@@ -315,8 +317,8 @@ function buildNextActions(input: BuildKnowledgeDailyOpsReportInput): string[] {
     const model = aiHealth.call?.route?.model || aiHealth.binding?.model || aiHealth.call?.error?.gatewayModel || 'unknown-model';
     actions.push(`AI provider health check failed for ${aiHealth.taskRole || 'unknown-role'} (${provider} / ${model}).`);
   }
-  if (coverageRate < 60) {
-    actions.push(`Authority coverage is below P2 target: ${coverageRate}% < 60%`);
+  if (coverageRate < AUTHORITY_COVERAGE_TARGET_RATE) {
+    actions.push(`Authority coverage is below ${AUTHORITY_COVERAGE_TARGET_PHASE} target: ${coverageRate}% < ${AUTHORITY_COVERAGE_TARGET_RATE}%`);
   }
   if (refreshableSources.length > 0 && input.sourceRefreshResult?.dryRun !== false) {
     actions.push('Review low-coverage source dry-run output, then run KNOWLEDGE_DAILY_APPLY_FIXES=true npm run ops:knowledge:daily when ready.');

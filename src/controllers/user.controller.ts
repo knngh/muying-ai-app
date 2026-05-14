@@ -27,28 +27,34 @@ export const getFavorites = async (req: Request, res: Response, next: NextFuncti
         skip,
         take: Number(pageSize),
         orderBy: { createdAt: 'desc' },
-        include: {
-          article: {
-            select: {
-              id: true,
-              title: true,
-              slug: true,
-              coverImage: true,
-              summary: true,
-              viewCount: true,
-              likeCount: true,
-              publishedAt: true
-            }
-          }
-        }
       }),
       prisma.userFavorite.count({ where })
     ]);
 
+    const articleIds = favoriteType === 'article'
+      ? favorites.map((favorite) => favorite.favId)
+      : [];
+    const articles = articleIds.length > 0
+      ? await prisma.article.findMany({
+        where: { id: { in: articleIds } },
+        select: {
+          id: true,
+          title: true,
+          slug: true,
+          coverImage: true,
+          summary: true,
+          viewCount: true,
+          likeCount: true,
+          publishedAt: true
+        }
+      })
+      : [];
+    const articleById = new Map(articles.map((article) => [article.id.toString(), article]));
+
     const list = favorites.map(f => ({
       id: f.id,
       createdAt: f.createdAt,
-      article: f.article
+      article: favoriteType === 'article' ? articleById.get(f.favId.toString()) || null : null
     }));
 
     res.json(paginatedResponse(list, Number(page), Number(pageSize), total));

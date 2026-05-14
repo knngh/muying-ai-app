@@ -171,6 +171,11 @@ describe('knowledge ops report', () => {
       'translation_cache',
       'source_coverage',
     ]));
+    expect(report.actionItems).toContainEqual({
+      priority: 'P4',
+      area: 'authority_coverage',
+      message: 'authority coverage below P4 target: 50% < 80%',
+    });
   });
 
   it('preserves guard exclusion totals from authority coverage audits', () => {
@@ -220,6 +225,32 @@ describe('knowledge ops report', () => {
         },
       },
     });
+  });
+
+  it('keeps authority coverage healthy once the P4 operational threshold is met', () => {
+    const report = buildKnowledgeOpsReport({
+      qaRecords: [],
+      authorityRecords: [],
+      coverageAudit: {
+        total: 1771,
+        rawTotal: 5000,
+        authorityCovered: 1428,
+        missingAuthorityCoverage: 343,
+        coverageRate: 80.63,
+      },
+    }, {
+      watchedSourceIds: [],
+    });
+
+    expect(report.coverage).toMatchObject({
+      source: 'authority-coverage-audit',
+      coverageRate: 80.63,
+      target80: {
+        targetRate: 80,
+        additionalCoveredNeeded: 0,
+      },
+    });
+    expect(report.actionItems.some((item) => item.area === 'authority_coverage')).toBe(false);
   });
 
   it('aligns target coverage breakdowns with dataset content guards', () => {

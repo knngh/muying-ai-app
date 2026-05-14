@@ -89,10 +89,31 @@ describe('knowledge daily ops report', () => {
       },
     ]);
     expect(report.nextActions).toEqual(expect.arrayContaining([
-      'Authority coverage is below P2 target: 52.83% < 60%',
+      'Authority coverage is below P4 target: 52.83% < 80%',
       'Review low-coverage source dry-run output, then run KNOWLEDGE_DAILY_APPLY_FIXES=true npm run ops:knowledge:daily when ready.',
       'mayo-clinic-zh discovery probe found 3 candidate URL(s); safe to run a controlled source refresh for that source.',
     ]));
+  });
+
+  it('does not request authority coverage action once the P4 threshold is met', () => {
+    const report = buildKnowledgeDailyOpsReport({
+      generatedAt: '2026-05-14T00:00:00.000Z',
+      applyFixes: false,
+      commands: [
+        { name: 'knowledge_ops_report', command: 'npm run ops:knowledge:report', ok: true, exitCode: 0, durationMs: 100 },
+      ],
+      knowledgeReport: {
+        coverage: {
+          coverageRate: 80.63,
+          authorityCovered: 1428,
+          missingAuthorityCoverage: 343,
+        },
+        actionItems: [],
+      },
+    });
+
+    expect(report.status).toBe('ok');
+    expect(report.nextActions).toEqual([]);
   });
 
   it('downgrades upstream entry access failures when no source refresh can be applied', () => {
@@ -366,9 +387,9 @@ describe('knowledge daily ops report', () => {
       ],
       knowledgeReport: {
         coverage: {
-          coverageRate: 76.05,
-          authorityCovered: 2388,
-          missingAuthorityCoverage: 752,
+          coverageRate: 81.99,
+          authorityCovered: 1452,
+          missingAuthorityCoverage: 319,
         },
         translations: {
           recordsForTranslation: 628,
@@ -428,9 +449,9 @@ describe('knowledge daily ops report', () => {
       ],
       knowledgeReport: {
         coverage: {
-          coverageRate: 76.05,
-          authorityCovered: 2388,
-          missingAuthorityCoverage: 752,
+          coverageRate: 81.99,
+          authorityCovered: 1452,
+          missingAuthorityCoverage: 319,
         },
         translations: {
           recordsForTranslation: 633,
@@ -498,9 +519,9 @@ describe('knowledge daily ops report', () => {
       ],
       knowledgeReport: {
         coverage: {
-          coverageRate: 76.05,
-          authorityCovered: 2388,
-          missingAuthorityCoverage: 752,
+          coverageRate: 81.99,
+          authorityCovered: 1452,
+          missingAuthorityCoverage: 319,
         },
         translations: {
           recordsForTranslation: 633,
@@ -551,9 +572,9 @@ describe('knowledge daily ops report', () => {
       ],
       knowledgeReport: {
         coverage: {
-          coverageRate: 76.76,
-          authorityCovered: 2305,
-          missingAuthorityCoverage: 698,
+          coverageRate: 81.99,
+          authorityCovered: 1452,
+          missingAuthorityCoverage: 319,
         },
         translations: {
           recordsForTranslation: 633,

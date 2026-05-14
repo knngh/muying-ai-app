@@ -118,6 +118,7 @@ export function sanitizeRecentAIHitArticles(
 export function mergeRecentAIHitArticles(
   existing: RecentAIHitArticle[],
   next: RecentAIHitArticle,
+  now = Date.now(),
 ): RecentAIHitArticle[] {
-  return sanitizeRecentAIHitArticles([next, ...existing.filter((item) => item.slug !== next.slug)])
+  return sanitizeRecentAIHitArticles([next, ...existing.filter((item) => item.slug !== next.slug)], now)
 }

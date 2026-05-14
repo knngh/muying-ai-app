@@ -94,7 +94,7 @@ describe('recent ai hit helpers', () => {
       lastHitAt: '2026-04-23T10:00:00.000Z',
     }
 
-    const merged = mergeRecentAIHitArticles(existing, next)
+    const merged = mergeRecentAIHitArticles(existing, next, Date.parse('2026-04-23T12:00:00.000Z'))
 
     expect(merged[0].slug).toBe('newer')
     expect(merged[1].slug).toBe('older')
