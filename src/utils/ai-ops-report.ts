@@ -212,6 +212,19 @@ export function buildAIOpsReport(input: {
     );
   }
 
+  if (messagesSent + requestsStarted === 0 && recommendedQuestionsServed > 0) {
+    pushAction(
+      actionItems,
+      nextActions,
+      {
+        area: 'ai_answer_traffic',
+        severity: 'medium',
+        message: `Recommendation exposure was captured, but no AI answer request was captured in the last ${rangeDays} day(s).`,
+      },
+      'Run a small authenticated AI/chat smoke cohort to establish answer quality and latency metrics',
+    );
+  }
+
   if (
     requestsStarted >= thresholds.minServerRequestsForRate
     && serverAi.errorRate !== null

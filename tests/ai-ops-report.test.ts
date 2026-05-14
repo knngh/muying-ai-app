@@ -147,4 +147,45 @@ describe('AI ops report', () => {
       'Drive a small AI/chat and recommendation smoke cohort to establish baseline metrics',
     ]);
   });
+
+  it('still asks for an AI answer baseline when recommendation exposure exists but no AI answer request was captured', () => {
+    const report = buildAIOpsReport({
+      generatedAt: '2026-05-14T06:40:00.000Z',
+      overview: {
+        rangeDays: 7,
+        counts: {
+          messagesSent: 0,
+          responsesReceived: 0,
+          serverRequestsStarted: 0,
+          serverResponsesCompleted: 0,
+          serverRequestErrors: 0,
+          serverRecommendedQuestionsServed: 2,
+        },
+        responseQuality: {},
+        serverAi: {
+          requestsStarted: 0,
+          responsesCompleted: 0,
+          requestErrors: 0,
+          errorRate: null,
+          averageLatencyMs: null,
+          recommendedQuestionsServed: 2,
+          recommendedQuestionsReturned: 6,
+          recommendedStageBreakdown: [{ key: 'newborn', count: 2 }],
+        },
+      },
+    });
+
+    expect(report.status).toBe('attention');
+    expect(report.actionItems).toEqual([
+      expect.objectContaining({ area: 'ai_answer_traffic' }),
+    ]);
+    expect(report.nextActions).toEqual([
+      'Run a small authenticated AI/chat smoke cohort to establish answer quality and latency metrics',
+    ]);
+    expect(report.acquisition).toMatchObject({
+      recommendedQuestionsServed: 2,
+      recommendedQuestionsReturned: 6,
+      topRecommendedStage: 'newborn',
+    });
+  });
 });
