@@ -70,7 +70,7 @@ interface AIOpsOverviewInput {
   serverAi?: unknown;
 }
 
-interface ProductEntrypointCoverage {
+export interface ProductEntrypointCoverage {
   entrySource: string;
   label: string;
   clickCount: number;

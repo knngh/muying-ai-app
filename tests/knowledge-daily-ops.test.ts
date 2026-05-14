@@ -648,6 +648,26 @@ describe('knowledge daily ops report', () => {
           recommendedQuestionsServed: 4,
           recommendedQuestionsReturned: 12,
         },
+        productEntrypointCoverage: [
+          {
+            entrySource: 'home_suggested_question',
+            label: 'Home suggested question',
+            clickCount: 1,
+            prefillCount: 1,
+            messageCount: 1,
+            serverStartCount: 1,
+            serverResponseCount: 1,
+            serverErrorCount: 0,
+            feedbackCount: 0,
+            hasClick: true,
+            hasPrefill: true,
+            hasMessage: true,
+            hasServerStart: true,
+            hasServerResponse: true,
+            hasFeedback: false,
+            totalTrackedEvents: 5,
+          },
+        ],
         actionItems: [
           { area: 'ai_error_rate', severity: 'medium', message: 'Server AI error rate is 30.0%.' },
         ],
@@ -665,6 +685,14 @@ describe('knowledge daily ops report', () => {
         requestErrors: 3,
         topErrorCode: 'AI_TIMEOUT',
       },
+      productEntrypointCoverage: [
+        {
+          entrySource: 'home_suggested_question',
+          label: 'Home suggested question',
+          serverResponseCount: 1,
+          hasServerResponse: true,
+        },
+      ],
     });
     expect(report.nextActions).toEqual(['Inspect top AI error code: AI_TIMEOUT']);
   });

@@ -457,6 +457,7 @@ export function buildKnowledgeDailyOpsReport(input: BuildKnowledgeDailyOpsReport
           clientAi: input.aiOpsReport.clientAi,
           serverAi: input.aiOpsReport.serverAi,
           acquisition: input.aiOpsReport.acquisition,
+          productEntrypointCoverage: input.aiOpsReport.productEntrypointCoverage || [],
           actionItems: input.aiOpsReport.actionItems || [],
           nextActions: input.aiOpsReport.nextActions || [],
         }
