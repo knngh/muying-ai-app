@@ -15,7 +15,7 @@ function buildQuotaFingerprint(req: Request): string | undefined {
   }
 
   return JSON.stringify({
-    path: req.path,
+    endpoint: req.path.includes('/chat') ? 'chat' : req.path.includes('/ask') ? 'ask' : req.path,
     question: req.body.question,
     messages: req.body.messages,
     context: req.body.context,

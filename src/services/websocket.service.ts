@@ -110,7 +110,7 @@ function getErrorMessage(error: unknown, fallback: string): string {
 
 function buildWsQuotaFingerprint(type: WsClientMessage['type'], payload: WsClientMessage['payload']): string {
   return JSON.stringify({
-    type,
+    endpoint: type === 'chat_stream' ? 'chat' : type === 'ask_stream' ? 'ask' : type,
     question: payload.question,
     messages: payload.messages,
     conversationId: payload.conversationId,
