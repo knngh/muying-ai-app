@@ -168,6 +168,9 @@ if [[ "${RUN_ADMIN_FUNNEL}" == "true" ]]; then
   ADMIN_TOKEN="$(login "${ADMIN_USERNAME}" "${ADMIN_PASSWORD}")"
   echo "[admin] funnel"
   curl -fsS "${API_BASE}/analytics/funnel?rangeDays=7" -H "Authorization: Bearer ${ADMIN_TOKEN}" | jq '{rangeDays:.data.rangeDays,steps:.data.steps}'
+  echo "[admin] ai overview"
+  curl -fsS "${API_BASE}/analytics/ai-overview?rangeDays=7" -H "Authorization: Bearer ${ADMIN_TOKEN}" |
+    jq '{rangeDays:.data.rangeDays,counts:.data.counts,serverAi:.data.serverAi}'
 fi
 
 echo "Smoke completed."
