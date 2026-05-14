@@ -82,6 +82,14 @@
 - 已发布到生产并重启 `muying-api` / `muying-authority-worker`；`ops:release:prod` 主 smoke 通过。发布后 worker 新启动日志显示 `selected=0`，未再触发新模型调用。
 - 复跑 `ops:knowledge:status`：`status=ok`，daily ops `7/7` 成功，coverage `81.99%`，`actionItems=[]`，`nextActions=[]`。生产仍保留发布前旧启动批次造成的 `10` 条 transient blocked failure，均为 `retry_after_pending`，不产生可执行行动项；新代码会防止后续批次一次性扩大失败面。
 
+2026-05-14 P4 收尾记录：
+
+- P4 已正式收尾，详见 [`P4-CLOSURE-20260514.md`](./P4-CLOSURE-20260514.md)。
+- 本轮补齐 AI 产品入口真实客户端埋点审计与 `clientRequestId` 关联：App 端聊天发送、响应、WebSocket、HTTP fallback 和服务端 analytics 已可用同一请求 ID 对齐；小程序端协议也已补齐。
+- 新增 `npm run audit:ai-entrypoints`，用于防止首页建议提问、周报问 AI、知识详情问 AI、最近 AI 线索、原生聊天入口的客户端埋点断链。
+- 修复 WebSocket 超时降级到 HTTP fallback 时，同一 `clientRequestId` 因传输端点不同产生不同 quota fingerprint 的问题，避免免费用户被重复扣减。
+- 已再次发布生产并完成 `ops:release:prod`、`ops:smoke:ai:entrypoints`、`ops:smoke:ai:ws`、`ops:knowledge:status`；主链路通过，权威覆盖率保持 `81.99%`，AI 入口 ops 覆盖完整且真实入口统计仍未被 ops smoke 污染。
+
 5000 QA 任务不是已经完成的“一次性任务”，而是分成两层：
 
 - 旧 5000 QA 数据集：目前是 3346 条可检索的基础问答库，但不是权威增强版。
