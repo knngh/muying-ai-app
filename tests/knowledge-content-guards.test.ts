@@ -453,6 +453,20 @@ describe('knowledge content guards', () => {
     })).toBe('adult_reproductive_case');
 
     expect(getDatasetKnowledgeDropReason({
+      question: '我生宝宝已2个来月，会阴撕裂的伤口未感染，未红肿，表面看上去恢复得不错。但走路和抬腿或双腿张开较大辐度时感觉疼痛。42天的时候到医院复查时，医生说再观察看看。现在都2个多月了，痛感还在。请问是什么原因。是不是里面缝线的地方没长好，还是长什么东西了？',
+      answer: '症状处理建议',
+      category: 'parenting-1-3',
+      tags: ['母婴'],
+    })).toBe('adult_reproductive_case');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '请问我生完孩子七个月了。可是下面总是断断续续有血，偶尔小腹有点疼，孩子俩个月去医院检查说是宫颈有点充血，吃的消炎药一直到三个月时候才好，这个月还没来下面又有血了，不知道是不是月经，怎么回事呢？',
+      answer: '症状处理建议',
+      category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBe('adult_reproductive_case');
+
+    expect(getDatasetKnowledgeDropReason({
       question: '每次月经十多天才干净，生完孩子后做过利普刀，现在还是这样是什么原因？',
       answer: '症状处理建议',
       category: 'parenting-0-1',
@@ -526,6 +540,13 @@ describe('knowledge content guards', () => {
       question: '孕妇用补充DHA吗，有人说吃孕妇DHA胶囊对宝宝大脑视力发育好是真的吗？',
       answer: '孕期营养补充建议',
       category: 'common-development',
+      tags: ['母婴'],
+    })).toBeNull();
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '产后恶露一般如何观察，什么时候需要就医？',
+      answer: '产后恢复科普',
+      category: 'pregnancy-birth',
       tags: ['母婴'],
     })).toBeNull();
   });
