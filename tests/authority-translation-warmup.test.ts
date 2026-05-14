@@ -486,4 +486,94 @@ describe('authority translation warmup', () => {
       quotaResetAt: '2026-05-09T07:30:00.000Z',
     }));
   });
+
+  it('stops the current batch after a Modal Direct concurrency failure', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'authority-translation-warmup-'));
+    const authorityCachePath = path.join(tmpDir, 'authority-knowledge-cache.json');
+    const translationCachePath = path.join(tmpDir, 'authority-translation-cache.json');
+    const failureCachePath = path.join(tmpDir, 'authority-translation-failures.json');
+
+    fs.writeFileSync(authorityCachePath, JSON.stringify([
+      {
+        id: 'aap-100',
+        question: 'Your baby first solid foods',
+        summary: 'How to introduce solid foods.',
+        answer: 'Start around six months when the baby shows readiness. Offer iron-rich foods and avoid choking hazards.',
+        source_language: 'en',
+        source_url: 'https://www.healthychildren.org/example-100',
+        updated_at: '2026-05-09T00:00:00.000Z',
+      },
+      {
+        id: 'aap-101',
+        question: 'Baby sleep routines',
+        summary: 'How to plan safe sleep routines.',
+        answer: 'Use a firm flat sleep surface and keep soft objects out of the sleep area.',
+        source_language: 'en',
+        source_url: 'https://www.healthychildren.org/example-101',
+        updated_at: '2026-05-09T00:00:00.000Z',
+      },
+    ]), 'utf-8');
+    fs.writeFileSync(translationCachePath, '{}', 'utf-8');
+    fs.writeFileSync(failureCachePath, '{}', 'utf-8');
+
+    process.env.AUTHORITY_KNOWLEDGE_CACHE_PATH = authorityCachePath;
+    process.env.AUTHORITY_TRANSLATION_CACHE_PATH = translationCachePath;
+    process.env.AUTHORITY_TRANSLATION_FAILURE_CACHE_PATH = failureCachePath;
+    process.env.AUTHORITY_TRANSLATION_SYNC_LIMIT = '10';
+    process.env.AUTHORITY_TRANSLATION_SYNC_DELAY_MS = '0';
+    process.env.AUTHORITY_TRANSLATION_TASK_ROLES = 'glm_classify,minimax_render';
+    process.env.AI_GLM_PROVIDER = 'modal-direct';
+    process.env.AI_GLM_MODEL = 'zai-org/GLM-5.1-FP8';
+    process.env.AI_MODAL_DIRECT_KEY = 'test-modal-key';
+
+    const modalConcurrencyError = Object.assign(new Error('AI Gateway error: 429'), {
+      gatewayStatus: 429,
+      gatewayProvider: 'modal-direct',
+      gatewayErrorText: '{"error": "Too many concurrent requests for this model"}',
+    });
+
+    let moduleApi: {
+      callTaskModelSpy: jest.SpyInstance;
+      warmPublishedAuthorityTranslations: typeof import('../src/services/authority-translation.service').warmPublishedAuthorityTranslations;
+    } | null = null;
+
+    jest.isolateModules(() => {
+      const aiGateway = require('../src/services/ai-gateway.service') as typeof import('../src/services/ai-gateway.service');
+      const callTaskModelSpy = jest.spyOn(aiGateway, 'callTaskModelDetailed')
+        .mockRejectedValue(modalConcurrencyError);
+      const translationService = require('../src/services/authority-translation.service') as typeof import('../src/services/authority-translation.service');
+
+      moduleApi = {
+        callTaskModelSpy,
+        warmPublishedAuthorityTranslations: translationService.warmPublishedAuthorityTranslations,
+      };
+    });
+
+    expect(moduleApi).not.toBeNull();
+    const result = await moduleApi.warmPublishedAuthorityTranslations({
+      delayMs: 0,
+      limit: 2,
+    });
+
+    expect(moduleApi.callTaskModelSpy).toHaveBeenCalledTimes(1);
+    expect(result).toEqual(expect.objectContaining({
+      scanned: 2,
+      candidates: 2,
+      selected: 1,
+      cached: 0,
+      skipped: 1,
+      warmed: 0,
+      failed: 1,
+    }));
+    expect(result.failures).toEqual([
+      {
+        slug: 'authority-aap-100',
+        message: 'AI Gateway error: 429',
+      },
+    ]);
+
+    const storedFailures = JSON.parse(fs.readFileSync(failureCachePath, 'utf-8')) as Record<string, { message?: string }>;
+    expect(Object.keys(storedFailures)).toEqual(['authority-aap-100']);
+    expect(storedFailures['authority-aap-100'].message).toContain('Too many concurrent requests');
+  });
 });

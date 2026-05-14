@@ -75,6 +75,13 @@
 - 生产执行 `DRY_RUN=false PRUNE_STALE=true LIMIT=0 npm run retry:authority-translation-failures`：只清理、不重试模型，修剪剩余 `19` 条 stale failure。
 - 最终复跑 `ops:knowledge:status`：`status=ok`，daily ops `7/7` 成功，coverage `81.99%`，翻译 `cacheHitRate=47.74%`、`failureEntries=0`、`invalidCacheEntries=0`、`actionItems=[]`、`nextActions=[]`。AI health 本轮为 `degraded`，原因是 Modal Direct 单次健康探针 `45000ms` 超时；该降级不会阻塞知识状态。
 
+2026-05-14 P4+ worker 预热保护更新：
+
+- 权威 worker 启动阶段翻译预热默认切到只读扫描：新增 `AUTHORITY_TRANSLATION_STARTUP_LIMIT`，默认 `0`，启动时只加载权威缓存 / 翻译缓存 / failure 缓存并清理已命中缓存的失败记录，不再在每次重启后立刻打模型；如需恢复启动即预热，可显式设置该变量。
+- `warmPublishedAuthorityTranslations()` 遇到 Modal Direct 429、provider 级失败、timeout / empty response 等通道级问题时，会在记录当前条 failure 后立即停止本批次，把未尝试候选计入 `skipped`，避免同一轮连续制造多条 429 / timeout failure。
+- 已发布到生产并重启 `muying-api` / `muying-authority-worker`；`ops:release:prod` 主 smoke 通过。发布后 worker 新启动日志显示 `selected=0`，未再触发新模型调用。
+- 复跑 `ops:knowledge:status`：`status=ok`，daily ops `7/7` 成功，coverage `81.99%`，`actionItems=[]`，`nextActions=[]`。生产仍保留发布前旧启动批次造成的 `10` 条 transient blocked failure，均为 `retry_after_pending`，不产生可执行行动项；新代码会防止后续批次一次性扩大失败面。
+
 5000 QA 任务不是已经完成的“一次性任务”，而是分成两层：
 
 - 旧 5000 QA 数据集：目前是 3346 条可检索的基础问答库，但不是权威增强版。

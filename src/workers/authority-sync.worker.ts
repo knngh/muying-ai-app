@@ -1,6 +1,10 @@
 import '../config/env';
 import { syncAllAuthoritySources } from '../services/authority-sync.service';
 import { warmPublishedAuthorityTranslations } from '../services/authority-translation.service';
+import {
+  resolveAuthorityWorkerTranslationWarmupOptions,
+  type AuthorityWorkerTranslationWarmupPhase,
+} from '../utils/authority-worker-warmup';
 
 const intervalMinutes = Number(process.env.AUTHORITY_SYNC_INTERVAL_MINUTES || 360);
 const mode = (process.env.AUTHORITY_SYNC_MODE || 'incremental') as 'full' | 'incremental';
@@ -12,7 +16,7 @@ const translationWarmupIntervalMinutes = Math.max(
 
 let translationWarmupInProgress = false;
 
-async function runTranslationWarmup(phase: 'startup' | 'after_sync' | 'interval') {
+async function runTranslationWarmup(phase: AuthorityWorkerTranslationWarmupPhase) {
   if (!translationSyncEnabled) {
     console.log('[Authority Worker] translation warmup skipped: AUTHORITY_TRANSLATION_SYNC_ENABLED=false');
     return;
@@ -25,7 +29,9 @@ async function runTranslationWarmup(phase: 'startup' | 'after_sync' | 'interval'
 
   translationWarmupInProgress = true;
   try {
-    const translationResult = await warmPublishedAuthorityTranslations();
+    const translationResult = await warmPublishedAuthorityTranslations(
+      resolveAuthorityWorkerTranslationWarmupOptions(phase),
+    );
     console.log(`[Authority Worker] translation warmup result (${phase}):`, JSON.stringify(translationResult));
   } catch (error) {
     console.error(`[Authority Worker] translation warmup failed (${phase}):`, error);

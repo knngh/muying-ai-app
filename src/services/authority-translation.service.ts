@@ -712,6 +712,18 @@ function shouldStopAfterTranslationTaskFailure(taskRole: AITaskModelRole, error:
     && (isAIGatewayProviderError(error, 'modal-direct') || error instanceof Error);
 }
 
+function shouldStopAuthorityTranslationWarmupBatch(error: unknown): boolean {
+  if (isAIGatewayModalDirectRateLimitError(error) || isAIGatewayProviderError(error, 'modal-direct')) {
+    return true;
+  }
+
+  if (!isModalDirectGlmFirstForTranslation() || !(error instanceof Error)) {
+    return false;
+  }
+
+  return /too many concurrent|concurrent requests|timeout|timed out|empty response/i.test(getAIGatewayErrorOpsMessage(error));
+}
+
 function recordAuthorityTranslationFailure(slug: string, sourceUpdatedAt: string | undefined, error: unknown): void {
   const failureCache = loadAuthorityTranslationFailureCache();
   const message = getAIGatewayErrorOpsMessage(error);
@@ -1164,10 +1176,12 @@ export async function warmPublishedAuthorityTranslations(
 
   const selected = limit > 0 ? candidates.slice(0, limit) : [];
   let warmed = 0;
+  let attempted = 0;
 
   if (!quotaBlocked) {
     for (let index = 0; index < selected.length; index += 1) {
       const item = selected[index];
+      attempted += 1;
       try {
         await getOrCreateAuthorityTranslation(item.slug, item.record);
         clearAuthorityTranslationFailure(item.slug);
@@ -1178,6 +1192,9 @@ export async function warmPublishedAuthorityTranslations(
           slug: item.slug,
           message: error instanceof Error ? error.message : String(error),
         });
+        if (shouldStopAuthorityTranslationWarmupBatch(error)) {
+          break;
+        }
       }
 
       if (index < selected.length - 1 && delayMs > 0) {
@@ -1186,8 +1203,8 @@ export async function warmPublishedAuthorityTranslations(
     }
   }
 
-  const effectiveSelected = quotaBlocked ? 0 : selected.length;
-  const effectiveSkipped = quotaBlocked ? skipped + selected.length : skipped;
+  const effectiveSelected = quotaBlocked ? 0 : attempted;
+  const effectiveSkipped = quotaBlocked ? skipped + selected.length : skipped + selected.length - attempted;
 
   return {
     scanned: records.length,
@@ -1208,6 +1225,7 @@ export async function warmPublishedAuthorityTranslations(
 export const __authorityTranslationInternalTestUtils = {
   isModalDirectGlmFirstForTranslation,
   shouldStopAfterTranslationTaskFailure,
+  shouldStopAuthorityTranslationWarmupBatch,
   resolveActiveAuthorityTranslationQuotaBlock,
   resolveActiveAuthorityTranslationTransientBlock,
 };
