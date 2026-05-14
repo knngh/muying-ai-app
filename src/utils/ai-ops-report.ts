@@ -36,6 +36,9 @@ export interface AIOpsReport {
     topProvider: string | null;
     topRoute: string | null;
     topErrorCode: string | null;
+    topEntrySource: string | null;
+    opsSmokeEventCount: number;
+    nonOpsEntrySourceEventCount: number;
   };
   acquisition: {
     recommendedQuestionsServed: number;
@@ -124,6 +127,44 @@ function topBreakdownKey(value: unknown): string | null {
   return typeof key === 'string' && key.trim() ? key : null;
 }
 
+function getBreakdownCount(value: unknown, key: string): number {
+  if (!Array.isArray(value)) {
+    return 0;
+  }
+
+  const item = value.find((entry) => (
+    entry
+    && typeof entry === 'object'
+    && (entry as Record<string, unknown>).key === key
+  ));
+
+  if (!item || typeof item !== 'object') {
+    return 0;
+  }
+
+  return toFiniteNumber((item as Record<string, unknown>).count) ?? 0;
+}
+
+function getOtherBreakdownCount(value: unknown, excludedKeys: Set<string>): number {
+  if (!Array.isArray(value)) {
+    return 0;
+  }
+
+  return value.reduce((sum, entry) => {
+    if (!entry || typeof entry !== 'object') {
+      return sum;
+    }
+
+    const record = entry as Record<string, unknown>;
+    const key = typeof record.key === 'string' ? record.key : '';
+    if (!key || excludedKeys.has(key)) {
+      return sum;
+    }
+
+    return sum + (toFiniteNumber(record.count) ?? 0);
+  }, 0);
+}
+
 function pushAction(
   actionItems: AIOpsActionItem[],
   nextActions: string[],
@@ -187,6 +228,12 @@ export function buildAIOpsReport(input: {
     topProvider: topBreakdownKey(serverAiOverview.providerBreakdown),
     topRoute: topBreakdownKey(serverAiOverview.routeBreakdown),
     topErrorCode: topBreakdownKey(serverAiOverview.errorCodeBreakdown),
+    topEntrySource: topBreakdownKey(serverAiOverview.entrySourceBreakdown),
+    opsSmokeEventCount: getBreakdownCount(serverAiOverview.entrySourceBreakdown, 'ops_ai_smoke'),
+    nonOpsEntrySourceEventCount: getOtherBreakdownCount(
+      serverAiOverview.entrySourceBreakdown,
+      new Set(['ops_ai_smoke']),
+    ),
   };
 
   const acquisition = {
@@ -222,6 +269,24 @@ export function buildAIOpsReport(input: {
         message: `Recommendation exposure was captured, but no AI answer request was captured in the last ${rangeDays} day(s).`,
       },
       'Run a small authenticated AI/chat smoke cohort to establish answer quality and latency metrics',
+    );
+  }
+
+  if (
+    requestsStarted > 0
+    && messagesSent === 0
+    && serverAi.opsSmokeEventCount > 0
+    && serverAi.nonOpsEntrySourceEventCount === 0
+  ) {
+    pushAction(
+      actionItems,
+      nextActions,
+      {
+        area: 'ai_real_usage_traffic',
+        severity: 'medium',
+        message: `Only ops AI smoke answer traffic was captured in the last ${rangeDays} day(s); product entrypoint usage is still missing.`,
+      },
+      'Run a small in-app AI journey cohort from home, knowledge detail, and chat entrypoints',
     );
   }
 

@@ -188,4 +188,52 @@ describe('AI ops report', () => {
       topRecommendedStage: 'newborn',
     });
   });
+
+  it('flags smoke-only answer traffic as insufficient for product learning', () => {
+    const report = buildAIOpsReport({
+      generatedAt: '2026-05-14T06:40:00.000Z',
+      overview: {
+        rangeDays: 7,
+        counts: {
+          messagesSent: 0,
+          responsesReceived: 0,
+          serverRequestsStarted: 1,
+          serverResponsesCompleted: 1,
+          serverRequestErrors: 0,
+          serverRecommendedQuestionsServed: 3,
+        },
+        responseQuality: {},
+        serverAi: {
+          requestsStarted: 1,
+          responsesCompleted: 1,
+          requestErrors: 0,
+          errorRate: 0,
+          averageLatencyMs: 3272,
+          degradedRate: 0,
+          withSourcesRate: 1,
+          recommendedQuestionsServed: 3,
+          recommendedQuestionsReturned: 9,
+          endpointBreakdown: [{ key: 'ask', count: 2 }],
+          providerBreakdown: [{ key: 'system', count: 1 }],
+          routeBreakdown: [{ key: 'fallback:kimi_reason>minimax_render', count: 1 }],
+          entrySourceBreakdown: [{ key: 'ops_ai_smoke', count: 2 }],
+          recommendedStageBreakdown: [{ key: 'newborn', count: 3 }],
+          recommendedSourceBreakdown: [{ key: 'knowledge_ops_report', count: 3 }],
+        },
+      },
+    });
+
+    expect(report.status).toBe('attention');
+    expect(report.serverAi).toMatchObject({
+      topEntrySource: 'ops_ai_smoke',
+      opsSmokeEventCount: 2,
+      nonOpsEntrySourceEventCount: 0,
+    });
+    expect(report.actionItems).toEqual(expect.arrayContaining([
+      expect.objectContaining({ area: 'ai_real_usage_traffic' }),
+    ]));
+    expect(report.nextActions).toEqual(expect.arrayContaining([
+      'Run a small in-app AI journey cohort from home, knowledge detail, and chat entrypoints',
+    ]));
+  });
 });
