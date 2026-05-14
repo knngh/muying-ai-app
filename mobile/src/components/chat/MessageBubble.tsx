@@ -9,6 +9,7 @@ import type { RootStackParamList } from '../../navigation/AppNavigator'
 import { useAppStore } from '../../stores/appStore'
 import { useChatStore } from '../../stores/chatStore'
 import { useKnowledgeStore } from '../../stores/knowledgeStore'
+import { v4 as uuidv4 } from '../../utils'
 import { getStageSummary, type LifecycleStageKey } from '../../utils/stage'
 import { trackAppEvent } from '../../services/analytics'
 import { colors, fontSize, spacing, borderRadius } from '../../theme'
@@ -414,12 +415,14 @@ function MessageBubbleInner({ item, onCopied, onActionNotice }: MessageBubblePro
     if (!question) {
       return
     }
+    const clientRequestId = uuidv4()
 
     void trackAppEvent('app_chat_message_send', {
       page: 'ChatScreen',
       properties: {
         source: 'action_card',
         trigger: 'action_card_follow_up',
+        clientRequestId,
         stage: stage.lifecycleKey,
         questionLength: question.length,
         qaId: item.id,
@@ -428,7 +431,7 @@ function MessageBubbleInner({ item, onCopied, onActionNotice }: MessageBubblePro
       },
     })
 
-    await sendMessage(question)
+    await sendMessage(question, undefined, { clientRequestId })
     onActionNotice?.('已按建议继续追问')
   }, [entryMetaProps, item.id, onActionNotice, sendMessage, stage.lifecycleKey])
 
@@ -437,12 +440,14 @@ function MessageBubbleInner({ item, onCopied, onActionNotice }: MessageBubblePro
     if (!trimmed) {
       return
     }
+    const clientRequestId = uuidv4()
 
     void trackAppEvent('app_chat_message_send', {
       page: 'ChatScreen',
       properties: {
         source: 'follow_up_question',
         trigger: 'follow_up_chip',
+        clientRequestId,
         stage: stage.lifecycleKey,
         questionLength: trimmed.length,
         qaId: item.id,
@@ -451,7 +456,7 @@ function MessageBubbleInner({ item, onCopied, onActionNotice }: MessageBubblePro
       },
     })
 
-    await sendMessage(trimmed)
+    await sendMessage(trimmed, undefined, { clientRequestId })
     onActionNotice?.('已按建议继续追问')
   }, [entryMetaProps, item.id, onActionNotice, sendMessage, stage.lifecycleKey])
 

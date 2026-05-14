@@ -21,6 +21,7 @@ import { useChatLogic } from '../hooks/useChatLogic'
 import { trackAppEvent } from '../services/analytics'
 import { useAppStore } from '../stores/appStore'
 import { useChatStore } from '../stores/chatStore'
+import { v4 as uuidv4 } from '../utils'
 import { getStageSummary } from '../utils/stage'
 import { QUICK_QUESTION_MAP } from '../utils/chatPrompts'
 import { colors, spacing, borderRadius } from '../theme'
@@ -32,6 +33,7 @@ type PendingResponseMeta = {
   source: ChatEntrySource | 'native'
   trigger: 'auto_prefill' | 'manual_input' | 'quick_question'
   questionLength: number
+  clientRequestId: string
 }
 
 type ChatEntryContext = string | Record<string, string | number | boolean | null>
@@ -140,6 +142,7 @@ export default function ChatScreen() {
       properties: {
         source: pendingResponseMeta.source,
         trigger: pendingResponseMeta.trigger,
+        clientRequestId: pendingResponseMeta.clientRequestId,
         questionLength: pendingResponseMeta.questionLength,
         stage: stage.lifecycleKey,
         route: lastMessage.route,
@@ -173,9 +176,10 @@ export default function ChatScreen() {
 
     const source = sourceOverride ?? entrySource ?? 'native'
     const trackingEntryMeta = getTrackingEntryMeta(context, activeEntryMeta)
+    const clientRequestId = uuidv4()
     const sent = trigger === 'manual_input'
-      ? sendFromHook(trimmed, context)
-      : handleQuickQuestion(trimmed, context)
+      ? sendFromHook(trimmed, context, { clientRequestId })
+      : handleQuickQuestion(trimmed, context, { clientRequestId })
 
     if (!sent) {
       return false
@@ -186,6 +190,7 @@ export default function ChatScreen() {
       properties: {
         source,
         trigger,
+        clientRequestId,
         stage: stage.lifecycleKey,
         questionLength: trimmed.length,
         contextEntrySource: typeof context === 'object' && context && !Array.isArray(context)
@@ -200,6 +205,7 @@ export default function ChatScreen() {
     setPendingResponseMeta({
       source,
       trigger,
+      clientRequestId,
       questionLength: trimmed.length,
     })
 

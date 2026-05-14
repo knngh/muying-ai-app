@@ -44,4 +44,15 @@ describe('AI schemas', () => {
       conversationId: '123',
     }).success).toBe(true);
   });
+
+  it('accepts hyphenated client request ids from mobile clients', () => {
+    expect(askQuestionBody.safeParse({
+      question: '宝宝低热怎么办？',
+      clientRequestId: '123e4567-e89b-42d3-a456-426614174000',
+    }).success).toBe(true);
+    expect(chatBody.safeParse({
+      messages: [{ role: 'user', content: '宝宝低热怎么办？' }],
+      clientRequestId: '123e4567-e89b-42d3-a456-426614174001',
+    }).success).toBe(true);
+  });
 });

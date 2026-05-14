@@ -2,15 +2,18 @@ import type {
   ArticleListParams,
   AuthChangePasswordPayload,
   AuthProfileUpdatePayload,
+  AskRequest,
   CalendarEventDragPayload,
   CalendarEventInput,
   CalendarEventQueryParams,
+  ChatRequest,
   FavoriteCreatePayload,
   PaginationParams,
   PregnancyCustomTodoCreatePayload,
   PregnancyDiaryPayload,
   PregnancyTodoProgressUpdatePayload,
   ReadHistoryRecordPayload,
+  WsClientMessage,
 } from '../shared/types/index'
 
 describe('shared api type contracts', () => {
@@ -71,6 +74,22 @@ describe('shared api type contracts', () => {
       oldPassword: 'old-secret',
       newPassword: 'new-secret',
     }
+    const askPayload: AskRequest = {
+      question: '宝宝低热怎么办？',
+      clientRequestId: 'client-request-123',
+    }
+    const chatPayload: ChatRequest = {
+      messages: [{ role: 'user', content: '宝宝低热怎么办？' }],
+      clientRequestId: 'client-request-456',
+    }
+    const wsPayload: WsClientMessage = {
+      type: 'chat_stream',
+      requestId: 'client-request-789',
+      payload: {
+        messages: [{ role: 'user', content: '宝宝低热怎么办？' }],
+        clientRequestId: 'client-request-789',
+      },
+    }
 
     expect(articleListParams.pageSize).toBe(20)
     expect(calendarQuery.eventType).toBe('checkup')
@@ -83,5 +102,8 @@ describe('shared api type contracts', () => {
     expect(readPayload.progress).toBe(85)
     expect(profilePayload.childNickname).toBe('小北')
     expect(passwordPayload.newPassword).toBe('new-secret')
+    expect(askPayload.clientRequestId).toBe('client-request-123')
+    expect(chatPayload.clientRequestId).toBe('client-request-456')
+    expect(wsPayload.payload.clientRequestId).toBe('client-request-789')
   })
 })

@@ -19,7 +19,7 @@ export type {
 type ChatContext = string | Record<string, string | number | boolean | null>
 
 export const aiApi = {
-  ask: async (data: { question: string; context?: ChatContext; model?: string }) => {
+  ask: async (data: { question: string; context?: ChatContext; model?: string; clientRequestId?: string }) => {
     const res = await api.post<{
       answer: string
       sources?: AskResponse['sources']
@@ -42,6 +42,7 @@ export const aiApi = {
       question: data.question,
       context: data.context,
       model: data.model,
+      clientRequestId: data.clientRequestId,
     })
 
     return {
@@ -64,7 +65,13 @@ export const aiApi = {
       aiDisclosure: res.aiDisclosure,
     } as AskResponse
   },
-  chat: async (data: { messages: Array<{ role: string; content: string }>; conversationId?: string; context?: ChatContext; model?: string }) => {
+  chat: async (data: {
+    messages: Array<{ role: string; content: string }>
+    conversationId?: string
+    context?: ChatContext
+    model?: string
+    clientRequestId?: string
+  }) => {
     const res = await api.post<{
       message?: { content?: string }
       sources?: ChatResponse['sources']

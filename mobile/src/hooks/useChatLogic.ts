@@ -4,6 +4,11 @@ import { useChatStore } from '../stores/chatStore'
 import { useMembershipStore } from '../stores/membershipStore'
 import type { MembershipPlan } from '../stores/membershipStore'
 
+type ChatContext = string | Record<string, string | number | boolean | null>
+type SendOptions = {
+  clientRequestId?: string
+}
+
 export function useChatLogic() {
   const {
     messages,
@@ -65,21 +70,21 @@ export function useChatLogic() {
   }, [consumeAiQuota])
 
   const handleSend = useCallback(
-    (text: string, context?: string | Record<string, string | number | boolean | null>) => {
+    (text: string, context?: ChatContext, options?: SendOptions) => {
       const trimmed = text.trim()
       if (!trimmed || loading) return false
       if (!checkQuota()) return false
-      sendMessage(trimmed, context)
+      sendMessage(trimmed, context, options)
       return true
     },
     [checkQuota, loading, sendMessage],
   )
 
   const handleQuickQuestion = useCallback(
-    (question: string, context?: string | Record<string, string | number | boolean | null>) => {
+    (question: string, context?: ChatContext, options?: SendOptions) => {
       if (loading) return false
       if (!checkQuota()) return false
-      sendMessage(question, context)
+      sendMessage(question, context, options)
       return true
     },
     [checkQuota, loading, sendMessage],

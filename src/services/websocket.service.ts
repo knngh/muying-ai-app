@@ -32,6 +32,7 @@ interface WsClientMessage {
     conversationId?: string
     model?: string
     context?: string | Record<string, string | number | boolean | null>
+    clientRequestId?: string
   }
 }
 
@@ -116,6 +117,16 @@ function buildWsQuotaFingerprint(type: WsClientMessage['type'], payload: WsClien
     context: payload.context,
     model: payload.model,
   });
+}
+
+function resolveWsClientRequestId(payload: WsClientMessage['payload'], requestId: string): string {
+  const clientRequestId = typeof payload.clientRequestId === 'string'
+    ? payload.clientRequestId.trim()
+    : '';
+
+  return /^[A-Za-z0-9_-]{8,120}$/.test(clientRequestId)
+    ? clientRequestId
+    : requestId;
 }
 
 function isRequestCanceled(ws: AuthenticatedWebSocket, requestId: string): boolean {
@@ -313,6 +324,7 @@ async function handleAskStream(
 ) {
   const startedAt = Date.now();
   const { question, model, context, conversationId } = payload;
+  const clientRequestId = resolveWsClientRequestId(payload, requestId);
   let analyticsMetadata: AIRequestAnalyticsMetadata | undefined;
   clearRequestCancellation(ws, requestId);
 
@@ -321,7 +333,7 @@ async function handleAskStream(
     return;
   }
 
-  if (!(await ensureWsQuota(ws, requestId, buildWsQuotaFingerprint('ask_stream', payload)))) {
+  if (!(await ensureWsQuota(ws, requestId, buildWsQuotaFingerprint('ask_stream', payload), clientRequestId))) {
     return;
   }
 
@@ -334,7 +346,7 @@ async function handleAskStream(
       context,
       model,
       conversationId,
-      clientRequestId: requestId,
+      clientRequestId,
     });
     recordAIRequestStart(analyticsMetadata);
 
@@ -386,6 +398,7 @@ async function handleChatStream(
 ) {
   const startedAt = Date.now();
   const { messages, model, context, conversationId } = payload;
+  const clientRequestId = resolveWsClientRequestId(payload, requestId);
   let analyticsMetadata: AIRequestAnalyticsMetadata | undefined;
   const isResumeContinuation = isResumeContinuationContext(context);
   clearRequestCancellation(ws, requestId);
@@ -397,7 +410,7 @@ async function handleChatStream(
 
   // 检测最后一条消息是否为紧急问题
   const lastMessage = messages[messages.length - 1];
-  if (lastMessage.role === 'user' && !(await ensureWsQuota(ws, requestId, buildWsQuotaFingerprint('chat_stream', payload)))) {
+  if (lastMessage.role === 'user' && !(await ensureWsQuota(ws, requestId, buildWsQuotaFingerprint('chat_stream', payload), clientRequestId))) {
     return;
   }
 
@@ -418,7 +431,7 @@ async function handleChatStream(
       context,
       model,
       conversationId,
-      clientRequestId: requestId,
+      clientRequestId,
       history: formattedMessages,
       isResumeContinuation,
     });
@@ -501,13 +514,14 @@ async function ensureWsQuota(
   ws: AuthenticatedWebSocket,
   requestId: string,
   fingerprint?: string,
+  clientRequestId?: string,
 ): Promise<boolean> {
   if (!ws.userId) {
     sendError(ws, requestId, '未授权，请先登录', { status: 401, code: 2005 });
     return false;
   }
 
-  const result = await consumeAiQuota(ws.userId, { requestId, fingerprint });
+  const result = await consumeAiQuota(ws.userId, { requestId: clientRequestId || requestId, fingerprint });
   if (!result.allowed) {
     sendError(ws, requestId, '今日免费额度已用完，请升级会员后继续使用。', {
       status: 429,

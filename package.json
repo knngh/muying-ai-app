@@ -39,6 +39,7 @@
     "review:authority": "node --import tsx src/scripts/review-authority-documents.ts",
     "ocr:authority": "tsx src/scripts/run-authority-ocr.ts",
     "enrich:knowledge-base": "node --import tsx src/scripts/enrich-knowledge-base.ts",
+    "audit:ai-entrypoints": "node scripts/audit-ai-entrypoint-clients.js",
     "audit:authority-coverage": "node --import tsx src/scripts/audit-authority-coverage.ts",
     "audit:authority-cache": "tsx src/scripts/audit-authority-cache.ts",
     "clean:authority-cache": "node --import tsx src/scripts/clean-authority-cache.ts",

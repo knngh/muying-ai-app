@@ -121,6 +121,7 @@ export interface AskRequest {
   conversationId?: string
   model?: string
   context?: string | Record<string, string | number | boolean | null>
+  clientRequestId?: string
 }
 
 export interface AskResponse {
@@ -149,6 +150,7 @@ export interface ChatRequest {
   conversationId?: string
   model?: string
   context?: string | Record<string, string | number | boolean | null>
+  clientRequestId?: string
 }
 
 export interface ChatResponse {
@@ -215,6 +217,7 @@ export interface WsClientMessage {
     conversationId?: string
     model?: string
     context?: string | Record<string, string | number | boolean | null>
+    clientRequestId?: string
   }
 }
 

@@ -108,8 +108,16 @@ export const useChatStore = defineStore('chat', {
         useChat ? 'chat_stream' : 'ask_stream',
         requestId,
         useChat
-          ? { messages: history, conversationId: this.currentConversationId || undefined }
-          : { question, conversationId: this.currentConversationId || undefined },
+          ? {
+            messages: history,
+            conversationId: this.currentConversationId || undefined,
+            clientRequestId: requestId,
+          }
+          : {
+            question,
+            conversationId: this.currentConversationId || undefined,
+            clientRequestId: requestId,
+          },
         (msg) => {
           const { type, data } = msg
 

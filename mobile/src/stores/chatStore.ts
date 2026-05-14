@@ -8,6 +8,9 @@ import { sessionStorage } from '../utils/storage'
 import { useMembershipStore } from './membershipStore'
 
 type ChatContext = string | Record<string, string | number | boolean | null>
+type SendMessageOptions = {
+  clientRequestId?: string
+}
 
 interface ChatState {
   messages: AIMessage[]
@@ -23,7 +26,7 @@ interface ChatState {
   streamingContent: string
   initialize: () => Promise<void>
   startFreshSession: () => void
-  sendMessage: (content: string, context?: ChatContext) => Promise<void>
+  sendMessage: (content: string, context?: ChatContext, options?: SendMessageOptions) => Promise<void>
   resetState: () => void
   clearMessages: () => void
 }
@@ -155,7 +158,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     })
   },
 
-  sendMessage: async (content: string, context?: ChatContext) => {
+  sendMessage: async (content: string, context?: ChatContext, options?: SendMessageOptions) => {
     const entryMeta = buildEntryMeta(context) || get().activeEntryMeta
     const requestContext = context ?? buildContextFromEntryMeta(entryMeta)
     const userMessage: AIMessage = {
@@ -177,7 +180,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }))
 
     try {
-      const requestId = uuidv4()
+      const requestId = options?.clientRequestId || uuidv4()
       set({ streamingContent: '' })
       const history = get().messages.map(m => ({ role: m.role, content: m.content }))
       const token = await sessionStorage.getToken()
@@ -189,6 +192,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         messages: history,
         conversationId: get().conversationId || undefined,
         context: requestContext,
+        clientRequestId: requestId,
       }, (msg) => {
         if (httpFallbackFired) return
         if (msg.type === 'chunk' && msg.data.content) {
