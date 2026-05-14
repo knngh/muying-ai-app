@@ -70,6 +70,10 @@
 - 新增权威翻译源 fingerprint：翻译缓存不再只依赖 `sourceUpdatedAt` 精确相等；当权威源内容 fingerprint 相同但同步时间戳抖动时，worker、文章接口和 `ops:knowledge:report` 会把缓存视为 fresh，并自动修补缓存里的当前 `sourceUpdatedAt` / `sourceFingerprint` 元数据。
 - 新增 `npm run repair:authority-translation-cache`：默认 dry-run 扫描 `data/authority-translation-cache.json`，为既有合法缓存补 `sourceFingerprint` 并输出 `tmp/authority-translation-cache-repair-report.json`；显式 `DRY_RUN=false` 后才写回缓存。可配 `PRUNE_REPAIRED_FAILURES=true` 清理已由缓存修复覆盖的旧 failure。
 - 目标是优先复用已有合法译文和免费 GLM 新缓存，避免因为 source sync 更新时间变化把可用翻译全部打成 stale，再反复冲击 Modal Direct 批量额度。
+- 已发布 `02c2c4a fix: stabilize authority translation cache freshness` 到生产并重启 `muying-api` / `muying-authority-worker`；`ops:smoke:prod` 通过。
+- 生产执行 `DRY_RUN=false PRUNE_REPAIRED_FAILURES=true npm run repair:authority-translation-cache`：扫描 `633` 条缓存，`invalidCacheEntries=0`，修复 `327` 条现存译文 fingerprint / 当前源版本，清理 `84` 条已由 fresh cache 覆盖的旧 failure。
+- 生产执行 `DRY_RUN=false PRUNE_STALE=true LIMIT=0 npm run retry:authority-translation-failures`：只清理、不重试模型，修剪剩余 `19` 条 stale failure。
+- 最终复跑 `ops:knowledge:status`：`status=ok`，daily ops `7/7` 成功，coverage `81.99%`，翻译 `cacheHitRate=47.74%`、`failureEntries=0`、`invalidCacheEntries=0`、`actionItems=[]`、`nextActions=[]`。AI health 本轮为 `degraded`，原因是 Modal Direct 单次健康探针 `45000ms` 超时；该降级不会阻塞知识状态。
 
 5000 QA 任务不是已经完成的“一次性任务”，而是分成两层：
 
