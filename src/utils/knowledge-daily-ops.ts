@@ -1,4 +1,5 @@
 import { AUTHORITY_COVERAGE_TARGET_PHASE, AUTHORITY_COVERAGE_TARGET_RATE } from './knowledge-authority-coverage-policy';
+import type { AIOpsReport } from './ai-ops-report';
 
 export interface KnowledgeDailyOpsCommandResult {
   name: string;
@@ -174,6 +175,7 @@ export interface BuildKnowledgeDailyOpsReportInput {
   translationCleanupReport?: KnowledgeDailyOpsTranslationCleanupReport | null;
   translationFailureRetryReport?: KnowledgeDailyOpsTranslationFailureRetryReport | null;
   aiProviderHealthReport?: KnowledgeDailyOpsAIProviderHealthReport | null;
+  aiOpsReport?: Partial<AIOpsReport> | null;
 }
 
 function resolveBlockedExternalSources(input: BuildKnowledgeDailyOpsReportInput): Array<{
@@ -317,6 +319,11 @@ function buildNextActions(input: BuildKnowledgeDailyOpsReportInput): string[] {
     const model = aiHealth.call?.route?.model || aiHealth.binding?.model || aiHealth.call?.error?.gatewayModel || 'unknown-model';
     actions.push(`AI provider health check failed for ${aiHealth.taskRole || 'unknown-role'} (${provider} / ${model}).`);
   }
+  for (const action of input.aiOpsReport?.nextActions || []) {
+    if (action && !actions.includes(action)) {
+      actions.push(action);
+    }
+  }
   if (coverageRate < AUTHORITY_COVERAGE_TARGET_RATE) {
     actions.push(`Authority coverage is below ${AUTHORITY_COVERAGE_TARGET_PHASE} target: ${coverageRate}% < ${AUTHORITY_COVERAGE_TARGET_RATE}%`);
   }
@@ -442,6 +449,18 @@ export function buildKnowledgeDailyOpsReport(input: BuildKnowledgeDailyOpsReport
       },
       translationCleanup: input.translationCleanupReport || null,
       translationFailureRetry: input.translationFailureRetryReport || null,
+      aiOps: input.aiOpsReport
+        ? {
+          generatedAt: input.aiOpsReport.generatedAt,
+          status: input.aiOpsReport.status,
+          rangeDays: input.aiOpsReport.rangeDays,
+          clientAi: input.aiOpsReport.clientAi,
+          serverAi: input.aiOpsReport.serverAi,
+          acquisition: input.aiOpsReport.acquisition,
+          actionItems: input.aiOpsReport.actionItems || [],
+          nextActions: input.aiOpsReport.nextActions || [],
+        }
+        : null,
       aiProviderHealth: input.aiProviderHealthReport
         ? {
           generatedAt: input.aiProviderHealthReport.generatedAt,

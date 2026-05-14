@@ -23,6 +23,7 @@
     "ops:knowledge:daily": "node --import tsx src/scripts/run-knowledge-daily-ops.ts",
     "ops:knowledge:report": "node --import tsx src/scripts/generate-knowledge-ops-report.ts",
     "ops:ai:health": "node --import tsx src/scripts/check-ai-provider-health.ts",
+    "ops:ai:report": "node --import tsx src/scripts/generate-ai-ops-report.ts",
     "ops:authority:refresh-low-coverage": "node --import tsx src/scripts/refresh-low-coverage-authority-sources.ts",
     "ops:verify:workspace": "bash scripts/verify-workspace.sh",
     "ops:verify:payment-callback:prod": "bash scripts/prod-verify-payment-callback.sh",

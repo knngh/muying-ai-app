@@ -615,6 +615,60 @@ describe('knowledge daily ops report', () => {
     expect(report.nextActions).toEqual([]);
   });
 
+  it('surfaces AI ops report action items in daily status', () => {
+    const report = buildKnowledgeDailyOpsReport({
+      generatedAt: '2026-05-14T00:00:00.000Z',
+      applyFixes: false,
+      commands: [
+        { name: 'knowledge_ops_report', command: 'npm run ops:knowledge:report', ok: true, exitCode: 0, durationMs: 100 },
+        { name: 'ai_ops_report', command: 'npm run ops:ai:report', ok: true, exitCode: 0, durationMs: 100 },
+      ],
+      knowledgeReport: {
+        coverage: {
+          coverageRate: 81.99,
+          authorityCovered: 1452,
+          missingAuthorityCoverage: 319,
+        },
+        actionItems: [],
+      },
+      aiOpsReport: {
+        generatedAt: '2026-05-14T00:00:00.000Z',
+        status: 'attention',
+        rangeDays: 7,
+        serverAi: {
+          requestsStarted: 10,
+          responsesCompleted: 7,
+          requestErrors: 3,
+          errorRate: 0.3,
+          averageLatencyMs: 15000,
+          topErrorCode: 'AI_TIMEOUT',
+          topRoute: 'task:glm_classify',
+        },
+        acquisition: {
+          recommendedQuestionsServed: 4,
+          recommendedQuestionsReturned: 12,
+        },
+        actionItems: [
+          { area: 'ai_error_rate', severity: 'medium', message: 'Server AI error rate is 30.0%.' },
+        ],
+        nextActions: [
+          'Inspect top AI error code: AI_TIMEOUT',
+        ],
+      },
+    });
+
+    expect(report.status).toBe('attention');
+    expect(report.remediation.aiOps).toMatchObject({
+      status: 'attention',
+      serverAi: {
+        requestsStarted: 10,
+        requestErrors: 3,
+        topErrorCode: 'AI_TIMEOUT',
+      },
+    });
+    expect(report.nextActions).toEqual(['Inspect top AI error code: AI_TIMEOUT']);
+  });
+
   it('marks report as failed when a command fails', () => {
     const report = buildKnowledgeDailyOpsReport({
       generatedAt: '2026-05-07T00:00:00.000Z',
