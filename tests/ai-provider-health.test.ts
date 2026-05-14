@@ -1,6 +1,34 @@
 import { buildAIProviderHealthReport } from '../src/utils/ai-provider-health';
 
 describe('AI provider health report', () => {
+  it('uses a short operational timeout by default', async () => {
+    const callTaskModel = jest.fn().mockResolvedValue({
+      answer: '3',
+      route: {
+        provider: 'modal-direct',
+        model: 'zai-org/GLM-5.1-FP8',
+        route: 'task',
+        label: 'task-glm',
+      },
+    });
+
+    const report = await buildAIProviderHealthReport({
+      callTaskModel,
+      getBindings: jest.fn().mockReturnValue([{
+        role: 'glm_classify',
+        model: 'zai-org/GLM-5.1-FP8',
+        provider: 'modal-direct',
+        configured: true,
+      }]),
+    });
+
+    expect(report.timeoutMs).toBe(12000);
+    expect(callTaskModel).toHaveBeenCalledWith('glm_classify', expect.any(Array), expect.objectContaining({
+      timeoutMs: 12000,
+      maxTokens: 80,
+    }));
+  });
+
   it('reports ok when the task model returns the expected answer on the configured route', async () => {
     const report = await buildAIProviderHealthReport({
       now: '2026-05-10T00:00:00.000Z',

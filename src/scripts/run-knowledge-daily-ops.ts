@@ -12,6 +12,7 @@ import {
   type KnowledgeDailyOpsTranslationCleanupReport,
   type KnowledgeDailyOpsTranslationFailureRetryReport,
 } from '../utils/knowledge-daily-ops';
+import { DEFAULT_AI_PROVIDER_HEALTH_TIMEOUT_MS } from '../utils/ai-provider-health';
 
 const OUTPUT_FILE = process.env.OUTPUT_FILE || path.join(process.cwd(), 'tmp', 'knowledge-daily-ops-report.json');
 const DAILY_COVERAGE_AUDIT_FILE = process.env.DAILY_COVERAGE_AUDIT_FILE || path.join(process.cwd(), 'tmp', 'knowledge-daily-authority-coverage-audit.json');
@@ -99,7 +100,7 @@ async function main() {
   }));
   commands.push(runCommand('ai_provider_health', 'npm run ops:ai:health', {
     AI_HEALTH_STRICT: 'false',
-    AI_HEALTH_TIMEOUT_MS: process.env.AI_HEALTH_TIMEOUT_MS || '45000',
+    AI_HEALTH_TIMEOUT_MS: process.env.AI_HEALTH_TIMEOUT_MS || String(DEFAULT_AI_PROVIDER_HEALTH_TIMEOUT_MS),
     OUTPUT_FILE: AI_PROVIDER_HEALTH_REPORT_FILE,
   }));
 

@@ -8,7 +8,7 @@ import {
 } from '../services/ai-gateway.service';
 
 const DEFAULT_TASK_ROLE: AITaskModelRole = 'glm_classify';
-const DEFAULT_TIMEOUT_MS = 45000;
+export const DEFAULT_AI_PROVIDER_HEALTH_TIMEOUT_MS = 12000;
 const DEFAULT_MAX_TOKENS = 80;
 const DEFAULT_PROMPT = '只回答数字：strawberry 里有几个字母 r？';
 const DEFAULT_EXPECTED_ANSWER = '3';
@@ -102,7 +102,7 @@ export async function buildAIProviderHealthReport(
 ): Promise<AIProviderHealthReport> {
   const startedAt = Date.now();
   const taskRole = normalizeTaskRole(options.taskRole);
-  const timeoutMs = normalizePositiveInteger(options.timeoutMs, DEFAULT_TIMEOUT_MS);
+  const timeoutMs = normalizePositiveInteger(options.timeoutMs, DEFAULT_AI_PROVIDER_HEALTH_TIMEOUT_MS);
   const maxTokens = normalizePositiveInteger(options.maxTokens, DEFAULT_MAX_TOKENS);
   const expectedAnswer = options.expectedAnswer ?? DEFAULT_EXPECTED_ANSWER;
   const prompt = options.prompt || DEFAULT_PROMPT;
