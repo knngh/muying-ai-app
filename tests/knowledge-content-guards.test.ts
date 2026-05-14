@@ -84,6 +84,12 @@ describe('knowledge content guards', () => {
       question: '28岁了早上拉大便时有虫子小孩还在吃奶可以吃药吗',
       answer: '哺乳期用药建议',
       category: 'nutrition-baby',
+    })).toBe('personal_treatment_request');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '哺乳期用药安全需要注意什么？',
+      answer: '哺乳期用药安全科普',
+      category: 'nutrition-baby',
     })).toBeNull();
   });
 
@@ -112,6 +118,27 @@ describe('knowledge content guards', () => {
     expect(getDatasetKnowledgeDropReason({
       question: '老公有乙肝我们准备要宝宝该怎么办',
       answer: '备孕建议',
+      category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBe('category_scope_conflict');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '孕妇吃橙子会有黄疸吗？我每天都吃一个橙子？',
+      answer: '症状处理建议',
+      category: 'parenting-newborn',
+      tags: ['母婴'],
+    })).toBe('category_scope_conflict');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '我去吸氧回来后宝宝动得我肚子不舒服',
+      answer: '症状处理建议',
+      category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBe('category_scope_conflict');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '我现在都6个多月了前34个月都没好好吃饭现在爱吃辣椒小孩不大才1斤多沉小孩怎么才长啊',
+      answer: '症状处理建议',
       category: 'parenting-0-1',
       tags: ['母婴'],
     })).toBe('category_scope_conflict');
@@ -194,6 +221,20 @@ describe('knowledge content guards', () => {
       question: '淮安妇幼保健院微量元素检查周日做吗，什么时候出结果，要挂号什么科？',
       answer: '症状处理建议',
       category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBe('unsupported_service_request');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '个月我们家宝宝6个月了，医生说打B型流感疫苗148元，是自愿的，不知道这个疫苗有必须打吗',
+      answer: '症状处理建议',
+      category: 'vaccine-second',
+      tags: ['母婴'],
+    })).toBe('unsupported_service_request');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '在防疫站注射预防肺结核的疫苗花钱吗？',
+      answer: '症状处理建议',
+      category: 'vaccine-schedule',
       tags: ['母婴'],
     })).toBe('unsupported_service_request');
 
@@ -346,6 +387,20 @@ describe('knowledge content guards', () => {
     })).toBe('personal_treatment_request');
 
     expect(getDatasetKnowledgeDropReason({
+      question: '宝宝注射了流感疫苗后咳嗽可以吃药吗',
+      answer: '症状处理建议',
+      category: 'vaccine-second',
+      tags: ['母婴'],
+    })).toBe('personal_treatment_request');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '我家宝宝刚打完疫苗有点腹泻能吃药吗',
+      answer: '症状处理建议',
+      category: 'vaccine-reaction',
+      tags: ['母婴'],
+    })).toBe('personal_treatment_request');
+
+    expect(getDatasetKnowledgeDropReason({
       question: '宝宝是母乳性黄疸，吃了一段时间茵栀黄，退了，停药后又黄了，茵栀黄吃多了是不是对宝宝不好？',
       answer: '症状处理建议',
       category: 'parenting-newborn',
@@ -423,6 +478,34 @@ describe('knowledge content guards', () => {
     })).toBe('personal_treatment_request');
 
     expect(getDatasetKnowledgeDropReason({
+      question: '哺乳期眼部打麻药，用了1/5ml的麻药对9个月宝宝会有影响吗？多长时间可以哺母乳',
+      answer: '症状处理建议',
+      category: 'nutrition-baby',
+      tags: ['母婴'],
+    })).toBe('personal_treatment_request');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '怀孕3个多月得腮腺炎输液对宝宝有影响吗怀孕3个多月的时候得了腮腺炎输液了，会对宝宝有影响吗，5个多月坐了四维说没事发育挺好的。',
+      answer: '症状处理建议',
+      category: 'common-development',
+      tags: ['母婴'],
+    })).toBe('personal_treatment_request');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '一天喝了三斤米酒对宝宝吃奶有影响吗',
+      answer: '症状处理建议',
+      category: 'nutrition-baby',
+      tags: ['母婴'],
+    })).toBe('personal_treatment_request');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '我在医院做了红外线，诊断是乳腺增生，并且医生说外侧硬块比较多，内测还差不多，也是刚怀孕，医生说吃药的话影响胎儿发育，贴膏药不会影响孩子的发育，可有的医生说都影响，我该怎么办？谢谢。',
+      answer: '症状处理建议',
+      category: 'common-development',
+      tags: ['母婴'],
+    })).toBe('personal_treatment_request');
+
+    expect(getDatasetKnowledgeDropReason({
       question: '宝宝湿疹怎么护理？',
       answer: '保持皮肤清洁保湿，避免刺激，严重或反复时就医评估。',
       category: 'common-disease',
@@ -463,6 +546,34 @@ describe('knowledge content guards', () => {
       question: '请问我生完孩子七个月了。可是下面总是断断续续有血，偶尔小腹有点疼，孩子俩个月去医院检查说是宫颈有点充血，吃的消炎药一直到三个月时候才好，这个月还没来下面又有血了，不知道是不是月经，怎么回事呢？',
       answer: '症状处理建议',
       category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBe('adult_reproductive_case');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '我怀孕前有阴道炎，现在我怀孕8个月了，对宝宝有影响吗。',
+      answer: '症状处理建议',
+      category: 'pregnancy-prep',
+      tags: ['母婴'],
+    })).toBe('adult_reproductive_case');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '生完孩子，月子病，关节疼痛',
+      answer: '症状处理建议',
+      category: 'parenting-newborn',
+      tags: ['母婴'],
+    })).toBe('adult_reproductive_case');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '流产后因为腰酸让老公按了几下腰，过了一个月后腰突然放射性痛，臀部神经肌肉都痛，还麻痹，妇科检查又没有问题，是风湿还是坐骨神经痛，很担心',
+      answer: '症状处理建议',
+      category: 'pregnancy-birth',
+      tags: ['母婴'],
+    })).toBe('adult_reproductive_case');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '我结婚前118斤，怀孕到临产时200斤，现在孩子两岁了，我还有170斤，咋办？',
+      answer: '症状处理建议',
+      category: 'pregnancy-late',
       tags: ['母婴'],
     })).toBe('adult_reproductive_case');
 
@@ -535,6 +646,13 @@ describe('knowledge content guards', () => {
       category: 'pregnancy-early',
       tags: ['母婴'],
     })).toBe('biometric_measurement_case');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '追问一下，宝宝四个半月能吃吗？煮水煮多久，一次喝多少？',
+      answer: '症状处理建议',
+      category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBe('low_information_case_template');
 
     expect(getDatasetKnowledgeDropReason({
       question: '孕妇用补充DHA吗，有人说吃孕妇DHA胶囊对宝宝大脑视力发育好是真的吗？',
@@ -616,6 +734,55 @@ describe('knowledge content guards', () => {
     })).toBe('diagnosed_case_followup');
 
     expect(getDatasetKnowledgeDropReason({
+      question: '过预产期了还没分娩头胎，过预产期1天了，前半个月去检查胎儿没入盆，是否能顺产，还要不要去检查一次',
+      answer: '症状处理建议',
+      category: 'pregnancy-birth',
+      tags: ['母婴'],
+    })).toBe('diagnosed_case_followup');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '胎儿已足月脐带绕脖子两圈能顺产吗',
+      answer: '症状处理建议',
+      category: 'pregnancy-birth',
+      tags: ['母婴'],
+    })).toBe('diagnosed_case_followup');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '带状疱疹分娩方式选择足月孕妇患带状疱疹，要生了选择生还是刨腹',
+      answer: '症状处理建议',
+      category: 'pregnancy-birth',
+      tags: ['母婴'],
+    })).toBe('diagnosed_case_followup');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '怀孕7个半月，最近检查说胎儿发育挺好，就是羊水为7。7，偏多应该怎么办？怎么控制它不在多的发展',
+      answer: '症状处理建议',
+      category: 'common-development',
+      tags: ['母婴'],
+    })).toBe('diagnosed_case_followup');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '检查出肚子里面的宝宝心脏有问题',
+      answer: '症状处理建议',
+      category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBe('diagnosed_case_followup');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '刚刚你回复的室间隔缺损先心病人，可以怀孕吗？目前已经意外怀孕一个多月了，可以在生产之前手术吗？',
+      answer: '症状处理建议',
+      category: 'pregnancy-birth',
+      tags: ['母婴'],
+    })).toBe('diagnosed_case_followup');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '哺乳期意外怀孕经药物流产后奶水变的少了怎么补的回来',
+      answer: '症状处理建议',
+      category: 'pregnancy-birth',
+      tags: ['母婴'],
+    })).toBe('high_sensitivity_dataset_topic');
+
+    expect(getDatasetKnowledgeDropReason({
       question: '孕前需要做哪些检查项目？',
       answer: '孕前检查项目科普',
       category: 'pregnancy-prep',
@@ -672,6 +839,62 @@ describe('knowledge content guards', () => {
       question: '医生宝宝接种b型流感嗜血杆菌疫苗后出现发烧嗜睡没精神，第二天还有点小烧',
       answer: '症状处理建议',
       category: 'vaccine-reaction',
+      tags: ['母婴'],
+    })).toBe('emergency_or_poisoning_case');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '我女儿注射麻风腮疫苗3天注射后一直发热39度怎么治',
+      answer: '症状处理建议',
+      category: 'vaccine-schedule',
+      tags: ['母婴'],
+    })).toBe('emergency_or_poisoning_case');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '怀孕3个月食物中毒昨天下午吃了点野生菌，大概60分钟就呕吐。晚上开始腹痛腹泻，今早去医院做产检，胎儿有心跳跟胎动需要进一步治疗吗',
+      answer: '症状处理建议',
+      category: 'pregnancy-mid',
+      tags: ['母婴'],
+    })).toBe('emergency_or_poisoning_case');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '一个像小孩子弹一样的木头颗粒进嘴里了应该怎么办？',
+      answer: '症状处理建议',
+      category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBe('emergency_or_poisoning_case');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '那里可以把小孩吃掉的戒指取出来啊',
+      answer: '症状处理建议',
+      category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBe('emergency_or_poisoning_case');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '5个月宝宝今天早上8点多打完脊灰百白破，三个小时后流了6，7滴鼻血怎么回事？谢谢你陈大夫。孩子小，很害怕啊。',
+      answer: '症状处理建议',
+      category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBe('emergency_or_poisoning_case');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '怀孕5个多月强烈撞击肚子，两天感觉不到胎动了，宝宝会不会出问题了啊',
+      answer: '症状处理建议',
+      category: 'pregnancy-mid',
+      tags: ['母婴'],
+    })).toBe('emergency_or_poisoning_case');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '宝宝被猫抓伤没打针怕吗我女儿5岁时在乡下被家养的猫抓伤，一没有打针也没吃药怕吗',
+      answer: '症状处理建议',
+      category: 'parenting-3-6',
+      tags: ['母婴'],
+    })).toBe('emergency_or_poisoning_case');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '现在孩子疼起来，特别厉害，使劲哭啊，怎么办',
+      answer: '症状处理建议',
+      category: 'parenting-0-1',
       tags: ['母婴'],
     })).toBe('emergency_or_poisoning_case');
 
