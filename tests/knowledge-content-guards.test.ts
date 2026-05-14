@@ -244,6 +244,34 @@ describe('knowledge content guards', () => {
     })).toBe('diagnosed_case_followup');
 
     expect(getDatasetKnowledgeDropReason({
+      question: '以前正常送幼儿园之后出现症状不爱说话不爱玩不能和小朋友做游戏对玩具不感兴趣智力达不到同龄儿童总像迷迷糊糊的有一些刻板性动作睡眠不好什么都害怕做的磁共振和脑电出的结果是左脑发育不太好精神发育迟缓需要在做什么更详细的检查吗他能治疗吗',
+      answer: '症状处理建议',
+      category: 'parenting-1-3',
+      tags: ['母婴'],
+    })).toBe('diagnosed_case_followup');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '宝宝得了霰粒肿1岁3个月得了霰粒肿，眼科医生说3岁以后再去，什么药也没开，心里很担心想问下真的要等到3岁吗？谢谢',
+      answer: '症状处理建议',
+      category: 'parenting-1-3',
+      tags: ['母婴'],
+    })).toBe('diagnosed_case_followup');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '孩子晕厥了几次，症状和睡着了一样，不知道什么原因，CT、24小时脑电图，核磁共振，心脏彩超等都检查了，没查出什么病。',
+      answer: '症状处理建议',
+      category: 'common-symptoms',
+      tags: ['母婴'],
+    })).toBe('diagnosed_case_followup');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '我的孩子四岁了，1岁半得了白癫风，治了2年大面积已经好了，但是现在身体出现了有大米粒大的，是不是这个病在复发？我该怎么办？',
+      answer: '症状处理建议',
+      category: 'parenting-1-3',
+      tags: ['母婴'],
+    })).toBe('diagnosed_case_followup');
+
+    expect(getDatasetKnowledgeDropReason({
       question: '宝宝接种百白破后眼睛周围起小红疙瘩怎么办？',
       answer: '观察皮疹、精神状态和呼吸情况，必要时就医。',
       category: 'vaccine-reaction',
