@@ -91,6 +91,27 @@ type AIOverviewRow = {
   properties: Prisma.JsonValue | null;
 };
 
+const AI_OVERVIEW_EVENT_NAMES = [
+  'app_chat_message_send',
+  'app_chat_response_receive',
+  'app_chat_add_calendar_click',
+  'app_chat_open_knowledge_click',
+  'app_chat_open_hit_article_click',
+  'app_chat_open_archive_click',
+  'app_knowledge_recent_ai_hit_click',
+  'app_knowledge_recent_ai_topic_click',
+  'app_knowledge_recent_ai_source_click',
+  'app_knowledge_recent_ai_ask_click',
+  'app_knowledge_detail_ai_hit_open',
+  'app_weekly_report_ask_ai_click',
+  'app_knowledge_detail_ask_ai_click',
+  'ai_qa_feedback',
+  'server_ai_request_start',
+  'server_ai_response_complete',
+  'server_ai_request_error',
+  'server_ai_knowledge_recommendations_served',
+];
+
 function toRecord(value: Prisma.JsonValue | null | undefined): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
     ? value as Record<string, unknown>
@@ -146,22 +167,7 @@ export async function getAIOverview(rangeDays: number) {
         gte: startAt,
       },
       eventName: {
-        in: [
-          'app_chat_message_send',
-          'app_chat_response_receive',
-          'app_chat_add_calendar_click',
-          'app_chat_open_knowledge_click',
-          'app_chat_open_hit_article_click',
-          'app_chat_open_archive_click',
-          'app_knowledge_recent_ai_hit_click',
-          'app_knowledge_recent_ai_topic_click',
-          'app_knowledge_recent_ai_source_click',
-          'app_knowledge_recent_ai_ask_click',
-          'app_knowledge_detail_ai_hit_open',
-          'app_weekly_report_ask_ai_click',
-          'app_knowledge_detail_ask_ai_click',
-          'ai_qa_feedback',
-        ],
+        in: AI_OVERVIEW_EVENT_NAMES,
       },
     },
     select: {
@@ -188,6 +194,18 @@ export async function getAIOverview(rangeDays: number) {
   const recentAiEntrySourceCounter = new Map<string, number>();
   const recentAiArticleSlugCounter = new Map<string, number>();
   const recentAiReportIdCounter = new Map<string, number>();
+  const serverEndpointCounter = new Map<string, number>();
+  const serverProviderCounter = new Map<string, number>();
+  const serverModelCounter = new Map<string, number>();
+  const serverRouteCounter = new Map<string, number>();
+  const serverRiskLevelCounter = new Map<string, number>();
+  const serverSourceReliabilityCounter = new Map<string, number>();
+  const serverErrorCodeCounter = new Map<string, number>();
+  const serverRecommendedStageCounter = new Map<string, number>();
+  const serverRecommendedSourceCounter = new Map<string, number>();
+  const serverEntrySourceCounter = new Map<string, number>();
+  const serverArticleSlugCounter = new Map<string, number>();
+  const serverReportIdCounter = new Map<string, number>();
 
   let messagesSent = 0;
   let responsesReceived = 0;
@@ -205,6 +223,16 @@ export async function getAIOverview(rangeDays: number) {
   let knowledgeDetailAiHitOpens = 0;
   let weeklyReportAskAiClicks = 0;
   let knowledgeDetailAskAiClicks = 0;
+  let serverRequestsStarted = 0;
+  let serverResponsesCompleted = 0;
+  let serverRequestErrors = 0;
+  let serverRecommendedQuestionsServed = 0;
+  let serverRecommendedQuestionsReturned = 0;
+  let serverTotalLatencyMs = 0;
+  let serverDegradedCount = 0;
+  let serverEmergencyCount = 0;
+  let serverWithSourcesCount = 0;
+  let serverTotalSourcesCount = 0;
 
   for (const row of rows) {
     const properties = toRecord(row.properties);
@@ -289,6 +317,44 @@ export async function getAIOverview(rangeDays: number) {
         incrementCounter(feedbackCounter, typeof properties.feedback === 'string' ? properties.feedback : undefined);
         incrementCounter(feedbackReasonCounter, typeof properties.reason === 'string' ? properties.reason : undefined);
         break;
+      case 'server_ai_request_start':
+        serverRequestsStarted += 1;
+        incrementLineageCounters(properties, serverEntrySourceCounter, serverArticleSlugCounter, serverReportIdCounter);
+        incrementCounter(serverEndpointCounter, typeof properties.endpoint === 'string' ? properties.endpoint : undefined);
+        break;
+      case 'server_ai_response_complete':
+        serverResponsesCompleted += 1;
+        incrementLineageCounters(properties, serverEntrySourceCounter, serverArticleSlugCounter, serverReportIdCounter);
+        incrementCounter(serverEndpointCounter, typeof properties.endpoint === 'string' ? properties.endpoint : undefined);
+        incrementCounter(serverProviderCounter, typeof properties.provider === 'string' ? properties.provider : undefined);
+        incrementCounter(serverModelCounter, typeof properties.model === 'string' ? properties.model : undefined);
+        incrementCounter(serverRouteCounter, typeof properties.route === 'string' ? properties.route : undefined);
+        incrementCounter(serverRiskLevelCounter, typeof properties.riskLevel === 'string' ? properties.riskLevel : undefined);
+        incrementCounter(serverSourceReliabilityCounter, typeof properties.sourceReliability === 'string' ? properties.sourceReliability : undefined);
+        if (toBoolean(properties.degraded)) {
+          serverDegradedCount += 1;
+        }
+        if (toBoolean(properties.isEmergency)) {
+          serverEmergencyCount += 1;
+        }
+        serverTotalLatencyMs += toNumber(properties.durationMs);
+        serverTotalSourcesCount += toNumber(properties.sourcesCount);
+        if (toNumber(properties.sourcesCount) > 0) {
+          serverWithSourcesCount += 1;
+        }
+        break;
+      case 'server_ai_request_error':
+        serverRequestErrors += 1;
+        incrementLineageCounters(properties, serverEntrySourceCounter, serverArticleSlugCounter, serverReportIdCounter);
+        incrementCounter(serverEndpointCounter, typeof properties.endpoint === 'string' ? properties.endpoint : undefined);
+        incrementCounter(serverErrorCodeCounter, typeof properties.errorCode === 'string' ? properties.errorCode : undefined);
+        break;
+      case 'server_ai_knowledge_recommendations_served':
+        serverRecommendedQuestionsServed += 1;
+        serverRecommendedQuestionsReturned += toNumber(properties.returnedCount);
+        incrementCounter(serverRecommendedStageCounter, typeof properties.stage === 'string' ? properties.stage : undefined);
+        incrementCounter(serverRecommendedSourceCounter, typeof properties.source === 'string' ? properties.source : undefined);
+        break;
       default:
         break;
     }
@@ -313,6 +379,10 @@ export async function getAIOverview(rangeDays: number) {
       weeklyReportAskAiClicks,
       knowledgeDetailAskAiClicks,
       feedbackTotal: Array.from(feedbackCounter.values()).reduce((sum, count) => sum + count, 0),
+      serverRequestsStarted,
+      serverResponsesCompleted,
+      serverRequestErrors,
+      serverRecommendedQuestionsServed,
     },
     responseQuality: {
       degradedCount,
@@ -339,6 +409,38 @@ export async function getAIOverview(rangeDays: number) {
       entrySourceBreakdown: toBreakdown(recentAiEntrySourceCounter),
       articleSlugBreakdown: toBreakdown(recentAiArticleSlugCounter).slice(0, 20),
       reportIdBreakdown: toBreakdown(recentAiReportIdCounter).slice(0, 20),
+    },
+    serverAi: {
+      requestsStarted: serverRequestsStarted,
+      responsesCompleted: serverResponsesCompleted,
+      requestErrors: serverRequestErrors,
+      errorRate: serverRequestsStarted > 0
+        ? Number((serverRequestErrors / serverRequestsStarted).toFixed(4))
+        : null,
+      averageLatencyMs: serverResponsesCompleted > 0
+        ? Number((serverTotalLatencyMs / serverResponsesCompleted).toFixed(0))
+        : null,
+      degradedCount: serverDegradedCount,
+      degradedRate: serverResponsesCompleted > 0 ? Number((serverDegradedCount / serverResponsesCompleted).toFixed(4)) : null,
+      emergencyCount: serverEmergencyCount,
+      emergencyRate: serverResponsesCompleted > 0 ? Number((serverEmergencyCount / serverResponsesCompleted).toFixed(4)) : null,
+      withSourcesCount: serverWithSourcesCount,
+      withSourcesRate: serverResponsesCompleted > 0 ? Number((serverWithSourcesCount / serverResponsesCompleted).toFixed(4)) : null,
+      averageSourcesCount: serverResponsesCompleted > 0 ? Number((serverTotalSourcesCount / serverResponsesCompleted).toFixed(2)) : null,
+      recommendedQuestionsServed: serverRecommendedQuestionsServed,
+      recommendedQuestionsReturned: serverRecommendedQuestionsReturned,
+      endpointBreakdown: toBreakdown(serverEndpointCounter),
+      providerBreakdown: toBreakdown(serverProviderCounter),
+      modelBreakdown: toBreakdown(serverModelCounter).slice(0, 10),
+      routeBreakdown: toBreakdown(serverRouteCounter).slice(0, 20),
+      riskLevelBreakdown: toBreakdown(serverRiskLevelCounter),
+      sourceReliabilityBreakdown: toBreakdown(serverSourceReliabilityCounter),
+      errorCodeBreakdown: toBreakdown(serverErrorCodeCounter),
+      recommendedStageBreakdown: toBreakdown(serverRecommendedStageCounter),
+      recommendedSourceBreakdown: toBreakdown(serverRecommendedSourceCounter),
+      entrySourceBreakdown: toBreakdown(serverEntrySourceCounter),
+      articleSlugBreakdown: toBreakdown(serverArticleSlugCounter).slice(0, 20),
+      reportIdBreakdown: toBreakdown(serverReportIdCounter).slice(0, 20),
     },
   };
 }

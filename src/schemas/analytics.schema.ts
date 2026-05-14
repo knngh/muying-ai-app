@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { ANALYTICS_CLIENT_SOURCES, ANALYTICS_EVENT_NAMES } from '../config/analytics-events';
+import { ANALYTICS_CLIENT_EVENT_NAMES, ANALYTICS_CLIENT_SOURCES } from '../config/analytics-events';
 
-export const analyticsEventNames = ANALYTICS_EVENT_NAMES;
+export const analyticsEventNames = ANALYTICS_CLIENT_EVENT_NAMES;
 export const analyticsSources = ANALYTICS_CLIENT_SOURCES;
 
 type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };

@@ -28,6 +28,14 @@ import {
   type KnowledgeRecommendedQuestionStage,
 } from '../services/knowledge-promotion.service';
 import { logger, genRequestId } from '../utils/logger';
+import {
+  buildAIRequestAnalyticsMetadata,
+  recordAIRequestError,
+  recordAIRequestStart,
+  recordAIResponseComplete,
+  recordKnowledgeRecommendedQuestionsServed,
+  type AIRequestAnalyticsMetadata,
+} from '../utils/ai-analytics';
 
 const DEFAULT_MODEL_ID = getDefaultModel();
 
@@ -118,13 +126,26 @@ function streamTrustedResult(
 export const askQuestion = async (req: Request, res: Response, next: NextFunction) => {
   const requestId = genRequestId();
   const startedAt = Date.now();
+  let analyticsMetadata: AIRequestAnalyticsMetadata | undefined;
   try {
-    const { question, context, model, conversationId } = req.body;
+    const { question, context, model, conversationId, clientRequestId } = req.body;
     const userId = req.userId;
 
     if (!question) {
       throw new AppError('请输入问题', ErrorCodes.PARAM_ERROR, 400);
     }
+
+    analyticsMetadata = buildAIRequestAnalyticsMetadata({
+      endpoint: 'ask',
+      requestId,
+      userId,
+      question,
+      context,
+      model,
+      conversationId,
+      clientRequestId,
+    });
+    recordAIRequestStart(analyticsMetadata);
 
     logger.info('ai.ask.start', {
       component: 'ai.controller',
@@ -166,8 +187,16 @@ export const askQuestion = async (req: Request, res: Response, next: NextFunctio
       sourceCount: result.sources?.length || 0,
     });
 
+    recordAIResponseComplete(analyticsMetadata, result, {
+      durationMs: Date.now() - startedAt,
+      conversationPersisted: Boolean(userId && persistedConversationId),
+    });
+
     res.json(successResponse(buildTrustedResponsePayload(result, model, persistedConversationId)));
   } catch (error) {
+    recordAIRequestError(analyticsMetadata, error, {
+      durationMs: Date.now() - startedAt,
+    });
     logger.error('ai.ask.error', {
       component: 'ai.controller',
       event: 'ask.error',
@@ -184,13 +213,26 @@ export const askQuestion = async (req: Request, res: Response, next: NextFunctio
 export const askQuestionStream = async (req: Request, res: Response, next: NextFunction) => {
   const requestId = genRequestId();
   const startedAt = Date.now();
+  let analyticsMetadata: AIRequestAnalyticsMetadata | undefined;
   try {
-    const { question, context, model, conversationId } = req.body;
+    const { question, context, model, conversationId, clientRequestId } = req.body;
     const userId = req.userId;
 
     if (!question) {
       throw new AppError('请输入问题', ErrorCodes.PARAM_ERROR, 400);
     }
+
+    analyticsMetadata = buildAIRequestAnalyticsMetadata({
+      endpoint: 'ask_stream',
+      requestId,
+      userId,
+      question,
+      context,
+      model,
+      conversationId,
+      clientRequestId,
+    });
+    recordAIRequestStart(analyticsMetadata);
 
     logger.info('ai.ask_stream.start', {
       component: 'ai.controller',
@@ -231,8 +273,16 @@ export const askQuestionStream = async (req: Request, res: Response, next: NextF
       route: result.route,
     });
 
+    recordAIResponseComplete(analyticsMetadata, result, {
+      durationMs: Date.now() - startedAt,
+      conversationPersisted: Boolean(userId && persistedConversationId),
+    });
+
     streamTrustedResult(res, result, model, persistedConversationId);
   } catch (error) {
+    recordAIRequestError(analyticsMetadata, error, {
+      durationMs: Date.now() - startedAt,
+    });
     logger.error('ai.ask_stream.error', {
       component: 'ai.controller',
       event: 'ask_stream.error',
@@ -251,8 +301,11 @@ export const askQuestionStream = async (req: Request, res: Response, next: NextF
 
 // 多轮对话 - 非流式
 export const chat = async (req: Request, res: Response, next: NextFunction) => {
+  const requestId = genRequestId();
+  const startedAt = Date.now();
+  let analyticsMetadata: AIRequestAnalyticsMetadata | undefined;
   try {
-    const { messages, context, model, conversationId } = req.body;
+    const { messages, context, model, conversationId, clientRequestId } = req.body;
     const userId = req.userId;
     const isResumeContinuation = isResumeContinuationContext(context);
 
@@ -265,6 +318,20 @@ export const chat = async (req: Request, res: Response, next: NextFunction) => {
       role: message.role as 'user' | 'assistant',
       content: String(message.content ?? ''),
     }));
+
+    analyticsMetadata = buildAIRequestAnalyticsMetadata({
+      endpoint: 'chat',
+      requestId,
+      userId,
+      question: lastMessage.content,
+      context,
+      model,
+      conversationId,
+      clientRequestId,
+      history: formattedMessages,
+      isResumeContinuation,
+    });
+    recordAIRequestStart(analyticsMetadata);
 
     const trustedResult = await generateTrustedAIResponse({
       question: lastMessage.content,
@@ -292,16 +359,27 @@ export const chat = async (req: Request, res: Response, next: NextFunction) => {
         })
       : conversationId;
 
+    recordAIResponseComplete(analyticsMetadata, trustedResult, {
+      durationMs: Date.now() - startedAt,
+      conversationPersisted: Boolean(userId && persistedConversationId),
+    });
+
     return res.json(successResponse(buildTrustedResponsePayload(trustedResult, model, persistedConversationId)));
   } catch (error) {
+    recordAIRequestError(analyticsMetadata, error, {
+      durationMs: Date.now() - startedAt,
+    });
     next(error);
   }
 };
 
 // 多轮对话 - 流式响应
 export const chatStream = async (req: Request, res: Response, next: NextFunction) => {
+  const requestId = genRequestId();
+  const startedAt = Date.now();
+  let analyticsMetadata: AIRequestAnalyticsMetadata | undefined;
   try {
-    const { messages, context, model, conversationId } = req.body;
+    const { messages, context, model, conversationId, clientRequestId } = req.body;
     const userId = req.userId;
     const isResumeContinuation = isResumeContinuationContext(context);
 
@@ -314,6 +392,20 @@ export const chatStream = async (req: Request, res: Response, next: NextFunction
       role: message.role as 'user' | 'assistant',
       content: String(message.content ?? ''),
     }));
+
+    analyticsMetadata = buildAIRequestAnalyticsMetadata({
+      endpoint: 'chat_stream',
+      requestId,
+      userId,
+      question: lastMessage.content,
+      context,
+      model,
+      conversationId,
+      clientRequestId,
+      history: formattedMessages,
+      isResumeContinuation,
+    });
+    recordAIRequestStart(analyticsMetadata);
 
     const trustedResult = await generateTrustedAIResponse({
       question: lastMessage.content,
@@ -341,8 +433,16 @@ export const chatStream = async (req: Request, res: Response, next: NextFunction
         })
       : conversationId;
 
+    recordAIResponseComplete(analyticsMetadata, trustedResult, {
+      durationMs: Date.now() - startedAt,
+      conversationPersisted: Boolean(userId && persistedConversationId),
+    });
+
     return streamTrustedResult(res, trustedResult, model, persistedConversationId);
   } catch (error) {
+    recordAIRequestError(analyticsMetadata, error, {
+      durationMs: Date.now() - startedAt,
+    });
     if (res.headersSent) {
       res.end();
       return;
@@ -463,9 +563,18 @@ export const searchKnowledge = async (req: Request, res: Response, next: NextFun
 
 export const getRecommendedKnowledgeQuestions = async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const stage = req.query.stage ? String(req.query.stage) as KnowledgeRecommendedQuestionStage : null;
+    const limit = Number(req.query.limit || 6);
     const result = buildKnowledgeRecommendedQuestions({
-      stage: req.query.stage ? String(req.query.stage) as KnowledgeRecommendedQuestionStage : null,
-      limit: Number(req.query.limit || 6),
+      stage,
+      limit,
+    });
+
+    recordKnowledgeRecommendedQuestionsServed({
+      stage,
+      requestedLimit: limit,
+      returnedCount: result.total,
+      source: result.source,
     });
 
     res.json(successResponse(result));

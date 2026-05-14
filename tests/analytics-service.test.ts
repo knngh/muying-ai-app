@@ -237,4 +237,93 @@ describe('analytics.service 单元测试', () => {
       reportIdBreakdown: [{ key: 'report-knowledge', count: 5 }],
     });
   });
+
+  it('getAIOverview 会汇总服务端 AI 请求埋点', async () => {
+    mockAnalyticsFindMany.mockResolvedValue([
+      {
+        eventName: 'server_ai_request_start',
+        page: 'api/ai/ask',
+        properties: {
+          endpoint: 'ask',
+          questionLength: 12,
+          hasConversationId: false,
+        },
+      },
+      {
+        eventName: 'server_ai_response_complete',
+        page: 'api/ai/ask',
+        properties: {
+          endpoint: 'ask',
+          durationMs: 1500,
+          provider: 'modal-direct',
+          model: 'zai-org/GLM-5.1-FP8',
+          route: 'task:glm_classify',
+          riskLevel: 'yellow',
+          sourceReliability: 'authoritative',
+          degraded: false,
+          isEmergency: false,
+          sourcesCount: 3,
+        },
+      },
+      {
+        eventName: 'server_ai_request_error',
+        page: 'api/ai/chat',
+        properties: {
+          endpoint: 'chat',
+          durationMs: 300,
+          errorCode: 'AI_TIMEOUT',
+          statusCode: 504,
+        },
+      },
+      {
+        eventName: 'server_ai_knowledge_recommendations_served',
+        page: 'api/ai/knowledge/recommended-questions',
+        properties: {
+          stage: 'newborn',
+          source: 'knowledge_ops_report',
+          requestedLimit: 3,
+          returnedCount: 3,
+        },
+      },
+    ]);
+
+    const result = await getAIOverview(7);
+
+    expect(mockAnalyticsFindMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        eventName: {
+          in: expect.arrayContaining([
+            'server_ai_request_start',
+            'server_ai_response_complete',
+            'server_ai_request_error',
+            'server_ai_knowledge_recommendations_served',
+          ]),
+        },
+      }),
+    }));
+    expect(result.counts).toMatchObject({
+      serverRequestsStarted: 1,
+      serverResponsesCompleted: 1,
+      serverRequestErrors: 1,
+      serverRecommendedQuestionsServed: 1,
+    });
+    expect(result.serverAi).toMatchObject({
+      requestsStarted: 1,
+      responsesCompleted: 1,
+      requestErrors: 1,
+      errorRate: 1,
+      averageLatencyMs: 1500,
+      degradedCount: 0,
+      emergencyCount: 0,
+      withSourcesCount: 1,
+      withSourcesRate: 1,
+      averageSourcesCount: 3,
+      recommendedQuestionsServed: 1,
+      recommendedQuestionsReturned: 3,
+    });
+    expect(result.serverAi.providerBreakdown).toEqual([{ key: 'modal-direct', count: 1 }]);
+    expect(result.serverAi.routeBreakdown).toEqual([{ key: 'task:glm_classify', count: 1 }]);
+    expect(result.serverAi.errorCodeBreakdown).toEqual([{ key: 'AI_TIMEOUT', count: 1 }]);
+    expect(result.serverAi.recommendedStageBreakdown).toEqual([{ key: 'newborn', count: 1 }]);
+  });
 });

@@ -1,4 +1,4 @@
-export const ANALYTICS_EVENT_NAMES = [
+export const ANALYTICS_CLIENT_EVENT_NAMES = [
   'mini_program_app_download_click',
   'app_membership_exposure',
   'app_membership_context_exposure',
@@ -36,6 +36,19 @@ export const ANALYTICS_EVENT_NAMES = [
   'app_knowledge_recent_ai_ask_click',
   'app_knowledge_detail_ai_hit_open',
   'app_knowledge_detail_ask_ai_click',
+] as const;
+
+export const ANALYTICS_SERVER_EVENT_NAMES = [
+  'ai_qa_feedback',
+  'server_ai_request_start',
+  'server_ai_response_complete',
+  'server_ai_request_error',
+  'server_ai_knowledge_recommendations_served',
+] as const;
+
+export const ANALYTICS_EVENT_NAMES = [
+  ...ANALYTICS_CLIENT_EVENT_NAMES,
+  ...ANALYTICS_SERVER_EVENT_NAMES,
 ] as const;
 
 export const ANALYTICS_CLIENT_SOURCES = ['app', 'mini_program'] as const;

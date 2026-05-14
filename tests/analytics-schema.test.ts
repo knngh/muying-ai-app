@@ -41,4 +41,13 @@ describe('analytics schemas', () => {
       properties: { payload: 'x'.repeat(4097) },
     }).success).toBe(false);
   });
+
+  it('rejects server-only AI event names from public analytics writes', () => {
+    expect(createAnalyticsEventBody.safeParse({
+      eventName: 'server_ai_request_start',
+      source: 'app',
+      page: 'ChatScreen',
+      properties: { endpoint: 'ask' },
+    }).success).toBe(false);
+  });
 });
