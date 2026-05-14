@@ -1232,6 +1232,120 @@ describe('knowledge content guards', () => {
     })).toBeNull();
   });
 
+  it('rejects final parenting remediation cases while preserving general care education', () => {
+    expect(getDatasetKnowledgeDropReason({
+      question: '一个像小孩子弹一样的木头颗粒近嘴里了应该怎么办？',
+      answer: '症状处理建议',
+      category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBe('emergency_or_poisoning_case');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '宝宝出生2天发现脸发青已经有10个小时了是啥原因？谢谢',
+      answer: '症状处理建议',
+      category: 'parenting-newborn',
+      tags: ['母婴'],
+    })).toBe('emergency_or_poisoning_case');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '四个月宝宝今天刚拉稀、有脓，最后还有一滴血是怎么回事，我应该怎么办',
+      answer: '症状处理建议',
+      category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBe('emergency_or_poisoning_case');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '宝宝阴道针眼大小怎么回事？是不是不正常',
+      answer: '症状处理建议',
+      category: 'parenting-newborn',
+      tags: ['母婴'],
+    })).toBe('diagnosed_case_followup');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '小孩得睾丸一个大一个小是什么原因呢',
+      answer: '症状处理建议',
+      category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBe('diagnosed_case_followup');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '宝宝的一只眼睛有眼屎宝宝出生35天了一只眼睛有眼屎是怎么回事',
+      answer: '症状处理建议',
+      category: 'parenting-newborn',
+      tags: ['母婴'],
+    })).toBe('diagnosed_case_followup');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '我的宝宝有泪囊炎，通泪道后，头几天不流泪了，这几天只有早晨流怎么回事啊',
+      answer: '症状处理建议',
+      category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBe('diagnosed_case_followup');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '我家宝宝11个半月大，第三颗牙齿长歪了，这样正常吗？怎么办？',
+      answer: '症状处理建议',
+      category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBe('diagnosed_case_followup');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '请问孩子好动是多动症的表现吗？上课老是注意力不集中',
+      answer: '症状处理建议',
+      category: 'common-development',
+      tags: ['母婴'],
+    })).toBe('diagnosed_case_followup');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '我家的孩子这段时间变的有些异常了，不听话也坐不住，全身检查，说是得了多动症。',
+      answer: '症状处理建议',
+      category: 'common-development',
+      tags: ['母婴'],
+    })).toBe('diagnosed_case_followup');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '小孩3岁说话结巴怎么办？说话口齿不清楚怎么回事？',
+      answer: '症状处理建议',
+      category: 'parenting-3-6',
+      tags: ['母婴'],
+    })).toBe('diagnosed_case_followup');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '三十九州加四天宫缩时伴有疼痛',
+      answer: '症状处理建议',
+      category: 'pregnancy-birth',
+      tags: ['母婴'],
+    })).toBe('low_information_case_template');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '婴儿吐奶怎么护理？',
+      answer: '吐奶护理科普',
+      category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBeNull();
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '宝宝发育里程碑怎么观察？',
+      answer: '发育里程碑科普',
+      category: 'common-development',
+      tags: ['母婴'],
+    })).toBeNull();
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '孩子偏食如何改善饮食习惯？',
+      answer: '饮食习惯科普',
+      category: 'parenting-3-6',
+      tags: ['母婴'],
+    })).toBeNull();
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '宝宝便秘怎么护理？',
+      answer: '便秘护理科普',
+      category: 'common-symptoms',
+      tags: ['母婴'],
+    })).toBeNull();
+  });
+
   it('rejects obvious off-scope search queries before random authority boosting', () => {
     expect(isOutOfScopeKnowledgeQuery('中文调研')).toBe(true);
     expect(isOutOfScopeKnowledgeQuery('青春期发育')).toBe(true);
