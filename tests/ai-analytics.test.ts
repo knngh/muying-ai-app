@@ -127,4 +127,37 @@ describe('AI server analytics helpers', () => {
     expect(JSON.stringify(responseProperties)).not.toContain('这里不能进入埋点');
     expect(JSON.stringify(errorProperties)).not.toContain('这里也不能进入埋点');
   });
+
+  it('builds stream metadata with product entry attribution', () => {
+    const metadata = buildAIRequestAnalyticsMetadata({
+      endpoint: 'chat_stream',
+      requestId: 'ws-request-1',
+      userId: '42',
+      question: '继续问一下',
+      context: {
+        entrySource: 'weekly_report',
+        stage: 'second-trimester',
+        reportId: 'report-123',
+      },
+      conversationId: '46',
+      clientRequestId: 'ws-request-1',
+      history: [
+        { role: 'user', content: '第一轮问题' },
+        { role: 'assistant', content: '第一轮回答' },
+        { role: 'user', content: '继续问一下' },
+      ],
+    });
+
+    expect(buildAIRequestStartAnalyticsProperties(metadata)).toMatchObject({
+      endpoint: 'chat_stream',
+      requestId: 'ws-request-1',
+      entrySource: 'weekly_report',
+      stage: 'second-trimester',
+      reportId: 'report-123',
+      hasConversationId: true,
+      historyCount: 3,
+      userMessageCount: 2,
+      assistantMessageCount: 1,
+    });
+  });
 });

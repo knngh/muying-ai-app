@@ -7,6 +7,8 @@ import { wsManager } from '../utils/websocket'
 import { sessionStorage } from '../utils/storage'
 import { useMembershipStore } from './membershipStore'
 
+type ChatContext = string | Record<string, string | number | boolean | null>
+
 interface ChatState {
   messages: AIMessage[]
   conversationId: string | null
@@ -21,12 +23,12 @@ interface ChatState {
   streamingContent: string
   initialize: () => Promise<void>
   startFreshSession: () => void
-  sendMessage: (content: string, context?: string | Record<string, string | number | boolean | null>) => Promise<void>
+  sendMessage: (content: string, context?: ChatContext) => Promise<void>
   resetState: () => void
   clearMessages: () => void
 }
 
-function buildEntryMeta(context?: string | Record<string, string | number | boolean | null>): AIEntryMeta | null {
+function buildEntryMeta(context?: ChatContext): AIEntryMeta | null {
   if (!context || typeof context === 'string') {
     return null
   }
@@ -47,6 +49,35 @@ function buildEntryMeta(context?: string | Record<string, string | number | bool
   return Object.values(entryMeta).some((value) => value !== undefined && value !== null)
     ? entryMeta
     : null
+}
+
+function compactContext(record: Record<string, string | number | boolean | null | undefined>): Record<string, string | number | boolean | null> | undefined {
+  const compacted = Object.entries(record).reduce<Record<string, string | number | boolean | null>>((acc, [key, value]) => {
+    if (value !== undefined) {
+      acc[key] = value
+    }
+    return acc
+  }, {})
+
+  return Object.keys(compacted).length > 0 ? compacted : undefined
+}
+
+function buildContextFromEntryMeta(entryMeta: AIEntryMeta | null): Record<string, string | number | boolean | null> | undefined {
+  if (!entryMeta) {
+    return undefined
+  }
+
+  return compactContext({
+    entrySource: entryMeta.entrySource,
+    stage: entryMeta.stage,
+    articleSlug: entryMeta.articleSlug,
+    articleTitle: entryMeta.articleTitle,
+    articleSourceOrg: entryMeta.articleSourceOrg,
+    articleTopic: entryMeta.articleTopic,
+    reportId: entryMeta.reportId,
+    reportStageLabel: entryMeta.reportStageLabel,
+    reportHighlightIndex: entryMeta.reportHighlightIndex,
+  })
 }
 
 function isQuotaExceededError(input: {
@@ -124,8 +155,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
     })
   },
 
-  sendMessage: async (content: string, context?: string | Record<string, string | number | boolean | null>) => {
+  sendMessage: async (content: string, context?: ChatContext) => {
     const entryMeta = buildEntryMeta(context) || get().activeEntryMeta
+    const requestContext = context ?? buildContextFromEntryMeta(entryMeta)
     const userMessage: AIMessage = {
       id: uuidv4(),
       role: 'user',
@@ -156,7 +188,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       wsManager.send('chat_stream', requestId, {
         messages: history,
         conversationId: get().conversationId || undefined,
-        context,
+        context: requestContext,
       }, (msg) => {
         if (httpFallbackFired) return
         if (msg.type === 'chunk' && msg.data.content) {
@@ -258,7 +290,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             const response: ChatResponse = await aiApi.chat({
               messages: get().messages.map(m => ({ role: m.role, content: m.content })),
               conversationId: get().conversationId || undefined,
-              context,
+              context: requestContext,
               clientRequestId: requestId,
             })
             const assistantMessage: AIMessage = {

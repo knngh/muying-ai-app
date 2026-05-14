@@ -11,6 +11,13 @@ import { chunkTrustedAnswer, generateTrustedAIResponse } from './trusted-ai.serv
 import { isResumeContinuationContext } from './ai-context.service';
 import { buildAIActionCards } from './ai-action-card.service';
 import { buildAIServiceDisclosure, type AIServiceDisclosure } from './ai-disclosure.service';
+import {
+  buildAIRequestAnalyticsMetadata,
+  recordAIRequestError,
+  recordAIRequestStart,
+  recordAIResponseComplete,
+  type AIRequestAnalyticsMetadata,
+} from '../utils/ai-analytics';
 // WebSocket 消息协议类型（与 shared/types/ai.ts 保持一致）
 interface AuthenticatedUpgradeRequest extends IncomingMessage {
   _userId?: string
@@ -304,7 +311,9 @@ async function handleAskStream(
   requestId: string,
   payload: WsClientMessage['payload']
 ) {
+  const startedAt = Date.now();
   const { question, model, context, conversationId } = payload;
+  let analyticsMetadata: AIRequestAnalyticsMetadata | undefined;
   clearRequestCancellation(ws, requestId);
 
   if (!question) {
@@ -317,6 +326,18 @@ async function handleAskStream(
   }
 
   try {
+    analyticsMetadata = buildAIRequestAnalyticsMetadata({
+      endpoint: 'ask_stream',
+      requestId,
+      userId: ws.userId,
+      question,
+      context,
+      model,
+      conversationId,
+      clientRequestId: requestId,
+    });
+    recordAIRequestStart(analyticsMetadata);
+
     const result = await generateTrustedAIResponse({
       question,
       context,
@@ -340,8 +361,16 @@ async function handleAskStream(
       })
       : conversationId;
 
+    recordAIResponseComplete(analyticsMetadata, result, {
+      durationMs: Date.now() - startedAt,
+      conversationPersisted: Boolean(ws.userId && persistedConversationId),
+    });
+
     sendTrustedResult(ws, requestId, result, persistedConversationId);
   } catch (streamError: unknown) {
+    recordAIRequestError(analyticsMetadata, streamError, {
+      durationMs: Date.now() - startedAt,
+    });
     console.error(`[WebSocket] Stream error in ask_stream:`, streamError);
     sendError(ws, requestId, getErrorMessage(streamError, '流式响应出错'));
   }
@@ -355,7 +384,9 @@ async function handleChatStream(
   requestId: string,
   payload: WsClientMessage['payload']
 ) {
+  const startedAt = Date.now();
   const { messages, model, context, conversationId } = payload;
+  let analyticsMetadata: AIRequestAnalyticsMetadata | undefined;
   const isResumeContinuation = isResumeContinuationContext(context);
   clearRequestCancellation(ws, requestId);
 
@@ -379,6 +410,20 @@ async function handleChatStream(
   }));
 
   try {
+    analyticsMetadata = buildAIRequestAnalyticsMetadata({
+      endpoint: 'chat_stream',
+      requestId,
+      userId: ws.userId,
+      question: lastMessage.content,
+      context,
+      model,
+      conversationId,
+      clientRequestId: requestId,
+      history: formattedMessages,
+      isResumeContinuation,
+    });
+    recordAIRequestStart(analyticsMetadata);
+
     const result = await generateTrustedAIResponse({
       question: lastMessage.content,
       context,
@@ -410,8 +455,16 @@ async function handleChatStream(
         })
       : conversationId;
 
+    recordAIResponseComplete(analyticsMetadata, result, {
+      durationMs: Date.now() - startedAt,
+      conversationPersisted: Boolean(ws.userId && persistedConversationId),
+    });
+
     sendTrustedResult(ws, requestId, result, persistedConversationId);
   } catch (streamError: unknown) {
+    recordAIRequestError(analyticsMetadata, streamError, {
+      durationMs: Date.now() - startedAt,
+    });
     console.error(`[WebSocket] Stream error in chat_stream:`, streamError);
     sendError(ws, requestId, getErrorMessage(streamError, '流式响应出错'));
   }
