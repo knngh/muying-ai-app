@@ -416,8 +416,8 @@ describe('AI ops report', () => {
         counts: {
           messagesSent: 0,
           responsesReceived: 0,
-          serverRequestsStarted: 5,
-          serverResponsesCompleted: 5,
+          serverRequestsStarted: 7,
+          serverResponsesCompleted: 7,
           serverRequestErrors: 0,
           serverRecommendedQuestionsServed: 3,
         },
@@ -463,8 +463,8 @@ describe('AI ops report', () => {
           },
         ],
         serverAi: {
-          requestsStarted: 5,
-          responsesCompleted: 5,
+          requestsStarted: 7,
+          responsesCompleted: 7,
           requestErrors: 0,
           errorRate: 0,
           averageLatencyMs: 1800,
@@ -476,6 +476,7 @@ describe('AI ops report', () => {
           providerBreakdown: [{ key: 'system', count: 5 }],
           routeBreakdown: [{ key: 'fallback:minimax_render', count: 5 }],
           entrySourceBreakdown: [
+            { key: 'ops_ai_smoke', count: 4 },
             { key: 'home_suggested_question', count: 2 },
             { key: 'weekly_report', count: 2 },
             { key: 'knowledge_detail', count: 2 },
@@ -489,8 +490,10 @@ describe('AI ops report', () => {
 
     expect(report.status).toBe('attention');
     expect(report.serverAi).toMatchObject({
+      opsSmokeEventCount: 4,
       nonOpsEntrySourceEventCount: 10,
       opsEntrypointSmokeEventCount: 10,
+      realEntrySourceEventCount: 0,
     });
     expect(report.opsProductEntrypointCoverage).toEqual(expect.arrayContaining([
       expect.objectContaining({

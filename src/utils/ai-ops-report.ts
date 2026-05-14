@@ -40,6 +40,7 @@ export interface AIOpsReport {
     opsSmokeEventCount: number;
     opsEntrypointSmokeEventCount: number;
     nonOpsEntrySourceEventCount: number;
+    realEntrySourceEventCount: number;
   };
   acquisition: {
     recommendedQuestionsServed: number;
@@ -327,7 +328,12 @@ export function buildAIOpsReport(input: {
       serverAiOverview.entrySourceBreakdown,
       new Set(['ops_ai_smoke']),
     ),
+    realEntrySourceEventCount: 0,
   };
+  serverAi.realEntrySourceEventCount = Math.max(
+    0,
+    serverAi.nonOpsEntrySourceEventCount - serverAi.opsEntrypointSmokeEventCount,
+  );
 
   const acquisition = {
     recommendedQuestionsServed,
@@ -381,7 +387,7 @@ export function buildAIOpsReport(input: {
     && messagesSent === 0
     && (
       (serverAi.opsSmokeEventCount > 0 && serverAi.nonOpsEntrySourceEventCount === 0)
-      || serverAi.opsEntrypointSmokeEventCount >= requestsStarted + responsesCompleted + requestErrors
+      || serverAi.opsSmokeEventCount + serverAi.opsEntrypointSmokeEventCount >= requestsStarted + responsesCompleted + requestErrors
     )
   ) {
     pushAction(
@@ -403,7 +409,7 @@ export function buildAIOpsReport(input: {
   if (
     requestsStarted > 0
     && missingServerResponseEntrypoints.length > 0
-    && serverAi.nonOpsEntrySourceEventCount > 0
+    && serverAi.realEntrySourceEventCount > 0
   ) {
     pushAction(
       actionItems,
