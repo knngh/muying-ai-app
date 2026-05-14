@@ -164,7 +164,7 @@ function resolveAuthorityTranslationTaskRoles(): AITaskModelRole[] {
     .filter(Boolean);
   const supported = new Set<AITaskModelRole>(['minimax_render', 'glm_classify', 'kimi_reason']);
   const roles = configured.filter((item): item is AITaskModelRole => supported.has(item as AITaskModelRole));
-  const primaryRoles: AITaskModelRole[] = roles.length > 0 ? roles : ['minimax_render'];
+  const primaryRoles: AITaskModelRole[] = roles.length > 0 ? roles : ['glm_classify', 'minimax_render'];
   return Array.from(new Set<AITaskModelRole>([
     ...primaryRoles,
     'glm_classify',
