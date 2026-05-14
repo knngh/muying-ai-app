@@ -160,4 +160,28 @@ describe('AI server analytics helpers', () => {
       assistantMessageCount: 1,
     });
   });
+
+  it('passes ops traffic kind through server AI analytics metadata', () => {
+    const metadata = buildAIRequestAnalyticsMetadata({
+      endpoint: 'ask',
+      requestId: 'ops-request-1',
+      userId: '42',
+      question: '宝宝今晚怎么观察？',
+      context: {
+        entrySource: 'home_suggested_question',
+        reportId: 'ops-ai-entrypoint-smoke-home',
+        trafficKind: 'ops_product_entrypoint_smoke',
+      },
+      clientRequestId: 'ops-ai-entrypoint-smoke-home-1',
+    });
+
+    expect(buildAIRequestStartAnalyticsProperties(metadata)).toMatchObject({
+      endpoint: 'ask',
+      requestId: 'ops-request-1',
+      entrySource: 'home_suggested_question',
+      reportId: 'ops-ai-entrypoint-smoke-home',
+      trafficKind: 'ops_product_entrypoint_smoke',
+      clientRequestId: 'ops-ai-entrypoint-smoke-home-1',
+    });
+  });
 });

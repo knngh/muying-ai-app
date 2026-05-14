@@ -20,6 +20,7 @@
     "ops:smoke:prod": "bash scripts/prod-smoke-backend.sh",
     "ops:smoke:ai": "bash scripts/prod-ai-smoke.sh",
     "ops:smoke:ai:ws": "node scripts/prod-ai-ws-smoke.js",
+    "ops:smoke:ai:entrypoints": "node scripts/prod-ai-entrypoint-smoke.js",
     "ops:smoke:knowledge": "bash scripts/smoke-knowledge-backend.sh",
     "ops:knowledge:status": "bash scripts/prod-knowledge-status.sh",
     "ops:knowledge:daily": "node --import tsx src/scripts/run-knowledge-daily-ops.ts",

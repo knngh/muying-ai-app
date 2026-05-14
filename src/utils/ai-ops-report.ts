@@ -38,6 +38,7 @@ export interface AIOpsReport {
     topErrorCode: string | null;
     topEntrySource: string | null;
     opsSmokeEventCount: number;
+    opsEntrypointSmokeEventCount: number;
     nonOpsEntrySourceEventCount: number;
   };
   acquisition: {
@@ -47,6 +48,7 @@ export interface AIOpsReport {
     topRecommendedSource: string | null;
   };
   productEntrypointCoverage: ProductEntrypointCoverage[];
+  opsProductEntrypointCoverage: ProductEntrypointCoverage[];
   actionItems: AIOpsActionItem[];
   nextActions: string[];
 }
@@ -67,6 +69,7 @@ interface AIOpsOverviewInput {
   counts?: unknown;
   responseQuality?: unknown;
   productEntrypointCoverage?: unknown;
+  opsProductEntrypointCoverage?: unknown;
   serverAi?: unknown;
 }
 
@@ -276,6 +279,9 @@ export function buildAIOpsReport(input: {
   const productEntrypointCoverage = parseProductEntrypointCoverage(
     input.overview.productEntrypointCoverage || serverAiOverview.productEntrypointCoverage,
   );
+  const opsProductEntrypointCoverage = parseProductEntrypointCoverage(
+    input.overview.opsProductEntrypointCoverage || serverAiOverview.opsProductEntrypointCoverage,
+  );
 
   const messagesSent = getNumber(counts, 'messagesSent');
   const responsesReceived = getNumber(counts, 'responsesReceived');
@@ -316,6 +322,7 @@ export function buildAIOpsReport(input: {
     topErrorCode: topBreakdownKey(serverAiOverview.errorCodeBreakdown),
     topEntrySource: topBreakdownKey(serverAiOverview.entrySourceBreakdown),
     opsSmokeEventCount: getBreakdownCount(serverAiOverview.entrySourceBreakdown, 'ops_ai_smoke'),
+    opsEntrypointSmokeEventCount: getNumber(serverAiOverview, 'opsEntrypointSmokeEventCount'),
     nonOpsEntrySourceEventCount: getOtherBreakdownCount(
       serverAiOverview.entrySourceBreakdown,
       new Set(['ops_ai_smoke']),
@@ -372,8 +379,10 @@ export function buildAIOpsReport(input: {
   if (
     requestsStarted > 0
     && messagesSent === 0
-    && serverAi.opsSmokeEventCount > 0
-    && serverAi.nonOpsEntrySourceEventCount === 0
+    && (
+      (serverAi.opsSmokeEventCount > 0 && serverAi.nonOpsEntrySourceEventCount === 0)
+      || serverAi.opsEntrypointSmokeEventCount >= requestsStarted + responsesCompleted + requestErrors
+    )
   ) {
     pushAction(
       actionItems,
@@ -517,6 +526,7 @@ export function buildAIOpsReport(input: {
     serverAi,
     acquisition,
     productEntrypointCoverage,
+    opsProductEntrypointCoverage,
     actionItems,
     nextActions,
   };

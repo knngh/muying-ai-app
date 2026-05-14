@@ -407,4 +407,102 @@ describe('AI ops report', () => {
       'Replay missing AI entrypoint journeys and verify server response_complete events: Weekly report AI',
     ]));
   });
+
+  it('keeps ops product entrypoint smoke traffic separate from real usage coverage', () => {
+    const report = buildAIOpsReport({
+      generatedAt: '2026-05-14T06:40:00.000Z',
+      overview: {
+        rangeDays: 7,
+        counts: {
+          messagesSent: 0,
+          responsesReceived: 0,
+          serverRequestsStarted: 5,
+          serverResponsesCompleted: 5,
+          serverRequestErrors: 0,
+          serverRecommendedQuestionsServed: 3,
+        },
+        responseQuality: {},
+        productEntrypointCoverage: [
+          {
+            entrySource: 'home_suggested_question',
+            label: 'Home suggested question',
+            clickCount: 0,
+            prefillCount: 0,
+            messageCount: 0,
+            serverStartCount: 0,
+            serverResponseCount: 0,
+            serverErrorCount: 0,
+            feedbackCount: 0,
+            hasClick: false,
+            hasPrefill: false,
+            hasMessage: false,
+            hasServerStart: false,
+            hasServerResponse: false,
+            hasFeedback: false,
+            totalTrackedEvents: 0,
+          },
+        ],
+        opsProductEntrypointCoverage: [
+          {
+            entrySource: 'home_suggested_question',
+            label: 'Home suggested question',
+            clickCount: 1,
+            prefillCount: 1,
+            messageCount: 1,
+            serverStartCount: 1,
+            serverResponseCount: 1,
+            serverErrorCount: 0,
+            feedbackCount: 0,
+            hasClick: true,
+            hasPrefill: true,
+            hasMessage: true,
+            hasServerStart: true,
+            hasServerResponse: true,
+            hasFeedback: false,
+            totalTrackedEvents: 5,
+          },
+        ],
+        serverAi: {
+          requestsStarted: 5,
+          responsesCompleted: 5,
+          requestErrors: 0,
+          errorRate: 0,
+          averageLatencyMs: 1800,
+          degradedRate: 0,
+          withSourcesRate: 1,
+          recommendedQuestionsServed: 3,
+          recommendedQuestionsReturned: 9,
+          endpointBreakdown: [{ key: 'ask', count: 10 }],
+          providerBreakdown: [{ key: 'system', count: 5 }],
+          routeBreakdown: [{ key: 'fallback:minimax_render', count: 5 }],
+          entrySourceBreakdown: [
+            { key: 'home_suggested_question', count: 2 },
+            { key: 'weekly_report', count: 2 },
+            { key: 'knowledge_detail', count: 2 },
+            { key: 'knowledge_recent_ai', count: 2 },
+            { key: 'native', count: 2 },
+          ],
+          opsEntrypointSmokeEventCount: 10,
+        },
+      },
+    });
+
+    expect(report.status).toBe('attention');
+    expect(report.serverAi).toMatchObject({
+      nonOpsEntrySourceEventCount: 10,
+      opsEntrypointSmokeEventCount: 10,
+    });
+    expect(report.opsProductEntrypointCoverage).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        entrySource: 'home_suggested_question',
+        totalTrackedEvents: 5,
+      }),
+    ]));
+    expect(report.actionItems).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        area: 'ai_real_usage_traffic',
+        message: 'Only ops AI smoke answer traffic was captured in the last 7 day(s); missing product entrypoints: Home suggested question.',
+      }),
+    ]));
+  });
 });

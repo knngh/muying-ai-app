@@ -32,6 +32,7 @@ export interface AIRequestAnalyticsMetadata {
   articleSlug?: string;
   reportId?: string;
   stage?: string;
+  trafficKind?: string;
   hasConversationId: boolean;
   resumeContinuation?: boolean;
 }
@@ -137,6 +138,7 @@ function getCommonProperties(
     articleSlug: metadata.articleSlug,
     reportId: metadata.reportId,
     stage: metadata.stage,
+    trafficKind: metadata.trafficKind,
     hasConversationId: metadata.hasConversationId,
     resumeContinuation: metadata.resumeContinuation,
   };
@@ -226,6 +228,7 @@ export function buildAIRequestAnalyticsMetadata(input: {
     articleSlug: sanitizeToken(contextRecord.articleSlug, 160),
     reportId: sanitizeToken(contextRecord.reportId, 120),
     stage: sanitizeToken(contextRecord.stage, 80),
+    trafficKind: sanitizeToken(contextRecord.trafficKind, 80),
     hasConversationId: Boolean(input.conversationId),
     resumeContinuation: input.isResumeContinuation === undefined ? undefined : input.isResumeContinuation,
   };

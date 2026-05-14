@@ -439,4 +439,102 @@ describe('analytics.service 单元测试', () => {
       }),
     ]));
   });
+
+  it('getAIOverview 会把 ops 产品入口演练流量从真实入口覆盖中隔离', async () => {
+    mockAnalyticsFindMany.mockResolvedValue([
+      {
+        eventName: 'app_home_suggested_question_click',
+        page: 'HomeScreen',
+        properties: {
+          entrySource: 'home_suggested_question',
+          stage: 'newborn',
+          trafficKind: 'ops_product_entrypoint_smoke',
+          reportId: 'ops-ai-entrypoint-smoke-home',
+        },
+      },
+      {
+        eventName: 'app_chat_prefill_entry',
+        page: 'ChatScreen',
+        properties: {
+          source: 'home_suggested_question',
+          entrySource: 'home_suggested_question',
+          trafficKind: 'ops_product_entrypoint_smoke',
+          reportId: 'ops-ai-entrypoint-smoke-home',
+        },
+      },
+      {
+        eventName: 'app_chat_message_send',
+        page: 'ChatScreen',
+        properties: {
+          source: 'home_suggested_question',
+          entrySource: 'home_suggested_question',
+          trafficKind: 'ops_product_entrypoint_smoke',
+          reportId: 'ops-ai-entrypoint-smoke-home',
+        },
+      },
+      {
+        eventName: 'server_ai_request_start',
+        page: 'api/ai/ask',
+        properties: {
+          endpoint: 'ask',
+          entrySource: 'home_suggested_question',
+          reportId: 'ops-ai-entrypoint-smoke-home',
+          clientRequestId: 'ops-ai-entrypoint-smoke-home-1',
+        },
+      },
+      {
+        eventName: 'server_ai_response_complete',
+        page: 'api/ai/ask',
+        properties: {
+          endpoint: 'ask',
+          entrySource: 'home_suggested_question',
+          reportId: 'ops-ai-entrypoint-smoke-home',
+          clientRequestId: 'ops-ai-entrypoint-smoke-home-1',
+          durationMs: 1200,
+          provider: 'system',
+          model: 'rule-based',
+          route: 'fallback:minimax_render',
+          sourceReliability: 'authoritative',
+          riskLevel: 'green',
+          degraded: false,
+          sourcesCount: 2,
+        },
+      },
+    ]);
+
+    const result = await getAIOverview(7);
+
+    expect(result.productEntrypointCoverage).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        entrySource: 'home_suggested_question',
+        clickCount: 0,
+        prefillCount: 0,
+        messageCount: 0,
+        serverStartCount: 0,
+        serverResponseCount: 0,
+        totalTrackedEvents: 0,
+      }),
+    ]));
+    expect(result.opsProductEntrypointCoverage).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        entrySource: 'home_suggested_question',
+        clickCount: 1,
+        prefillCount: 1,
+        messageCount: 1,
+        serverStartCount: 1,
+        serverResponseCount: 1,
+        serverErrorCount: 0,
+        totalTrackedEvents: 5,
+      }),
+    ]));
+    expect(result.serverAi).toMatchObject({
+      opsEntrypointSmokeEventCount: 2,
+    });
+    expect(result.counts).toMatchObject({
+      messagesSent: 0,
+      responsesReceived: 0,
+    });
+    expect(result.entrySourceBreakdown).toEqual([]);
+    expect(result.reportIdBreakdown).toEqual([]);
+  });
 });

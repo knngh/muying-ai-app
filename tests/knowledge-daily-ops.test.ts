@@ -668,6 +668,26 @@ describe('knowledge daily ops report', () => {
             totalTrackedEvents: 5,
           },
         ],
+        opsProductEntrypointCoverage: [
+          {
+            entrySource: 'weekly_report',
+            label: 'Weekly report AI',
+            clickCount: 1,
+            prefillCount: 1,
+            messageCount: 1,
+            serverStartCount: 1,
+            serverResponseCount: 1,
+            serverErrorCount: 0,
+            feedbackCount: 0,
+            hasClick: true,
+            hasPrefill: true,
+            hasMessage: true,
+            hasServerStart: true,
+            hasServerResponse: true,
+            hasFeedback: false,
+            totalTrackedEvents: 5,
+          },
+        ],
         actionItems: [
           { area: 'ai_error_rate', severity: 'medium', message: 'Server AI error rate is 30.0%.' },
         ],
@@ -689,6 +709,14 @@ describe('knowledge daily ops report', () => {
         {
           entrySource: 'home_suggested_question',
           label: 'Home suggested question',
+          serverResponseCount: 1,
+          hasServerResponse: true,
+        },
+      ],
+      opsProductEntrypointCoverage: [
+        {
+          entrySource: 'weekly_report',
+          label: 'Weekly report AI',
           serverResponseCount: 1,
           hasServerResponse: true,
         },
