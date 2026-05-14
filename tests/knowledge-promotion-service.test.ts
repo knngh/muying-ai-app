@@ -147,6 +147,49 @@ describe('knowledge promotion recommendations', () => {
     expect(result.questions[0].targetStage).toEqual(['first-trimester', 'second-trimester', 'third-trimester']);
   });
 
+  it('does not expose pregnancy symptom questions to newborn stage when raw stage arrays are broad', () => {
+    const result = buildKnowledgeRecommendedQuestions({
+      report: {
+        promotion: {
+          safeQuestionCandidates: {
+            candidates: [
+              {
+                id: 'qa-pregnancy-nausea',
+                question: '孕吐什么时候需要就医？',
+                category: 'common-symptoms',
+                topic: 'common-symptoms',
+                targetStage: ['0-6-months', '6-12-months', '1-3-years', 'first-trimester', 'second-trimester', 'third-trimester'],
+                riskLevel: 'yellow',
+                suggestedUse: 'care_boundary',
+                authorityReference: {
+                  sourceOrg: 'ACOG',
+                  title: 'Nausea and Vomiting of Pregnancy',
+                },
+              },
+              {
+                id: 'qa-newborn-sleep',
+                question: '宝宝睡眠作息要注意什么？',
+                category: 'parenting-0-1',
+                topic: 'newborn',
+                targetStage: ['newborn'],
+                riskLevel: 'green',
+                suggestedUse: 'general_education',
+                authorityReference: {
+                  sourceOrg: 'AAP',
+                  title: 'Sleeping Through the Night',
+                },
+              },
+            ],
+          },
+        },
+      },
+      stage: 'newborn',
+    });
+
+    expect(result.questions.map((item) => item.id)).toEqual(['qa-newborn-sleep']);
+    expect(result.questions[0].targetStage).toEqual(['newborn']);
+  });
+
   it('keeps breastfeeding questions in postpartum instead of baby feeding stages', () => {
     const result = buildKnowledgeRecommendedQuestions({
       report: {

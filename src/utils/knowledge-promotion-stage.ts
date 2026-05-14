@@ -49,6 +49,9 @@ export function normalizeKnowledgePromotionTargetStage(
   if (/孕早期|早孕|first-trimester/iu.test(text)) {
     return ['first-trimester'];
   }
+  if (/孕吐|早孕反应|妊娠反应|孕期呕吐|nausea.+pregnancy|vomiting.+pregnancy/iu.test(text)) {
+    return ['first-trimester'];
+  }
   if (/孕中期|胎动|second-trimester/iu.test(text)) {
     return ['second-trimester'];
   }
