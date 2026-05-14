@@ -1,6 +1,7 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import { buildAuthorityTranslationSourceFingerprint } from '../src/utils/authority-translation-source';
 
 describe('authority translation warmup', () => {
   const originalEnv = {
@@ -113,6 +114,153 @@ describe('authority translation warmup', () => {
       candidates: 0,
       selected: 0,
       cached: 1,
+      skipped: 0,
+      warmed: 0,
+      failed: 0,
+    }));
+    expect(moduleApi.callTaskModelSpy).not.toHaveBeenCalled();
+  });
+
+  it('reuses cached translations when the source fingerprint still matches after timestamp churn', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'authority-translation-warmup-'));
+    const authorityCachePath = path.join(tmpDir, 'authority-knowledge-cache.json');
+    const translationCachePath = path.join(tmpDir, 'authority-translation-cache.json');
+    const failureCachePath = path.join(tmpDir, 'authority-translation-failures.json');
+    const authorityRecord = {
+      id: 'aap-1',
+      question: 'Your baby first solid foods',
+      summary: 'How to introduce solid foods.',
+      answer: 'Start around six months when the baby shows readiness. Offer iron-rich foods and avoid choking hazards.',
+      source_language: 'en',
+      source_url: 'https://www.healthychildren.org/example',
+      updated_at: '2026-05-10T00:00:00.000Z',
+      source_updated_at: '2026-05-10T00:00:00.000Z',
+    };
+
+    fs.writeFileSync(authorityCachePath, JSON.stringify([authorityRecord]), 'utf-8');
+    fs.writeFileSync(translationCachePath, JSON.stringify({
+      'authority-aap-1': {
+        slug: 'authority-aap-1',
+        sourceUpdatedAt: '2026-05-09T00:00:00.000Z',
+        sourceFingerprint: buildAuthorityTranslationSourceFingerprint(authorityRecord),
+        translatedTitle: '宝宝第一口辅食',
+        translatedSummary: '如何添加辅食。',
+        translatedContent: '大约六个月时，在宝宝表现出准备信号后开始添加辅食。',
+        translationNotice: '缓存译文',
+        updatedAt: '2026-05-09T01:00:00.000Z',
+        model: 'zai-org/GLM-5.1-FP8',
+        provider: 'modal-direct',
+      },
+    }), 'utf-8');
+    fs.writeFileSync(failureCachePath, '{}', 'utf-8');
+
+    process.env.AUTHORITY_KNOWLEDGE_CACHE_PATH = authorityCachePath;
+    process.env.AUTHORITY_TRANSLATION_CACHE_PATH = translationCachePath;
+    process.env.AUTHORITY_TRANSLATION_FAILURE_CACHE_PATH = failureCachePath;
+    process.env.AUTHORITY_TRANSLATION_SYNC_LIMIT = '10';
+    process.env.AUTHORITY_TRANSLATION_SYNC_DELAY_MS = '0';
+
+    let moduleApi: {
+      callTaskModelSpy: jest.SpyInstance;
+      warmPublishedAuthorityTranslations: typeof import('../src/services/authority-translation.service').warmPublishedAuthorityTranslations;
+    } | null = null;
+
+    jest.isolateModules(() => {
+      const aiGateway = require('../src/services/ai-gateway.service') as typeof import('../src/services/ai-gateway.service');
+      const callTaskModelSpy = jest.spyOn(aiGateway, 'callTaskModelDetailed');
+      const translationService = require('../src/services/authority-translation.service') as typeof import('../src/services/authority-translation.service');
+
+      moduleApi = {
+        callTaskModelSpy,
+        warmPublishedAuthorityTranslations: translationService.warmPublishedAuthorityTranslations,
+      };
+    });
+
+    expect(moduleApi).not.toBeNull();
+    const result = await moduleApi.warmPublishedAuthorityTranslations({
+      delayMs: 0,
+      limit: 10,
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      scanned: 1,
+      candidates: 0,
+      selected: 0,
+      cached: 1,
+      skipped: 0,
+      warmed: 0,
+      failed: 0,
+    }));
+    expect(moduleApi.callTaskModelSpy).not.toHaveBeenCalled();
+  });
+
+  it('does not reuse timestamp-stale cache entries when the source fingerprint changed', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'authority-translation-warmup-'));
+    const authorityCachePath = path.join(tmpDir, 'authority-knowledge-cache.json');
+    const translationCachePath = path.join(tmpDir, 'authority-translation-cache.json');
+    const failureCachePath = path.join(tmpDir, 'authority-translation-failures.json');
+
+    fs.writeFileSync(authorityCachePath, JSON.stringify([
+      {
+        id: 'aap-1',
+        question: 'Your baby first solid foods',
+        summary: 'How to introduce solid foods.',
+        answer: 'This source text has materially changed and needs a new Chinese translation.',
+        source_language: 'en',
+        source_url: 'https://www.healthychildren.org/example',
+        updated_at: '2026-05-10T00:00:00.000Z',
+        source_updated_at: '2026-05-10T00:00:00.000Z',
+      },
+    ]), 'utf-8');
+    fs.writeFileSync(translationCachePath, JSON.stringify({
+      'authority-aap-1': {
+        slug: 'authority-aap-1',
+        sourceUpdatedAt: '2026-05-09T00:00:00.000Z',
+        sourceFingerprint: 'sha256:old-source',
+        translatedTitle: '宝宝第一口辅食',
+        translatedSummary: '如何添加辅食。',
+        translatedContent: '旧译文。',
+        translationNotice: '缓存译文',
+        updatedAt: '2026-05-09T01:00:00.000Z',
+        model: 'zai-org/GLM-5.1-FP8',
+        provider: 'modal-direct',
+      },
+    }), 'utf-8');
+    fs.writeFileSync(failureCachePath, '{}', 'utf-8');
+
+    process.env.AUTHORITY_KNOWLEDGE_CACHE_PATH = authorityCachePath;
+    process.env.AUTHORITY_TRANSLATION_CACHE_PATH = translationCachePath;
+    process.env.AUTHORITY_TRANSLATION_FAILURE_CACHE_PATH = failureCachePath;
+    process.env.AUTHORITY_TRANSLATION_SYNC_LIMIT = '10';
+    process.env.AUTHORITY_TRANSLATION_SYNC_DELAY_MS = '0';
+
+    let moduleApi: {
+      callTaskModelSpy: jest.SpyInstance;
+      warmPublishedAuthorityTranslations: typeof import('../src/services/authority-translation.service').warmPublishedAuthorityTranslations;
+    } | null = null;
+
+    jest.isolateModules(() => {
+      const aiGateway = require('../src/services/ai-gateway.service') as typeof import('../src/services/ai-gateway.service');
+      const callTaskModelSpy = jest.spyOn(aiGateway, 'callTaskModelDetailed');
+      const translationService = require('../src/services/authority-translation.service') as typeof import('../src/services/authority-translation.service');
+
+      moduleApi = {
+        callTaskModelSpy,
+        warmPublishedAuthorityTranslations: translationService.warmPublishedAuthorityTranslations,
+      };
+    });
+
+    expect(moduleApi).not.toBeNull();
+    const result = await moduleApi.warmPublishedAuthorityTranslations({
+      delayMs: 0,
+      limit: 0,
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      scanned: 1,
+      candidates: 1,
+      selected: 0,
+      cached: 0,
       skipped: 0,
       warmed: 0,
       failed: 0,

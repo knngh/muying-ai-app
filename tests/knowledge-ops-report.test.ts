@@ -4,6 +4,7 @@ import {
   hasAuthorityCoverage,
   type KnowledgeOpsQaRecord,
 } from '../src/utils/knowledge-ops-report';
+import { buildAuthorityTranslationSourceFingerprint } from '../src/utils/authority-translation-source';
 
 function qaFixture(overrides: Partial<KnowledgeOpsQaRecord> = {}): KnowledgeOpsQaRecord {
   return {
@@ -176,6 +177,49 @@ describe('knowledge ops report', () => {
       area: 'authority_coverage',
       message: 'authority coverage below P4 target: 50% < 80%',
     });
+  });
+
+  it('counts fingerprint-matched translation cache entries as fresh after timestamp churn', () => {
+    const authority = authorityFixture({
+      id: 'authority-aap-feeding',
+      question: 'Your baby first solid foods',
+      summary: 'How to introduce solid foods.',
+      answer: 'Start around six months when the baby shows readiness. Offer iron-rich foods and avoid choking hazards.',
+      source_url: 'https://www.healthychildren.org/example',
+      source_updated_at: '2026-05-10T00:00:00.000Z',
+      updated_at: '2026-05-10T00:00:00.000Z',
+    });
+    const slug = buildKnowledgeOpsAuthoritySlug(authority, 0);
+
+    const report = buildKnowledgeOpsReport({
+      qaRecords: [],
+      enrichedQaRecords: [],
+      authorityRecords: [authority],
+      translationCache: {
+        [slug]: {
+          slug,
+          sourceUpdatedAt: '2026-05-09T00:00:00.000Z',
+          sourceFingerprint: buildAuthorityTranslationSourceFingerprint(authority),
+          translatedTitle: '宝宝第一口辅食',
+          translatedSummary: '如何添加辅食。',
+          translatedContent: '大约六个月时，在宝宝表现出准备信号后开始添加辅食。',
+          updatedAt: '2026-05-09T01:00:00.000Z',
+        },
+      },
+      translationFailures: {},
+    }, {
+      now: '2026-05-11T00:00:00.000Z',
+    });
+
+    expect(report.translations).toMatchObject({
+      recordsForTranslation: 1,
+      freshCacheEntries: 1,
+      staleCacheEntries: 0,
+      missingFreshTranslations: 0,
+      cacheHitRate: 100,
+    });
+    expect(report.translations.staleSamples).toEqual([]);
+    expect(report.translations.missingFreshTranslationSample).toEqual([]);
   });
 
   it('preserves guard exclusion totals from authority coverage audits', () => {

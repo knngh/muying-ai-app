@@ -65,6 +65,12 @@
 - 已复跑 `SSH_IDENTITY_FILE=/Users/zhugehao/.ssh/id_server npm run ops:knowledge:status`：`status=ok`，daily ops `7/7` 成功，coverage `81.99%`，`actionItems=[]`，`nextActions=[]`，翻译 invalid cache `0`，AI health 为 `modal-direct / zai-org/GLM-5.1-FP8` 且 `status=ok`。
 - 已在 enriched 重新加载后复跑 `npm run ops:smoke:prod`，health、免费/会员权限、支付下单、社区、analytics、标准日程、知识检索烟测均通过。
 
+2026-05-14 P4+ 翻译缓存稳定性推进：
+
+- 新增权威翻译源 fingerprint：翻译缓存不再只依赖 `sourceUpdatedAt` 精确相等；当权威源内容 fingerprint 相同但同步时间戳抖动时，worker、文章接口和 `ops:knowledge:report` 会把缓存视为 fresh，并自动修补缓存里的当前 `sourceUpdatedAt` / `sourceFingerprint` 元数据。
+- 新增 `npm run repair:authority-translation-cache`：默认 dry-run 扫描 `data/authority-translation-cache.json`，为既有合法缓存补 `sourceFingerprint` 并输出 `tmp/authority-translation-cache-repair-report.json`；显式 `DRY_RUN=false` 后才写回缓存。可配 `PRUNE_REPAIRED_FAILURES=true` 清理已由缓存修复覆盖的旧 failure。
+- 目标是优先复用已有合法译文和免费 GLM 新缓存，避免因为 source sync 更新时间变化把可用翻译全部打成 stale，再反复冲击 Modal Direct 批量额度。
+
 5000 QA 任务不是已经完成的“一次性任务”，而是分成两层：
 
 - 旧 5000 QA 数据集：目前是 3346 条可检索的基础问答库，但不是权威增强版。
@@ -397,6 +403,8 @@ DRY_RUN=false npm run retry:authority-translation-failures
 
 翻译失败重试默认扫描 `data/authority-translation-failures.json`，输出 `tmp/authority-translation-failure-retry-report.json`；显式 `DRY_RUN=false` 后才重试已到期 failure。可用 `LIMIT=1` 做单条验证，或用 `SLUG=authority-aap-121` 限定目标。
 
+翻译缓存修复默认扫描 `data/authority-translation-cache.json`，输出 `tmp/authority-translation-cache-repair-report.json`；显式 `DRY_RUN=false` 后才写回 fingerprint / 当前源版本元数据。可用 `PRUNE_REPAIRED_FAILURES=true` 同步修剪已被 fresh cache 覆盖的失败记录。
+
 输出文件：
 
 - `tmp/authority-coverage-audit.json`
@@ -404,6 +412,7 @@ DRY_RUN=false npm run retry:authority-translation-failures
 - `tmp/knowledge-daily-ops-report.json`
 - `tmp/authority-review-summary.json`（生产状态脚本会生成）
 - `tmp/authority-translation-failure-retry-report.json`
+- `tmp/authority-translation-cache-repair-report.json`
 - `tmp/ai-provider-health-report.json`
 
 任务：

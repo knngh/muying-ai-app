@@ -7,6 +7,7 @@ import {
 export interface AuthorityTranslationCacheEntry {
   slug?: string;
   sourceUpdatedAt?: string;
+  sourceFingerprint?: string;
   translatedTitle?: string;
   translatedSummary?: string;
   translatedContent?: string;

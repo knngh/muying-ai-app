@@ -1,5 +1,10 @@
 import { cleanAuthorityTranslationCache } from './authority-translation-cache-cleaner';
 import { buildAuthorityTranslationFailureRetryPlan } from './authority-translation-failure-retry';
+import {
+  buildAuthorityTranslationSourceFingerprint,
+  isAuthorityTranslationCacheFresh,
+  resolveAuthorityTranslationSourceUpdatedAt,
+} from './authority-translation-source';
 import { AUTHORITY_COVERAGE_TARGET_PHASE, AUTHORITY_COVERAGE_TARGET_RATE } from './knowledge-authority-coverage-policy';
 import { getDatasetKnowledgeDropReason } from './knowledge-content-guard';
 import { normalizeKnowledgePromotionTargetStage } from './knowledge-promotion-stage';
@@ -47,6 +52,7 @@ export interface KnowledgeOpsQaRecord {
 export interface KnowledgeOpsTranslationCacheRecord {
   slug?: string;
   sourceUpdatedAt?: string;
+  sourceFingerprint?: string;
   updatedAt?: string;
   translatedTitle?: string;
   translatedSummary?: string;
@@ -432,10 +438,6 @@ function isValidHttpUrl(value?: string): boolean {
   }
 }
 
-function resolveSourceUpdatedAt(record: KnowledgeOpsQaRecord): string | undefined {
-  return record.updated_at || record.source_updated_at || record.published_at || record.created_at;
-}
-
 export function buildKnowledgeOpsAuthoritySlug(record: KnowledgeOpsQaRecord, index: number): string {
   const base = (record.id || record.original_id || record.question || `authority-${index + 1}`)
     .toLowerCase()
@@ -471,12 +473,18 @@ function buildTranslationSummary(
   sampleLimit: number,
 ) {
   const nowMs = Date.parse(now);
-  const recordsBySlug = new Map<string, { record: KnowledgeOpsQaRecord; sourceUpdatedAt?: string; translatable: boolean }>();
+  const recordsBySlug = new Map<string, {
+    record: KnowledgeOpsQaRecord;
+    sourceUpdatedAt?: string;
+    sourceFingerprint: string;
+    translatable: boolean;
+  }>();
 
   authorityRecords.forEach((record, index) => {
     recordsBySlug.set(buildKnowledgeOpsAuthoritySlug(record, index), {
       record,
-      sourceUpdatedAt: resolveSourceUpdatedAt(record),
+      sourceUpdatedAt: resolveAuthorityTranslationSourceUpdatedAt(record),
+      sourceFingerprint: buildAuthorityTranslationSourceFingerprint(record),
       translatable: isTranslationCandidate(record),
     });
   });
@@ -496,7 +504,7 @@ function buildTranslationSummary(
       continue;
     }
 
-    if (cached.sourceUpdatedAt === current.sourceUpdatedAt) {
+    if (isAuthorityTranslationCacheFresh(cached, current)) {
       freshSlugs.add(slug);
       continue;
     }

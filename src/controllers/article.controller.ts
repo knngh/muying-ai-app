@@ -35,6 +35,11 @@ import {
   sanitizeTranslationText,
   stripCodeFence,
 } from '../utils/article-translation';
+import {
+  buildAuthorityTranslationSourceFingerprint,
+  isAuthorityTranslationCacheFresh,
+  resolveAuthorityTranslationSourceUpdatedAt,
+} from '../utils/authority-translation-source';
 
 interface AuthorityCacheRecord {
   id: string;
@@ -165,6 +170,7 @@ const AUTHORITY_TRANSLATION_MAX_TOKENS = Math.max(
 interface AuthorityTranslationCacheRecord {
   slug: string;
   sourceUpdatedAt?: string;
+  sourceFingerprint?: string;
   translatedTitle: string;
   translatedSummary: string;
   translatedContent: string;
@@ -752,31 +758,43 @@ function saveAuthorityTranslationCache(data: Record<string, AuthorityTranslation
 function getCachedAuthorityTranslation(
   slug: string,
   sourceUpdatedAt?: string,
+  sourceFingerprint?: string,
 ): AuthorityTranslationCacheRecord | null {
   const translationCache = loadAuthorityTranslationCache();
   const cached = translationCache[slug];
-  if (cached && cached.sourceUpdatedAt === sourceUpdatedAt) {
+  if (isAuthorityTranslationCacheFresh(cached, { sourceUpdatedAt, sourceFingerprint })) {
     const normalized = normalizeAuthorityTranslationRecord(cached);
     if (!normalized) {
       return null;
     }
 
+    const repaired: AuthorityTranslationCacheRecord = {
+      ...normalized,
+      sourceUpdatedAt: sourceUpdatedAt || normalized.sourceUpdatedAt,
+      sourceFingerprint: sourceFingerprint || normalized.sourceFingerprint,
+    };
     if (
-      normalized.translatedTitle !== cached.translatedTitle
-      || normalized.translatedSummary !== cached.translatedSummary
-      || normalized.translatedContent !== cached.translatedContent
+      repaired.sourceUpdatedAt !== cached.sourceUpdatedAt
+      || repaired.sourceFingerprint !== cached.sourceFingerprint
+      || repaired.translatedTitle !== cached.translatedTitle
+      || repaired.translatedSummary !== cached.translatedSummary
+      || repaired.translatedContent !== cached.translatedContent
     ) {
-      translationCache[slug] = normalized;
+      translationCache[slug] = repaired;
       saveAuthorityTranslationCache(translationCache);
     }
 
-    return normalized;
+    return repaired;
   }
   return null;
 }
 
 function getCachedAuthorityArticleTranslation(article: AuthorityArticle): AuthorityTranslationCacheRecord | null {
-  return getCachedAuthorityTranslation(article.slug, article.updatedAt || article.publishedAt || article.createdAt);
+  return getCachedAuthorityTranslation(
+    article.slug,
+    article.sourceUpdatedAt || article.updatedAt || article.publishedAt || article.createdAt,
+    article.sourceFingerprint,
+  );
 }
 
 function withAuthorityDisplayTranslation(
@@ -1033,8 +1051,9 @@ function extractTranslationPayload(
 }
 
 async function translateAuthorityRecord(slug: string, record: AuthorityCacheRecord): Promise<AuthorityTranslationCacheRecord> {
-  const sourceUpdatedAt = record.updated_at || record.published_at || record.created_at;
-  const cached = getCachedAuthorityTranslation(slug, sourceUpdatedAt);
+  const sourceUpdatedAt = resolveAuthorityTranslationSourceUpdatedAt(record);
+  const sourceFingerprint = buildAuthorityTranslationSourceFingerprint(record);
+  const cached = getCachedAuthorityTranslation(slug, sourceUpdatedAt, sourceFingerprint);
   if (cached) {
     return cached;
   }
@@ -1049,6 +1068,7 @@ async function translateAuthorityRecord(slug: string, record: AuthorityCacheReco
     const payload: AuthorityTranslationCacheRecord = {
       slug,
       sourceUpdatedAt,
+      sourceFingerprint,
       translatedTitle: sourceTitle,
       translatedSummary: sourceSummary,
       translatedContent: sourceContent,
@@ -1144,6 +1164,7 @@ async function translateAuthorityRecord(slug: string, record: AuthorityCacheReco
   const payload: AuthorityTranslationCacheRecord = {
     slug,
     sourceUpdatedAt,
+    sourceFingerprint,
     translatedTitle,
     translatedSummary,
     translatedContent,
@@ -1163,8 +1184,9 @@ async function translateAuthorityRecord(slug: string, record: AuthorityCacheReco
 }
 
 function getOrCreateAuthorityTranslation(slug: string, record: AuthorityCacheRecord): Promise<AuthorityTranslationCacheRecord> {
-  const sourceUpdatedAt = record.updated_at || record.published_at || record.created_at;
-  const cached = getCachedAuthorityTranslation(slug, sourceUpdatedAt);
+  const sourceUpdatedAt = resolveAuthorityTranslationSourceUpdatedAt(record);
+  const sourceFingerprint = buildAuthorityTranslationSourceFingerprint(record);
+  const cached = getCachedAuthorityTranslation(slug, sourceUpdatedAt, sourceFingerprint);
   if (cached) {
     return Promise.resolve(cached);
   }
@@ -1188,8 +1210,9 @@ function getOrCreateAuthorityTranslation(slug: string, record: AuthorityCacheRec
 }
 
 function prewarmAuthorityTranslation(slug: string, record: AuthorityCacheRecord): void {
-  const sourceUpdatedAt = record.updated_at || record.published_at || record.created_at;
-  if (getCachedAuthorityTranslation(slug, sourceUpdatedAt) || authorityTranslationInFlight.has(slug)) {
+  const sourceUpdatedAt = resolveAuthorityTranslationSourceUpdatedAt(record);
+  const sourceFingerprint = buildAuthorityTranslationSourceFingerprint(record);
+  if (getCachedAuthorityTranslation(slug, sourceUpdatedAt, sourceFingerprint) || authorityTranslationInFlight.has(slug)) {
     return;
   }
 
@@ -1203,8 +1226,9 @@ async function waitForAuthorityTranslation(
   record: AuthorityCacheRecord,
   timeoutMs = AUTHORITY_TRANSLATION_WAIT_TIMEOUT_MS,
 ): Promise<AuthorityTranslationCacheRecord | null> {
-  const sourceUpdatedAt = record.updated_at || record.published_at || record.created_at;
-  const cached = getCachedAuthorityTranslation(slug, sourceUpdatedAt);
+  const sourceUpdatedAt = resolveAuthorityTranslationSourceUpdatedAt(record);
+  const sourceFingerprint = buildAuthorityTranslationSourceFingerprint(record);
+  const cached = getCachedAuthorityTranslation(slug, sourceUpdatedAt, sourceFingerprint);
   if (cached) {
     return cached;
   }
@@ -1488,6 +1512,7 @@ function mapAuthorityRecordToArticle(record: AuthorityCacheRecord, index: number
     sourceLanguage,
     sourceLocale,
     sourceUpdatedAt: record.source_updated_at || record.published_at || record.updated_at || record.created_at,
+    sourceFingerprint: buildAuthorityTranslationSourceFingerprint(record),
     lastSyncedAt: record.last_synced_at || record.updated_at || record.created_at,
     audience: normalizeAuthorityAudienceLabel(inferredAudience),
     topic: normalizeAuthorityTopicLabel(inferredTopic || record.category),
@@ -2144,8 +2169,9 @@ export const getAuthorityArticleTranslation = async (req: Request, res: Response
       throw new AppError('文章不存在', ErrorCodes.ARTICLE_NOT_FOUND, 404);
     }
 
-    const sourceUpdatedAt = authorityRecord.updated_at || authorityRecord.published_at || authorityRecord.created_at;
-    const cached = getCachedAuthorityTranslation(slug, sourceUpdatedAt);
+    const sourceUpdatedAt = resolveAuthorityTranslationSourceUpdatedAt(authorityRecord);
+    const sourceFingerprint = buildAuthorityTranslationSourceFingerprint(authorityRecord);
+    const cached = getCachedAuthorityTranslation(slug, sourceUpdatedAt, sourceFingerprint);
     if (cached) {
       return res.json(successResponse(buildAuthorityTranslationResponse('ready', {
         translation: cached,
