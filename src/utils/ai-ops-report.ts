@@ -46,6 +46,7 @@ export interface AIOpsReport {
     topRecommendedStage: string | null;
     topRecommendedSource: string | null;
   };
+  productEntrypointCoverage: ProductEntrypointCoverage[];
   actionItems: AIOpsActionItem[];
   nextActions: string[];
 }
@@ -65,7 +66,27 @@ interface AIOpsOverviewInput {
   endAt?: unknown;
   counts?: unknown;
   responseQuality?: unknown;
+  productEntrypointCoverage?: unknown;
   serverAi?: unknown;
+}
+
+interface ProductEntrypointCoverage {
+  entrySource: string;
+  label: string;
+  clickCount: number;
+  prefillCount: number;
+  messageCount: number;
+  serverStartCount: number;
+  serverResponseCount: number;
+  serverErrorCount: number;
+  feedbackCount: number;
+  hasClick: boolean;
+  hasPrefill: boolean;
+  hasMessage: boolean;
+  hasServerStart: boolean;
+  hasServerResponse: boolean;
+  hasFeedback: boolean;
+  totalTrackedEvents: number;
 }
 
 const DEFAULT_THRESHOLDS = {
@@ -165,6 +186,68 @@ function getOtherBreakdownCount(value: unknown, excludedKeys: Set<string>): numb
   }, 0);
 }
 
+function toBoolean(value: unknown): boolean {
+  return value === true;
+}
+
+function parseProductEntrypointCoverage(value: unknown): ProductEntrypointCoverage[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((entry) => {
+      const record = toRecord(entry);
+      const entrySource = typeof record.entrySource === 'string' ? record.entrySource.trim() : '';
+      const label = typeof record.label === 'string' && record.label.trim()
+        ? record.label.trim()
+        : entrySource;
+
+      if (!entrySource || !label) {
+        return null;
+      }
+
+      const clickCount = getNumber(record, 'clickCount');
+      const prefillCount = getNumber(record, 'prefillCount');
+      const messageCount = getNumber(record, 'messageCount');
+      const serverStartCount = getNumber(record, 'serverStartCount');
+      const serverResponseCount = getNumber(record, 'serverResponseCount');
+      const serverErrorCount = getNumber(record, 'serverErrorCount');
+      const feedbackCount = getNumber(record, 'feedbackCount');
+      const calculatedTotal = clickCount
+        + prefillCount
+        + messageCount
+        + serverStartCount
+        + serverResponseCount
+        + serverErrorCount
+        + feedbackCount;
+
+      return {
+        entrySource,
+        label,
+        clickCount,
+        prefillCount,
+        messageCount,
+        serverStartCount,
+        serverResponseCount,
+        serverErrorCount,
+        feedbackCount,
+        hasClick: toBoolean(record.hasClick) || clickCount > 0,
+        hasPrefill: toBoolean(record.hasPrefill) || prefillCount > 0,
+        hasMessage: toBoolean(record.hasMessage) || messageCount > 0,
+        hasServerStart: toBoolean(record.hasServerStart) || serverStartCount > 0,
+        hasServerResponse: toBoolean(record.hasServerResponse) || serverResponseCount > 0,
+        hasFeedback: toBoolean(record.hasFeedback) || feedbackCount > 0,
+        totalTrackedEvents: getNumber(record, 'totalTrackedEvents') || calculatedTotal,
+      };
+    })
+    .filter((entry): entry is ProductEntrypointCoverage => Boolean(entry));
+}
+
+function joinLabels(items: ProductEntrypointCoverage[]) {
+  return items.map((item) => item.label).join(', ');
+}
+
 function pushAction(
   actionItems: AIOpsActionItem[],
   nextActions: string[],
@@ -190,6 +273,9 @@ export function buildAIOpsReport(input: {
   const responseQuality = toRecord(input.overview.responseQuality);
   const serverAiOverview = toRecord(input.overview.serverAi);
   const rangeDays = Math.max(1, Math.floor(toFiniteNumber(input.overview.rangeDays) ?? 7));
+  const productEntrypointCoverage = parseProductEntrypointCoverage(
+    input.overview.productEntrypointCoverage || serverAiOverview.productEntrypointCoverage,
+  );
 
   const messagesSent = getNumber(counts, 'messagesSent');
   const responsesReceived = getNumber(counts, 'responsesReceived');
@@ -245,6 +331,17 @@ export function buildAIOpsReport(input: {
 
   const actionItems: AIOpsActionItem[] = [];
   const nextActions: string[] = [];
+  const missingProductEntrypoints = productEntrypointCoverage.filter((entry) => (
+    !entry.hasClick
+    && !entry.hasPrefill
+    && !entry.hasMessage
+    && !entry.hasServerStart
+    && !entry.hasServerResponse
+  ));
+  const missingServerResponseEntrypoints = productEntrypointCoverage.filter((entry) => (
+    (entry.hasClick || entry.hasPrefill || entry.hasMessage || entry.hasServerStart)
+    && !entry.hasServerResponse
+  ));
 
   if (messagesSent + requestsStarted + recommendedQuestionsServed === 0) {
     pushAction(
@@ -284,9 +381,30 @@ export function buildAIOpsReport(input: {
       {
         area: 'ai_real_usage_traffic',
         severity: 'medium',
-        message: `Only ops AI smoke answer traffic was captured in the last ${rangeDays} day(s); product entrypoint usage is still missing.`,
+        message: missingProductEntrypoints.length > 0
+          ? `Only ops AI smoke answer traffic was captured in the last ${rangeDays} day(s); missing product entrypoints: ${joinLabels(missingProductEntrypoints)}.`
+          : `Only ops AI smoke answer traffic was captured in the last ${rangeDays} day(s); product entrypoint usage is still missing.`,
       },
-      'Run a small in-app AI journey cohort from home, knowledge detail, and chat entrypoints',
+      missingProductEntrypoints.length > 0
+        ? `Run an in-app AI journey cohort for missing entrypoints: ${joinLabels(missingProductEntrypoints)}`
+        : 'Run a small in-app AI journey cohort from home, knowledge detail, and chat entrypoints',
+    );
+  }
+
+  if (
+    requestsStarted > 0
+    && missingServerResponseEntrypoints.length > 0
+    && serverAi.nonOpsEntrySourceEventCount > 0
+  ) {
+    pushAction(
+      actionItems,
+      nextActions,
+      {
+        area: 'ai_entrypoint_response_coverage',
+        severity: 'medium',
+        message: `Product AI entrypoints still missing server response coverage: ${joinLabels(missingServerResponseEntrypoints)}.`,
+      },
+      `Replay missing AI entrypoint journeys and verify server response_complete events: ${joinLabels(missingServerResponseEntrypoints)}`,
     );
   }
 
@@ -398,6 +516,7 @@ export function buildAIOpsReport(input: {
     clientAi,
     serverAi,
     acquisition,
+    productEntrypointCoverage,
     actionItems,
     nextActions,
   };

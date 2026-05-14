@@ -217,6 +217,62 @@ describe('AI ops report', () => {
           providerBreakdown: [{ key: 'system', count: 1 }],
           routeBreakdown: [{ key: 'fallback:kimi_reason>minimax_render', count: 1 }],
           entrySourceBreakdown: [{ key: 'ops_ai_smoke', count: 2 }],
+          productEntrypointCoverage: [
+            {
+              entrySource: 'home_suggested_question',
+              label: 'Home suggested question',
+              clickCount: 0,
+              prefillCount: 0,
+              messageCount: 0,
+              serverStartCount: 0,
+              serverResponseCount: 0,
+              serverErrorCount: 0,
+              feedbackCount: 0,
+              hasClick: false,
+              hasPrefill: false,
+              hasMessage: false,
+              hasServerStart: false,
+              hasServerResponse: false,
+              hasFeedback: false,
+              totalTrackedEvents: 0,
+            },
+            {
+              entrySource: 'knowledge_detail',
+              label: 'Knowledge detail AI',
+              clickCount: 0,
+              prefillCount: 0,
+              messageCount: 0,
+              serverStartCount: 0,
+              serverResponseCount: 0,
+              serverErrorCount: 0,
+              feedbackCount: 0,
+              hasClick: false,
+              hasPrefill: false,
+              hasMessage: false,
+              hasServerStart: false,
+              hasServerResponse: false,
+              hasFeedback: false,
+              totalTrackedEvents: 0,
+            },
+            {
+              entrySource: 'weekly_report',
+              label: 'Weekly report AI',
+              clickCount: 0,
+              prefillCount: 0,
+              messageCount: 0,
+              serverStartCount: 0,
+              serverResponseCount: 0,
+              serverErrorCount: 0,
+              feedbackCount: 0,
+              hasClick: false,
+              hasPrefill: false,
+              hasMessage: false,
+              hasServerStart: false,
+              hasServerResponse: false,
+              hasFeedback: false,
+              totalTrackedEvents: 0,
+            },
+          ],
           recommendedStageBreakdown: [{ key: 'newborn', count: 3 }],
           recommendedSourceBreakdown: [{ key: 'knowledge_ops_report', count: 3 }],
         },
@@ -230,10 +286,125 @@ describe('AI ops report', () => {
       nonOpsEntrySourceEventCount: 0,
     });
     expect(report.actionItems).toEqual(expect.arrayContaining([
-      expect.objectContaining({ area: 'ai_real_usage_traffic' }),
+      expect.objectContaining({
+        area: 'ai_real_usage_traffic',
+        message: 'Only ops AI smoke answer traffic was captured in the last 7 day(s); missing product entrypoints: Home suggested question, Knowledge detail AI, Weekly report AI.',
+      }),
     ]));
     expect(report.nextActions).toEqual(expect.arrayContaining([
-      'Run a small in-app AI journey cohort from home, knowledge detail, and chat entrypoints',
+      'Run an in-app AI journey cohort for missing entrypoints: Home suggested question, Knowledge detail AI, Weekly report AI',
+    ]));
+  });
+
+  it('flags product entrypoints that still lack server response coverage', () => {
+    const report = buildAIOpsReport({
+      generatedAt: '2026-05-14T06:40:00.000Z',
+      overview: {
+        rangeDays: 7,
+        counts: {
+          messagesSent: 3,
+          responsesReceived: 2,
+          serverRequestsStarted: 3,
+          serverResponsesCompleted: 2,
+          serverRequestErrors: 0,
+          serverRecommendedQuestionsServed: 4,
+        },
+        responseQuality: {
+          degradedRate: 0,
+          withSourcesRate: 1,
+        },
+        serverAi: {
+          requestsStarted: 3,
+          responsesCompleted: 2,
+          requestErrors: 0,
+          errorRate: 0,
+          averageLatencyMs: 2500,
+          degradedRate: 0,
+          withSourcesRate: 1,
+          recommendedQuestionsServed: 4,
+          recommendedQuestionsReturned: 12,
+          endpointBreakdown: [{ key: 'chat_stream', count: 2 }],
+          providerBreakdown: [{ key: 'modal-direct', count: 2 }],
+          routeBreakdown: [{ key: 'task:kimi_reason', count: 2 }],
+          entrySourceBreakdown: [
+            { key: 'home_suggested_question', count: 2 },
+            { key: 'knowledge_detail', count: 1 },
+          ],
+          productEntrypointCoverage: [
+            {
+              entrySource: 'home_suggested_question',
+              label: 'Home suggested question',
+              clickCount: 1,
+              prefillCount: 1,
+              messageCount: 1,
+              serverStartCount: 1,
+              serverResponseCount: 1,
+              serverErrorCount: 0,
+              feedbackCount: 0,
+              hasClick: true,
+              hasPrefill: true,
+              hasMessage: true,
+              hasServerStart: true,
+              hasServerResponse: true,
+              hasFeedback: false,
+              totalTrackedEvents: 5,
+            },
+            {
+              entrySource: 'knowledge_detail',
+              label: 'Knowledge detail AI',
+              clickCount: 1,
+              prefillCount: 1,
+              messageCount: 1,
+              serverStartCount: 1,
+              serverResponseCount: 1,
+              serverErrorCount: 0,
+              feedbackCount: 0,
+              hasClick: true,
+              hasPrefill: true,
+              hasMessage: true,
+              hasServerStart: true,
+              hasServerResponse: true,
+              hasFeedback: false,
+              totalTrackedEvents: 5,
+            },
+            {
+              entrySource: 'weekly_report',
+              label: 'Weekly report AI',
+              clickCount: 1,
+              prefillCount: 1,
+              messageCount: 1,
+              serverStartCount: 1,
+              serverResponseCount: 0,
+              serverErrorCount: 0,
+              feedbackCount: 0,
+              hasClick: true,
+              hasPrefill: true,
+              hasMessage: true,
+              hasServerStart: true,
+              hasServerResponse: false,
+              hasFeedback: false,
+              totalTrackedEvents: 4,
+            },
+          ],
+        },
+      },
+    });
+
+    expect(report.status).toBe('attention');
+    expect(report.productEntrypointCoverage).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        entrySource: 'weekly_report',
+        hasServerResponse: false,
+      }),
+    ]));
+    expect(report.actionItems).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        area: 'ai_entrypoint_response_coverage',
+        message: 'Product AI entrypoints still missing server response coverage: Weekly report AI.',
+      }),
+    ]));
+    expect(report.nextActions).toEqual(expect.arrayContaining([
+      'Replay missing AI entrypoint journeys and verify server response_complete events: Weekly report AI',
     ]));
   });
 });

@@ -91,7 +91,17 @@ type AIOverviewRow = {
   properties: Prisma.JsonValue | null;
 };
 
+const PRODUCT_AI_ENTRYPOINTS = [
+  { entrySource: 'home_suggested_question', label: 'Home suggested question' },
+  { entrySource: 'weekly_report', label: 'Weekly report AI' },
+  { entrySource: 'knowledge_detail', label: 'Knowledge detail AI' },
+  { entrySource: 'knowledge_recent_ai', label: 'Knowledge recent AI' },
+  { entrySource: 'native', label: 'Native chat' },
+] as const;
+
 const AI_OVERVIEW_EVENT_NAMES = [
+  'app_home_suggested_question_click',
+  'app_chat_prefill_entry',
   'app_chat_message_send',
   'app_chat_response_receive',
   'app_chat_add_calendar_click',
@@ -140,6 +150,20 @@ function incrementCounter(counter: Map<string, number>, key: string | undefined)
     return;
   }
   counter.set(key, (counter.get(key) || 0) + 1);
+}
+
+function createEntrypointCounter() {
+  return new Map<string, number>();
+}
+
+function getEntrypointFromProperties(properties: Record<string, unknown>): string | undefined {
+  if (typeof properties.entrySource === 'string' && properties.entrySource.trim()) {
+    return properties.entrySource;
+  }
+  if (typeof properties.source === 'string' && properties.source.trim()) {
+    return properties.source;
+  }
+  return undefined;
 }
 
 function incrementLineageCounters(
@@ -206,6 +230,13 @@ export async function getAIOverview(rangeDays: number) {
   const serverEntrySourceCounter = new Map<string, number>();
   const serverArticleSlugCounter = new Map<string, number>();
   const serverReportIdCounter = new Map<string, number>();
+  const entrypointClickCounter = createEntrypointCounter();
+  const entrypointPrefillCounter = createEntrypointCounter();
+  const entrypointMessageCounter = createEntrypointCounter();
+  const entrypointServerStartCounter = createEntrypointCounter();
+  const entrypointServerResponseCounter = createEntrypointCounter();
+  const entrypointServerErrorCounter = createEntrypointCounter();
+  const entrypointFeedbackCounter = createEntrypointCounter();
 
   let messagesSent = 0;
   let responsesReceived = 0;
@@ -241,6 +272,10 @@ export async function getAIOverview(rangeDays: number) {
       case 'app_chat_message_send':
         messagesSent += 1;
         incrementLineageCounters(properties, entrySourceCounter, articleSlugCounter, reportIdCounter);
+        incrementCounter(entrypointMessageCounter, getEntrypointFromProperties(properties) || 'native');
+        break;
+      case 'app_chat_prefill_entry':
+        incrementCounter(entrypointPrefillCounter, getEntrypointFromProperties(properties));
         break;
       case 'app_chat_response_receive':
         responsesReceived += 1;
@@ -274,9 +309,14 @@ export async function getAIOverview(rangeDays: number) {
         break;
       case 'app_weekly_report_ask_ai_click':
         weeklyReportAskAiClicks += 1;
+        incrementCounter(entrypointClickCounter, getEntrypointFromProperties(properties) || 'weekly_report');
         break;
       case 'app_knowledge_detail_ask_ai_click':
         knowledgeDetailAskAiClicks += 1;
+        incrementCounter(entrypointClickCounter, getEntrypointFromProperties(properties) || 'knowledge_detail');
+        break;
+      case 'app_home_suggested_question_click':
+        incrementCounter(entrypointClickCounter, getEntrypointFromProperties(properties) || 'home_suggested_question');
         break;
       case 'app_knowledge_recent_ai_hit_click':
         knowledgeRecentAiHitClicks += 1;
@@ -302,6 +342,7 @@ export async function getAIOverview(rangeDays: number) {
         break;
       case 'app_knowledge_recent_ai_ask_click':
         knowledgeRecentAiAskClicks += 1;
+        incrementCounter(entrypointClickCounter, 'knowledge_recent_ai');
         incrementCounter(recentAiPageCounter, row.page || undefined);
         incrementLineageCounters(properties, recentAiEntrySourceCounter, recentAiArticleSlugCounter, recentAiReportIdCounter);
         incrementCounter(recentAiAskTargetCounter, typeof properties.targetType === 'string' ? properties.targetType : undefined);
@@ -314,17 +355,20 @@ export async function getAIOverview(rangeDays: number) {
         break;
       case 'ai_qa_feedback':
         incrementLineageCounters(properties, entrySourceCounter, articleSlugCounter, reportIdCounter);
+        incrementCounter(entrypointFeedbackCounter, getEntrypointFromProperties(properties));
         incrementCounter(feedbackCounter, typeof properties.feedback === 'string' ? properties.feedback : undefined);
         incrementCounter(feedbackReasonCounter, typeof properties.reason === 'string' ? properties.reason : undefined);
         break;
       case 'server_ai_request_start':
         serverRequestsStarted += 1;
         incrementLineageCounters(properties, serverEntrySourceCounter, serverArticleSlugCounter, serverReportIdCounter);
+        incrementCounter(entrypointServerStartCounter, getEntrypointFromProperties(properties) || 'native');
         incrementCounter(serverEndpointCounter, typeof properties.endpoint === 'string' ? properties.endpoint : undefined);
         break;
       case 'server_ai_response_complete':
         serverResponsesCompleted += 1;
         incrementLineageCounters(properties, serverEntrySourceCounter, serverArticleSlugCounter, serverReportIdCounter);
+        incrementCounter(entrypointServerResponseCounter, getEntrypointFromProperties(properties) || 'native');
         incrementCounter(serverEndpointCounter, typeof properties.endpoint === 'string' ? properties.endpoint : undefined);
         incrementCounter(serverProviderCounter, typeof properties.provider === 'string' ? properties.provider : undefined);
         incrementCounter(serverModelCounter, typeof properties.model === 'string' ? properties.model : undefined);
@@ -346,6 +390,7 @@ export async function getAIOverview(rangeDays: number) {
       case 'server_ai_request_error':
         serverRequestErrors += 1;
         incrementLineageCounters(properties, serverEntrySourceCounter, serverArticleSlugCounter, serverReportIdCounter);
+        incrementCounter(entrypointServerErrorCounter, getEntrypointFromProperties(properties) || 'native');
         incrementCounter(serverEndpointCounter, typeof properties.endpoint === 'string' ? properties.endpoint : undefined);
         incrementCounter(serverErrorCodeCounter, typeof properties.errorCode === 'string' ? properties.errorCode : undefined);
         break;
@@ -359,6 +404,43 @@ export async function getAIOverview(rangeDays: number) {
         break;
     }
   }
+
+  const productEntrypointCoverage = PRODUCT_AI_ENTRYPOINTS
+    .map(({ entrySource, label }) => {
+      const clickCount = entrypointClickCounter.get(entrySource) || 0;
+      const prefillCount = entrypointPrefillCounter.get(entrySource) || 0;
+      const messageCount = entrypointMessageCounter.get(entrySource) || 0;
+      const serverStartCount = entrypointServerStartCounter.get(entrySource) || 0;
+      const serverResponseCount = entrypointServerResponseCounter.get(entrySource) || 0;
+      const serverErrorCount = entrypointServerErrorCounter.get(entrySource) || 0;
+      const feedbackCount = entrypointFeedbackCounter.get(entrySource) || 0;
+
+      return {
+        entrySource,
+        label,
+        clickCount,
+        prefillCount,
+        messageCount,
+        serverStartCount,
+        serverResponseCount,
+        serverErrorCount,
+        feedbackCount,
+        hasClick: clickCount > 0,
+        hasPrefill: prefillCount > 0,
+        hasMessage: messageCount > 0,
+        hasServerStart: serverStartCount > 0,
+        hasServerResponse: serverResponseCount > 0,
+        hasFeedback: feedbackCount > 0,
+        totalTrackedEvents: clickCount
+          + prefillCount
+          + messageCount
+          + serverStartCount
+          + serverResponseCount
+          + serverErrorCount
+          + feedbackCount,
+      };
+    })
+    .sort((a, b) => b.totalTrackedEvents - a.totalTrackedEvents || a.label.localeCompare(b.label, 'zh-CN'));
 
   return {
     rangeDays,
@@ -399,6 +481,7 @@ export async function getAIOverview(rangeDays: number) {
     reportIdBreakdown: toBreakdown(reportIdCounter).slice(0, 20),
     feedbackBreakdown: toBreakdown(feedbackCounter),
     feedbackReasonBreakdown: toBreakdown(feedbackReasonCounter),
+    productEntrypointCoverage,
     recentAiJourney: {
       askTargetBreakdown: toBreakdown(recentAiAskTargetCounter),
       hitMatchReasonBreakdown: toBreakdown(recentAiHitMatchReasonCounter),
