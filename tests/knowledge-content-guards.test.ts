@@ -339,9 +339,72 @@ describe('knowledge content guards', () => {
     })).toBe('personal_treatment_request');
 
     expect(getDatasetKnowledgeDropReason({
+      question: '我怀孕五个多月了可以吃贝特晓芙牌叶酸铁钙片吗？我听别人说叶酸和铁补多了也不好。',
+      answer: '症状处理建议',
+      category: 'pregnancy-prep',
+      tags: ['母婴'],
+    })).toBe('personal_treatment_request');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '未做孕前检查，意外怀孕30天，之前睡眠质量不好，嗓子发炎喝过双黄消炎片，怎莫办',
+      answer: '症状处理建议',
+      category: 'pregnancy-prep',
+      tags: ['母婴'],
+    })).toBe('personal_treatment_request');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '怀孕2个多月，发现怀孕前吃的复方葡萄糖酸钙口服溶液，请问是否还可以继续口服？',
+      answer: '症状处理建议',
+      category: 'pregnancy-prep',
+      tags: ['母婴'],
+    })).toBe('personal_treatment_request');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '小孩贫血，想买铁之缘片来补，医生们觉得这个补血怎么样？',
+      answer: '症状处理建议',
+      category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBe('personal_treatment_request');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '宝宝有蚕豆病妈妈可以用鹿角外敷吗',
+      answer: '症状处理建议',
+      category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBe('personal_treatment_request');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '哺乳期牙疼吃了止疼片和阿莫西林，今天孩子吃了我的奶，对他有什么影响',
+      answer: '症状处理建议',
+      category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBe('personal_treatment_request');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '产妇做了ct孩子吃奶了影响到底有多大',
+      answer: '症状处理建议',
+      category: 'nutrition-baby',
+      tags: ['母婴'],
+    })).toBe('personal_treatment_request');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '30岁脚部骨折拍了ct打石膏多久能要小孩？',
+      answer: '症状处理建议',
+      category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBe('personal_treatment_request');
+
+    expect(getDatasetKnowledgeDropReason({
       question: '宝宝湿疹怎么护理？',
       answer: '保持皮肤清洁保湿，避免刺激，严重或反复时就医评估。',
       category: 'common-disease',
+      tags: ['母婴'],
+    })).toBeNull();
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '孕期用药安全需要注意什么？',
+      answer: '孕期用药科普，建议咨询医生或药师。',
+      category: 'pregnancy-early',
       tags: ['母婴'],
     })).toBeNull();
   });
