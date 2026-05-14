@@ -18,6 +18,7 @@
     "ops:release:prod": "bash scripts/prod-release-backend.sh",
     "ops:rollback:prod": "bash scripts/prod-rollback-backend.sh",
     "ops:smoke:prod": "bash scripts/prod-smoke-backend.sh",
+    "ops:smoke:ai": "bash scripts/prod-ai-smoke.sh",
     "ops:smoke:knowledge": "bash scripts/smoke-knowledge-backend.sh",
     "ops:knowledge:status": "bash scripts/prod-knowledge-status.sh",
     "ops:knowledge:daily": "node --import tsx src/scripts/run-knowledge-daily-ops.ts",
