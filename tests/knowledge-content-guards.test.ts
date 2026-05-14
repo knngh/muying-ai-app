@@ -934,6 +934,304 @@ describe('knowledge content guards', () => {
     })).toBeNull();
   });
 
+  it('rejects the next remediation batch of personal treatment, diagnosed, emergency, service, and birth-decision cases', () => {
+    expect(getDatasetKnowledgeDropReason({
+      question: '怀孕九周今天有点出血是什么问题孕囊形态不规整，胚芽小先兆流产？胎儿发育迟缓？',
+      answer: '症状处理建议',
+      category: 'common-development',
+      tags: ['母婴'],
+    })).toBe('diagnosed_case_followup');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '宝宝血常规嗜酸性粒细胞指标超高，医生不让吃胡萝卜桔子海鲜，目前下巴有红色疹子，不确定是不是湿疹',
+      answer: '症状处理建议',
+      category: 'common-disease',
+      tags: ['母婴'],
+    })).toBe('diagnosed_case_followup');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '可能是肾炎尿蛋白2+，尿隐血3+，肌酐168，尿素氮10.6。我已经怀孕十六周，有贫血。能顺利生产吗？',
+      answer: '症状处理建议',
+      category: 'pregnancy-birth',
+      tags: ['母婴'],
+    })).toBe('diagnosed_case_followup');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '问题描述：28周胎儿，三维彩超时医生说鼻骨缺失，染色体检查又是正常，鼻骨足月会长到正常吗，求一个结果',
+      answer: '症状处理建议',
+      category: 'pregnancy-prep',
+      tags: ['母婴'],
+    })).toBe('diagnosed_case_followup');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '新生儿如果是溶血能治吗，医生说可能会溶血，是不是a0型就不能生孩子',
+      answer: '症状处理建议',
+      category: 'pregnancy-birth',
+      tags: ['母婴'],
+    })).toBe('diagnosed_case_followup');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '7个月宝宝额头挺高的还有地中海贫血β严重吗',
+      answer: '症状处理建议',
+      category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBe('diagnosed_case_followup');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '小孩误吃一颗鲜益母草胶囊怎么办，对孩子会有什么影响',
+      answer: '症状处理建议',
+      category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBe('emergency_or_poisoning_case');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '6岁孩子血项高，达30000多，反复发烧咳嗽，肚子痛，反复发烧',
+      answer: '症状处理建议',
+      category: 'parenting-3-6',
+      tags: ['母婴'],
+    })).toBe('emergency_or_poisoning_case');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '宝宝15天了屁股都红了大腿内侧红了而且长诸多水泡样的',
+      answer: '症状处理建议',
+      category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBe('emergency_or_poisoning_case');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '孩子3岁半诊断手足口病，病毒合并细菌感染，输了三天液还发烧38度5，反复发热该怎么办，急急急',
+      answer: '症状处理建议',
+      category: 'parenting-1-3',
+      tags: ['母婴'],
+    })).toBe('emergency_or_poisoning_case');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '医生我怀孕6个月，补钙用养生之家的御坊堂牌钙维D软胶囊可以吗',
+      answer: '症状处理建议',
+      category: 'pregnancy-mid',
+      tags: ['母婴'],
+    })).toBe('personal_treatment_request');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '7个月宝宝缺钙要吃那种钙？',
+      answer: '症状处理建议',
+      category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBe('personal_treatment_request');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '流产后医生给开的优思明服用完最后一片想改用妈富隆该什么时候服用第一片？',
+      answer: '症状处理建议',
+      category: 'pregnancy-birth',
+      tags: ['母婴'],
+    })).toBe('adult_reproductive_case');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '孩子消化不好拉稀有奶瓣，用药吃奶用点时间吗，诊所医生说最晚3个小时再吃可以吗',
+      answer: '症状处理建议',
+      category: 'nutrition-baby',
+      tags: ['母婴'],
+    })).toBe('personal_treatment_request');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '阿托品散瞳的疑问孩子6岁半，医生说用阿托品再次散瞳，可孩子看近处不是模糊，怎么回事？',
+      answer: '症状处理建议',
+      category: 'parenting-3-6',
+      tags: ['母婴'],
+    })).toBe('personal_treatment_request');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '你这边可以做血管瘤吗？尽快让小孩恢复健康',
+      answer: '症状处理建议',
+      category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBe('unsupported_service_request');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '四维b超啥时候做合适？是不是提前预约呢？我怀孕5个月啦，想去你们医院做检查。',
+      answer: '症状处理建议',
+      category: 'pregnancy-mid',
+      tags: ['母婴'],
+    })).toBe('unsupported_service_request');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '预产期过了十天，宝宝还只有一点点入盆，又见红了，宫口也不开，是不是只能去医院剖腹产了',
+      answer: '症状处理建议',
+      category: 'pregnancy-late',
+      tags: ['母婴'],
+    })).toBe('diagnosed_case_followup');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '怀孕七个月胎位不正脐带绕颈一周，还可以做胸膝卧位来调整胎位吗？如果不做还有没有机会自行转正？',
+      answer: '症状处理建议',
+      category: 'pregnancy-late',
+      tags: ['母婴'],
+    })).toBe('diagnosed_case_followup');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '还有六天就到预产期了，我现在没有分娩症状，我想顺产，如果现在想生，能输催产液吗？',
+      answer: '症状处理建议',
+      category: 'pregnancy-birth',
+      tags: ['母婴'],
+    })).toBe('diagnosed_case_followup');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '宝宝老吐奶孩子老是吐奶喂过奶后一个多小时也吐',
+      answer: '吐奶护理科普',
+      category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBeNull();
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '产后抑郁症有哪些常见表现？',
+      answer: '产后心理健康科普',
+      category: 'pregnancy-birth',
+      tags: ['母婴'],
+    })).toBeNull();
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '胎动怎么数，什么时候需要联系医生？',
+      answer: '胎动计数科普',
+      category: 'pregnancy-mid',
+      tags: ['母婴'],
+    })).toBeNull();
+  });
+
+  it('rejects follow-on remediation cases for unsafe remedies, procedures, severe infant symptoms, and measurement interpretation', () => {
+    expect(getDatasetKnowledgeDropReason({
+      question: '我们家孩子脸上长湿疹，擦了肤乐霜后又复发。朋友说需要两种药混合擦，一种黄色一种白色软膏，请问是哪两种药，一般药店能买到吗？',
+      answer: '症状处理建议',
+      category: 'common-disease',
+      tags: ['母婴'],
+    })).toBe('personal_treatment_request');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '宝宝11个月耳朵老是痒，老人说里面有似蚂蚁的虫子爬出来，有没有办法往耳朵上抹点东西可以把虫子诱出来？',
+      answer: '症状处理建议',
+      category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBe('personal_treatment_request');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '宝宝脸上起湿疹，我用西红柿汁给他擦脸，现在脸上又起皮了，摸起来很粗糙，怎么办？',
+      answer: '症状处理建议',
+      category: 'common-disease',
+      tags: ['母婴'],
+    })).toBe('personal_treatment_request');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '在宝宝胳膊上涂了松花粉之后有带白点的小红疙瘩，之前就有湿疹',
+      answer: '症状处理建议',
+      category: 'common-disease',
+      tags: ['母婴'],
+    })).toBe('personal_treatment_request');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '施巴的婴儿洗发沐浴露，给宝宝洗合适吗？',
+      answer: '症状处理建议',
+      category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBe('personal_treatment_request');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '宝宝肚子拉蛋花水样，拉稀水一样，不爱喝奶没有食欲',
+      answer: '症状处理建议',
+      category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBe('emergency_or_poisoning_case');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '新生儿感冒咳嗽，鼻子呼吸不畅，喉咙有痰',
+      answer: '症状处理建议',
+      category: 'parenting-newborn',
+      tags: ['母婴'],
+    })).toBe('emergency_or_poisoning_case');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '新生儿针眼发炎红肿，导致宝宝高烧不退，怎么办？',
+      answer: '症状处理建议',
+      category: 'parenting-newborn',
+      tags: ['母婴'],
+    })).toBe('emergency_or_poisoning_case');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '黄疸，饮食欠佳，小便茶色，体重减轻，16岁检查发现球形红细胞增多症，现肝大脾大，胆积水有结石，如何恢复贫血？',
+      answer: '症状处理建议',
+      category: 'parenting-newborn',
+      tags: ['母婴'],
+    })).toBe('diagnosed_case_followup');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '宝宝42天查体双肾积水，右侧集体系统分离14毫米，左侧宽15毫米怎么办，有什么影响？',
+      answer: '症状处理建议',
+      category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBe('diagnosed_case_followup');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '小孩一出生就发现左手前臂不对，医生说手腕两根骨头交叉，肘关节骨头长在一起，导致手腕不能翻转过来。',
+      answer: '症状处理建议',
+      category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBe('diagnosed_case_followup');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '宝宝黄疸高18，照了三十几个小时蓝光后医生说要检查头部，还需治疗，请问有什么问题吗？',
+      answer: '症状处理建议',
+      category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBe('diagnosed_case_followup');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '四维彩超可以做出小孩眼睛疾病吗，对眼能查出来吗，如果孩子闭着眼能看出对眼或别的毛病吗？',
+      answer: '症状处理建议',
+      category: 'common-disease',
+      tags: ['母婴'],
+    })).toBe('unsupported_service_request');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '双胞胎几个月可以做胎儿心脏彩超？',
+      answer: '症状处理建议',
+      category: 'pregnancy-early',
+      tags: ['母婴'],
+    })).toBe('unsupported_service_request');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '怀孕32周+3 BPD8.5 HC29.2 FL6.4 AC29.9，求宝宝体重可以顺产吗？',
+      answer: '症状处理建议',
+      category: 'pregnancy-birth',
+      tags: ['母婴'],
+    })).toBe('biometric_measurement_case');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '怀孕27周羊水最大深度35，胎儿体重999g，羊水少么？',
+      answer: '症状处理建议',
+      category: 'common-development',
+      tags: ['母婴'],
+    })).toBe('biometric_measurement_case');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '我算的是孩子八个半了，做检查说股骨6.1说是腿短，怎么办有事吗？',
+      answer: '症状处理建议',
+      category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBe('biometric_measurement_case');
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '婴儿吐奶怎么护理？',
+      answer: '吐奶护理科普',
+      category: 'parenting-0-1',
+      tags: ['母婴'],
+    })).toBeNull();
+
+    expect(getDatasetKnowledgeDropReason({
+      question: '宝宝湿疹怎么护理？',
+      answer: '湿疹护理科普',
+      category: 'common-disease',
+      tags: ['母婴'],
+    })).toBeNull();
+  });
+
   it('rejects obvious off-scope search queries before random authority boosting', () => {
     expect(isOutOfScopeKnowledgeQuery('中文调研')).toBe(true);
     expect(isOutOfScopeKnowledgeQuery('青春期发育')).toBe(true);
