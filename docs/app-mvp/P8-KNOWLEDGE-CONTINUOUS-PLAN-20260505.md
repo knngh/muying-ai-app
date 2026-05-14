@@ -56,6 +56,15 @@
 - `ops:knowledge:report` 与 `ops:knowledge:daily` 的权威覆盖行动阈值已从旧 P2 `60%` 切换为 P4 `80%`，生产覆盖低于 `80%` 时才会产生 P4 action item；达到 `80%+` 后应保持 `status=ok`。
 - P4 验收以生产 `ops:knowledge:status` 和 `ops:smoke:prod` 为准：coverage `>=80%`、daily ops 命令失败数 `0`、翻译 invalid cache `0`、实际可执行 nextActions 为空、主 smoke 通过。
 
+2026-05-14 P4 完成记录：
+
+- 已发布 `f9775b4 fix: complete p4 knowledge release gates` 到生产同步目录，并重启 `muying-api` / `muying-authority-worker`。
+- 已在生产执行 `npm run enrich:knowledge-base`，使用 `3306` 条生产 raw QA 与 `1123` 条生产 authority cache 生成 enriched 快照；guard 后分母 `1771`，权威增强 `1452`，缺口 `319`，覆盖率 `81.99%`。
+- 已在生产执行 `npm run audit:authority-coverage`，确认 `data/expanded-qa-data-5000.enriched.json` 审计覆盖率 `81.99%`。
+- 已重启 `muying-api` 让服务重新加载新 enriched 快照。
+- 已复跑 `SSH_IDENTITY_FILE=/Users/zhugehao/.ssh/id_server npm run ops:knowledge:status`：`status=ok`，daily ops `7/7` 成功，coverage `81.99%`，`actionItems=[]`，`nextActions=[]`，翻译 invalid cache `0`，AI health 为 `modal-direct / zai-org/GLM-5.1-FP8` 且 `status=ok`。
+- 已在 enriched 重新加载后复跑 `npm run ops:smoke:prod`，health、免费/会员权限、支付下单、社区、analytics、标准日程、知识检索烟测均通过。
+
 5000 QA 任务不是已经完成的“一次性任务”，而是分成两层：
 
 - 旧 5000 QA 数据集：目前是 3346 条可检索的基础问答库，但不是权威增强版。
