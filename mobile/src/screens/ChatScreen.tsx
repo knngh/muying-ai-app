@@ -27,22 +27,62 @@ import { QUICK_QUESTION_MAP } from '../utils/chatPrompts'
 import { colors, spacing, borderRadius } from '../theme'
 import type { RootStackParamList, TabParamList } from '../navigation/AppNavigator'
 
-type ChatEntrySource = 'weekly_report' | 'home_suggested_question' | 'knowledge_detail' | 'knowledge_recent_ai'
+type RoutedChatEntrySource = 'weekly_report' | 'home_suggested_question' | 'knowledge_detail' | 'knowledge_recent_ai'
+type ChatEntrySource = RoutedChatEntrySource | 'native'
 
 type PendingResponseMeta = {
-  source: ChatEntrySource | 'native'
+  source: ChatEntrySource
   trigger: 'auto_prefill' | 'manual_input' | 'quick_question'
   questionLength: number
   clientRequestId: string
+  entrySource?: string
+  articleSlug?: string
+  reportId?: string
 }
 
-type ChatEntryContext = string | Record<string, string | number | boolean | null>
+type ChatEntryContextRecord = Record<string, string | number | boolean | null>
+type ChatEntryContext = string | ChatEntryContextRecord
+
+function isChatEntryContextRecord(context: ChatEntryContext | undefined): context is ChatEntryContextRecord {
+  return Boolean(context && typeof context === 'object' && !Array.isArray(context))
+}
+
+function buildRequestEntryContext(
+  context: ChatEntryContext | undefined,
+  source: ChatEntrySource,
+  stageKey: string,
+  activeEntryMeta: AIMessage['entryMeta'] | null,
+): ChatEntryContext | undefined {
+  if (isChatEntryContextRecord(context)) {
+    const hasEntrySource = typeof context.entrySource === 'string' && context.entrySource.trim().length > 0
+    const hasStage = typeof context.stage === 'string' && context.stage.trim().length > 0
+
+    if (hasEntrySource && hasStage) {
+      return context
+    }
+
+    return {
+      ...context,
+      ...(!hasEntrySource ? { entrySource: activeEntryMeta?.entrySource ?? source } : {}),
+      ...(!hasStage ? { stage: activeEntryMeta?.stage ?? stageKey } : {}),
+    }
+  }
+
+  if (context !== undefined) {
+    return context
+  }
+
+  return {
+    entrySource: activeEntryMeta?.entrySource ?? source,
+    stage: activeEntryMeta?.stage ?? stageKey,
+  }
+}
 
 function getTrackingEntryMeta(
   context: ChatEntryContext | undefined,
   activeEntryMeta: AIMessage['entryMeta'] | null,
 ) {
-  if (context && typeof context === 'object' && !Array.isArray(context)) {
+  if (isChatEntryContextRecord(context)) {
     return {
       entrySource: typeof context.entrySource === 'string' ? context.entrySource : activeEntryMeta?.entrySource,
       articleSlug: typeof context.articleSlug === 'string' ? context.articleSlug : activeEntryMeta?.articleSlug,
@@ -57,7 +97,7 @@ function getTrackingEntryMeta(
   }
 }
 
-const CHAT_SOURCE_LABEL: Record<ChatEntrySource, { title: string; subtitle: string }> = {
+const CHAT_SOURCE_LABEL: Record<RoutedChatEntrySource, { title: string; subtitle: string }> = {
   weekly_report: {
     title: '来自周报提醒',
     subtitle: '这条问题由本周重点自动带入，继续追问会更容易落到具体安排。',
@@ -88,7 +128,7 @@ export default function ChatScreen() {
   const [inputText, setInputText] = useState('')
   const [snackVisible, setSnackVisible] = useState(false)
   const [snackText, setSnackText] = useState('已复制到剪贴板')
-  const [entrySource, setEntrySource] = useState<ChatEntrySource | null>(null)
+  const [entrySource, setEntrySource] = useState<RoutedChatEntrySource | null>(null)
   const [pendingInputContext, setPendingInputContext] = useState<ChatEntryContext | undefined>(undefined)
   const [pendingResponseMeta, setPendingResponseMeta] = useState<PendingResponseMeta | null>(null)
   const stage = getStageSummary(user)
@@ -148,9 +188,9 @@ export default function ChatScreen() {
         route: lastMessage.route,
         provider: lastMessage.provider,
         model: lastMessage.model,
-        entrySource: lastMessage.entryMeta?.entrySource,
-        articleSlug: lastMessage.entryMeta?.articleSlug,
-        reportId: lastMessage.entryMeta?.reportId,
+        entrySource: lastMessage.entryMeta?.entrySource ?? pendingResponseMeta.entrySource ?? pendingResponseMeta.source,
+        articleSlug: lastMessage.entryMeta?.articleSlug ?? pendingResponseMeta.articleSlug,
+        reportId: lastMessage.entryMeta?.reportId ?? pendingResponseMeta.reportId,
         sourcesCount: lastMessage.sources?.length ?? 0,
         actionCardsCount: lastMessage.actionCards?.length ?? 0,
         degraded: Boolean(lastMessage.degraded),
@@ -175,11 +215,12 @@ export default function ChatScreen() {
     }
 
     const source = sourceOverride ?? entrySource ?? 'native'
-    const trackingEntryMeta = getTrackingEntryMeta(context, activeEntryMeta)
+    const requestContext = buildRequestEntryContext(context, source, stage.lifecycleKey, activeEntryMeta)
+    const trackingEntryMeta = getTrackingEntryMeta(requestContext, activeEntryMeta)
     const clientRequestId = uuidv4()
     const sent = trigger === 'manual_input'
-      ? sendFromHook(trimmed, context, { clientRequestId })
-      : handleQuickQuestion(trimmed, context, { clientRequestId })
+      ? sendFromHook(trimmed, requestContext, { clientRequestId })
+      : handleQuickQuestion(trimmed, requestContext, { clientRequestId })
 
     if (!sent) {
       return false
@@ -193,8 +234,8 @@ export default function ChatScreen() {
         clientRequestId,
         stage: stage.lifecycleKey,
         questionLength: trimmed.length,
-        contextEntrySource: typeof context === 'object' && context && !Array.isArray(context)
-          ? context.entrySource
+        contextEntrySource: isChatEntryContextRecord(requestContext)
+          ? requestContext.entrySource
           : undefined,
         entrySource: trackingEntryMeta.entrySource,
         articleSlug: trackingEntryMeta.articleSlug,
@@ -207,6 +248,9 @@ export default function ChatScreen() {
       trigger,
       clientRequestId,
       questionLength: trimmed.length,
+      entrySource: trackingEntryMeta.entrySource,
+      articleSlug: trackingEntryMeta.articleSlug,
+      reportId: trackingEntryMeta.reportId,
     })
 
     if (sourceOverride !== undefined || trigger !== 'auto_prefill') {

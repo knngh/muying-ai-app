@@ -296,6 +296,84 @@ describe('AI ops report', () => {
     ]));
   });
 
+  it('counts native app AI entrypoint traffic as real usage when it is not from ops smoke', () => {
+    const report = buildAIOpsReport({
+      generatedAt: '2026-05-14T06:40:00.000Z',
+      overview: {
+        rangeDays: 7,
+        counts: {
+          messagesSent: 2,
+          responsesReceived: 2,
+          serverRequestsStarted: 8,
+          serverResponsesCompleted: 8,
+          serverRequestErrors: 0,
+          serverRecommendedQuestionsServed: 3,
+        },
+        responseQuality: {
+          degradedRate: 0,
+          withSourcesRate: 1,
+        },
+        serverAi: {
+          requestsStarted: 8,
+          responsesCompleted: 8,
+          requestErrors: 0,
+          errorRate: 0,
+          averageLatencyMs: 2800,
+          degradedRate: 0,
+          withSourcesRate: 1,
+          recommendedQuestionsServed: 3,
+          recommendedQuestionsReturned: 9,
+          endpointBreakdown: [{ key: 'chat_stream', count: 8 }],
+          providerBreakdown: [{ key: 'modal-direct', count: 8 }],
+          routeBreakdown: [{ key: 'task:kimi_reason', count: 8 }],
+          entrySourceBreakdown: [
+            { key: 'ops_ai_smoke', count: 4 },
+            { key: 'native', count: 4 },
+          ],
+          opsEntrypointSmokeEventCount: 0,
+          productEntrypointCoverage: [
+            {
+              entrySource: 'native',
+              label: 'Native chat',
+              clickCount: 0,
+              prefillCount: 0,
+              messageCount: 2,
+              serverStartCount: 2,
+              serverResponseCount: 2,
+              serverErrorCount: 0,
+              feedbackCount: 0,
+              hasClick: false,
+              hasPrefill: false,
+              hasMessage: true,
+              hasServerStart: true,
+              hasServerResponse: true,
+              hasFeedback: false,
+              totalTrackedEvents: 6,
+            },
+          ],
+        },
+      },
+    });
+
+    expect(report.serverAi).toMatchObject({
+      opsSmokeEventCount: 4,
+      nonOpsEntrySourceEventCount: 4,
+      opsEntrypointSmokeEventCount: 0,
+      realEntrySourceEventCount: 4,
+      topEntrySource: 'ops_ai_smoke',
+    });
+    expect(report.productEntrypointCoverage).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        entrySource: 'native',
+        hasMessage: true,
+        hasServerResponse: true,
+      }),
+    ]));
+    expect(report.actionItems).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ area: 'ai_real_usage_traffic' }),
+    ]));
+  });
+
   it('flags product entrypoints that still lack server response coverage', () => {
     const report = buildAIOpsReport({
       generatedAt: '2026-05-14T06:40:00.000Z',
