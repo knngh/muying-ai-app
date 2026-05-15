@@ -124,6 +124,7 @@ describe('P6 data closure status report', () => {
 
     expect(report.status).toBe('pass');
     expect(report.canUseAsDailyReport).toBe(true);
+    expect(report.canCloseP6Engineering).toBe(true);
     expect(report.canCloseP6).toBe(true);
     expect(report.blockers).toEqual([]);
     expect(report.funnel.uniqueFirstStepCount).toBe(12);
@@ -223,7 +224,18 @@ describe('P6 data closure status report', () => {
 
     expect(report.status).toBe('attention');
     expect(report.canUseAsDailyReport).toBe(true);
+    expect(report.canCloseP6Engineering).toBe(true);
     expect(report.canCloseP6).toBe(false);
+    expect(report.engineeringClosure).toMatchObject({
+      status: 'closed',
+      hasDailyReport: true,
+      hasUniqueFunnel: true,
+      hasAIOverview: true,
+      hasActivationOverview: true,
+      hasRetentionOverview: true,
+      hasReadableSummary: true,
+      hasHistoryArchive: true,
+    });
     expect(report.attention).toEqual(expect.arrayContaining([
       'funnel acquisition traffic is 0',
       'payment success traffic is 0',
@@ -246,6 +258,7 @@ describe('P6 data closure status report', () => {
 
     expect(report.status).toBe('blocker');
     expect(report.canUseAsDailyReport).toBe(false);
+    expect(report.canCloseP6Engineering).toBe(false);
     expect(report.canCloseP6).toBe(false);
     expect(report.blockers).toEqual(expect.arrayContaining([
       'primary health check is not ok',
@@ -260,6 +273,7 @@ describe('P6 data closure status report', () => {
     expect(markdown).toContain('# P6 Data Closure Daily Summary');
     expect(markdown).toContain('- Status: `pass`');
     expect(markdown).toContain('- Can close P6: `true`');
+    expect(markdown).toContain('- Can close P6 engineering: `true`');
     expect(markdown).toContain('| Funnel |');
     expect(markdown).toContain('| Retention |');
     expect(markdown).toContain('D1 retention | `0.4`');

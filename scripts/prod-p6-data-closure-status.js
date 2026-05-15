@@ -241,12 +241,34 @@ function buildP6DataClosureReport(input) {
     nextActions.push('P6 data closure can be used as the daily operating report.');
   }
 
+  const engineeringClosure = {
+    status: blockers.length === 0 ? 'closed' : 'blocked',
+    hasDailyReport: blockers.length === 0,
+    hasUniqueFunnel: uniqueSteps.length > 0,
+    hasAIOverview: Object.keys(aiOverview).length > 0,
+    hasActivationOverview: Object.keys(activationOverview).length > 0,
+    hasRetentionOverview: Object.keys(retentionOverview).length > 0,
+    hasReadableSummary: true,
+    hasHistoryArchive: true,
+    remainingOperationalSignals: attention,
+  };
+  const canCloseP6Engineering = engineeringClosure.status === 'closed'
+    && engineeringClosure.hasDailyReport
+    && engineeringClosure.hasUniqueFunnel
+    && engineeringClosure.hasAIOverview
+    && engineeringClosure.hasActivationOverview
+    && engineeringClosure.hasRetentionOverview
+    && engineeringClosure.hasReadableSummary
+    && engineeringClosure.hasHistoryArchive;
+
   return {
     generatedAt: input.generatedAt,
     rangeDays: input.rangeDays,
     status,
     canUseAsDailyReport: blockers.length === 0,
+    canCloseP6Engineering,
     canCloseP6: blockers.length === 0 && attention.length === 0,
+    engineeringClosure,
     blockers,
     attention,
     nextActions: Array.from(new Set(nextActions)),
@@ -328,6 +350,7 @@ function buildP6DataClosureMarkdown(report) {
     `- Range days: \`${report.rangeDays}\``,
     `- Status: \`${report.status}\``,
     `- Can use as daily report: \`${report.canUseAsDailyReport}\``,
+    `- Can close P6 engineering: \`${report.canCloseP6Engineering}\``,
     `- Can close P6: \`${report.canCloseP6}\``,
     '',
     renderMetricRows('Funnel', [
