@@ -37,6 +37,7 @@ export const ANALYTICS_CLIENT_EVENT_NAMES = [
   'app_knowledge_detail_ai_hit_open',
   'app_knowledge_detail_open',
   'app_knowledge_detail_ask_ai_click',
+  'app_knowledge_detail_share',
 ] as const;
 
 export const ANALYTICS_SERVER_EVENT_NAMES = [
@@ -46,6 +47,9 @@ export const ANALYTICS_SERVER_EVENT_NAMES = [
   'server_ai_request_error',
   'server_ai_knowledge_recommendations_served',
   'server_lifecycle_profile_ready',
+  'server_article_favorite',
+  'server_community_post_create',
+  'server_community_comment_create',
 ] as const;
 
 export const ANALYTICS_EVENT_NAMES = [
@@ -54,6 +58,14 @@ export const ANALYTICS_EVENT_NAMES = [
 ] as const;
 
 export const ANALYTICS_CLIENT_SOURCES = ['app', 'mini_program'] as const;
+
+export const ANALYTICS_RETENTION_BEHAVIOR_EVENT_NAMES = [
+  'app_growth_archive_share',
+  'app_knowledge_detail_share',
+  'server_article_favorite',
+  'server_community_post_create',
+  'server_community_comment_create',
+] as const;
 
 export const ANALYTICS_FUNNEL_STEPS = [
   { eventName: 'mini_program_app_download_click', label: '小程序下载点击' },

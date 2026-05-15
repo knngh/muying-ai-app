@@ -67,4 +67,21 @@ describe('analytics schemas', () => {
       page: 'ProfileScreen',
     }).success).toBe(false);
   });
+
+  it('accepts client share retention events and rejects server retention events from public writes', () => {
+    expect(createAnalyticsEventBody.safeParse({
+      eventName: 'app_knowledge_detail_share',
+      source: 'mini_program',
+      page: 'KnowledgeDetailPage',
+      clientId: 'client-12345678',
+      sessionId: 'session-12345678',
+      properties: { articleSlug: 'feeding-guide', channel: 'share_app_message' },
+    }).success).toBe(true);
+
+    expect(createAnalyticsEventBody.safeParse({
+      eventName: 'server_article_favorite',
+      source: 'app',
+      page: 'KnowledgeDetailScreen',
+    }).success).toBe(false);
+  });
 });

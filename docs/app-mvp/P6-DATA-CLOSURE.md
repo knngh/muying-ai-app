@@ -22,6 +22,10 @@ P6 对应 MVP 路线中的“数据闭环”阶段，目标是：
 - `app_payment_success`
 - `app_weekly_report_open`
 - `app_growth_archive_share`
+- `app_knowledge_detail_share`
+- `server_article_favorite`
+- `server_community_post_create`
+- `server_community_comment_create`
 
 ## 3. 实现方式
 
@@ -63,6 +67,9 @@ P6 对应 MVP 路线中的“数据闭环”阶段，目标是：
 - 下单创建
 - 支付成功
 - 生命周期资料就绪
+- 文章收藏成功
+- 社区发帖成功
+- 社区评论成功
 
 ### 3.3 小程序
 
@@ -78,6 +85,7 @@ P6 对应 MVP 路线中的“数据闭环”阶段，目标是：
 - AI 问答额度触顶引导
 - 我的页面下载卡片
 - 知识详情页打开
+- 知识详情页分享
 
 ## 4. 最小漏斗口径
 
@@ -132,6 +140,7 @@ P6+ 新增 cohort 留存观测口径：
 - 日期边界使用 UTC，避免服务端部署时区变化影响日报。
 - ops 产品入口演练流量会从留存 cohort 中隔离。
 - P6 报告会输出 `retention.d1RetentionRate`、`retention.d7RetentionRate`、`retention.identityCoverageRate`。
+- P6 报告会输出 `retention.retentionBehaviorEventCount` 与 `retention.behaviorByEvent`，用于观察收藏、分享、社区互动等留存动作。
 
 ## 5. 观测方式
 
@@ -278,7 +287,16 @@ P6+ 新增 cohort 留存观测口径：
       "d7RetainedUserCount": 2,
       "d7RetentionRate": 0.25,
       "identityCoverageRate": 0.9524,
-      "ignoredOpsEventCount": 1
+      "ignoredOpsEventCount": 1,
+      "retentionBehaviorEventCount": 6
+    },
+    "breakdown": {
+      "retentionBehaviorByEvent": [
+        { "key": "server_article_favorite", "count": 2 },
+        { "key": "app_knowledge_detail_share", "count": 2 },
+        { "key": "server_community_post_create", "count": 1 },
+        { "key": "server_community_comment_create", "count": 1 }
+      ]
     },
     "cohorts": [
       {
@@ -304,6 +322,7 @@ P6+ 新增 cohort 留存观测口径：
 - 去重漏斗不是严格跨端归因，只能按当前事件携带的 `userId / clientId / sessionId` 合并
 - 激活口径衡量的是当前报告窗口内同时出现资料就绪与价值动作的用户
 - 留存 cohort 基于报告窗口内首次活跃日，不等同于真实注册日 cohort
+- 服务端留存行为事件从后端成功动作写入；客户端知识分享事件仍依赖 App / 小程序发版
 - 管理查询依赖管理员账号访问
 - App / 小程序侧埋点代码已完成，但真正开始持续出数仍依赖下一次客户端发布
 

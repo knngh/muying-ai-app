@@ -390,6 +390,17 @@ export default function KnowledgeDetailScreen() {
         title: displayedTitle || article.title,
         message: `${displayedTitle || article.title}\n\n${displayedSummaryText || ''}${sourceLine}`,
       })
+      void trackAppEvent('app_knowledge_detail_share', {
+        page: 'KnowledgeDetailScreen',
+        properties: {
+          slug,
+          articleSlug: article.slug || slug,
+          articleId: article.id,
+          sourceOrg: article.sourceOrg || article.source || null,
+          topic: article.topic || null,
+          channel: 'native_share',
+        },
+      })
     } catch {
       // ignore
     }

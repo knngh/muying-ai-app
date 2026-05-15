@@ -205,6 +205,8 @@ function buildP6DataClosureReport(input) {
     ? retentionSummary.identityCoverageRate
     : null;
   const retentionIgnoredOpsEventCount = toNumber(retentionSummary.ignoredOpsEventCount);
+  const retentionBehaviorEventCount = toNumber(retentionSummary.retentionBehaviorEventCount);
+  const retentionBreakdown = toRecord(retentionOverview.breakdown);
 
   if (d1EligibleCohortUserCount > 0 && d1RetainedUserCount <= 0) {
     attention.push('D1 retention is 0');
@@ -279,6 +281,10 @@ function buildP6DataClosureReport(input) {
       d7RetentionRate,
       identityCoverageRate: retentionIdentityCoverageRate,
       ignoredOpsEventCount: retentionIgnoredOpsEventCount,
+      retentionBehaviorEventCount,
+      behaviorByEvent: Array.isArray(retentionBreakdown.retentionBehaviorByEvent)
+        ? retentionBreakdown.retentionBehaviorByEvent
+        : [],
       cohorts: Array.isArray(retentionOverview.cohorts) ? retentionOverview.cohorts : [],
     },
   };

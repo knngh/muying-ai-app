@@ -86,6 +86,15 @@ function baseInput(overrides = {}) {
           totalUnidentifiedEvents: 2,
           identityCoverageRate: 0.9524,
           ignoredOpsEventCount: 1,
+          retentionBehaviorEventCount: 6,
+        },
+        breakdown: {
+          retentionBehaviorByEvent: [
+            { key: 'server_article_favorite', count: 2 },
+            { key: 'app_knowledge_detail_share', count: 2 },
+            { key: 'server_community_post_create', count: 1 },
+            { key: 'server_community_comment_create', count: 1 },
+          ],
         },
         cohorts: [
           {
@@ -126,7 +135,14 @@ describe('P6 data closure status report', () => {
       d7RetentionRate: 0.25,
       identityCoverageRate: 0.9524,
       ignoredOpsEventCount: 1,
+      retentionBehaviorEventCount: 6,
     });
+    expect(report.retention.behaviorByEvent).toEqual([
+      { key: 'server_article_favorite', count: 2 },
+      { key: 'app_knowledge_detail_share', count: 2 },
+      { key: 'server_community_post_create', count: 1 },
+      { key: 'server_community_comment_create', count: 1 },
+    ]);
   });
 
   it('keeps P6 in attention when real data is sparse or provider health is degraded', () => {

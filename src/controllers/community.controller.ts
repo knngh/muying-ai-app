@@ -6,6 +6,7 @@ import { assertCommunityContentAllowed } from '../services/community-moderation.
 import { applyCommunityReportAction, CommunityReportAction, reviewCommunityReport } from '../services/community-report-review.service';
 import { getCurrentStageCircle } from '../services/stage-circle.service';
 import { awardBehaviorPoints } from '../services/checkin.service';
+import { recordServerRetentionBehaviorEvent } from '../services/analytics.service';
 
 type CommunityAuthorLike = {
   id: bigint;
@@ -482,6 +483,17 @@ export const createPost = async (req: Request, res: Response, next: NextFunction
       isVerifiedMember: verifiedMemberIds.has(post.authorId.toString()),
     }), '发布成功'));
 
+    recordServerRetentionBehaviorEvent('server_community_post_create', {
+      userId: userId!,
+      page: 'community/posts',
+      properties: {
+        postId: post.id.toString(),
+        categoryId: post.categoryId?.toString() || null,
+        isAnonymous: Boolean(post.isAnonymous),
+        tagCount: Array.isArray(post.tags) ? post.tags.length : 0,
+      },
+    }).catch(() => {});
+
     // 行为积分：发帖奖励（fire-and-forget）
     awardBehaviorPoints(userId!, 'post', post.id.toString()).catch(() => {});
   } catch (error) {
@@ -858,6 +870,18 @@ export const createComment = async (req: Request, res: Response, next: NextFunct
     const verifiedMemberIds = await getVerifiedMemberUserIds([comment.authorId]);
 
     res.status(201).json(successResponse(formatCommunityComment(comment, verifiedMemberIds), '评论成功'));
+
+    recordServerRetentionBehaviorEvent('server_community_comment_create', {
+      userId: userId!,
+      page: 'community/comments',
+      properties: {
+        postId,
+        commentId: comment.id.toString(),
+        parentId: comment.parentId?.toString() || null,
+        replyToId: comment.replyToId?.toString() || null,
+        isReply: Boolean(comment.parentId),
+      },
+    }).catch(() => {});
   } catch (error) {
     next(error);
   }

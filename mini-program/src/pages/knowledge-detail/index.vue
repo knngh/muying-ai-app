@@ -909,9 +909,31 @@ function buildSharePayload() {
   }
 }
 
-onShareAppMessage(() => buildSharePayload())
+function trackKnowledgeShare(channel: 'share_app_message' | 'share_timeline') {
+  if (!article.value) {
+    return
+  }
+
+  trackMiniEvent('app_knowledge_detail_share', {
+    page: 'KnowledgeDetailPage',
+    properties: {
+      slug: currentSlug,
+      articleSlug: article.value.slug || currentSlug,
+      articleId: article.value.id,
+      sourceOrg: article.value.sourceOrg || article.value.source || null,
+      topic: article.value.topic || null,
+      channel,
+    },
+  })
+}
+
+onShareAppMessage(() => {
+  trackKnowledgeShare('share_app_message')
+  return buildSharePayload()
+})
 
 onShareTimeline(() => {
+  trackKnowledgeShare('share_timeline')
   const payload = buildSharePayload()
   return {
     title: payload.title,

@@ -28,6 +28,7 @@ import { shouldFilterAuthoritySourceUrl } from '../utils/authority-source-url';
 import { getAuthorityKnowledgeDropReason, isOutOfScopeKnowledgeQuery } from '../utils/knowledge-content-guard';
 import { matchesExpandedSearch } from '../utils/search-query-expansion';
 import { rewriteSearchQueries } from '../services/knowledge.service';
+import { recordServerRetentionBehaviorEvent } from '../services/analytics.service';
 import {
   extractJsonObject,
   hasTranslationPromptLeak,
@@ -2515,6 +2516,15 @@ export const favoriteArticle = async (req: Request, res: Response, next: NextFun
         data: { collectCount: { increment: 1 } }
       })
     ]);
+
+    recordServerRetentionBehaviorEvent('server_article_favorite', {
+      userId,
+      page: 'articles/favorite',
+      properties: {
+        articleId: id,
+        collectCount: updatedArticle.collectCount,
+      },
+    }).catch(() => {});
 
     res.json(successResponse({ favorited: true, collectCount: updatedArticle.collectCount }, '收藏成功'));
   } catch (error) {

@@ -3,6 +3,7 @@ import prisma from '../config/database';
 import {
   ANALYTICS_EVENT_NAMES,
   ANALYTICS_FUNNEL_STEPS,
+  ANALYTICS_RETENTION_BEHAVIOR_EVENT_NAMES,
   type AnalyticsEventName,
 } from '../config/analytics-events';
 
@@ -68,6 +69,17 @@ export async function recordServerAnalyticsEvent(
     page: input.page,
     properties: input.properties,
   });
+}
+
+export function recordServerRetentionBehaviorEvent(
+  eventName: typeof ANALYTICS_RETENTION_BEHAVIOR_EVENT_NAMES[number],
+  input: {
+    userId: string;
+    page: string;
+    properties?: AnalyticsProperties;
+  },
+) {
+  return recordServerAnalyticsEvent(eventName, input);
 }
 
 export async function getAnalyticsFunnel(rangeDays: number) {
@@ -228,6 +240,7 @@ const ACTIVATION_EVENT_NAMES = [
 ] as const;
 
 const RETENTION_EVENT_NAMES = ANALYTICS_EVENT_NAMES;
+const RETENTION_BEHAVIOR_EVENT_NAMES = new Set<string>(ANALYTICS_RETENTION_BEHAVIOR_EVENT_NAMES);
 
 function toRecord(value: Prisma.JsonValue | null | undefined): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -340,9 +353,11 @@ export async function getRetentionOverview(rangeDays: number) {
   }) as AnalyticsRetentionRow[];
 
   const activeDaysByIdentity = new Map<string, Set<string>>();
+  const retentionBehaviorCounter = new Map<string, number>();
   let totalIdentifiedEvents = 0;
   let totalUnidentifiedEvents = 0;
   let ignoredOpsEventCount = 0;
+  let retentionBehaviorEventCount = 0;
 
   for (const row of rows) {
     const properties = toRecord(row.properties);
@@ -358,6 +373,10 @@ export async function getRetentionOverview(rangeDays: number) {
     }
 
     totalIdentifiedEvents += 1;
+    if (RETENTION_BEHAVIOR_EVENT_NAMES.has(row.eventName)) {
+      retentionBehaviorEventCount += 1;
+      incrementCounter(retentionBehaviorCounter, row.eventName);
+    }
     const activeDays = activeDaysByIdentity.get(identity) || new Set<string>();
     activeDays.add(toUtcDay(row.createdAt));
     activeDaysByIdentity.set(identity, activeDays);
@@ -445,6 +464,10 @@ export async function getRetentionOverview(rangeDays: number) {
         ? Number((totalIdentifiedEvents / measuredEventCount).toFixed(4))
         : null,
       ignoredOpsEventCount,
+      retentionBehaviorEventCount,
+    },
+    breakdown: {
+      retentionBehaviorByEvent: toBreakdown(retentionBehaviorCounter),
     },
     cohorts,
   };
