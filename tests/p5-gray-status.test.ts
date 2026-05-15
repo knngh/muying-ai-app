@@ -130,4 +130,49 @@ describe('P5 gray status report', () => {
       'ai_websocket_smoke failed with exit code 1',
     ]));
   });
+
+  it('includes active AI provider blocks in attention next actions', () => {
+    const report = buildP5GrayReport(baseInput({
+      health: {
+        status: 'ok',
+        database: 'ok',
+        providerBlocks: [
+          {
+            provider: 'minimax',
+            model: 'MiniMax-M2.7',
+            reason: 'usage_limit',
+            blockedUntil: '2026-05-15T00:10:00.000Z',
+          },
+        ],
+      },
+      aiOverview: {
+        data: {
+          serverAi: {
+            requestsStarted: 14,
+            responsesCompleted: 14,
+            requestErrors: 0,
+            degradedRate: 0.9,
+            realEntrySourceEventCount: 1,
+          },
+          productEntrypointCoverage: [
+            { entrySource: 'native', totalTrackedEvents: 3 },
+          ],
+          opsProductEntrypointCoverage: [
+            { entrySource: 'native', totalTrackedEvents: 4 },
+          ],
+        },
+      },
+    }));
+
+    expect(report.status).toBe('attention');
+    expect(report.ai.providerBlocks).toEqual([
+      expect.objectContaining({
+        provider: 'minimax',
+        reason: 'usage_limit',
+      }),
+    ]);
+    expect(report.nextActions).toContain(
+      'Wait for provider usage-limit blocks to clear or configure a healthy primary AI provider before expanding gray traffic.',
+    );
+  });
 });

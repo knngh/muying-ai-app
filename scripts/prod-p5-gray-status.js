@@ -155,6 +155,12 @@ function buildP5GrayReport(input) {
 
   const aiOverviewData = toRecord(input.aiOverview?.data || input.aiOverview);
   const serverAi = toRecord(aiOverviewData.serverAi);
+  const aiHealthData = toRecord(input.aiHealth?.data || input.aiHealth);
+  const providerBlocks = Array.isArray(aiHealthData.providerBlocks)
+    ? aiHealthData.providerBlocks
+    : Array.isArray(health.providerBlocks)
+      ? health.providerBlocks
+    : [];
   const productCoverage = Array.isArray(aiOverviewData.productEntrypointCoverage)
     ? aiOverviewData.productEntrypointCoverage
     : [];
@@ -193,7 +199,11 @@ function buildP5GrayReport(input) {
     : null;
   if (degradedRate !== null && degradedRate > 0.25) {
     attention.push(`AI degraded rate is ${degradedRate.toFixed(4)}; current provider route is falling back often`);
-    nextActions.push('Monitor AI provider health and fallback reasons during gray traffic.');
+    if (providerBlocks.length > 0) {
+      nextActions.push('Wait for provider usage-limit blocks to clear or configure a healthy primary AI provider before expanding gray traffic.');
+    } else {
+      nextActions.push('Monitor AI provider health and fallback reasons during gray traffic.');
+    }
   }
 
   const status = blockers.length > 0
@@ -227,6 +237,7 @@ function buildP5GrayReport(input) {
     health: {
       primary: health,
       legacy: legacyHealth,
+      ai: aiHealthData,
     },
     demos: {
       free: {
@@ -253,6 +264,7 @@ function buildP5GrayReport(input) {
       opsEntrypointEvents,
       coveredProductEntrypoints: coveredEntrySources(productCoverage),
       coveredOpsEntrypoints: coveredEntrySources(opsCoverage),
+      providerBlocks,
     },
     funnel: input.funnel?.data || input.funnel || null,
   };
@@ -380,6 +392,7 @@ async function collectSnapshot(tokens) {
   const [
     health,
     legacyHealth,
+    aiHealth,
     aiOverview,
     funnel,
     freeSubscription,
@@ -389,6 +402,7 @@ async function collectSnapshot(tokens) {
   ] = await Promise.all([
     getJson(`${BASE_URL}/health`),
     getJson(LEGACY_HEALTH_URL),
+    getJson(`${API_BASE}/ai/health`),
     getJson(`${API_BASE}/analytics/ai-overview?rangeDays=${RANGE_DAYS}`, adminToken),
     getJson(`${API_BASE}/analytics/funnel?rangeDays=${RANGE_DAYS}`, adminToken),
     getJson(`${API_BASE}/subscription/status`, freeToken),
@@ -400,6 +414,7 @@ async function collectSnapshot(tokens) {
   return {
     health,
     legacyHealth,
+    aiHealth,
     aiOverview,
     funnel,
     freeSubscription,

@@ -1,4 +1,5 @@
 // AI Gateway 服务 - 支持混合路由、多模型对接和流式响应
+import { resolveAiGatewayUsageLimitRetryAfterAt } from '../utils/ai-gateway-quota';
 
 const OPENROUTER_BASE_URL = process.env.AI_OPENROUTER_URL || process.env.OPENROUTER_API_URL || 'https://api.minimaxi.com/v1';
 const OPENROUTER_KEY = process.env.AI_OPENROUTER_KEY || process.env.OPENROUTER_API_KEY || process.env.AI_GATEWAY_KEY || '';
@@ -9,6 +10,10 @@ const OPENROUTER_APP_NAME = process.env.AI_OPENROUTER_APP_NAME || '';
 const AI_PROVIDER_TIMEOUT_MS = Math.max(
   5000,
   Number.parseInt(process.env.AI_PROVIDER_TIMEOUT_MS || '25000', 10) || 25000,
+);
+const AI_PROVIDER_USAGE_LIMIT_BLOCK_MS = Math.max(
+  60_000,
+  Number.parseInt(process.env.AI_PROVIDER_USAGE_LIMIT_BLOCK_MS || '900000', 10) || 900_000,
 );
 const LEGACY_GATEWAY_URL = process.env.AI_GATEWAY_URL || OPENROUTER_BASE_URL;
 const LEGACY_GATEWAY_KEY = process.env.AI_GATEWAY_KEY || OPENROUTER_KEY;
@@ -129,6 +134,16 @@ interface AIGatewayProviderError extends Error {
   gatewayModel?: string;
 }
 
+interface AIGatewayProviderBlock {
+  provider: string;
+  model: string;
+  reason: 'usage_limit';
+  blockedUntil: string;
+  message?: string;
+}
+
+const providerCircuitBreakers = new Map<string, AIGatewayProviderBlock>();
+
 function createGatewayError(
   status: number,
   errorText: string,
@@ -167,6 +182,84 @@ export function isAIGatewayModalDirectRateLimitError(error: unknown): boolean {
 export function isAIGatewayProviderError(error: unknown, provider: string): boolean {
   const gatewayError = error as AIGatewayProviderError | null;
   return gatewayError?.gatewayProvider === provider;
+}
+
+function providerCircuitKey(provider: Pick<GatewayProvider, 'provider' | 'model'>): string {
+  return `${provider.provider}::${provider.model}`;
+}
+
+function isUsageLimitGatewayError(error: unknown): boolean {
+  const gatewayError = error as AIGatewayProviderError | null;
+  if (gatewayError?.gatewayStatus !== 429) {
+    return false;
+  }
+
+  return /usage limit exceeded|weekly usage limit reached|monthly usage limit reached|daily usage limit reached/i
+    .test(getAIGatewayErrorOpsMessage(error));
+}
+
+function resolveProviderBlockUntil(error: unknown, nowMs = Date.now()): string {
+  const explicitRetryAfter = resolveAiGatewayUsageLimitRetryAfterAt(getAIGatewayErrorOpsMessage(error));
+  if (explicitRetryAfter) {
+    return explicitRetryAfter;
+  }
+
+  return new Date(nowMs + AI_PROVIDER_USAGE_LIMIT_BLOCK_MS).toISOString();
+}
+
+function registerProviderUsageLimitBlock(provider: GatewayProvider, error: unknown): void {
+  if (!isUsageLimitGatewayError(error)) {
+    return;
+  }
+
+  providerCircuitBreakers.set(providerCircuitKey(provider), {
+    provider: provider.provider,
+    model: provider.model,
+    reason: 'usage_limit',
+    blockedUntil: resolveProviderBlockUntil(error),
+    message: getAIGatewayErrorOpsMessage(error).slice(0, 500),
+  });
+}
+
+function getActiveProviderBlock(provider: GatewayProvider, nowMs = Date.now()): AIGatewayProviderBlock | null {
+  const key = providerCircuitKey(provider);
+  const block = providerCircuitBreakers.get(key);
+  if (!block) {
+    return null;
+  }
+
+  const blockedUntilMs = Date.parse(block.blockedUntil);
+  if (!Number.isFinite(blockedUntilMs) || blockedUntilMs <= nowMs) {
+    providerCircuitBreakers.delete(key);
+    return null;
+  }
+
+  return block;
+}
+
+function createProviderBlockedError(provider: GatewayProvider, block: AIGatewayProviderBlock): AIGatewayProviderError {
+  const error = new Error(
+    `AI provider temporarily blocked: ${provider.provider}/${provider.model} until ${block.blockedUntil}`,
+  ) as AIGatewayProviderError;
+  error.gatewayStatus = 429;
+  error.gatewayProvider = provider.provider;
+  error.gatewayProviderLabel = provider.label;
+  error.gatewayModel = provider.model;
+  error.gatewayErrorText = block.message;
+  return error;
+}
+
+export function getAIGatewayProviderCircuitBreakerStatus(): AIGatewayProviderBlock[] {
+  const nowMs = Date.now();
+  for (const [key, block] of providerCircuitBreakers) {
+    const blockedUntilMs = Date.parse(block.blockedUntil);
+    if (!Number.isFinite(blockedUntilMs) || blockedUntilMs <= nowMs) {
+      providerCircuitBreakers.delete(key);
+    }
+  }
+
+  return Array.from(providerCircuitBreakers.values())
+    .sort((left, right) => `${left.provider}/${left.model}`.localeCompare(`${right.provider}/${right.model}`));
 }
 
 export type AITaskModelRole = 'glm_classify' | 'kimi_reason' | 'minimax_render';
@@ -667,12 +760,19 @@ async function callProvider(
     timeoutMs?: number;
   } = {}
 ): Promise<string> {
+  const activeBlock = getActiveProviderBlock(provider);
+  if (activeBlock) {
+    throw createProviderBlockedError(provider, activeBlock);
+  }
+
   const response = await requestProvider(provider, messages, options);
 
   if (!response.ok) {
     const errorText = await response.text();
     console.error(`[AI Gateway:${provider.label}] Error:`, response.status, errorText);
-    throw createGatewayError(response.status, errorText, provider);
+    const error = createGatewayError(response.status, errorText, provider);
+    registerProviderUsageLimitBlock(provider, error);
+    throw error;
   }
 
   const data: ChatResponse = await response.json() as ChatResponse;
@@ -700,6 +800,11 @@ async function* streamProvider(
     maxTokens?: number;
   } = {}
 ): AsyncGenerator<string, void, unknown> {
+  const activeBlock = getActiveProviderBlock(provider);
+  if (activeBlock) {
+    throw createProviderBlockedError(provider, activeBlock);
+  }
+
   if (!provider.supportsStreaming) {
     const finalAnswer = await callProvider(provider, messages, options);
     if (finalAnswer) {
@@ -716,7 +821,9 @@ async function* streamProvider(
   if (!response.ok) {
     const errorText = await response.text();
     console.error(`[AI Gateway Stream:${provider.label}] Error:`, response.status, errorText);
-    throw createGatewayError(response.status, errorText, provider);
+    const error = createGatewayError(response.status, errorText, provider);
+    registerProviderUsageLimitBlock(provider, error);
+    throw error;
   }
 
   const reader = response.body?.getReader();
@@ -1035,6 +1142,7 @@ export async function healthCheck(): Promise<{
   mode: 'config-only';
   providers: AIGatewayRouteInfo[];
   taskBindings: AITaskModelBinding[];
+  providerBlocks: AIGatewayProviderBlock[];
   routing?: {
     enabled: boolean;
     generalProvider?: string;
@@ -1057,6 +1165,7 @@ export async function healthCheck(): Promise<{
     mode: 'config-only',
     providers: providers.map((provider) => toRouteInfo(provider)),
     taskBindings: getTaskModelBindings(),
+    providerBlocks: getAIGatewayProviderCircuitBreakerStatus(),
     routing: {
       enabled: AI_ROUTING_ENABLED,
       generalProvider: buildGeneralProvider()?.provider,

@@ -187,3 +187,5 @@ P5 已启动。
 - P5 gate 统一登录并把 `ADMIN_TOKEN` / `FREE_TOKEN` / `VIP_TOKEN` / `POSTPARTUM_TOKEN` 传给子 smoke，`main_smoke`、AI entrypoint smoke、AI WebSocket smoke 会复用 token，减少 gate 自触发 auth 限流。
 - P5 gate 遇到登录 429 会读取 `Retry-After` 或按 `P5_LOGIN_RATE_LIMIT_WAIT_MS` 等待后重试一次，避免短时间反复手工执行继续放大限流。
 - 2026-05-15 11:38 CST 生产 P5 gate 已通过所有 smoke：`blockers=[]`，`status=attention`，`canEnterGray=true`，`canCloseP5=false`；当前 attention 仅剩 AI degraded rate 高。
+- 2026-05-15 11:57 CST 追加 provider usage-limit 熔断：MiniMax `usage limit exceeded (2056)` 后，同 provider/model 在 `AI_PROVIDER_USAGE_LIMIT_BLOCK_MS` 窗口内不再继续打上游，直接走安全 fallback，降低上游 429 噪声和请求延迟。
+- `/api/v1/ai/health` 与 P5 gate 报告已暴露 `providerBlocks`；当前生产 P5 gate 结果为 `status=attention`、`blockers=[]`、`canEnterGray=true`、`canCloseP5=false`，`providerBlocks=[minimax/MiniMax-M2.7 usage_limit]`，下一步是等待额度恢复或配置健康主问答 provider。
