@@ -44,6 +44,8 @@ npm-debug.log*
 # Local generated data and review scratch files
 data/*.bak-*
 tmp/*.json
+tmp/p6-data-closure-summary.md
+tmp/p6-data-closure-history.jsonl
 tmp/worktree-review-*.md
 
 # Lock files (optional - remove if you want to track them)
