@@ -325,13 +325,18 @@ async function login(username, password) {
   return token;
 }
 
-async function collectSnapshot() {
+async function loginDemoTokens() {
   const [adminToken, freeToken, vipToken] = await Promise.all([
     login(ADMIN_USERNAME, ADMIN_PASSWORD),
     login(FREE_USERNAME, FREE_PASSWORD),
     login(VIP_USERNAME, VIP_PASSWORD),
   ]);
 
+  return { adminToken, freeToken, vipToken };
+}
+
+async function collectSnapshot(tokens) {
+  const { adminToken, freeToken, vipToken } = tokens;
   const [
     health,
     legacyHealth,
@@ -365,8 +370,9 @@ async function collectSnapshot() {
 }
 
 async function main() {
+  const tokens = await loginDemoTokens();
   const commands = COMMANDS.map(runCommand);
-  const snapshot = await collectSnapshot();
+  const snapshot = await collectSnapshot(tokens);
   const report = buildP5GrayReport({
     generatedAt: new Date().toISOString(),
     rangeDays: RANGE_DAYS,
