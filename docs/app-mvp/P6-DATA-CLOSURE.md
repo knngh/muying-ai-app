@@ -33,6 +33,7 @@ P6 对应 MVP 路线中的“数据闭环”阶段，目标是：
 - 接口：`POST /api/v1/analytics/events`
 - 漏斗查询：`GET /api/v1/analytics/funnel?rangeDays=7`
 - 激活查询：`GET /api/v1/analytics/activation-overview?rangeDays=7`
+- 留存查询：`GET /api/v1/analytics/retention-overview?rangeDays=7`
 - 生产报告：`npm run ops:data:p6`
 
 已完成生产部署：
@@ -46,6 +47,7 @@ P6 对应 MVP 路线中的“数据闭环”阶段，目标是：
 - `POST /analytics/events` 支持匿名或已登录用户
 - `GET /analytics/funnel` 当前走管理口径，仅管理员可访问
 - `GET /analytics/activation-overview` 当前走管理口径，仅管理员可访问
+- `GET /analytics/retention-overview` 当前走管理口径，仅管理员可访问
 
 ### 3.2 App
 
@@ -114,6 +116,22 @@ P6+ 新增首日激活观测口径，对齐推广计划中的激活定义：
 - `server_lifecycle_profile_ready` 只能由服务端内部写入，公共 analytics 接口不可伪造。
 - 激活统计同样使用 `userId -> clientId -> sessionId` 身份优先级。
 - P6 报告会输出 `activation.profileReadyUniqueCount`、`activation.activatedUniqueCount`、`activation.profileToActivationRate`。
+
+## 4.2 D1 / D7 留存口径
+
+P6+ 新增 cohort 留存观测口径：
+
+1. 使用报告窗口内用户首次活跃日期作为 cohort 日
+2. 用户在 cohort 日后第 1 天再次活跃，计入 D1 留存
+3. 用户在 cohort 日后第 7 天再次活跃，计入 D7 留存
+
+说明：
+
+- 活跃事件复用 `analytics_events` 中已登记的客户端与服务端产品事件。
+- 留存统计使用 `userId -> clientId -> sessionId` 身份优先级。
+- 日期边界使用 UTC，避免服务端部署时区变化影响日报。
+- ops 产品入口演练流量会从留存 cohort 中隔离。
+- P6 报告会输出 `retention.d1RetentionRate`、`retention.d7RetentionRate`、`retention.identityCoverageRate`。
 
 ## 5. 观测方式
 
@@ -194,6 +212,7 @@ P6+ 新增首日激活观测口径，对齐推广计划中的激活定义：
 - `/api/v1/analytics/funnel?rangeDays=7`
 - `/api/v1/analytics/ai-overview?rangeDays=7`
 - `/api/v1/analytics/activation-overview?rangeDays=7`
+- `/api/v1/analytics/retention-overview?rangeDays=7`
 - `/api/v1/ai/health`
 
 状态含义：
@@ -232,13 +251,59 @@ P6+ 新增首日激活观测口径，对齐推广计划中的激活定义：
 }
 ```
 
+### 5.5 留存接口
+
+`GET /api/v1/analytics/retention-overview?rangeDays=7`
+
+返回核心结构：
+
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "rangeDays": 7,
+    "retentionDefinition": {
+      "identityPriority": ["userId", "clientId", "sessionId"],
+      "dayBoundary": "UTC",
+      "returnWindows": [1, 7],
+      "ignoredTrafficKinds": ["ops_product_entrypoint_smoke"]
+    },
+    "summary": {
+      "cohortUserCount": 12,
+      "d1EligibleCohortUserCount": 10,
+      "d1RetainedUserCount": 4,
+      "d1RetentionRate": 0.4,
+      "d7EligibleCohortUserCount": 8,
+      "d7RetainedUserCount": 2,
+      "d7RetentionRate": 0.25,
+      "identityCoverageRate": 0.9524,
+      "ignoredOpsEventCount": 1
+    },
+    "cohorts": [
+      {
+        "date": "2026-05-08",
+        "cohortUserCount": 8,
+        "d1Eligible": true,
+        "d1RetainedUserCount": 4,
+        "d1RetentionRate": 0.5,
+        "d7Eligible": true,
+        "d7RetainedUserCount": 2,
+        "d7RetentionRate": 0.25
+      }
+    ]
+  }
+}
+```
+
 ## 6. 当前限制
 
 当前埋点体系仍然是 MVP 口径，保留这些约束：
 
 - 只记录关键事件，不记录完整页面访问流
 - 去重漏斗不是严格跨端归因，只能按当前事件携带的 `userId / clientId / sessionId` 合并
-- 激活口径衡量的是当前报告窗口内同时出现资料就绪与价值动作的用户，不替代 D1 / D7 留存
+- 激活口径衡量的是当前报告窗口内同时出现资料就绪与价值动作的用户
+- 留存 cohort 基于报告窗口内首次活跃日，不等同于真实注册日 cohort
 - 管理查询依赖管理员账号访问
 - App / 小程序侧埋点代码已完成，但真正开始持续出数仍依赖下一次客户端发布
 

@@ -4,6 +4,7 @@ import {
   getAIOverviewController,
   getActivationOverviewController,
   getAnalyticsFunnelController,
+  getRetentionOverviewController,
 } from '../controllers/analytics.controller';
 import { authMiddleware, optionalAuthMiddleware } from '../middlewares/auth.middleware';
 import { adminMiddleware } from '../middlewares/admin.middleware';
@@ -17,5 +18,6 @@ router.post('/events', optionalAuthMiddleware, writeRateLimiter, validate({ body
 router.get('/funnel', authMiddleware, adminMiddleware, queryRateLimiter, validate({ query: analyticsFunnelQuery }), getAnalyticsFunnelController);
 router.get('/ai-overview', authMiddleware, adminMiddleware, queryRateLimiter, validate({ query: analyticsFunnelQuery }), getAIOverviewController);
 router.get('/activation-overview', authMiddleware, adminMiddleware, queryRateLimiter, validate({ query: analyticsFunnelQuery }), getActivationOverviewController);
+router.get('/retention-overview', authMiddleware, adminMiddleware, queryRateLimiter, validate({ query: analyticsFunnelQuery }), getRetentionOverviewController);
 
 export default router;

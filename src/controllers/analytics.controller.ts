@@ -4,6 +4,7 @@ import {
   getAIOverview,
   getActivationOverview,
   getAnalyticsFunnel,
+  getRetentionOverview,
   recordAnalyticsEvent,
 } from '../services/analytics.service';
 
@@ -46,6 +47,15 @@ export async function getAIOverviewController(req: Request, res: Response, next:
 export async function getActivationOverviewController(req: Request, res: Response, next: NextFunction) {
   try {
     const data = await getActivationOverview(req.query.rangeDays as unknown as number);
+    res.json(successResponse(data));
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function getRetentionOverviewController(req: Request, res: Response, next: NextFunction) {
+  try {
+    const data = await getRetentionOverview(req.query.rangeDays as unknown as number);
     res.json(successResponse(data));
   } catch (error) {
     next(error);

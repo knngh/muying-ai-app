@@ -188,6 +188,33 @@ function buildP6DataClosureReport(input) {
     nextActions.push('Audit identity propagation for profile readiness, AI question, and knowledge detail open analytics.');
   }
 
+  const retentionOverview = unwrapData(input.retentionOverview);
+  const retentionSummary = toRecord(retentionOverview.summary);
+  const retentionCohortUserCount = toNumber(retentionSummary.cohortUserCount);
+  const d1EligibleCohortUserCount = toNumber(retentionSummary.d1EligibleCohortUserCount);
+  const d1RetainedUserCount = toNumber(retentionSummary.d1RetainedUserCount);
+  const d1RetentionRate = typeof retentionSummary.d1RetentionRate === 'number'
+    ? retentionSummary.d1RetentionRate
+    : null;
+  const d7EligibleCohortUserCount = toNumber(retentionSummary.d7EligibleCohortUserCount);
+  const d7RetainedUserCount = toNumber(retentionSummary.d7RetainedUserCount);
+  const d7RetentionRate = typeof retentionSummary.d7RetentionRate === 'number'
+    ? retentionSummary.d7RetentionRate
+    : null;
+  const retentionIdentityCoverageRate = typeof retentionSummary.identityCoverageRate === 'number'
+    ? retentionSummary.identityCoverageRate
+    : null;
+  const retentionIgnoredOpsEventCount = toNumber(retentionSummary.ignoredOpsEventCount);
+
+  if (d1EligibleCohortUserCount > 0 && d1RetainedUserCount <= 0) {
+    attention.push('D1 retention is 0');
+    nextActions.push('Review early user return paths: home return plan, AI follow-up, knowledge detail, and weekly report entrypoints.');
+  }
+  if (retentionIdentityCoverageRate !== null && retentionIdentityCoverageRate < IDENTITY_COVERAGE_THRESHOLD) {
+    attention.push(`retention identity coverage is below ${IDENTITY_COVERAGE_THRESHOLD}: ${retentionIdentityCoverageRate.toFixed(4)}`);
+    nextActions.push('Audit identity propagation for active behavior events used by D1/D7 retention.');
+  }
+
   const status = blockers.length > 0
     ? 'blocker'
     : attention.length > 0
@@ -241,6 +268,18 @@ function buildP6DataClosureReport(input) {
       profileToActivationRate,
       identityCoverageRate: activationIdentityCoverageRate,
       breakdown: toRecord(activationOverview.breakdown),
+    },
+    retention: {
+      cohortUserCount: retentionCohortUserCount,
+      d1EligibleCohortUserCount,
+      d1RetainedUserCount,
+      d1RetentionRate,
+      d7EligibleCohortUserCount,
+      d7RetainedUserCount,
+      d7RetentionRate,
+      identityCoverageRate: retentionIdentityCoverageRate,
+      ignoredOpsEventCount: retentionIgnoredOpsEventCount,
+      cohorts: Array.isArray(retentionOverview.cohorts) ? retentionOverview.cohorts : [],
     },
   };
 }
@@ -298,6 +337,7 @@ async function collectSnapshot(adminToken) {
     funnel,
     aiOverview,
     activationOverview,
+    retentionOverview,
   ] = await Promise.all([
     getJson(`${BASE_URL}/health`),
     getJson(LEGACY_HEALTH_URL),
@@ -305,6 +345,7 @@ async function collectSnapshot(adminToken) {
     getJson(`${API_BASE}/analytics/funnel?rangeDays=${RANGE_DAYS}`, adminToken),
     getJson(`${API_BASE}/analytics/ai-overview?rangeDays=${RANGE_DAYS}`, adminToken),
     getJson(`${API_BASE}/analytics/activation-overview?rangeDays=${RANGE_DAYS}`, adminToken),
+    getJson(`${API_BASE}/analytics/retention-overview?rangeDays=${RANGE_DAYS}`, adminToken),
   ]);
 
   return {
@@ -314,6 +355,7 @@ async function collectSnapshot(adminToken) {
     funnel,
     aiOverview,
     activationOverview,
+    retentionOverview,
   };
 }
 

@@ -17,14 +17,20 @@ import {
   getAIOverview,
   getActivationOverview,
   getAnalyticsFunnel,
+  getRetentionOverview,
   recordAnalyticsEvent,
 } from '../src/services/analytics.service';
 
 describe('analytics.service 单元测试', () => {
   beforeEach(() => {
+    jest.useRealTimers();
     mockAnalyticsCreate.mockReset();
     mockAnalyticsGroupBy.mockReset();
     mockAnalyticsFindMany.mockReset();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
   });
 
   it('recordAnalyticsEvent 会把 userId 转成 BigInt 并写入 analyticsEvent', async () => {
@@ -299,6 +305,160 @@ describe('analytics.service 单元测试', () => {
     expect(result.breakdown.valueActionByEvent).toEqual([
       { key: 'app_chat_message_send', count: 1 },
       { key: 'app_knowledge_detail_open', count: 1 },
+    ]);
+  });
+
+  it('getRetentionOverview 会按首个活跃日计算 D1/D7 留存并隔离 ops 演练流量', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-05-15T12:00:00.000Z'));
+    mockAnalyticsFindMany.mockResolvedValue([
+      {
+        eventName: 'app_home_v1_exposure',
+        userId: 1n,
+        clientId: 'client-user-1',
+        sessionId: 'session-user-1',
+        source: 'app',
+        page: 'HomeScreen',
+        properties: {},
+        createdAt: new Date('2026-05-01T00:10:00.000Z'),
+      },
+      {
+        eventName: 'app_chat_message_send',
+        userId: 1n,
+        clientId: 'client-user-1',
+        sessionId: 'session-user-1',
+        source: 'app',
+        page: 'ChatScreen',
+        properties: { entrySource: 'home_suggested_question' },
+        createdAt: new Date('2026-05-02T00:10:00.000Z'),
+      },
+      {
+        eventName: 'app_knowledge_detail_open',
+        userId: 1n,
+        clientId: 'client-user-1',
+        sessionId: 'session-user-1',
+        source: 'app',
+        page: 'KnowledgeDetailScreen',
+        properties: { articleSlug: 'feeding-guide' },
+        createdAt: new Date('2026-05-08T00:10:00.000Z'),
+      },
+      {
+        eventName: 'server_lifecycle_profile_ready',
+        userId: 2n,
+        clientId: null,
+        sessionId: null,
+        source: 'server',
+        page: 'auth/profile',
+        properties: { lifecycleStage: 'pregnant' },
+        createdAt: new Date('2026-05-01T01:10:00.000Z'),
+      },
+      {
+        eventName: 'app_home_v1_exposure',
+        userId: null,
+        clientId: 'client-3',
+        sessionId: 'session-3',
+        source: 'app',
+        page: 'HomeScreen',
+        properties: {},
+        createdAt: new Date('2026-05-02T02:10:00.000Z'),
+      },
+      {
+        eventName: 'app_home_checkin_click',
+        userId: null,
+        clientId: 'client-3',
+        sessionId: 'session-3',
+        source: 'app',
+        page: 'HomeScreen',
+        properties: {},
+        createdAt: new Date('2026-05-03T02:10:00.000Z'),
+      },
+      {
+        eventName: 'app_home_v1_exposure',
+        userId: null,
+        clientId: null,
+        sessionId: null,
+        source: 'app',
+        page: 'HomeScreen',
+        properties: {},
+        createdAt: new Date('2026-05-01T03:10:00.000Z'),
+      },
+      {
+        eventName: 'app_chat_message_send',
+        userId: 99n,
+        clientId: 'ops-client',
+        sessionId: 'ops-session',
+        source: 'app',
+        page: 'ChatScreen',
+        properties: {
+          entrySource: 'home_suggested_question',
+          trafficKind: 'ops_product_entrypoint_smoke',
+        },
+        createdAt: new Date('2026-05-01T04:10:00.000Z'),
+      },
+    ]);
+
+    const result = await getRetentionOverview(30);
+
+    expect(mockAnalyticsFindMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        eventName: {
+          in: expect.arrayContaining([
+            'app_home_v1_exposure',
+            'app_chat_message_send',
+            'app_knowledge_detail_open',
+            'server_lifecycle_profile_ready',
+          ]),
+        },
+      }),
+      select: {
+        eventName: true,
+        userId: true,
+        clientId: true,
+        sessionId: true,
+        source: true,
+        page: true,
+        properties: true,
+        createdAt: true,
+      },
+    }));
+    expect(result.retentionDefinition).toMatchObject({
+      identityPriority: ['userId', 'clientId', 'sessionId'],
+      dayBoundary: 'UTC',
+      returnWindows: [1, 7],
+    });
+    expect(result.summary).toMatchObject({
+      cohortUserCount: 3,
+      d1EligibleCohortUserCount: 3,
+      d1RetainedUserCount: 2,
+      d1RetentionRate: 0.6667,
+      d7EligibleCohortUserCount: 3,
+      d7RetainedUserCount: 1,
+      d7RetentionRate: 0.3333,
+      totalIdentifiedEvents: 6,
+      totalUnidentifiedEvents: 1,
+      identityCoverageRate: 0.8571,
+      ignoredOpsEventCount: 1,
+    });
+    expect(result.cohorts).toEqual([
+      {
+        date: '2026-05-01',
+        cohortUserCount: 2,
+        d1Eligible: true,
+        d1RetainedUserCount: 1,
+        d1RetentionRate: 0.5,
+        d7Eligible: true,
+        d7RetainedUserCount: 1,
+        d7RetentionRate: 0.5,
+      },
+      {
+        date: '2026-05-02',
+        cohortUserCount: 1,
+        d1Eligible: true,
+        d1RetainedUserCount: 1,
+        d1RetentionRate: 1,
+        d7Eligible: true,
+        d7RetainedUserCount: 0,
+        d7RetentionRate: 0,
+      },
     ]);
   });
 

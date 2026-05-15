@@ -1,6 +1,10 @@
 import { Prisma } from '@prisma/client';
 import prisma from '../config/database';
-import { ANALYTICS_FUNNEL_STEPS, type AnalyticsEventName } from '../config/analytics-events';
+import {
+  ANALYTICS_EVENT_NAMES,
+  ANALYTICS_FUNNEL_STEPS,
+  type AnalyticsEventName,
+} from '../config/analytics-events';
 
 export type AnalyticsEventSource = 'app' | 'mini_program' | 'server';
 
@@ -24,6 +28,8 @@ type AnalyticsActivationRow = {
   properties: Prisma.JsonValue | null;
   createdAt: Date;
 };
+
+type AnalyticsRetentionRow = AnalyticsActivationRow;
 
 export async function recordAnalyticsEvent(input: {
   eventName: AnalyticsEventName;
@@ -221,6 +227,8 @@ const ACTIVATION_EVENT_NAMES = [
   'app_knowledge_detail_open',
 ] as const;
 
+const RETENTION_EVENT_NAMES = ANALYTICS_EVENT_NAMES;
+
 function toRecord(value: Prisma.JsonValue | null | undefined): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
     ? value as Record<string, unknown>
@@ -290,6 +298,156 @@ function toBreakdown(counter: Map<string, number>) {
   return Array.from(counter.entries())
     .map(([key, count]) => ({ key, count }))
     .sort((a, b) => b.count - a.count || a.key.localeCompare(b.key, 'zh-CN'));
+}
+
+function toUtcDay(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function addUtcDays(day: string, days: number): string {
+  const date = new Date(`${day}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return toUtcDay(date);
+}
+
+function toRate(numerator: number, denominator: number): number | null {
+  return denominator > 0 ? Number((numerator / denominator).toFixed(4)) : null;
+}
+
+export async function getRetentionOverview(rangeDays: number) {
+  const endAt = new Date();
+  const startAt = new Date(endAt.getTime() - rangeDays * 24 * 60 * 60 * 1000);
+  const endDay = toUtcDay(endAt);
+  const rows = await prisma.analyticsEvent.findMany({
+    where: {
+      createdAt: {
+        gte: startAt,
+      },
+      eventName: {
+        in: [...RETENTION_EVENT_NAMES],
+      },
+    },
+    select: {
+      eventName: true,
+      userId: true,
+      clientId: true,
+      sessionId: true,
+      source: true,
+      page: true,
+      properties: true,
+      createdAt: true,
+    },
+  }) as AnalyticsRetentionRow[];
+
+  const activeDaysByIdentity = new Map<string, Set<string>>();
+  let totalIdentifiedEvents = 0;
+  let totalUnidentifiedEvents = 0;
+  let ignoredOpsEventCount = 0;
+
+  for (const row of rows) {
+    const properties = toRecord(row.properties);
+    if (isOpsProductEntrypointSmoke(properties)) {
+      ignoredOpsEventCount += 1;
+      continue;
+    }
+
+    const identity = getAnalyticsFunnelIdentity(row);
+    if (!identity) {
+      totalUnidentifiedEvents += 1;
+      continue;
+    }
+
+    totalIdentifiedEvents += 1;
+    const activeDays = activeDaysByIdentity.get(identity) || new Set<string>();
+    activeDays.add(toUtcDay(row.createdAt));
+    activeDaysByIdentity.set(identity, activeDays);
+  }
+
+  const cohortIdentitiesByDay = new Map<string, Set<string>>();
+  for (const [identity, activeDays] of activeDaysByIdentity.entries()) {
+    const firstActiveDay = Array.from(activeDays).sort()[0];
+    const cohortIdentities = cohortIdentitiesByDay.get(firstActiveDay) || new Set<string>();
+    cohortIdentities.add(identity);
+    cohortIdentitiesByDay.set(firstActiveDay, cohortIdentities);
+  }
+
+  let d1EligibleCohortUserCount = 0;
+  let d1RetainedUserCount = 0;
+  let d7EligibleCohortUserCount = 0;
+  let d7RetainedUserCount = 0;
+
+  const cohorts = Array.from(cohortIdentitiesByDay.entries())
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([date, identities]) => {
+      const cohortUserCount = identities.size;
+      const d1Day = addUtcDays(date, 1);
+      const d7Day = addUtcDays(date, 7);
+      const d1Eligible = d1Day <= endDay;
+      const d7Eligible = d7Day <= endDay;
+      let cohortD1RetainedUserCount = 0;
+      let cohortD7RetainedUserCount = 0;
+
+      for (const identity of identities) {
+        const activeDays = activeDaysByIdentity.get(identity) || new Set<string>();
+        if (activeDays.has(d1Day)) {
+          cohortD1RetainedUserCount += 1;
+        }
+        if (activeDays.has(d7Day)) {
+          cohortD7RetainedUserCount += 1;
+        }
+      }
+
+      if (d1Eligible) {
+        d1EligibleCohortUserCount += cohortUserCount;
+        d1RetainedUserCount += cohortD1RetainedUserCount;
+      }
+      if (d7Eligible) {
+        d7EligibleCohortUserCount += cohortUserCount;
+        d7RetainedUserCount += cohortD7RetainedUserCount;
+      }
+
+      return {
+        date,
+        cohortUserCount,
+        d1Eligible,
+        d1RetainedUserCount: d1Eligible ? cohortD1RetainedUserCount : null,
+        d1RetentionRate: d1Eligible ? toRate(cohortD1RetainedUserCount, cohortUserCount) : null,
+        d7Eligible,
+        d7RetainedUserCount: d7Eligible ? cohortD7RetainedUserCount : null,
+        d7RetentionRate: d7Eligible ? toRate(cohortD7RetainedUserCount, cohortUserCount) : null,
+      };
+    });
+
+  const measuredEventCount = totalIdentifiedEvents + totalUnidentifiedEvents;
+
+  return {
+    rangeDays,
+    startAt: startAt.toISOString(),
+    endAt: endAt.toISOString(),
+    retentionDefinition: {
+      activeEventNames: [...RETENTION_EVENT_NAMES],
+      identityPriority: ['userId', 'clientId', 'sessionId'],
+      dayBoundary: 'UTC',
+      returnWindows: [1, 7],
+      ignoredTrafficKinds: ['ops_product_entrypoint_smoke'],
+    },
+    summary: {
+      cohortUserCount: activeDaysByIdentity.size,
+      d1EligibleCohortUserCount,
+      d1RetainedUserCount,
+      d1RetentionRate: toRate(d1RetainedUserCount, d1EligibleCohortUserCount),
+      d7EligibleCohortUserCount,
+      d7RetainedUserCount,
+      d7RetentionRate: toRate(d7RetainedUserCount, d7EligibleCohortUserCount),
+      totalIdentifiedEvents,
+      totalUnidentifiedEvents,
+      identityCoverageRate: measuredEventCount > 0
+        ? Number((totalIdentifiedEvents / measuredEventCount).toFixed(4))
+        : null,
+      ignoredOpsEventCount,
+    },
+    cohorts,
+  };
 }
 
 export async function getActivationOverview(rangeDays: number) {

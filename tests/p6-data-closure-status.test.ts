@@ -72,6 +72,35 @@ function baseInput(overrides = {}) {
         },
       },
     },
+    retentionOverview: {
+      data: {
+        summary: {
+          cohortUserCount: 12,
+          d1EligibleCohortUserCount: 10,
+          d1RetainedUserCount: 4,
+          d1RetentionRate: 0.4,
+          d7EligibleCohortUserCount: 8,
+          d7RetainedUserCount: 2,
+          d7RetentionRate: 0.25,
+          totalIdentifiedEvents: 40,
+          totalUnidentifiedEvents: 2,
+          identityCoverageRate: 0.9524,
+          ignoredOpsEventCount: 1,
+        },
+        cohorts: [
+          {
+            date: '2026-05-08',
+            cohortUserCount: 8,
+            d1Eligible: true,
+            d1RetainedUserCount: 4,
+            d1RetentionRate: 0.5,
+            d7Eligible: true,
+            d7RetainedUserCount: 2,
+            d7RetentionRate: 0.25,
+          },
+        ],
+      },
+    },
     ...overrides,
   };
 }
@@ -90,6 +119,13 @@ describe('P6 data closure status report', () => {
       profileReadyUniqueCount: 10,
       activatedUniqueCount: 5,
       profileToActivationRate: 0.5,
+    });
+    expect(report.retention).toMatchObject({
+      cohortUserCount: 12,
+      d1RetentionRate: 0.4,
+      d7RetentionRate: 0.25,
+      identityCoverageRate: 0.9524,
+      ignoredOpsEventCount: 1,
     });
   });
 
@@ -145,6 +181,24 @@ describe('P6 data closure status report', () => {
           },
         },
       },
+      retentionOverview: {
+        data: {
+          summary: {
+            cohortUserCount: 4,
+            d1EligibleCohortUserCount: 4,
+            d1RetainedUserCount: 0,
+            d1RetentionRate: 0,
+            d7EligibleCohortUserCount: 2,
+            d7RetainedUserCount: 0,
+            d7RetentionRate: 0,
+            totalIdentifiedEvents: 3,
+            totalUnidentifiedEvents: 3,
+            identityCoverageRate: 0.5,
+            ignoredOpsEventCount: 2,
+          },
+          cohorts: [],
+        },
+      },
     }));
 
     expect(report.status).toBe('attention');
@@ -159,6 +213,8 @@ describe('P6 data closure status report', () => {
       'real product AI entrypoint traffic is 0',
       'activation completed user count is 0',
       'activation identity coverage is below 0.8: 0.5000',
+      'D1 retention is 0',
+      'retention identity coverage is below 0.8: 0.5000',
     ]));
   });
 
