@@ -31,6 +31,7 @@ type AnalyticsActivationRow = {
 };
 
 type AnalyticsRetentionRow = AnalyticsActivationRow;
+type AnalyticsAcquisitionRow = AnalyticsActivationRow;
 
 export async function recordAnalyticsEvent(input: {
   eventName: AnalyticsEventName;
@@ -241,6 +242,19 @@ const ACTIVATION_EVENT_NAMES = [
 
 const RETENTION_EVENT_NAMES = ANALYTICS_EVENT_NAMES;
 const RETENTION_BEHAVIOR_EVENT_NAMES = new Set<string>(ANALYTICS_RETENTION_BEHAVIOR_EVENT_NAMES);
+const ACQUISITION_EVENT_NAME = 'mini_program_app_download_click';
+const ACQUISITION_ACTIVATION_EVENT_NAMES = [
+  'server_lifecycle_profile_ready',
+  'app_chat_message_send',
+  'app_knowledge_detail_open',
+] as const;
+const ACQUISITION_PAYMENT_EVENT_NAMES = [
+  'app_order_created',
+  'app_payment_success',
+] as const;
+const ACQUISITION_ACTIVATION_EVENT_SET = new Set<string>(ACQUISITION_ACTIVATION_EVENT_NAMES);
+const ACQUISITION_ORDER_CREATED_EVENT_NAME = 'app_order_created';
+const ACQUISITION_PAYMENT_SUCCESS_EVENT_NAME = 'app_payment_success';
 
 function toRecord(value: Prisma.JsonValue | null | undefined): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -311,6 +325,174 @@ function toBreakdown(counter: Map<string, number>) {
   return Array.from(counter.entries())
     .map(([key, count]) => ({ key, count }))
     .sort((a, b) => b.count - a.count || a.key.localeCompare(b.key, 'zh-CN'));
+}
+
+function getStringProperty(properties: Record<string, unknown>, keys: string[]): string | undefined {
+  for (const key of keys) {
+    const value = properties[key];
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+  return undefined;
+}
+
+function getAcquisitionChannel(properties: Record<string, unknown>): string | undefined {
+  return getStringProperty(properties, [
+    'channel',
+    'acquisitionChannel',
+    'trafficChannel',
+    'utmChannel',
+    'utmSource',
+    'utm_source',
+    'sourceChannel',
+  ]);
+}
+
+function getAcquisitionCampaign(properties: Record<string, unknown>): string | undefined {
+  return getStringProperty(properties, [
+    'campaign',
+    'campaignId',
+    'utmCampaign',
+    'utm_campaign',
+    'activity',
+    'promotion',
+  ]);
+}
+
+function getAcquisitionScene(properties: Record<string, unknown>): string | undefined {
+  return getStringProperty(properties, [
+    'scene',
+    'entryScene',
+    'fromScene',
+    'triggerScene',
+    'downloadScene',
+  ]);
+}
+
+type AcquisitionSegmentStats = {
+  eventCount: number;
+  acquisitionEventCount: number;
+  identities: Set<string>;
+  acquisitionIdentities: Set<string>;
+  activatedIdentities: Set<string>;
+  orderCreatedIdentities: Set<string>;
+  paymentSuccessIdentities: Set<string>;
+};
+
+function createAcquisitionSegmentStats(): AcquisitionSegmentStats {
+  return {
+    eventCount: 0,
+    acquisitionEventCount: 0,
+    identities: new Set<string>(),
+    acquisitionIdentities: new Set<string>(),
+    activatedIdentities: new Set<string>(),
+    orderCreatedIdentities: new Set<string>(),
+    paymentSuccessIdentities: new Set<string>(),
+  };
+}
+
+function updateAcquisitionSegmentStats(
+  stats: AcquisitionSegmentStats,
+  eventName: string,
+  identity: string | null,
+) {
+  stats.eventCount += 1;
+  if (eventName === ACQUISITION_EVENT_NAME) {
+    stats.acquisitionEventCount += 1;
+  }
+
+  if (!identity) {
+    return;
+  }
+
+  stats.identities.add(identity);
+  if (eventName === ACQUISITION_EVENT_NAME) {
+    stats.acquisitionIdentities.add(identity);
+  }
+  if (ACQUISITION_ACTIVATION_EVENT_SET.has(eventName)) {
+    stats.activatedIdentities.add(identity);
+  }
+  if (eventName === ACQUISITION_ORDER_CREATED_EVENT_NAME) {
+    stats.orderCreatedIdentities.add(identity);
+  }
+  if (eventName === ACQUISITION_PAYMENT_SUCCESS_EVENT_NAME) {
+    stats.paymentSuccessIdentities.add(identity);
+  }
+}
+
+function toAcquisitionRate(numerator: number, denominator: number): number | null {
+  return denominator > 0 ? Number((numerator / denominator).toFixed(4)) : null;
+}
+
+function toAcquisitionBreakdown(statsByKey: Map<string, AcquisitionSegmentStats>) {
+  return Array.from(statsByKey.entries())
+    .map(([key, stats]) => {
+      const acquisitionUniqueCount = stats.acquisitionIdentities.size;
+
+      return {
+        key,
+        eventCount: stats.eventCount,
+        acquisitionEventCount: stats.acquisitionEventCount,
+        acquisitionUniqueCount,
+        activatedUniqueCount: stats.activatedIdentities.size,
+        orderCreatedUniqueCount: stats.orderCreatedIdentities.size,
+        paymentSuccessUniqueCount: stats.paymentSuccessIdentities.size,
+        acquisitionToActivationRate: toAcquisitionRate(stats.activatedIdentities.size, acquisitionUniqueCount),
+        acquisitionToPaymentRate: toAcquisitionRate(stats.paymentSuccessIdentities.size, acquisitionUniqueCount),
+      };
+    })
+    .sort((a, b) => (
+      b.paymentSuccessUniqueCount - a.paymentSuccessUniqueCount
+      || b.activatedUniqueCount - a.activatedUniqueCount
+      || b.acquisitionUniqueCount - a.acquisitionUniqueCount
+      || b.acquisitionEventCount - a.acquisitionEventCount
+      || a.key.localeCompare(b.key, 'zh-CN')
+    ));
+}
+
+type AcquisitionSegmentDimension = {
+  channel: string | null;
+  campaign: string | null;
+  scene: string | null;
+  entrySource: string | null;
+};
+
+type AcquisitionTopSegment = AcquisitionSegmentDimension & {
+  eventCount: number;
+  acquisitionEventCount: number;
+  acquisitionUniqueCount: number;
+  activatedUniqueCount: number;
+  orderCreatedUniqueCount: number;
+  paymentSuccessUniqueCount: number;
+  acquisitionToActivationRate: number | null;
+  acquisitionToPaymentRate: number | null;
+};
+
+function getAcquisitionSegmentKey(segment: AcquisitionSegmentDimension): string {
+  return [
+    segment.channel || 'unknown',
+    segment.campaign || 'none',
+    segment.scene || 'none',
+    segment.entrySource || 'none',
+  ].join('\u001f');
+}
+
+function parseAcquisitionSegmentKey(key: string): AcquisitionSegmentDimension {
+  const [channel, campaign, scene, entrySource] = key.split('\u001f');
+  return {
+    channel: channel && channel !== 'unknown' ? channel : null,
+    campaign: campaign && campaign !== 'none' ? campaign : null,
+    scene: scene && scene !== 'none' ? scene : null,
+    entrySource: entrySource && entrySource !== 'none' ? entrySource : null,
+  };
+}
+
+function hasAcquisitionActivation(events: Set<string> | undefined): boolean {
+  if (!events) {
+    return false;
+  }
+  return ACQUISITION_ACTIVATION_EVENT_NAMES.some((eventName) => events.has(eventName));
 }
 
 function toUtcDay(date: Date): string {
@@ -559,6 +741,226 @@ export async function getActivationOverview(rangeDays: number) {
       profileReadyByStage: toBreakdown(profileStageCounter),
       valueActionByEvent: toBreakdown(valueActionCounter),
     },
+  };
+}
+
+export async function getAcquisitionOverview(rangeDays: number) {
+  const startAt = new Date(Date.now() - rangeDays * 24 * 60 * 60 * 1000);
+  const eventNames = [
+    ACQUISITION_EVENT_NAME,
+    ...ACQUISITION_ACTIVATION_EVENT_NAMES,
+    ...ACQUISITION_PAYMENT_EVENT_NAMES,
+    ...ANALYTICS_RETENTION_BEHAVIOR_EVENT_NAMES,
+  ];
+  const rows = await prisma.analyticsEvent.findMany({
+    where: {
+      createdAt: {
+        gte: startAt,
+      },
+      eventName: {
+        in: eventNames,
+      },
+    },
+    select: {
+      eventName: true,
+      userId: true,
+      clientId: true,
+      sessionId: true,
+      source: true,
+      page: true,
+      properties: true,
+      createdAt: true,
+    },
+  }) as AnalyticsAcquisitionRow[];
+
+  const acquisitionIdentities = new Set<string>();
+  const activatedIdentities = new Set<string>();
+  const orderCreatedIdentities = new Set<string>();
+  const paymentSuccessIdentities = new Set<string>();
+  const retentionBehaviorIdentities = new Set<string>();
+  const eventNamesByIdentity = new Map<string, Set<string>>();
+  const byChannel = new Map<string, AcquisitionSegmentStats>();
+  const byCampaign = new Map<string, AcquisitionSegmentStats>();
+  const byScene = new Map<string, AcquisitionSegmentStats>();
+  const byEntrySource = new Map<string, AcquisitionSegmentStats>();
+  const topSegmentsByKey = new Map<string, {
+    dimension: AcquisitionSegmentDimension;
+    stats: AcquisitionSegmentStats;
+  }>();
+  const acquisitionSegmentsByIdentity = new Map<string, Map<string, AcquisitionSegmentDimension>>();
+  let acquisitionEventCount = 0;
+  let totalIdentifiedEvents = 0;
+  let totalUnidentifiedEvents = 0;
+  let ignoredOpsEventCount = 0;
+
+  const sortedRows = rows.slice().sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime());
+
+  for (const row of sortedRows) {
+    const properties = toRecord(row.properties);
+    if (isOpsProductEntrypointSmoke(properties)) {
+      ignoredOpsEventCount += 1;
+      continue;
+    }
+
+    const identity = getAnalyticsFunnelIdentity(row);
+    if (identity) {
+      totalIdentifiedEvents += 1;
+      const identityEvents = eventNamesByIdentity.get(identity) || new Set<string>();
+      identityEvents.add(row.eventName);
+      eventNamesByIdentity.set(identity, identityEvents);
+    } else {
+      totalUnidentifiedEvents += 1;
+    }
+
+    if (row.eventName === ACQUISITION_EVENT_NAME) {
+      acquisitionEventCount += 1;
+      if (identity) {
+        acquisitionIdentities.add(identity);
+      }
+    }
+    if (identity && ACQUISITION_ACTIVATION_EVENT_SET.has(row.eventName)) {
+      activatedIdentities.add(identity);
+    }
+    if (identity && row.eventName === ACQUISITION_ORDER_CREATED_EVENT_NAME) {
+      orderCreatedIdentities.add(identity);
+    }
+    if (identity && row.eventName === ACQUISITION_PAYMENT_SUCCESS_EVENT_NAME) {
+      paymentSuccessIdentities.add(identity);
+    }
+    if (identity && RETENTION_BEHAVIOR_EVENT_NAMES.has(row.eventName)) {
+      retentionBehaviorIdentities.add(identity);
+    }
+
+    const channel = getAcquisitionChannel(properties);
+    const campaign = getAcquisitionCampaign(properties);
+    const scene = getAcquisitionScene(properties);
+    const entrySource = getEntrypointFromProperties(properties);
+
+    for (const [key, map] of [
+      [channel, byChannel],
+      [campaign, byCampaign],
+      [scene, byScene],
+      [entrySource, byEntrySource],
+    ] as const) {
+      if (!key) {
+        continue;
+      }
+      const stats = map.get(key) || createAcquisitionSegmentStats();
+      updateAcquisitionSegmentStats(stats, row.eventName, identity);
+      map.set(key, stats);
+    }
+
+    const segmentDimensionsForRow: AcquisitionSegmentDimension[] = [];
+    if (row.eventName === ACQUISITION_EVENT_NAME && (channel || campaign || scene || entrySource)) {
+      const dimension = {
+        channel: channel || null,
+        campaign: campaign || null,
+        scene: scene || null,
+        entrySource: entrySource || null,
+      };
+      segmentDimensionsForRow.push(dimension);
+      if (identity) {
+        const identitySegments = acquisitionSegmentsByIdentity.get(identity) || new Map<string, AcquisitionSegmentDimension>();
+        identitySegments.set(getAcquisitionSegmentKey(dimension), dimension);
+        acquisitionSegmentsByIdentity.set(identity, identitySegments);
+      }
+    } else if (identity) {
+      const identitySegments = acquisitionSegmentsByIdentity.get(identity);
+      if (identitySegments) {
+        segmentDimensionsForRow.push(...identitySegments.values());
+      }
+    }
+
+    for (const dimension of segmentDimensionsForRow) {
+      const segmentKey = getAcquisitionSegmentKey(dimension);
+      const segment = topSegmentsByKey.get(segmentKey) || {
+        dimension: parseAcquisitionSegmentKey(segmentKey),
+        stats: createAcquisitionSegmentStats(),
+      };
+      updateAcquisitionSegmentStats(segment.stats, row.eventName, identity);
+      topSegmentsByKey.set(segmentKey, segment);
+    }
+  }
+
+  const activatedFromAcquisitionUniqueCount = Array.from(acquisitionIdentities)
+    .filter((identity) => hasAcquisitionActivation(eventNamesByIdentity.get(identity))).length;
+  const orderCreatedFromAcquisitionUniqueCount = Array.from(acquisitionIdentities)
+    .filter((identity) => eventNamesByIdentity.get(identity)?.has(ACQUISITION_ORDER_CREATED_EVENT_NAME)).length;
+  const paymentSuccessFromAcquisitionUniqueCount = Array.from(acquisitionIdentities)
+    .filter((identity) => eventNamesByIdentity.get(identity)?.has(ACQUISITION_PAYMENT_SUCCESS_EVENT_NAME)).length;
+  const retentionBehaviorFromAcquisitionUniqueCount = Array.from(acquisitionIdentities)
+    .filter((identity) => ANALYTICS_RETENTION_BEHAVIOR_EVENT_NAMES.some((eventName) => eventNamesByIdentity.get(identity)?.has(eventName))).length;
+  const measuredEventCount = totalIdentifiedEvents + totalUnidentifiedEvents;
+  const acquisitionUniqueCount = acquisitionIdentities.size;
+
+  const topAcquisitionSegments: AcquisitionTopSegment[] = Array.from(topSegmentsByKey.values())
+    .map(({ dimension, stats }) => {
+      const segmentAcquisitionUniqueCount = stats.acquisitionIdentities.size;
+
+      return {
+        ...dimension,
+        eventCount: stats.eventCount,
+        acquisitionEventCount: stats.acquisitionEventCount,
+        acquisitionUniqueCount: segmentAcquisitionUniqueCount,
+        activatedUniqueCount: stats.activatedIdentities.size,
+        orderCreatedUniqueCount: stats.orderCreatedIdentities.size,
+        paymentSuccessUniqueCount: stats.paymentSuccessIdentities.size,
+        acquisitionToActivationRate: toAcquisitionRate(stats.activatedIdentities.size, segmentAcquisitionUniqueCount),
+        acquisitionToPaymentRate: toAcquisitionRate(stats.paymentSuccessIdentities.size, segmentAcquisitionUniqueCount),
+      };
+    })
+    .sort((a, b) => (
+      b.paymentSuccessUniqueCount - a.paymentSuccessUniqueCount
+      || b.activatedUniqueCount - a.activatedUniqueCount
+      || b.acquisitionUniqueCount - a.acquisitionUniqueCount
+      || b.acquisitionEventCount - a.acquisitionEventCount
+      || `${a.channel || ''}:${a.campaign || ''}:${a.scene || ''}:${a.entrySource || ''}`
+        .localeCompare(`${b.channel || ''}:${b.campaign || ''}:${b.scene || ''}:${b.entrySource || ''}`, 'zh-CN')
+    ))
+    .slice(0, 20);
+
+  return {
+    rangeDays,
+    startAt: startAt.toISOString(),
+    endAt: new Date().toISOString(),
+    acquisitionDefinition: {
+      acquisitionEvent: ACQUISITION_EVENT_NAME,
+      activationEvents: [...ACQUISITION_ACTIVATION_EVENT_NAMES],
+      paymentEvents: [...ACQUISITION_PAYMENT_EVENT_NAMES],
+      retentionBehaviorEvents: [...ANALYTICS_RETENTION_BEHAVIOR_EVENT_NAMES],
+      identityPriority: ['userId', 'clientId', 'sessionId'],
+      dimensions: ['channel', 'campaign', 'scene', 'entrySource'],
+      ignoredTrafficKinds: ['ops_product_entrypoint_smoke'],
+    },
+    summary: {
+      acquisitionEventCount,
+      acquisitionUniqueCount,
+      activatedUniqueCount: activatedFromAcquisitionUniqueCount,
+      orderCreatedUniqueCount: orderCreatedFromAcquisitionUniqueCount,
+      paymentSuccessUniqueCount: paymentSuccessFromAcquisitionUniqueCount,
+      retentionBehaviorUniqueCount: retentionBehaviorFromAcquisitionUniqueCount,
+      totalActivatedUniqueCount: activatedIdentities.size,
+      totalOrderCreatedUniqueCount: orderCreatedIdentities.size,
+      totalPaymentSuccessUniqueCount: paymentSuccessIdentities.size,
+      totalRetentionBehaviorUniqueCount: retentionBehaviorIdentities.size,
+      identifiedEventCount: totalIdentifiedEvents,
+      unidentifiedEventCount: totalUnidentifiedEvents,
+      identityCoverageRate: measuredEventCount > 0
+        ? Number((totalIdentifiedEvents / measuredEventCount).toFixed(4))
+        : null,
+      ignoredOpsEventCount,
+      acquisitionToActivationRate: toAcquisitionRate(activatedFromAcquisitionUniqueCount, acquisitionUniqueCount),
+      acquisitionToOrderRate: toAcquisitionRate(orderCreatedFromAcquisitionUniqueCount, acquisitionUniqueCount),
+      acquisitionToPaymentRate: toAcquisitionRate(paymentSuccessFromAcquisitionUniqueCount, acquisitionUniqueCount),
+      acquisitionToRetentionBehaviorRate: toAcquisitionRate(retentionBehaviorFromAcquisitionUniqueCount, acquisitionUniqueCount),
+    },
+    breakdown: {
+      byChannel: toAcquisitionBreakdown(byChannel).slice(0, 20),
+      byCampaign: toAcquisitionBreakdown(byCampaign).slice(0, 20),
+      byScene: toAcquisitionBreakdown(byScene).slice(0, 20),
+      byEntrySource: toAcquisitionBreakdown(byEntrySource).slice(0, 20),
+    },
+    topAcquisitionSegments,
   };
 }
 

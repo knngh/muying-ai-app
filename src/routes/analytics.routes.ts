@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
   createAnalyticsEvent,
   getAIOverviewController,
+  getAcquisitionOverviewController,
   getActivationOverviewController,
   getAnalyticsFunnelController,
   getRetentionOverviewController,
@@ -19,5 +20,6 @@ router.get('/funnel', authMiddleware, adminMiddleware, queryRateLimiter, validat
 router.get('/ai-overview', authMiddleware, adminMiddleware, queryRateLimiter, validate({ query: analyticsFunnelQuery }), getAIOverviewController);
 router.get('/activation-overview', authMiddleware, adminMiddleware, queryRateLimiter, validate({ query: analyticsFunnelQuery }), getActivationOverviewController);
 router.get('/retention-overview', authMiddleware, adminMiddleware, queryRateLimiter, validate({ query: analyticsFunnelQuery }), getRetentionOverviewController);
+router.get('/acquisition-overview', authMiddleware, adminMiddleware, queryRateLimiter, validate({ query: analyticsFunnelQuery }), getAcquisitionOverviewController);
 
 export default router;

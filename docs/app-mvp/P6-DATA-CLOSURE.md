@@ -38,6 +38,7 @@ P6 对应 MVP 路线中的“数据闭环”阶段，目标是：
 - 漏斗查询：`GET /api/v1/analytics/funnel?rangeDays=7`
 - 激活查询：`GET /api/v1/analytics/activation-overview?rangeDays=7`
 - 留存查询：`GET /api/v1/analytics/retention-overview?rangeDays=7`
+- 获客归因查询：`GET /api/v1/analytics/acquisition-overview?rangeDays=7`
 - 生产报告：`npm run ops:data:p6`
 
 已完成生产部署：
@@ -52,6 +53,7 @@ P6 对应 MVP 路线中的“数据闭环”阶段，目标是：
 - `GET /analytics/funnel` 当前走管理口径，仅管理员可访问
 - `GET /analytics/activation-overview` 当前走管理口径，仅管理员可访问
 - `GET /analytics/retention-overview` 当前走管理口径，仅管理员可访问
+- `GET /analytics/acquisition-overview` 当前走管理口径，仅管理员可访问
 
 ### 3.2 App
 
@@ -389,3 +391,16 @@ P6 工程侧已完成：
 1. 把 `ops:data:p6` 固化到每日巡检流程
 2. 增加日报 / 周报看板导出或管理后台页面
 3. 按真实投放渠道继续补 acquisition campaign / source 维度
+
+## 10. P7 承接
+
+P7 已把 P6 的真实运营 attention 项升级为“运营观察与投放验证”工程入口：
+
+- 新增 `GET /api/v1/analytics/acquisition-overview?rangeDays=7`
+- 新增 `npm run ops:growth:p7`
+- 默认输出：
+  - `tmp/p7-growth-status-report.json`
+  - `tmp/p7-growth-summary.md`
+  - `tmp/p7-growth-history.jsonl`
+
+P7 不改变 P6 关闭口径：`canCloseP6Engineering=true` 仍代表工程闭环完成，真实 acquisition / payment / AI degraded 等运营项继续由 P7 观察。

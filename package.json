@@ -23,6 +23,7 @@
     "ops:smoke:ai:entrypoints": "node scripts/prod-ai-entrypoint-smoke.js",
     "ops:gray:p5": "node scripts/prod-p5-gray-status.js",
     "ops:data:p6": "node scripts/prod-p6-data-closure-status.js",
+    "ops:growth:p7": "node scripts/prod-p7-growth-status.js",
     "ops:smoke:knowledge": "bash scripts/smoke-knowledge-backend.sh",
     "ops:knowledge:status": "bash scripts/prod-knowledge-status.sh",
     "ops:knowledge:daily": "node --import tsx src/scripts/run-knowledge-daily-ops.ts",
@@ -53,7 +54,7 @@
     "generate:answers": "tsx src/scripts/generate-answers.ts",
     "lint": "eslint \"src/**/*.ts\" \"tests/**/*.ts\" \"scripts/**/*.ts\" \"prisma/**/*.ts\"",
     "test": "jest --watchman=false",
-    "test:unit": "jest --runInBand --watchman=false tests/mvp-route-guards.test.ts tests/mvp-security-regressions.test.ts tests/analytics-service.test.ts tests/p6-data-closure-status.test.ts tests/subscription-quota.test.ts tests/checkin-service.test.ts tests/payment-callback-signature.test.ts tests/pregnancy-lifecycle.test.ts tests/search-query-expansion.test.ts tests/authority-content-guards.test.ts tests/authority-search-normalization.test.ts",
+    "test:unit": "jest --runInBand --watchman=false tests/mvp-route-guards.test.ts tests/mvp-security-regressions.test.ts tests/analytics-service.test.ts tests/p6-data-closure-status.test.ts tests/p7-growth-status.test.ts tests/subscription-quota.test.ts tests/checkin-service.test.ts tests/payment-callback-signature.test.ts tests/pregnancy-lifecycle.test.ts tests/search-query-expansion.test.ts tests/authority-content-guards.test.ts tests/authority-search-normalization.test.ts",
     "test:integration": "RUN_INTEGRATION_TESTS=true jest --runInBand tests/auth.test.ts tests/user-community.test.ts",
     "ops:sign:payment-callback": "node --import tsx scripts/generate-payment-callback-signature.ts"
   },

@@ -15,6 +15,7 @@ jest.mock('../src/config/database', () => ({
 
 import {
   getAIOverview,
+  getAcquisitionOverview,
   getActivationOverview,
   getAnalyticsFunnel,
   getRetentionOverview,
@@ -511,6 +512,239 @@ describe('analytics.service 单元测试', () => {
         d7RetentionRate: 0,
       },
     ]);
+  });
+
+  it('getAcquisitionOverview 会按渠道、活动、场景和入口汇总获客到激活/付费信号', async () => {
+    mockAnalyticsFindMany.mockResolvedValue([
+      {
+        eventName: 'mini_program_app_download_click',
+        userId: null,
+        clientId: 'client-xhs-1',
+        sessionId: 'session-xhs-1',
+        source: 'mini_program',
+        page: 'KnowledgeDetailPage',
+        properties: {
+          channel: 'xiaohongshu',
+          campaign: 'newborn-fever',
+          scene: 'knowledge_detail_download_card',
+          entrySource: 'knowledge_detail',
+        },
+        createdAt: new Date('2026-05-10T00:00:00.000Z'),
+      },
+      {
+        eventName: 'server_lifecycle_profile_ready',
+        userId: null,
+        clientId: 'client-xhs-1',
+        sessionId: 'session-xhs-1',
+        source: 'server',
+        page: 'auth/profile',
+        properties: {
+          channel: 'xiaohongshu',
+          campaign: 'newborn-fever',
+          lifecycleStage: 'postpartum',
+        },
+        createdAt: new Date('2026-05-10T00:05:00.000Z'),
+      },
+      {
+        eventName: 'app_chat_message_send',
+        userId: null,
+        clientId: 'client-xhs-1',
+        sessionId: 'session-xhs-1',
+        source: 'app',
+        page: 'ChatScreen',
+        properties: {
+          channel: 'xiaohongshu',
+          campaign: 'newborn-fever',
+          entrySource: 'home_suggested_question',
+        },
+        createdAt: new Date('2026-05-10T00:10:00.000Z'),
+      },
+      {
+        eventName: 'app_order_created',
+        userId: null,
+        clientId: 'client-xhs-1',
+        sessionId: 'session-xhs-1',
+        source: 'server',
+        page: 'MembershipScreen',
+        properties: {
+          channel: 'xiaohongshu',
+          campaign: 'newborn-fever',
+          planCode: 'quarterly',
+        },
+        createdAt: new Date('2026-05-10T00:20:00.000Z'),
+      },
+      {
+        eventName: 'app_payment_success',
+        userId: null,
+        clientId: 'client-xhs-1',
+        sessionId: 'session-xhs-1',
+        source: 'server',
+        page: 'MembershipScreen',
+        properties: {
+          channel: 'xiaohongshu',
+          campaign: 'newborn-fever',
+          amount: 49.9,
+        },
+        createdAt: new Date('2026-05-10T00:25:00.000Z'),
+      },
+      {
+        eventName: 'mini_program_app_download_click',
+        userId: null,
+        clientId: 'client-community-1',
+        sessionId: 'session-community-1',
+        source: 'mini_program',
+        page: 'CommunityPage',
+        properties: {
+          channel: 'wechat_private',
+          campaign: 'seed-group',
+          scene: 'community_download_card',
+        },
+        createdAt: new Date('2026-05-11T00:00:00.000Z'),
+      },
+      {
+        eventName: 'app_knowledge_detail_open',
+        userId: null,
+        clientId: 'client-community-1',
+        sessionId: 'session-community-1',
+        source: 'app',
+        page: 'KnowledgeDetailScreen',
+        properties: {
+          channel: 'wechat_private',
+          campaign: 'seed-group',
+          articleSlug: 'feeding-guide',
+        },
+        createdAt: new Date('2026-05-11T00:03:00.000Z'),
+      },
+      {
+        eventName: 'mini_program_app_download_click',
+        userId: null,
+        clientId: null,
+        sessionId: null,
+        source: 'mini_program',
+        page: 'KnowledgeDetailPage',
+        properties: {
+          channel: 'douyin',
+          campaign: 'fever-video',
+          scene: 'knowledge_detail_download_card',
+        },
+        createdAt: new Date('2026-05-11T00:04:00.000Z'),
+      },
+      {
+        eventName: 'app_chat_message_send',
+        userId: 99n,
+        clientId: 'ops-client',
+        sessionId: 'ops-session',
+        source: 'app',
+        page: 'ChatScreen',
+        properties: {
+          channel: 'ops',
+          campaign: 'smoke',
+          trafficKind: 'ops_product_entrypoint_smoke',
+        },
+        createdAt: new Date('2026-05-11T00:05:00.000Z'),
+      },
+    ]);
+
+    const result = await getAcquisitionOverview(7);
+
+    expect(mockAnalyticsFindMany).toHaveBeenCalledWith(expect.objectContaining({
+      select: {
+        eventName: true,
+        userId: true,
+        clientId: true,
+        sessionId: true,
+        source: true,
+        page: true,
+        properties: true,
+        createdAt: true,
+      },
+    }));
+    expect(result.acquisitionDefinition).toMatchObject({
+      acquisitionEvent: 'mini_program_app_download_click',
+      activationEvents: ['server_lifecycle_profile_ready', 'app_chat_message_send', 'app_knowledge_detail_open'],
+      paymentEvents: ['app_order_created', 'app_payment_success'],
+      ignoredTrafficKinds: ['ops_product_entrypoint_smoke'],
+    });
+    expect(result.summary).toMatchObject({
+      acquisitionEventCount: 3,
+      acquisitionUniqueCount: 2,
+      activatedUniqueCount: 2,
+      orderCreatedUniqueCount: 1,
+      paymentSuccessUniqueCount: 1,
+      unidentifiedEventCount: 1,
+      ignoredOpsEventCount: 1,
+      acquisitionToActivationRate: 1,
+      acquisitionToPaymentRate: 0.5,
+      identityCoverageRate: 0.875,
+    });
+    expect(result.breakdown.byChannel).toEqual([
+      {
+        key: 'xiaohongshu',
+        eventCount: 5,
+        acquisitionEventCount: 1,
+        acquisitionUniqueCount: 1,
+        activatedUniqueCount: 1,
+        orderCreatedUniqueCount: 1,
+        paymentSuccessUniqueCount: 1,
+        acquisitionToActivationRate: 1,
+        acquisitionToPaymentRate: 1,
+      },
+      {
+        key: 'wechat_private',
+        eventCount: 2,
+        acquisitionEventCount: 1,
+        acquisitionUniqueCount: 1,
+        activatedUniqueCount: 1,
+        orderCreatedUniqueCount: 0,
+        paymentSuccessUniqueCount: 0,
+        acquisitionToActivationRate: 1,
+        acquisitionToPaymentRate: 0,
+      },
+      {
+        key: 'douyin',
+        eventCount: 1,
+        acquisitionEventCount: 1,
+        acquisitionUniqueCount: 0,
+        activatedUniqueCount: 0,
+        orderCreatedUniqueCount: 0,
+        paymentSuccessUniqueCount: 0,
+        acquisitionToActivationRate: null,
+        acquisitionToPaymentRate: null,
+      },
+    ]);
+    expect(result.breakdown.byCampaign).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        key: 'newborn-fever',
+        acquisitionUniqueCount: 1,
+        activatedUniqueCount: 1,
+        paymentSuccessUniqueCount: 1,
+      }),
+      expect.objectContaining({
+        key: 'seed-group',
+        acquisitionUniqueCount: 1,
+        activatedUniqueCount: 1,
+      }),
+    ]));
+    expect(result.breakdown.byScene).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        key: 'knowledge_detail_download_card',
+        acquisitionEventCount: 2,
+        acquisitionUniqueCount: 1,
+      }),
+      expect.objectContaining({
+        key: 'community_download_card',
+        acquisitionEventCount: 1,
+        acquisitionUniqueCount: 1,
+      }),
+    ]));
+    expect(result.topAcquisitionSegments[0]).toMatchObject({
+      channel: 'xiaohongshu',
+      campaign: 'newborn-fever',
+      scene: 'knowledge_detail_download_card',
+      acquisitionUniqueCount: 1,
+      activatedUniqueCount: 1,
+      paymentSuccessUniqueCount: 1,
+    });
   });
 
   it('getAIOverview 会汇总回答质量、动作点击和反馈分布', async () => {

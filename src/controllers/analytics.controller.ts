@@ -2,6 +2,7 @@ import { NextFunction, Request, Response } from 'express';
 import { successResponse } from '../middlewares/error.middleware';
 import {
   getAIOverview,
+  getAcquisitionOverview,
   getActivationOverview,
   getAnalyticsFunnel,
   getRetentionOverview,
@@ -56,6 +57,15 @@ export async function getActivationOverviewController(req: Request, res: Respons
 export async function getRetentionOverviewController(req: Request, res: Response, next: NextFunction) {
   try {
     const data = await getRetentionOverview(req.query.rangeDays as unknown as number);
+    res.json(successResponse(data));
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function getAcquisitionOverviewController(req: Request, res: Response, next: NextFunction) {
+  try {
+    const data = await getAcquisitionOverview(req.query.rangeDays as unknown as number);
     res.json(successResponse(data));
   } catch (error) {
     next(error);
