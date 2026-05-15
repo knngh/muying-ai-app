@@ -76,6 +76,40 @@ describe('P5 gray status report', () => {
     expect(report.attention).toContain('real user AI entrypoint traffic is still 0');
   });
 
+  it('uses product entrypoint coverage when server real-entry aggregation is conservative', () => {
+    const report = buildP5GrayReport(baseInput({
+      aiOverview: {
+        data: {
+          serverAi: {
+            requestsStarted: 14,
+            responsesCompleted: 14,
+            requestErrors: 0,
+            degradedRate: 0.1,
+            realEntrySourceEventCount: 0,
+          },
+          productEntrypointCoverage: [
+            {
+              entrySource: 'native',
+              totalTrackedEvents: 0,
+              clickCount: 1,
+              messageCount: 1,
+              serverStartCount: 1,
+              serverResponseCount: 1,
+            },
+          ],
+          opsProductEntrypointCoverage: [
+            { entrySource: 'native', totalTrackedEvents: 4 },
+          ],
+        },
+      },
+    }));
+
+    expect(report.status).toBe('pass');
+    expect(report.canCloseP5).toBe(true);
+    expect(report.attention).not.toContain('real user AI entrypoint traffic is still 0');
+    expect(report.ai.productEntrypointEvents).toBe(4);
+  });
+
   it('blocks rollout when a required smoke command fails', () => {
     const report = buildP5GrayReport(baseInput({
       commands: [

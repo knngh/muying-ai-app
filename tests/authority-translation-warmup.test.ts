@@ -11,6 +11,7 @@ describe('authority translation warmup', () => {
     AUTHORITY_TRANSLATION_SYNC_LIMIT: process.env.AUTHORITY_TRANSLATION_SYNC_LIMIT,
     AUTHORITY_TRANSLATION_SYNC_DELAY_MS: process.env.AUTHORITY_TRANSLATION_SYNC_DELAY_MS,
     AUTHORITY_TRANSLATION_TASK_ROLES: process.env.AUTHORITY_TRANSLATION_TASK_ROLES,
+    AUTHORITY_TRANSLATION_ALLOW_PAID_FALLBACK: process.env.AUTHORITY_TRANSLATION_ALLOW_PAID_FALLBACK,
     AI_GLM_PROVIDER: process.env.AI_GLM_PROVIDER,
     AI_GLM_MODEL: process.env.AI_GLM_MODEL,
     AI_MODAL_DIRECT_KEY: process.env.AI_MODAL_DIRECT_KEY,
@@ -33,7 +34,7 @@ describe('authority translation warmup', () => {
     restoreEnv();
   });
 
-  it('defaults translation warmup to free GLM before paid fallback roles', () => {
+  it('defaults translation warmup to free GLM without paid fallback roles', () => {
     delete process.env.AUTHORITY_TRANSLATION_TASK_ROLES;
 
     let resolveAuthorityTranslationTaskRoles: typeof import('../src/services/authority-translation.service').__authorityTranslationTestUtils.resolveAuthorityTranslationTaskRoles | null = null;
@@ -43,9 +44,25 @@ describe('authority translation warmup', () => {
     });
 
     expect(resolveAuthorityTranslationTaskRoles).not.toBeNull();
-    expect(resolveAuthorityTranslationTaskRoles!()).toEqual(['glm_classify', 'minimax_render', 'kimi_reason']);
+    expect(resolveAuthorityTranslationTaskRoles!()).toEqual(['glm_classify']);
 
     process.env.AUTHORITY_TRANSLATION_TASK_ROLES = 'unknown_role';
+    expect(resolveAuthorityTranslationTaskRoles!()).toEqual(['glm_classify']);
+  });
+
+  it('only enables paid translation fallback roles when explicitly allowed', () => {
+    process.env.AUTHORITY_TRANSLATION_TASK_ROLES = 'glm_classify,minimax_render,kimi_reason';
+
+    let resolveAuthorityTranslationTaskRoles: typeof import('../src/services/authority-translation.service').__authorityTranslationTestUtils.resolveAuthorityTranslationTaskRoles | null = null;
+    jest.isolateModules(() => {
+      const translationService = require('../src/services/authority-translation.service') as typeof import('../src/services/authority-translation.service');
+      resolveAuthorityTranslationTaskRoles = translationService.__authorityTranslationTestUtils.resolveAuthorityTranslationTaskRoles;
+    });
+
+    expect(resolveAuthorityTranslationTaskRoles).not.toBeNull();
+    expect(resolveAuthorityTranslationTaskRoles!()).toEqual(['glm_classify']);
+
+    process.env.AUTHORITY_TRANSLATION_ALLOW_PAID_FALLBACK = 'true';
     expect(resolveAuthorityTranslationTaskRoles!()).toEqual(['glm_classify', 'minimax_render', 'kimi_reason']);
   });
 
@@ -119,6 +136,56 @@ describe('authority translation warmup', () => {
       failed: 0,
     }));
     expect(moduleApi.callTaskModelSpy).not.toHaveBeenCalled();
+  });
+
+  it('preloads authority, translation, and failure cache files at startup', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'authority-translation-preload-'));
+    const authorityCachePath = path.join(tmpDir, 'authority-knowledge-cache.json');
+    const translationCachePath = path.join(tmpDir, 'authority-translation-cache.json');
+    const failureCachePath = path.join(tmpDir, 'authority-translation-failures.json');
+
+    fs.writeFileSync(authorityCachePath, JSON.stringify([
+      {
+        id: 'aap-1',
+        question: 'Your baby first solid foods',
+        summary: 'How to introduce solid foods.',
+        answer: 'Start around six months when the baby shows readiness.',
+        source_language: 'en',
+        source_url: 'https://www.healthychildren.org/example',
+      },
+    ]), 'utf-8');
+    fs.writeFileSync(translationCachePath, JSON.stringify({
+      'authority-aap-1': {
+        slug: 'authority-aap-1',
+        translatedTitle: '宝宝第一口辅食',
+        translatedSummary: '如何添加辅食。',
+        translatedContent: '大约六个月时开始添加辅食。',
+        translationNotice: '缓存译文',
+        updatedAt: '2026-05-09T01:00:00.000Z',
+      },
+    }), 'utf-8');
+    fs.writeFileSync(failureCachePath, JSON.stringify({
+      'authority-aap-2': {
+        slug: 'authority-aap-2',
+        message: 'AI Gateway timeout after 12000ms',
+        attempts: 1,
+        failedAt: '2026-05-09T01:00:00.000Z',
+        retryAfterAt: '2026-05-09T01:30:00.000Z',
+      },
+    }), 'utf-8');
+
+    process.env.AUTHORITY_KNOWLEDGE_CACHE_PATH = authorityCachePath;
+    process.env.AUTHORITY_TRANSLATION_CACHE_PATH = translationCachePath;
+    process.env.AUTHORITY_TRANSLATION_FAILURE_CACHE_PATH = failureCachePath;
+
+    jest.isolateModules(() => {
+      const translationService = require('../src/services/authority-translation.service') as typeof import('../src/services/authority-translation.service');
+      expect(translationService.__authorityTranslationInternalTestUtils.preloadAuthorityTranslationRuntimeCache()).toEqual({
+        authorityRecords: 1,
+        translationEntries: 1,
+        failureEntries: 1,
+      });
+    });
   });
 
   it('reuses cached translations when the source fingerprint still matches after timestamp churn', async () => {

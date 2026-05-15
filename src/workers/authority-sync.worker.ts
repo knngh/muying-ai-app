@@ -1,6 +1,9 @@
 import '../config/env';
 import { syncAllAuthoritySources } from '../services/authority-sync.service';
-import { warmPublishedAuthorityTranslations } from '../services/authority-translation.service';
+import {
+  preloadAuthorityTranslationRuntimeCache,
+  warmPublishedAuthorityTranslations,
+} from '../services/authority-translation.service';
 import {
   resolveAuthorityWorkerTranslationWarmupOptions,
   type AuthorityWorkerTranslationWarmupPhase,
@@ -29,6 +32,10 @@ async function runTranslationWarmup(phase: AuthorityWorkerTranslationWarmupPhase
 
   translationWarmupInProgress = true;
   try {
+    if (phase === 'startup') {
+      const preloaded = preloadAuthorityTranslationRuntimeCache();
+      console.log('[Authority Worker] translation cache preloaded:', JSON.stringify(preloaded));
+    }
     const translationResult = await warmPublishedAuthorityTranslations(
       resolveAuthorityWorkerTranslationWarmupOptions(phase),
     );

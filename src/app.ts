@@ -39,11 +39,21 @@ import { cache } from './services/cache.service';
 import { setupWebSocket } from './services/websocket.service';
 import prisma from './config/database';
 import { maskSensitiveUrl } from './utils/logging';
+import { preloadAuthorityTranslationRuntimeCache } from './services/authority-translation.service';
 
 const app: Express = express();
 const PORT = env.PORT;
 const HOST = env.HOST;
 const isTestEnv = env.NODE_ENV === 'test' || typeof process.env.JEST_WORKER_ID !== 'undefined';
+
+if (!isTestEnv) {
+  try {
+    const preloaded = preloadAuthorityTranslationRuntimeCache();
+    console.log('[Authority Translation] runtime cache preloaded:', JSON.stringify(preloaded));
+  } catch (error) {
+    console.error('[Authority Translation] runtime cache preload failed:', error);
+  }
+}
 
 function buildCorsOrigin(origin: string): string | string[] {
   const origins = origin

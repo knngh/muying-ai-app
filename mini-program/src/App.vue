@@ -1,14 +1,21 @@
 <script setup lang="ts">
 import { onLaunch } from '@dcloudio/uni-app'
 import { useAppStore } from '@/stores/app'
+import { clearLocalSession, isStoredAuthTokenUsable } from '@/utils'
 
 onLaunch(() => {
-  // 检查 token，如果存在则获取用户信息
   const token = uni.getStorageSync('token')
-  if (token) {
-    const appStore = useAppStore()
-    appStore.fetchUser()
+  if (!token) {
+    return
   }
+
+  if (!isStoredAuthTokenUsable(token)) {
+    clearLocalSession()
+    return
+  }
+
+  const appStore = useAppStore()
+  appStore.fetchUser()
 })
 </script>
 

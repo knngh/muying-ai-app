@@ -61,8 +61,20 @@ export function validateEnv(): void {
     if (!process.env.AI_GLM_KEY && !process.env.AI_MODAL_DIRECT_KEY && !process.env.MODAL_DIRECT_API_KEY && !process.env.AI_GATEWAY_KEY) {
       missingRouteKeys.push('AI_GLM_KEY / AI_MODAL_DIRECT_KEY (分诊)');
     }
-    if (!process.env.AI_KIMI_KEY && !process.env.AI_GATEWAY_KEY) missingRouteKeys.push('AI_KIMI_KEY (推理)');
-    if (!process.env.AI_MINIMAX_KEY && !process.env.AI_GATEWAY_KEY) missingRouteKeys.push('AI_MINIMAX_KEY (润色)');
+    if (
+      process.env.AUTHORITY_TRANSLATION_ALLOW_PAID_FALLBACK === 'true'
+      && !process.env.AI_KIMI_KEY
+      && !process.env.AI_GATEWAY_KEY
+    ) {
+      missingRouteKeys.push('AI_KIMI_KEY (付费翻译兜底/推理)');
+    }
+    if (
+      process.env.AUTHORITY_TRANSLATION_ALLOW_PAID_FALLBACK === 'true'
+      && !process.env.AI_MINIMAX_KEY
+      && !process.env.AI_GATEWAY_KEY
+    ) {
+      missingRouteKeys.push('AI_MINIMAX_KEY (付费翻译兜底/润色)');
+    }
     if (missingRouteKeys.length > 0) {
       console.warn('[启动警告] AI_ROUTING_ENABLED=true，但以下模型 key 未配置：');
       console.warn('  ' + missingRouteKeys.join(', '));

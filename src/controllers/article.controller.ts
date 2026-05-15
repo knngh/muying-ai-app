@@ -40,6 +40,10 @@ import {
   isAuthorityTranslationCacheFresh,
   resolveAuthorityTranslationSourceUpdatedAt,
 } from '../utils/authority-translation-source';
+import {
+  resolveAuthorityTranslationTaskRoles,
+  shouldUsePrimaryOnlyForAuthorityTranslation,
+} from '../utils/authority-translation-routing';
 
 interface AuthorityCacheRecord {
   id: string;
@@ -139,20 +143,6 @@ const AUTHORITY_TRANSLATION_PROVIDER_TIMEOUT_MS = Math.min(
   45000,
   Math.max(3000, Number.parseInt(process.env.AUTHORITY_TRANSLATION_PROVIDER_TIMEOUT_MS || '45000', 10) || 45000),
 );
-function resolveAuthorityTranslationTaskRoles(): AITaskModelRole[] {
-  const configured = (process.env.AUTHORITY_TRANSLATION_TASK_ROLES || 'glm_classify,minimax_render')
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean);
-  const supported = new Set<AITaskModelRole>(['minimax_render', 'glm_classify', 'kimi_reason']);
-  const roles = configured.filter((item): item is AITaskModelRole => supported.has(item as AITaskModelRole));
-  const primaryRoles: AITaskModelRole[] = roles.length > 0 ? roles : ['glm_classify', 'minimax_render'];
-  return Array.from(new Set<AITaskModelRole>([
-    ...primaryRoles,
-    'glm_classify',
-    'kimi_reason',
-  ]));
-}
 const AUTHORITY_TRANSLATION_TASK_ROLES: AITaskModelRole[] = resolveAuthorityTranslationTaskRoles();
 const AUTHORITY_TRANSLATION_LIST_PREWARM_LIMIT = Math.max(
   0,
@@ -1121,6 +1111,10 @@ async function translateAuthorityRecord(slug: string, record: AuthorityCacheReco
         temperature: 0.2,
         maxTokens: AUTHORITY_TRANSLATION_MAX_TOKENS,
         timeoutMs: AUTHORITY_TRANSLATION_PROVIDER_TIMEOUT_MS,
+        primaryOnly: shouldUsePrimaryOnlyForAuthorityTranslation(taskRole),
+        stopOnProviderFailure: shouldUsePrimaryOnlyForAuthorityTranslation(taskRole)
+          ? ['modal-direct']
+          : undefined,
       });
     } catch (error) {
       lastError = error;

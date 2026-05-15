@@ -415,6 +415,18 @@ function buildGLMTaskProvider(): GatewayProvider | null {
   return buildTaskProvider('task-glm', 'task-glm', AI_GLM_URL, AI_GLM_KEY, AI_GLM_MODEL, AI_GLM_PROVIDER);
 }
 
+function hasConfiguredGLMTaskKey(): boolean {
+  return Boolean(process.env.AI_GLM_KEY || process.env.AI_MODAL_DIRECT_KEY || process.env.MODAL_DIRECT_API_KEY);
+}
+
+function hasConfiguredKimiTaskKey(): boolean {
+  return Boolean(process.env.AI_KIMI_KEY);
+}
+
+function hasConfiguredMiniMaxTaskKey(): boolean {
+  return Boolean(process.env.AI_MINIMAX_KEY);
+}
+
 function dedupeProviders(providers: Array<GatewayProvider | null>): GatewayProvider[] {
   const unique = new Map<string, GatewayProvider>();
 
@@ -502,31 +514,40 @@ function resolveProviderChain(
   ]);
 }
 
-function resolveTaskProviderChain(taskRole: AITaskModelRole): GatewayProvider[] {
+function resolveTaskProviderChain(
+  taskRole: AITaskModelRole,
+  options: { primaryOnly?: boolean } = {},
+): GatewayProvider[] {
   switch (taskRole) {
     case 'glm_classify':
-      return dedupeProviders([
-        buildGLMTaskProvider(),
-        buildLegacyProvider('glm-5'),
-        buildGeneralProvider(),
-        buildLegacyProvider(),
-      ]);
+      return dedupeProviders(options.primaryOnly
+        ? [hasConfiguredGLMTaskKey() ? buildGLMTaskProvider() : null]
+        : [
+          buildGLMTaskProvider(),
+          buildLegacyProvider('glm-5'),
+          buildGeneralProvider(),
+          buildLegacyProvider(),
+        ]);
     case 'kimi_reason':
-      return dedupeProviders([
-        buildKimiTaskProvider(),
-        buildLegacyProvider('kimi-k2.5'),
-        buildMedicalPrimaryProvider(),
-        buildLegacyProvider(),
-      ]);
+      return dedupeProviders(options.primaryOnly
+        ? [hasConfiguredKimiTaskKey() ? buildKimiTaskProvider() : null]
+        : [
+          buildKimiTaskProvider(),
+          buildLegacyProvider('kimi-k2.5'),
+          buildMedicalPrimaryProvider(),
+          buildLegacyProvider(),
+        ]);
     case 'minimax_render':
-      return dedupeProviders([
-        buildMiniMaxTaskProvider(),
-        buildLegacyProvider('minimax-2.5'),
-        buildGeneralProvider(),
-        buildLegacyProvider(),
-      ]);
+      return dedupeProviders(options.primaryOnly
+        ? [hasConfiguredMiniMaxTaskKey() ? buildMiniMaxTaskProvider() : null]
+        : [
+          buildMiniMaxTaskProvider(),
+          buildLegacyProvider('minimax-2.5'),
+          buildGeneralProvider(),
+          buildLegacyProvider(),
+        ]);
     default:
-      return dedupeProviders([buildLegacyProvider()]);
+      return options.primaryOnly ? [] : dedupeProviders([buildLegacyProvider()]);
   }
 }
 
@@ -828,9 +849,10 @@ export async function callTaskModelDetailed(
     maxTokens?: number;
     timeoutMs?: number;
     stopOnProviderFailure?: string[];
+    primaryOnly?: boolean;
   } = {}
 ): Promise<AIGatewayTextResult> {
-  const providers = resolveTaskProviderChain(taskRole);
+  const providers = resolveTaskProviderChain(taskRole, { primaryOnly: options.primaryOnly });
   if (providers.length === 0) {
     throw new Error(`未配置可用的任务模型: ${taskRole}`);
   }

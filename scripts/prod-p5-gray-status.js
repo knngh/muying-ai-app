@@ -95,6 +95,25 @@ function coveredEntrySources(items) {
     .sort();
 }
 
+function productEntrypointEvents(items) {
+  if (!Array.isArray(items)) {
+    return 0;
+  }
+  return items.reduce((sum, item) => {
+    const record = toRecord(item);
+    return sum + Math.max(
+      toNumber(record.totalTrackedEvents),
+      toNumber(record.clickCount)
+        + toNumber(record.prefillCount)
+        + toNumber(record.messageCount)
+        + toNumber(record.serverStartCount)
+        + toNumber(record.serverResponseCount)
+        + toNumber(record.serverErrorCount)
+        + toNumber(record.feedbackCount),
+    );
+  }, 0);
+}
+
 function buildP5GrayReport(input) {
   const blockers = [];
   const attention = [];
@@ -141,7 +160,7 @@ function buildP5GrayReport(input) {
   const errorRate = requestsStarted > 0 ? requestErrors / requestsStarted : 0;
   const completionRate = requestsStarted > 0 ? responsesCompleted / requestsStarted : null;
   const realEntrypointEvents = toNumber(serverAi.realEntrySourceEventCount);
-  const productEntrypointEvents = sumCoverageEvents(productCoverage);
+  const realProductEntrypointEvents = productEntrypointEvents(productCoverage);
   const opsEntrypointEvents = sumCoverageEvents(opsCoverage);
 
   if (requestsStarted > 0 && completionRate !== null && completionRate < 0.9) {
@@ -156,7 +175,7 @@ function buildP5GrayReport(input) {
     blockers.push('ops product entrypoint coverage is missing');
   }
 
-  if (realEntrypointEvents <= 0 && productEntrypointEvents <= 0) {
+  if (realEntrypointEvents <= 0 && realProductEntrypointEvents <= 0) {
     attention.push('real user AI entrypoint traffic is still 0');
     nextActions.push('Keep P5 in gray observation and collect real app traffic before closing P5.');
   }
@@ -222,7 +241,7 @@ function buildP5GrayReport(input) {
       errorRate: Number(errorRate.toFixed(4)),
       degradedRate,
       realEntrySourceEventCount: realEntrypointEvents,
-      productEntrypointEvents,
+      productEntrypointEvents: realProductEntrypointEvents,
       opsEntrypointEvents,
       coveredProductEntrypoints: coveredEntrySources(productCoverage),
       coveredOpsEntrypoints: coveredEntrySources(opsCoverage),

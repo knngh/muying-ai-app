@@ -1,6 +1,6 @@
 # P5 灰度上线记录
 
-更新时间：2026-05-14
+更新时间：2026-05-15
 
 ## 1. 阶段目标
 
@@ -175,3 +175,11 @@ P5 下一步不再是继续写新功能，而是进入真实灰度观察：
 P5 已启动。
 
 当前状态是“可进入灰度，但不可关闭 P5”。关闭 P5 的前置条件是出现真实用户入口流量，并且连续观察期内没有 blocker。
+
+## 10. 2026-05-15 P5 收尾更新
+
+- 权威翻译默认改为只走免费 Modal Direct `zai-org/GLM-5.1-FP8` 任务通道；`AUTHORITY_TRANSLATION_TASK_ROLES` 默认/示例均为 `glm_classify`。
+- 付费翻译兜底改为显式开关：只有 `AUTHORITY_TRANSLATION_ALLOW_PAID_FALLBACK=true` 时才允许 `kimi_reason` / `minimax_render` 参与权威翻译。
+- API 与 authority worker 启动时会显式加载 authority cache、translation cache 和 failure cache，worker 启动阶段仍保持只读扫描，避免重启即打模型。
+- P5 gate 现在会把真实产品入口 coverage 的 click/message/server events 纳入 `productEntrypointEvents`，避免 `realEntrySourceEventCount` 偏保守时误报真实入口为 0。
+- 小程序启动态会先校验本地 JWT 可用性，过期/坏 token 直接清理，不再无意义请求 `/auth/me` 造成启动 401 刷屏。

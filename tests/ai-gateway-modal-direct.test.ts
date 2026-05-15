@@ -109,6 +109,29 @@ describe('AI gateway Modal Direct provider', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it('can restrict task calls to the configured primary provider', async () => {
+    delete process.env.AI_MODAL_DIRECT_KEY;
+    delete process.env.AI_GLM_KEY;
+    process.env.AI_GATEWAY_KEY = 'legacy-key';
+    process.env.AI_OPENROUTER_KEY = 'legacy-key';
+
+    const fetchMock = jest.spyOn(globalThis, 'fetch');
+
+    let callTaskModelDetailed: typeof import('../src/services/ai-gateway.service').callTaskModelDetailed;
+    jest.isolateModules(() => {
+      const aiGateway = require('../src/services/ai-gateway.service') as typeof import('../src/services/ai-gateway.service');
+      callTaskModelDetailed = aiGateway.callTaskModelDetailed;
+    });
+
+    await expect(callTaskModelDetailed('glm_classify', [
+      { role: 'user', content: 'ping' },
+    ], {
+      primaryOnly: true,
+    })).rejects.toThrow('未配置可用的任务模型: glm_classify');
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('reserves enough completion budget for Modal Direct reasoning models', async () => {
     process.env.AI_MODAL_DIRECT_KEY = 'test-modal-key';
     process.env.AI_MODAL_DIRECT_MIN_COMPLETION_TOKENS = '1000';

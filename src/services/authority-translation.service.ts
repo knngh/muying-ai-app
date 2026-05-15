@@ -26,6 +26,10 @@ import {
   isAuthorityTranslationCacheFresh,
   resolveAuthorityTranslationSourceUpdatedAt,
 } from '../utils/authority-translation-source';
+import {
+  resolveAuthorityTranslationTaskRoles,
+  shouldUsePrimaryOnlyForAuthorityTranslation,
+} from '../utils/authority-translation-routing';
 
 export { resolveAuthorityTranslationSourceUpdatedAt } from '../utils/authority-translation-source';
 
@@ -164,21 +168,6 @@ function parseNonNegativeInt(value: string | undefined, fallback: number): numbe
 
 const AUTHORITY_TRANSLATION_SYNC_LIMIT = parseNonNegativeInt(process.env.AUTHORITY_TRANSLATION_SYNC_LIMIT, 10);
 const AUTHORITY_TRANSLATION_SYNC_DELAY_MS = parseNonNegativeInt(process.env.AUTHORITY_TRANSLATION_SYNC_DELAY_MS, 30000);
-
-function resolveAuthorityTranslationTaskRoles(): AITaskModelRole[] {
-  const configured = (process.env.AUTHORITY_TRANSLATION_TASK_ROLES || 'glm_classify,minimax_render')
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean);
-  const supported = new Set<AITaskModelRole>(['minimax_render', 'glm_classify', 'kimi_reason']);
-  const roles = configured.filter((item): item is AITaskModelRole => supported.has(item as AITaskModelRole));
-  const primaryRoles: AITaskModelRole[] = roles.length > 0 ? roles : ['glm_classify', 'minimax_render'];
-  return Array.from(new Set<AITaskModelRole>([
-    ...primaryRoles,
-    'glm_classify',
-    'kimi_reason',
-  ]));
-}
 
 const AUTHORITY_TRANSLATION_TASK_ROLES: AITaskModelRole[] = resolveAuthorityTranslationTaskRoles();
 
@@ -581,6 +570,22 @@ export function loadAuthorityTranslationCache(): Record<string, AuthorityTransla
   }
 
   return authorityTranslationCacheMemo;
+}
+
+export function preloadAuthorityTranslationRuntimeCache(): {
+  authorityRecords: number;
+  translationEntries: number;
+  failureEntries: number;
+} {
+  const authorityRecords = loadAuthorityCacheRecords().length;
+  const translationEntries = Object.keys(loadAuthorityTranslationCache()).length;
+  const failureEntries = Object.keys(loadAuthorityTranslationFailureCache()).length;
+
+  return {
+    authorityRecords,
+    translationEntries,
+    failureEntries,
+  };
 }
 
 function saveAuthorityTranslationCache(data: Record<string, AuthorityTranslationCacheRecord>): void {
@@ -1032,6 +1037,7 @@ export async function translateAuthorityRecord(
         temperature: 0.2,
         maxTokens: AUTHORITY_TRANSLATION_MAX_TOKENS,
         timeoutMs: AUTHORITY_TRANSLATION_PROVIDER_TIMEOUT_MS,
+        primaryOnly: shouldUsePrimaryOnlyForAuthorityTranslation(taskRole),
         stopOnProviderFailure: taskRole === 'glm_classify' && isModalDirectGlmFirstForTranslation()
           ? ['modal-direct']
           : undefined,
@@ -1228,4 +1234,5 @@ export const __authorityTranslationInternalTestUtils = {
   shouldStopAuthorityTranslationWarmupBatch,
   resolveActiveAuthorityTranslationQuotaBlock,
   resolveActiveAuthorityTranslationTransientBlock,
+  preloadAuthorityTranslationRuntimeCache,
 };

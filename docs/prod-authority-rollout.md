@@ -6,7 +6,7 @@
 
 包含：
 
-- `Modal Direct GLM-5.1-FP8 + Kimi 2.5 + MiniMax 2.5`
+- `Modal Direct GLM-5.1-FP8` 负责权威翻译任务；普通问答/医疗问答仍按生产 AI 路由走 Kimi / MiniMax
 - 小程序社区下线，知识库主入口上线
 - 权威来源抓取、审核、发布
 
@@ -31,7 +31,8 @@ AI_GLM_URL=https://api.us-west-2.modal.direct/v1
 AI_GLM_KEY=your-modal-direct-api-key
 AI_GLM_MODEL=zai-org/GLM-5.1-FP8
 AI_GLM_PROVIDER=modal-direct
-AUTHORITY_TRANSLATION_TASK_ROLES=glm_classify,minimax_render
+AUTHORITY_TRANSLATION_TASK_ROLES=glm_classify
+AUTHORITY_TRANSLATION_ALLOW_PAID_FALLBACK=false
 
 AI_KIMI_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
 AI_KIMI_KEY=your-bailian-api-key
