@@ -131,6 +131,13 @@ async function getJson(url, token) {
 }
 
 async function login(username, password) {
+  if (username === VIP_USERNAME && process.env.VIP_TOKEN) {
+    return process.env.VIP_TOKEN;
+  }
+  if (username === ADMIN_USERNAME && process.env.ADMIN_TOKEN) {
+    return process.env.ADMIN_TOKEN;
+  }
+
   const json = await postJson(`${API_BASE}/auth/login`, { username, password });
   const token = json?.data?.token;
   if (!token) {

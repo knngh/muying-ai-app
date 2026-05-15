@@ -120,13 +120,13 @@ print_json_with_status "GET" "${LEGACY_API_BASE}/auth/check/username?username=le
   jq '{httpStatus,code,message,available:.data.available}'
 
 echo "[2/8] free user"
-FREE_TOKEN="$(login "${FREE_USERNAME}" "${FREE_PASSWORD}")"
+FREE_TOKEN="${FREE_TOKEN:-$(login "${FREE_USERNAME}" "${FREE_PASSWORD}")}"
 curl -fsS "${API_BASE}/subscription/status" -H "Authorization: Bearer ${FREE_TOKEN}" | jq '{status:.data.status,isVip:.data.isVip,aiLimit:.data.aiLimit,remainingToday:.data.remainingToday}'
 curl -fsS "${API_BASE}/quota/today" -H "Authorization: Bearer ${FREE_TOKEN}" | jq '{aiLimit:.data.aiLimit,remainingToday:.data.remainingToday,isUnlimited:.data.isUnlimited}'
 print_json_with_status "GET" "${API_BASE}/report/weekly/latest" "" -H "Authorization: Bearer ${FREE_TOKEN}" | jq '{httpStatus,code,message,data}'
 
 echo "[3/8] vip user"
-VIP_TOKEN="$(login "${VIP_USERNAME}" "${VIP_PASSWORD}")"
+VIP_TOKEN="${VIP_TOKEN:-$(login "${VIP_USERNAME}" "${VIP_PASSWORD}")}"
 curl -fsS "${API_BASE}/subscription/status" -H "Authorization: Bearer ${VIP_TOKEN}" | jq '{status:.data.status,plan:.data.currentPlanCode,aiLimit:.data.aiLimit,remainingToday:.data.remainingToday}'
 curl -fsS "${API_BASE}/quota/today" -H "Authorization: Bearer ${VIP_TOKEN}" | jq '{aiLimit:.data.aiLimit,remainingToday:.data.remainingToday,isUnlimited:.data.isUnlimited}'
 curl -fsS "${API_BASE}/report/weekly/latest" -H "Authorization: Bearer ${VIP_TOKEN}" | jq '{title:.data.title,stageLabel:.data.stageLabel,createdAt:.data.createdAt}'
@@ -151,7 +151,7 @@ curl -fsS "${API_BASE}/analytics/events" \
 
 if [[ "${RUN_STANDARD_SCHEDULE_SMOKE}" == "true" ]]; then
   echo "[7/8] standard schedule"
-  POSTPARTUM_TOKEN="$(login "${POSTPARTUM_USERNAME}" "${POSTPARTUM_PASSWORD}")"
+  POSTPARTUM_TOKEN="${POSTPARTUM_TOKEN:-$(login "${POSTPARTUM_USERNAME}" "${POSTPARTUM_PASSWORD}")}"
   assert_standard_schedule "${POSTPARTUM_TOKEN}"
 fi
 
@@ -165,7 +165,7 @@ if [[ "${RUN_KNOWLEDGE_SMOKE}" == "true" ]]; then
 fi
 
 if [[ "${RUN_ADMIN_FUNNEL}" == "true" ]]; then
-  ADMIN_TOKEN="$(login "${ADMIN_USERNAME}" "${ADMIN_PASSWORD}")"
+  ADMIN_TOKEN="${ADMIN_TOKEN:-$(login "${ADMIN_USERNAME}" "${ADMIN_PASSWORD}")}"
   echo "[admin] funnel"
   curl -fsS "${API_BASE}/analytics/funnel?rangeDays=7" -H "Authorization: Bearer ${ADMIN_TOKEN}" | jq '{rangeDays:.data.rangeDays,steps:.data.steps}'
   echo "[admin] ai overview"

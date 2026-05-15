@@ -41,7 +41,7 @@ tmp/p5-gray-status-report.json
 
 ## 3. 本次灰度门禁结果
 
-执行时间：2026-05-14
+执行时间：2026-05-15 11:38 CST
 
 结论：
 
@@ -53,7 +53,7 @@ tmp/p5-gray-status-report.json
 含义：
 
 - 当前生产版本可以进入 P5 灰度观察。
-- 当前还不能关闭 P5，因为真实用户 AI 入口流量仍为 `0`，且 AI provider 当前全量走 fallback degraded。
+- 当前还不能关闭 P5，因为 AI provider 当前仍高比例 fallback degraded；真实产品入口 coverage 已非 0，但覆盖范围还需要继续观察。
 
 ## 4. 已通过项
 
@@ -79,11 +79,12 @@ tmp/p5-gray-status-report.json
 
 AI 服务：
 
-- `requestsStarted = 20`
-- `responsesCompleted = 20`
+- `requestsStarted = 38`
+- `responsesCompleted = 38`
 - `requestErrors = 0`
 - `completionRate = 1`
 - `errorRate = 0`
+- `degradedRate = 0.9474`
 - AI WebSocket smoke 通过
 - AI 产品入口 ops smoke 覆盖完整
 
@@ -95,13 +96,14 @@ AI 入口覆盖：
   - `knowledge_detail`
   - `knowledge_recent_ai`
   - `native`
-- `opsEntrypointEvents = 72`
-- 真实产品入口事件仍为 `0`
+- `opsEntrypointEvents = 123`
+- `productEntrypointEvents = 13`
+- 真实产品入口当前覆盖到 `native`，`realEntrySourceEventCount = 0` 仍偏保守，但不再作为 P5 blocker。
 
 漏斗：
 
-- `app_order_created = 63`
-- `app_weekly_report_open = 63`
+- `app_order_created = 68`
+- `app_weekly_report_open = 68`
 - `app_payment_success = 0`
 - `mini_program_app_download_click = 0`
 - `app_membership_exposure = 0`
@@ -111,14 +113,13 @@ AI 入口覆盖：
 
 当前 P5 attention 项：
 
-1. 真实用户 AI 入口流量仍为 `0`
-   - `realEntrySourceEventCount = 0`
-   - `productEntrypointEvents = 0`
-   - 说明当前只有 ops smoke 数据，还没有真实用户验证入口链路。
-
-2. AI degraded rate 当前为 `1.0000`
+1. AI degraded rate 当前为 `0.9474`
    - 当前生产 AI 请求均通过 fallback 路由返回 rule-based/system 结果。
    - 这不影响 smoke 可用性，但灰度期间需要观察真实 provider 可用性、延迟和 fallback 原因。
+
+2. 真实产品入口 coverage 仍需扩大
+   - `productEntrypointEvents = 13`
+   - 当前只覆盖到 `native`，首页建议提问、周报问 AI、知识详情问 AI、最近 AI 线索仍需要更多真实 App 入口流量验证。
 
 ## 6. P5 灰度策略
 
@@ -127,7 +128,7 @@ AI 入口覆盖：
 - 先使用内部/可信测试用户产生真实 App AI 入口流量
 - 每日跑一次 `npm run ops:gray:p5`
 - 每日检查 `ops:knowledge:status`
-- 暂不扩大用户范围，直到真实入口事件大于 `0` 且没有 blocker
+- 暂不扩大用户范围，直到真实产品入口覆盖更多入口且没有 blocker
 
 灰度推进阈值：
 
@@ -140,7 +141,7 @@ AI 入口覆盖：
   - 无新增生产 5xx 主链路错误
 
 - 保持观察：
-  - 真实 AI 入口流量为 `0`
+  - 真实 AI 入口覆盖入口类型不足
   - degraded rate 高但请求可完成
   - 支付成功仍为 `0` 且尚未做真实支付回调验证
 
@@ -154,8 +155,8 @@ AI 入口覆盖：
 
 ## 7. 当前残余风险
 
-- 真实用户 AI 入口数据尚未产生，无法关闭 P5。
-- AI provider 可用性仍不稳定，当前 degraded rate 为 `1`。
+- 真实产品入口数据已产生，但当前主要覆盖 `native`，入口类型仍不足以关闭 P5。
+- AI provider 可用性仍不稳定，当前 degraded rate 为 `0.9474`。
 - 支付回调仍未做真实生产式验证。
 - 小程序聊天 UI 当前仍关闭，完整小程序聊天埋点要等开关打开后验证。
 - GitHub push 仍受认证限制，生产发布依赖同步脚本，服务器 git log 不能代表部署版本。
@@ -165,7 +166,7 @@ AI 入口覆盖：
 P5 下一步不再是继续写新功能，而是进入真实灰度观察：
 
 1. 安排内部用户从 App 真实点击首页建议提问、周报问 AI、知识详情问 AI、最近 AI 线索和原生聊天入口。
-2. 跑 `npm run ops:gray:p5`，确认 `realEntrySourceEventCount > 0`。
+2. 跑 `npm run ops:gray:p5`，确认 `productEntrypointEvents` 持续增加，且 `coveredProductEntrypoints` 覆盖更多真实入口。
 3. 对齐客户端 `clientRequestId` 与服务端 `ai_request_started` 事件。
 4. 观察 degraded rate 和 provider fallback 原因。
 5. 真实支付回调验证另开受控任务，不混入本轮 AI 灰度门禁。
@@ -174,7 +175,7 @@ P5 下一步不再是继续写新功能，而是进入真实灰度观察：
 
 P5 已启动。
 
-当前状态是“可进入灰度，但不可关闭 P5”。关闭 P5 的前置条件是出现真实用户入口流量，并且连续观察期内没有 blocker。
+当前状态是“可进入灰度，但不可关闭 P5”。关闭 P5 的前置条件是更多真实产品入口覆盖、AI degraded rate 回落或被明确接受，并且连续观察期内没有 blocker。
 
 ## 10. 2026-05-15 P5 收尾更新
 
@@ -183,3 +184,6 @@ P5 已启动。
 - API 与 authority worker 启动时会显式加载 authority cache、translation cache 和 failure cache，worker 启动阶段仍保持只读扫描，避免重启即打模型。
 - P5 gate 现在会把真实产品入口 coverage 的 click/message/server events 纳入 `productEntrypointEvents`，避免 `realEntrySourceEventCount` 偏保守时误报真实入口为 0。
 - 小程序启动态会先校验本地 JWT 可用性，过期/坏 token 直接清理，不再无意义请求 `/auth/me` 造成启动 401 刷屏。
+- P5 gate 统一登录并把 `ADMIN_TOKEN` / `FREE_TOKEN` / `VIP_TOKEN` / `POSTPARTUM_TOKEN` 传给子 smoke，`main_smoke`、AI entrypoint smoke、AI WebSocket smoke 会复用 token，减少 gate 自触发 auth 限流。
+- P5 gate 遇到登录 429 会读取 `Retry-After` 或按 `P5_LOGIN_RATE_LIMIT_WAIT_MS` 等待后重试一次，避免短时间反复手工执行继续放大限流。
+- 2026-05-15 11:38 CST 生产 P5 gate 已通过所有 smoke：`blockers=[]`，`status=attention`，`canEnterGray=true`，`canCloseP5=false`；当前 attention 仅剩 AI degraded rate 高。

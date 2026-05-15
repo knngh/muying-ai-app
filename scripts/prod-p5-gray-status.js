@@ -16,7 +16,11 @@ const FREE_USERNAME = process.env.FREE_USERNAME || 'demo_free_user';
 const FREE_PASSWORD = process.env.FREE_PASSWORD || DEFAULT_PASSWORD;
 const VIP_USERNAME = process.env.VIP_USERNAME || 'demo_vip_user';
 const VIP_PASSWORD = process.env.VIP_PASSWORD || DEFAULT_PASSWORD;
+const POSTPARTUM_USERNAME = process.env.POSTPARTUM_USERNAME || 'demo_postpartum_user';
+const POSTPARTUM_PASSWORD = process.env.POSTPARTUM_PASSWORD || DEFAULT_PASSWORD;
 const RANGE_DAYS = Number(process.env.P5_RANGE_DAYS || 7);
+const LOGIN_RETRY_ATTEMPTS = Number(process.env.P5_LOGIN_RETRY_ATTEMPTS || 1);
+const LOGIN_RATE_LIMIT_WAIT_MS = Number(process.env.P5_LOGIN_RATE_LIMIT_WAIT_MS || 15 * 60 * 1000);
 
 function envFlag(name, defaultValue) {
   const value = process.env[name];
@@ -58,6 +62,10 @@ function tail(value, maxLength = 4000) {
     return '';
   }
   return value.length > maxLength ? value.slice(-maxLength) : value;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function toRecord(value) {
@@ -267,7 +275,10 @@ function runCommand(spec) {
   console.log(`[p5] ${spec.command}`);
   const result = spawnSync('npm', spec.args, {
     cwd: ROOT,
-    env: process.env,
+    env: {
+      ...process.env,
+      ...(spec.env || {}),
+    },
     encoding: 'utf8',
     maxBuffer: 1024 * 1024 * 20,
   });
@@ -297,6 +308,10 @@ async function postJson(url, body, token) {
   if (!response.ok) {
     const error = new Error(`HTTP ${response.status}: ${json.message || text}`);
     error.status = response.status;
+    const retryAfter = Number(response.headers.get('retry-after'));
+    if (Number.isFinite(retryAfter) && retryAfter > 0) {
+      error.retryAfterMs = retryAfter * 1000;
+    }
     throw error;
   }
   return json;
@@ -325,14 +340,39 @@ async function login(username, password) {
   return token;
 }
 
-async function loginDemoTokens() {
-  const [adminToken, freeToken, vipToken] = await Promise.all([
-    login(ADMIN_USERNAME, ADMIN_PASSWORD),
-    login(FREE_USERNAME, FREE_PASSWORD),
-    login(VIP_USERNAME, VIP_PASSWORD),
-  ]);
+function isRateLimitError(error) {
+  return error && typeof error === 'object' && error.status === 429;
+}
 
-  return { adminToken, freeToken, vipToken };
+async function loginWithRateLimitRetry(username, password) {
+  let attempt = 0;
+
+  while (true) {
+    try {
+      return await login(username, password);
+    } catch (error) {
+      if (!isRateLimitError(error) || attempt >= LOGIN_RETRY_ATTEMPTS) {
+        throw error;
+      }
+
+      const retryAfterMs = Math.max(
+        1000,
+        Number(error.retryAfterMs) || LOGIN_RATE_LIMIT_WAIT_MS,
+      );
+      attempt += 1;
+      console.warn(`[p5-gray-status] login for ${username} was rate limited; retrying after ${retryAfterMs}ms`);
+      await sleep(retryAfterMs);
+    }
+  }
+}
+
+async function loginDemoTokens() {
+  const adminToken = process.env.ADMIN_TOKEN || await loginWithRateLimitRetry(ADMIN_USERNAME, ADMIN_PASSWORD);
+  const freeToken = process.env.FREE_TOKEN || await loginWithRateLimitRetry(FREE_USERNAME, FREE_PASSWORD);
+  const vipToken = process.env.VIP_TOKEN || await loginWithRateLimitRetry(VIP_USERNAME, VIP_PASSWORD);
+  const postpartumToken = process.env.POSTPARTUM_TOKEN || await loginWithRateLimitRetry(POSTPARTUM_USERNAME, POSTPARTUM_PASSWORD);
+
+  return { adminToken, freeToken, vipToken, postpartumToken };
 }
 
 async function collectSnapshot(tokens) {
@@ -371,7 +411,16 @@ async function collectSnapshot(tokens) {
 
 async function main() {
   const tokens = await loginDemoTokens();
-  const commands = COMMANDS.map(runCommand);
+  const commandEnv = {
+    ADMIN_TOKEN: tokens.adminToken,
+    FREE_TOKEN: tokens.freeToken,
+    VIP_TOKEN: tokens.vipToken,
+    POSTPARTUM_TOKEN: tokens.postpartumToken,
+  };
+  const commands = COMMANDS.map((command) => runCommand({
+    ...command,
+    env: commandEnv,
+  }));
   const snapshot = await collectSnapshot(tokens);
   const report = buildP5GrayReport({
     generatedAt: new Date().toISOString(),
