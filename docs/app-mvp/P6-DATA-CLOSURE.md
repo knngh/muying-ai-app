@@ -1,6 +1,6 @@
 # P6 数据闭环
 
-更新时间：2026-04-06
+更新时间：2026-05-15
 
 ## 1. 本阶段目标
 
@@ -32,6 +32,7 @@ P6 对应 MVP 路线中的“数据闭环”阶段，目标是：
 - 表：`analytics_events`
 - 接口：`POST /api/v1/analytics/events`
 - 漏斗查询：`GET /api/v1/analytics/funnel?rangeDays=7`
+- 生产报告：`npm run ops:data:p6`
 
 已完成生产部署：
 
@@ -85,7 +86,10 @@ P6 对应 MVP 路线中的“数据闭环”阶段，目标是：
 说明：
 
 - 这是 MVP 的最小经营漏斗，不代表完整用户旅程
-- 后续可再补 AI 提问、知识阅读、社区互动等中间行为
+- `steps` 保留事件次数口径，用于观察行为总量
+- `uniqueSteps` 使用 `userId -> clientId -> sessionId` 优先级去重，用于观察接近用户数的转化
+- `uniqueSummary.identityCoverageRate` 用于观察埋点身份覆盖，低于 0.8 时 P6 报告会进入 attention
+- 后续可再补知识阅读、社区互动等中间行为
 
 ## 5. 观测方式
 
@@ -130,17 +134,55 @@ P6 对应 MVP 路线中的“数据闭环”阶段，目标是：
         "count": 10,
         "conversionRate": 100
       }
+    ],
+    "uniqueIdentityPriority": ["userId", "clientId", "sessionId"],
+    "uniqueSummary": {
+      "firstStepUniqueCount": 8,
+      "totalIdentifiedEvents": 25,
+      "totalUnidentifiedEvents": 1,
+      "identityCoverageRate": 0.9615
+    },
+    "uniqueSteps": [
+      {
+        "eventName": "mini_program_app_download_click",
+        "label": "小程序下载点击",
+        "uniqueCount": 8,
+        "unidentifiedCount": 1,
+        "conversionRate": 100
+      }
     ]
   }
 }
 ```
+
+### 5.3 P6 生产报告
+
+`npm run ops:data:p6`
+
+默认输出：
+
+- 终端 JSON
+- `tmp/p6-data-closure-report.json`
+
+报告会汇总：
+
+- `/health` 与 `/api/health`
+- `/api/v1/analytics/funnel?rangeDays=7`
+- `/api/v1/analytics/ai-overview?rangeDays=7`
+- `/api/v1/ai/health`
+
+状态含义：
+
+- `pass`：漏斗、身份覆盖、支付与 AI 数据均满足关闭 P6 的最小条件
+- `attention`：接口可用，但真实数据、支付、身份覆盖或 AI 健康仍需观察
+- `blocker`：健康检查或漏斗结构异常，不能作为日报入口
 
 ## 6. 当前限制
 
 当前埋点体系仍然是 MVP 口径，保留这些约束：
 
 - 只记录关键事件，不记录完整页面访问流
-- 漏斗统计当前基于事件次数，不是严格用户去重漏斗
+- 去重漏斗不是严格跨端归因，只能按当前事件携带的 `userId / clientId / sessionId` 合并
 - 管理查询依赖管理员账号访问
 - App / 小程序侧埋点代码已完成，但真正开始持续出数仍依赖下一次客户端发布
 
@@ -150,6 +192,8 @@ P6 对应 MVP 路线中的“数据闭环”阶段，目标是：
 
 - 本地 `npx prisma generate`
 - 本地后端 `npm run build`
+- 本地 `npm test -- --runInBand tests/analytics-service.test.ts`
+- 本地 `npm test -- --runInBand tests/p6-data-closure-status.test.ts`
 - 本地 `mobile` `npx tsc --noEmit`
 - 本地 `mini-program` `npm run type-check`
 - 生产 `POST /api/v1/analytics/events` smoke
@@ -165,10 +209,10 @@ P6 对应 MVP 路线中的“数据闭环”阶段，目标是：
 
 ## 8. 下一步建议
 
-P6 当前已具备最小闭环能力。
+P6 当前已具备最小闭环能力，并新增生产日报入口。
 
 后续若继续增强，建议顺序：
 
-1. 把漏斗统计升级为按 `userId / clientId` 去重
-2. 补 AI 提问、知识详情打开、社区发帖评论等中间行为
-3. 增加日报 / 周报看板导出
+1. 把 `ops:data:p6` 固化到每日巡检流程
+2. 补知识详情打开、社区发帖评论等中间行为
+3. 增加日报 / 周报看板导出或管理后台页面

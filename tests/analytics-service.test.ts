@@ -52,6 +52,7 @@ describe('analytics.service 单元测试', () => {
       { eventName: 'app_membership_exposure', _count: { _all: 10 } },
       { eventName: 'app_order_created', _count: { _all: 5 } },
     ]);
+    mockAnalyticsFindMany.mockResolvedValue([]);
 
     const result = await getAnalyticsFunnel(7);
 
@@ -83,6 +84,7 @@ describe('analytics.service 单元测试', () => {
     mockAnalyticsGroupBy.mockResolvedValue([
       { eventName: 'app_payment_success', _count: { _all: 3 } },
     ]);
+    mockAnalyticsFindMany.mockResolvedValue([]);
 
     const result = await getAnalyticsFunnel(7);
 
@@ -95,6 +97,109 @@ describe('analytics.service 单元测试', () => {
       eventName: 'app_payment_success',
       count: 3,
       conversionRate: null,
+    });
+  });
+
+  it('getAnalyticsFunnel 会按 userId/clientId/sessionId 生成去重漏斗并统计身份缺失事件', async () => {
+    mockAnalyticsGroupBy.mockResolvedValue([
+      { eventName: 'mini_program_app_download_click', _count: { _all: 4 } },
+      { eventName: 'app_membership_exposure', _count: { _all: 3 } },
+      { eventName: 'app_payment_success', _count: { _all: 2 } },
+    ]);
+    mockAnalyticsFindMany.mockResolvedValue([
+      {
+        eventName: 'mini_program_app_download_click',
+        userId: null,
+        clientId: 'client-a',
+        sessionId: 'session-a',
+        createdAt: new Date('2026-05-01T00:00:00.000Z'),
+      },
+      {
+        eventName: 'mini_program_app_download_click',
+        userId: null,
+        clientId: 'client-a',
+        sessionId: 'session-a-2',
+        createdAt: new Date('2026-05-01T00:01:00.000Z'),
+      },
+      {
+        eventName: 'mini_program_app_download_click',
+        userId: 42n,
+        clientId: 'client-user-42',
+        sessionId: 'session-user-42',
+        createdAt: new Date('2026-05-01T00:02:00.000Z'),
+      },
+      {
+        eventName: 'mini_program_app_download_click',
+        userId: null,
+        clientId: null,
+        sessionId: null,
+        createdAt: new Date('2026-05-01T00:03:00.000Z'),
+      },
+      {
+        eventName: 'app_membership_exposure',
+        userId: null,
+        clientId: 'client-a',
+        sessionId: 'session-a',
+        createdAt: new Date('2026-05-01T00:04:00.000Z'),
+      },
+      {
+        eventName: 'app_membership_exposure',
+        userId: 42n,
+        clientId: 'client-user-42',
+        sessionId: 'session-user-42',
+        createdAt: new Date('2026-05-01T00:05:00.000Z'),
+      },
+      {
+        eventName: 'app_payment_success',
+        userId: 42n,
+        clientId: 'client-user-42',
+        sessionId: 'session-user-42',
+        createdAt: new Date('2026-05-01T00:06:00.000Z'),
+      },
+      {
+        eventName: 'app_payment_success',
+        userId: null,
+        clientId: null,
+        sessionId: 'session-pay',
+        createdAt: new Date('2026-05-01T00:07:00.000Z'),
+      },
+    ]);
+
+    const result = await getAnalyticsFunnel(7);
+
+    expect(mockAnalyticsFindMany).toHaveBeenCalledWith(expect.objectContaining({
+      select: {
+        eventName: true,
+        userId: true,
+        clientId: true,
+        sessionId: true,
+        createdAt: true,
+      },
+    }));
+    expect(result.uniqueIdentityPriority).toEqual(['userId', 'clientId', 'sessionId']);
+    expect(result.uniqueSteps[0]).toMatchObject({
+      eventName: 'mini_program_app_download_click',
+      uniqueCount: 2,
+      unidentifiedCount: 1,
+      conversionRate: 100,
+    });
+    expect(result.uniqueSteps[1]).toMatchObject({
+      eventName: 'app_membership_exposure',
+      uniqueCount: 2,
+      unidentifiedCount: 0,
+      conversionRate: 100,
+    });
+    expect(result.uniqueSteps[3]).toMatchObject({
+      eventName: 'app_payment_success',
+      uniqueCount: 2,
+      unidentifiedCount: 0,
+      conversionRate: 100,
+    });
+    expect(result.uniqueSummary).toMatchObject({
+      firstStepUniqueCount: 2,
+      totalIdentifiedEvents: 7,
+      totalUnidentifiedEvents: 1,
+      identityCoverageRate: 0.875,
     });
   });
 

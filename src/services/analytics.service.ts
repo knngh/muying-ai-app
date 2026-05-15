@@ -6,6 +6,14 @@ export type AnalyticsEventSource = 'app' | 'mini_program' | 'server';
 
 type AnalyticsProperties = Prisma.InputJsonValue | undefined;
 
+type AnalyticsFunnelIdentityRow = {
+  eventName: string;
+  userId: bigint | number | string | null;
+  clientId: string | null;
+  sessionId: string | null;
+  createdAt: Date;
+};
+
 export async function recordAnalyticsEvent(input: {
   eventName: AnalyticsEventName;
   source: AnalyticsEventSource;
@@ -47,26 +55,64 @@ export async function recordServerAnalyticsEvent(
 
 export async function getAnalyticsFunnel(rangeDays: number) {
   const startAt = new Date(Date.now() - rangeDays * 24 * 60 * 60 * 1000);
+  const funnelEventNames = ANALYTICS_FUNNEL_STEPS.map((step) => step.eventName);
 
-  const grouped = await prisma.analyticsEvent.groupBy({
-    by: ['eventName'],
-    where: {
-      createdAt: {
-        gte: startAt,
+  const [grouped, identityRows] = await Promise.all([
+    prisma.analyticsEvent.groupBy({
+      by: ['eventName'],
+      where: {
+        createdAt: {
+          gte: startAt,
+        },
+        eventName: {
+          in: funnelEventNames,
+        },
       },
-      eventName: {
-        in: ANALYTICS_FUNNEL_STEPS.map((step) => step.eventName),
+      _count: {
+        _all: true,
       },
-    },
-    _count: {
-      _all: true,
-    },
-  });
+    }),
+    prisma.analyticsEvent.findMany({
+      where: {
+        createdAt: {
+          gte: startAt,
+        },
+        eventName: {
+          in: funnelEventNames,
+        },
+      },
+      select: {
+        eventName: true,
+        userId: true,
+        clientId: true,
+        sessionId: true,
+        createdAt: true,
+      },
+    }) as Promise<AnalyticsFunnelIdentityRow[]>,
+  ]);
 
   const counts = new Map<string, number>(
     grouped.map((item: { eventName: string; _count: { _all: number } }) => [item.eventName, item._count._all]),
   );
   const firstStepCount = Number(counts.get(ANALYTICS_FUNNEL_STEPS[0].eventName) ?? 0);
+  const identitySetsByEvent = new Map<string, Set<string>>();
+  const unidentifiedCountsByEvent = new Map<string, number>();
+
+  for (const row of identityRows) {
+    const identity = getAnalyticsFunnelIdentity(row);
+    if (!identity) {
+      unidentifiedCountsByEvent.set(row.eventName, (unidentifiedCountsByEvent.get(row.eventName) || 0) + 1);
+      continue;
+    }
+
+    const identities = identitySetsByEvent.get(row.eventName) || new Set<string>();
+    identities.add(identity);
+    identitySetsByEvent.set(row.eventName, identities);
+  }
+
+  const firstStepUniqueCount = identitySetsByEvent.get(ANALYTICS_FUNNEL_STEPS[0].eventName)?.size || 0;
+  const totalUnidentifiedEvents = Array.from(unidentifiedCountsByEvent.values()).reduce((sum, count) => sum + count, 0);
+  const totalIdentifiedEvents = identityRows.length - totalUnidentifiedEvents;
 
   return {
     rangeDays,
@@ -82,7 +128,43 @@ export async function getAnalyticsFunnel(rangeDays: number) {
         conversionRate: firstStepCount > 0 ? Number(((count / firstStepCount) * 100).toFixed(1)) : null,
       };
     }),
+    uniqueIdentityPriority: ['userId', 'clientId', 'sessionId'],
+    uniqueSummary: {
+      firstStepUniqueCount,
+      totalIdentifiedEvents,
+      totalUnidentifiedEvents,
+      identityCoverageRate: identityRows.length > 0
+        ? Number((totalIdentifiedEvents / identityRows.length).toFixed(4))
+        : null,
+    },
+    uniqueSteps: ANALYTICS_FUNNEL_STEPS.map((step) => {
+      const uniqueCount = identitySetsByEvent.get(step.eventName)?.size || 0;
+      const unidentifiedCount = unidentifiedCountsByEvent.get(step.eventName) || 0;
+
+      return {
+        eventName: step.eventName,
+        label: step.label,
+        uniqueCount,
+        unidentifiedCount,
+        conversionRate: firstStepUniqueCount > 0
+          ? Number(((uniqueCount / firstStepUniqueCount) * 100).toFixed(1))
+          : null,
+      };
+    }),
   };
+}
+
+function getAnalyticsFunnelIdentity(row: AnalyticsFunnelIdentityRow): string | null {
+  if (row.userId !== null && row.userId !== undefined) {
+    return `user:${row.userId.toString()}`;
+  }
+  if (row.clientId) {
+    return `client:${row.clientId}`;
+  }
+  if (row.sessionId) {
+    return `session:${row.sessionId}`;
+  }
+  return null;
 }
 
 type AIOverviewRow = {
