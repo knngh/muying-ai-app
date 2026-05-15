@@ -5,6 +5,8 @@ const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
 const OUTPUT_FILE = process.env.P6_OUTPUT_FILE || path.join(ROOT, 'tmp', 'p6-data-closure-report.json');
+const MARKDOWN_OUTPUT_FILE = process.env.P6_MARKDOWN_OUTPUT_FILE || path.join(ROOT, 'tmp', 'p6-data-closure-summary.md');
+const HISTORY_FILE = process.env.P6_HISTORY_FILE || path.join(ROOT, 'tmp', 'p6-data-closure-history.jsonl');
 const BASE_URL = process.env.BASE_URL || 'https://beihu.me';
 const API_BASE = process.env.API_BASE || `${BASE_URL}/api/v1`;
 const LEGACY_HEALTH_URL = process.env.LEGACY_HEALTH_URL || `${BASE_URL}/api/health`;
@@ -83,6 +85,18 @@ function getProviderBlocks(aiHealth, primaryHealth) {
     return primaryHealthData.providerBlocks;
   }
   return [];
+}
+
+function formatMetric(value) {
+  return value === null || value === undefined ? 'n/a' : String(value);
+}
+
+function renderMetricRows(sectionName, rows) {
+  return [
+    `| ${sectionName} | Metric | Value |`,
+    '|---|---|---|',
+    ...rows.map(([metric, value]) => `| ${sectionName} | ${metric} | \`${formatMetric(value)}\` |`),
+  ].join('\n');
 }
 
 function buildP6DataClosureReport(input) {
@@ -290,6 +304,111 @@ function buildP6DataClosureReport(input) {
   };
 }
 
+function buildP6DataClosureMarkdown(report) {
+  const behaviorByEvent = Array.isArray(report.retention?.behaviorByEvent)
+    ? report.retention.behaviorByEvent
+    : [];
+  const attentionItems = Array.isArray(report.attention) && report.attention.length > 0
+    ? report.attention.map((item) => `- ${item}`).join('\n')
+    : '- None';
+  const blockers = Array.isArray(report.blockers) && report.blockers.length > 0
+    ? report.blockers.map((item) => `- ${item}`).join('\n')
+    : '- None';
+  const nextActions = Array.isArray(report.nextActions) && report.nextActions.length > 0
+    ? report.nextActions.map((item) => `- ${item}`).join('\n')
+    : '- None';
+  const behaviorLines = behaviorByEvent.length > 0
+    ? behaviorByEvent.map((item) => `- ${item.key}: ${item.count}`).join('\n')
+    : '- None';
+
+  return [
+    '# P6 Data Closure Daily Summary',
+    '',
+    `- Generated at: \`${report.generatedAt}\``,
+    `- Range days: \`${report.rangeDays}\``,
+    `- Status: \`${report.status}\``,
+    `- Can use as daily report: \`${report.canUseAsDailyReport}\``,
+    `- Can close P6: \`${report.canCloseP6}\``,
+    '',
+    renderMetricRows('Funnel', [
+      ['Unique acquisition users', report.funnel?.uniqueFirstStepCount],
+      ['Unique payment success users', report.funnel?.uniquePaymentSuccessCount],
+      ['Identity coverage', report.funnel?.identityCoverageRate],
+    ]),
+    '',
+    renderMetricRows('AI', [
+      ['Requests started', report.ai?.requestsStarted],
+      ['Degraded rate', report.ai?.degradedRate],
+      ['Product entrypoint events', report.ai?.productEntrypointEvents],
+      ['Covered entrypoints', Array.isArray(report.ai?.coveredProductEntrypoints) ? report.ai.coveredProductEntrypoints.join(', ') : ''],
+    ]),
+    '',
+    renderMetricRows('Activation', [
+      ['Profile ready users', report.activation?.profileReadyUniqueCount],
+      ['Activated users', report.activation?.activatedUniqueCount],
+      ['Profile to activation rate', report.activation?.profileToActivationRate],
+    ]),
+    '',
+    renderMetricRows('Retention', [
+      ['Cohort users', report.retention?.cohortUserCount],
+      ['D1 retention', report.retention?.d1RetentionRate],
+      ['D7 retention', report.retention?.d7RetentionRate],
+      ['Retention identity coverage', report.retention?.identityCoverageRate],
+      ['Retention behavior events', report.retention?.retentionBehaviorEventCount],
+    ]),
+    '',
+    '## Retention Behavior',
+    '',
+    behaviorLines,
+    '',
+    '## Attention',
+    '',
+    attentionItems,
+    '',
+    '## Blockers',
+    '',
+    blockers,
+    '',
+    '## Next Actions',
+    '',
+    nextActions,
+    '',
+  ].join('\n');
+}
+
+function buildP6DataClosureHistoryRecord(report) {
+  return {
+    generatedAt: report.generatedAt,
+    rangeDays: report.rangeDays,
+    status: report.status,
+    canUseAsDailyReport: report.canUseAsDailyReport,
+    canCloseP6: report.canCloseP6,
+    blockersCount: Array.isArray(report.blockers) ? report.blockers.length : 0,
+    attentionCount: Array.isArray(report.attention) ? report.attention.length : 0,
+    funnel: {
+      uniqueFirstStepCount: report.funnel?.uniqueFirstStepCount ?? null,
+      uniquePaymentSuccessCount: report.funnel?.uniquePaymentSuccessCount ?? null,
+      identityCoverageRate: report.funnel?.identityCoverageRate ?? null,
+    },
+    ai: {
+      requestsStarted: report.ai?.requestsStarted ?? null,
+      degradedRate: report.ai?.degradedRate ?? null,
+      productEntrypointEvents: report.ai?.productEntrypointEvents ?? null,
+    },
+    activation: {
+      profileReadyUniqueCount: report.activation?.profileReadyUniqueCount ?? null,
+      activatedUniqueCount: report.activation?.activatedUniqueCount ?? null,
+      profileToActivationRate: report.activation?.profileToActivationRate ?? null,
+    },
+    retention: {
+      cohortUserCount: report.retention?.cohortUserCount ?? null,
+      d1RetentionRate: report.retention?.d1RetentionRate ?? null,
+      d7RetentionRate: report.retention?.d7RetentionRate ?? null,
+      retentionBehaviorEventCount: report.retention?.retentionBehaviorEventCount ?? null,
+    },
+  };
+}
+
 async function postJson(url, body, token) {
   const response = await fetch(url, {
     method: 'POST',
@@ -376,6 +495,10 @@ async function main() {
 
   fs.mkdirSync(path.dirname(OUTPUT_FILE), { recursive: true });
   fs.writeFileSync(OUTPUT_FILE, JSON.stringify(report, null, 2), 'utf8');
+  fs.mkdirSync(path.dirname(MARKDOWN_OUTPUT_FILE), { recursive: true });
+  fs.writeFileSync(MARKDOWN_OUTPUT_FILE, buildP6DataClosureMarkdown(report), 'utf8');
+  fs.mkdirSync(path.dirname(HISTORY_FILE), { recursive: true });
+  fs.appendFileSync(HISTORY_FILE, `${JSON.stringify(buildP6DataClosureHistoryRecord(report))}\n`, 'utf8');
   console.log(JSON.stringify(report, null, 2));
 
   if (report.status === 'blocker') {
@@ -392,4 +515,6 @@ if (require.main === module) {
 
 module.exports = {
   buildP6DataClosureReport,
+  buildP6DataClosureMarkdown,
+  buildP6DataClosureHistoryRecord,
 };

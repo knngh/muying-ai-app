@@ -214,6 +214,14 @@ P6+ 新增 cohort 留存观测口径：
 
 - 终端 JSON
 - `tmp/p6-data-closure-report.json`
+- `tmp/p6-data-closure-summary.md`
+- `tmp/p6-data-closure-history.jsonl`
+
+可通过环境变量覆盖：
+
+- `P6_OUTPUT_FILE`
+- `P6_MARKDOWN_OUTPUT_FILE`
+- `P6_HISTORY_FILE`
 
 报告会汇总：
 
@@ -229,6 +237,12 @@ P6+ 新增 cohort 留存观测口径：
 - `pass`：漏斗、身份覆盖、支付与 AI 数据均满足关闭 P6 的最小条件
 - `attention`：接口可用，但真实数据、支付、身份覆盖或 AI 健康仍需观察
 - `blocker`：健康检查或漏斗结构异常，不能作为日报入口
+
+说明：
+
+- JSON 文件保留完整结构，适合脚本读取。
+- Markdown 文件保留巡检摘要，适合人工日报或周报复制。
+- JSONL 历史文件每次运行追加一行核心指标，适合后续做趋势看板。
 
 ### 5.4 激活接口
 
@@ -354,5 +368,5 @@ P6 当前已具备最小闭环能力，并新增生产日报入口。
 后续若继续增强，建议顺序：
 
 1. 把 `ops:data:p6` 固化到每日巡检流程
-2. 继续补社区发帖评论、收藏、分享等留存行为
-3. 增加日报 / 周报看板导出或管理后台页面
+2. 增加日报 / 周报看板导出或管理后台页面
+3. 按真实投放渠道继续补 acquisition campaign / source 维度

@@ -1,4 +1,8 @@
-const { buildP6DataClosureReport } = require('../scripts/prod-p6-data-closure-status');
+const {
+  buildP6DataClosureReport,
+  buildP6DataClosureMarkdown,
+  buildP6DataClosureHistoryRecord,
+} = require('../scripts/prod-p6-data-closure-status');
 
 function funnelStep(eventName: string, count: number, uniqueCount: number, unidentifiedCount = 0) {
   return {
@@ -247,5 +251,54 @@ describe('P6 data closure status report', () => {
       'primary health check is not ok',
       'analytics funnel uniqueSteps are missing',
     ]));
+  });
+
+  it('builds a compact Markdown daily summary for manual巡检', () => {
+    const report = buildP6DataClosureReport(baseInput());
+    const markdown = buildP6DataClosureMarkdown(report);
+
+    expect(markdown).toContain('# P6 Data Closure Daily Summary');
+    expect(markdown).toContain('- Status: `pass`');
+    expect(markdown).toContain('- Can close P6: `true`');
+    expect(markdown).toContain('| Funnel |');
+    expect(markdown).toContain('| Retention |');
+    expect(markdown).toContain('D1 retention | `0.4`');
+    expect(markdown).toContain('Retention behavior events | `6`');
+    expect(markdown).toContain('server_article_favorite');
+  });
+
+  it('builds a JSONL-safe history record with stable headline metrics', () => {
+    const report = buildP6DataClosureReport(baseInput());
+    const historyRecord = buildP6DataClosureHistoryRecord(report);
+
+    expect(historyRecord).toMatchObject({
+      generatedAt: '2026-05-15T10:00:00.000Z',
+      rangeDays: 7,
+      status: 'pass',
+      canUseAsDailyReport: true,
+      canCloseP6: true,
+      blockersCount: 0,
+      attentionCount: 0,
+      funnel: {
+        uniqueFirstStepCount: 12,
+        uniquePaymentSuccessCount: 3,
+        identityCoverageRate: 0.96,
+      },
+      ai: {
+        requestsStarted: 18,
+        degradedRate: 0.1,
+        productEntrypointEvents: 7,
+      },
+      activation: {
+        activatedUniqueCount: 5,
+        profileToActivationRate: 0.5,
+      },
+      retention: {
+        cohortUserCount: 12,
+        d1RetentionRate: 0.4,
+        d7RetentionRate: 0.25,
+        retentionBehaviorEventCount: 6,
+      },
+    });
   });
 });
