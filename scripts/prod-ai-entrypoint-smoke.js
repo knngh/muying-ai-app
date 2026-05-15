@@ -9,6 +9,7 @@ const VIP_PASSWORD = process.env.VIP_PASSWORD || DEFAULT_PASSWORD;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || DEFAULT_PASSWORD;
 const AI_OVERVIEW_RANGE_DAYS = Number(process.env.AI_OVERVIEW_RANGE_DAYS || 7);
 const AI_ENTRYPOINT_SMOKE_WAIT_MS = Number(process.env.AI_ENTRYPOINT_SMOKE_WAIT_MS || 18000);
+const AI_ENTRYPOINT_SMOKE_RATE_LIMIT_WAIT_MS = Number(process.env.AI_ENTRYPOINT_SMOKE_RATE_LIMIT_WAIT_MS || 65000);
 const TRAFFIC_KIND = 'ops_product_entrypoint_smoke';
 
 const JOURNEYS = [
@@ -84,9 +85,35 @@ async function postJson(url, body, token) {
   if (!response.ok) {
     const error = new Error(`HTTP ${response.status}: ${json.message || text}`);
     error.status = response.status;
+    const retryAfter = Number(response.headers.get('retry-after'));
+    if (Number.isFinite(retryAfter) && retryAfter > 0) {
+      error.retryAfterMs = retryAfter * 1000;
+    }
     throw error;
   }
   return json;
+}
+
+function isRateLimitError(error) {
+  return error && typeof error === 'object' && error.status === 429;
+}
+
+async function postJsonWithRateLimitRetry(url, body, token) {
+  try {
+    return await postJson(url, body, token);
+  } catch (error) {
+    if (!isRateLimitError(error)) {
+      throw error;
+    }
+
+    const retryAfterMs = Math.max(
+      1000,
+      Number(error.retryAfterMs) || AI_ENTRYPOINT_SMOKE_RATE_LIMIT_WAIT_MS,
+    );
+    console.warn(`[ai-entrypoint-smoke] rate limited; retrying after ${retryAfterMs}ms`);
+    await sleep(retryAfterMs);
+    return postJson(url, body, token);
+  }
 }
 
 async function getJson(url, token) {
@@ -183,7 +210,7 @@ async function runJourney(journey, index, vipToken) {
     trigger: 'auto_prefill',
   }, vipToken);
 
-  const response = await postJson(`${API_BASE}/ai/ask`, {
+  const response = await postJsonWithRateLimitRetry(`${API_BASE}/ai/ask`, {
     question: journey.question,
     clientRequestId,
     context: {
