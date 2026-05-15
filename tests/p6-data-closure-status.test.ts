@@ -59,6 +59,19 @@ function baseInput(overrides = {}) {
         ],
       },
     },
+    activationOverview: {
+      data: {
+        counts: {
+          profileReadyUniqueCount: 10,
+          aiQuestionUniqueCount: 6,
+          knowledgeOpenUniqueCount: 4,
+          valueActionUniqueCount: 8,
+          activatedUniqueCount: 5,
+          profileToActivationRate: 0.5,
+          identityCoverageRate: 1,
+        },
+      },
+    },
     ...overrides,
   };
 }
@@ -73,6 +86,11 @@ describe('P6 data closure status report', () => {
     expect(report.blockers).toEqual([]);
     expect(report.funnel.uniqueFirstStepCount).toBe(12);
     expect(report.funnel.uniquePaymentSuccessCount).toBe(3);
+    expect(report.activation).toMatchObject({
+      profileReadyUniqueCount: 10,
+      activatedUniqueCount: 5,
+      profileToActivationRate: 0.5,
+    });
   });
 
   it('keeps P6 in attention when real data is sparse or provider health is degraded', () => {
@@ -114,6 +132,19 @@ describe('P6 data closure status report', () => {
           productEntrypointCoverage: [],
         },
       },
+      activationOverview: {
+        data: {
+          counts: {
+            profileReadyUniqueCount: 2,
+            aiQuestionUniqueCount: 0,
+            knowledgeOpenUniqueCount: 0,
+            valueActionUniqueCount: 0,
+            activatedUniqueCount: 0,
+            profileToActivationRate: 0,
+            identityCoverageRate: 0.5,
+          },
+        },
+      },
     }));
 
     expect(report.status).toBe('attention');
@@ -126,6 +157,8 @@ describe('P6 data closure status report', () => {
       'AI degraded rate is 0.9000',
       'active AI provider blocks are present',
       'real product AI entrypoint traffic is 0',
+      'activation completed user count is 0',
+      'activation identity coverage is below 0.8: 0.5000',
     ]));
   });
 

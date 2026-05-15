@@ -14,6 +14,7 @@ import {
 } from '../utils/pregnancy';
 import { env } from '../config/env';
 import { generateToken } from '../utils/jwt';
+import { recordServerAnalyticsEvent } from '../services/analytics.service';
 
 function isUniqueConstraintError(error: unknown): error is { code: 'P2002'; meta?: { target?: unknown } } {
   return typeof error === 'object'
@@ -411,11 +412,33 @@ export const updateProfile = async (req: Request, res: Response, next: NextFunct
       }
     });
 
+    if (isLifecycleProfileReady(user.pregnancyStatus, user.dueDate, user.babyBirthday)) {
+      recordServerAnalyticsEvent('server_lifecycle_profile_ready', {
+        userId,
+        page: 'auth/profile',
+        properties: {
+          lifecycleStage: resolveLifecycleStage(user.pregnancyStatus, user.dueDate, user.babyBirthday),
+          hasDueDate: Boolean(user.dueDate),
+          hasBabyBirthday: Boolean(user.babyBirthday),
+          source: 'profile_update',
+        },
+      }).catch(() => {});
+    }
+
     res.json(successResponse(user, '更新成功'));
   } catch (error) {
     next(error);
   }
 };
+
+function isLifecycleProfileReady(
+  pregnancyStatus: number | null,
+  dueDate: Date | null,
+  babyBirthday: Date | null,
+) {
+  const lifecycleStage = resolveLifecycleStage(pregnancyStatus ?? undefined, dueDate, babyBirthday);
+  return lifecycleStage === 'preparing' || lifecycleStage === 'pregnant' || lifecycleStage === 'postpartum';
+}
 
 // 修改密码
 export const changePassword = async (req: Request, res: Response, next: NextFunction) => {

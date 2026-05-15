@@ -90,6 +90,7 @@ export default function KnowledgeDetailScreen() {
   const [showBackToTop, setShowBackToTop] = useState(false)
   const articleOpenedAtRef = useRef(Date.now())
   const reportedReadKeyRef = useRef<string | null>(null)
+  const detailOpenTrackedRef = useRef<string | null>(null)
   const aiHitTrackedRef = useRef<string | null>(null)
   const autoShownTranslationSlugRef = useRef<string | null>(null)
   const scrollViewRef = useRef<ScrollView | null>(null)
@@ -116,8 +117,33 @@ export default function KnowledgeDetailScreen() {
     setShowBackToTop(false)
     articleOpenedAtRef.current = Date.now()
     reportedReadKeyRef.current = null
+    detailOpenTrackedRef.current = null
     autoShownTranslationSlugRef.current = null
   }, [fetchArticleDetail, slug])
+
+  useEffect(() => {
+    if (!article?.id) return
+
+    const trackKey = `${slug}:${article.id}`
+    if (detailOpenTrackedRef.current === trackKey) {
+      return
+    }
+
+    detailOpenTrackedRef.current = trackKey
+    void trackAppEvent('app_knowledge_detail_open', {
+      page: 'KnowledgeDetailScreen',
+      properties: {
+        slug,
+        articleSlug: slug,
+        articleId: article.id,
+        originSource: source || null,
+        sourceOrg: article.sourceOrg || article.source || null,
+        topic: article.topic || null,
+        contentType: article.contentType || null,
+        isVerified: Boolean(article.isVerified),
+      },
+    })
+  }, [article?.contentType, article?.id, article?.isVerified, article?.source, article?.sourceOrg, article?.topic, slug, source])
 
   useEffect(() => {
     if (!article?.id) return

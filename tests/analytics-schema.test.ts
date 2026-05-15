@@ -50,4 +50,21 @@ describe('analytics schemas', () => {
       properties: { endpoint: 'ask' },
     }).success).toBe(false);
   });
+
+  it('accepts client activation events and rejects server lifecycle readiness from public writes', () => {
+    expect(createAnalyticsEventBody.safeParse({
+      eventName: 'app_knowledge_detail_open',
+      source: 'app',
+      page: 'KnowledgeDetailScreen',
+      clientId: 'client-12345678',
+      sessionId: 'session-12345678',
+      properties: { articleSlug: 'feeding-guide' },
+    }).success).toBe(true);
+
+    expect(createAnalyticsEventBody.safeParse({
+      eventName: 'server_lifecycle_profile_ready',
+      source: 'app',
+      page: 'ProfileScreen',
+    }).success).toBe(false);
+  });
 });

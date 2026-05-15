@@ -32,6 +32,7 @@ P6 对应 MVP 路线中的“数据闭环”阶段，目标是：
 - 表：`analytics_events`
 - 接口：`POST /api/v1/analytics/events`
 - 漏斗查询：`GET /api/v1/analytics/funnel?rangeDays=7`
+- 激活查询：`GET /api/v1/analytics/activation-overview?rangeDays=7`
 - 生产报告：`npm run ops:data:p6`
 
 已完成生产部署：
@@ -44,6 +45,7 @@ P6 对应 MVP 路线中的“数据闭环”阶段，目标是：
 
 - `POST /analytics/events` 支持匿名或已登录用户
 - `GET /analytics/funnel` 当前走管理口径，仅管理员可访问
+- `GET /analytics/activation-overview` 当前走管理口径，仅管理员可访问
 
 ### 3.2 App
 
@@ -52,11 +54,13 @@ P6 对应 MVP 路线中的“数据闭环”阶段，目标是：
 - 会员页曝光
 - 周报页打开
 - 成长档案分享
+- 知识详情打开
 
 服务端自动记录：
 
 - 下单创建
 - 支付成功
+- 生命周期资料就绪
 
 ### 3.3 小程序
 
@@ -71,6 +75,7 @@ P6 对应 MVP 路线中的“数据闭环”阶段，目标是：
 - 知识详情下载卡片
 - AI 问答额度触顶引导
 - 我的页面下载卡片
+- 知识详情页打开
 
 ## 4. 最小漏斗口径
 
@@ -90,6 +95,25 @@ P6 对应 MVP 路线中的“数据闭环”阶段，目标是：
 - `uniqueSteps` 使用 `userId -> clientId -> sessionId` 优先级去重，用于观察接近用户数的转化
 - `uniqueSummary.identityCoverageRate` 用于观察埋点身份覆盖，低于 0.8 时 P6 报告会进入 attention
 - 后续可再补知识阅读、社区互动等中间行为
+
+## 4.1 首日激活口径
+
+P6+ 新增首日激活观测口径，对齐推广计划中的激活定义：
+
+1. 完成生命周期资料设置
+2. 完成至少 1 次 AI 提问或知识详情查看
+
+事件口径：
+
+- 生命周期资料就绪：`server_lifecycle_profile_ready`
+- AI 提问：`app_chat_message_send`
+- 知识详情查看：`app_knowledge_detail_open`
+
+说明：
+
+- `server_lifecycle_profile_ready` 只能由服务端内部写入，公共 analytics 接口不可伪造。
+- 激活统计同样使用 `userId -> clientId -> sessionId` 身份优先级。
+- P6 报告会输出 `activation.profileReadyUniqueCount`、`activation.activatedUniqueCount`、`activation.profileToActivationRate`。
 
 ## 5. 观测方式
 
@@ -169,6 +193,7 @@ P6 对应 MVP 路线中的“数据闭环”阶段，目标是：
 - `/health` 与 `/api/health`
 - `/api/v1/analytics/funnel?rangeDays=7`
 - `/api/v1/analytics/ai-overview?rangeDays=7`
+- `/api/v1/analytics/activation-overview?rangeDays=7`
 - `/api/v1/ai/health`
 
 状态含义：
@@ -177,12 +202,43 @@ P6 对应 MVP 路线中的“数据闭环”阶段，目标是：
 - `attention`：接口可用，但真实数据、支付、身份覆盖或 AI 健康仍需观察
 - `blocker`：健康检查或漏斗结构异常，不能作为日报入口
 
+### 5.4 激活接口
+
+`GET /api/v1/analytics/activation-overview?rangeDays=7`
+
+返回核心结构：
+
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "rangeDays": 7,
+    "activationDefinition": {
+      "profileReadyEvent": "server_lifecycle_profile_ready",
+      "valueActionEvents": ["app_chat_message_send", "app_knowledge_detail_open"],
+      "identityPriority": ["userId", "clientId", "sessionId"]
+    },
+    "counts": {
+      "profileReadyUniqueCount": 10,
+      "aiQuestionUniqueCount": 6,
+      "knowledgeOpenUniqueCount": 4,
+      "valueActionUniqueCount": 8,
+      "activatedUniqueCount": 5,
+      "profileToActivationRate": 0.5,
+      "identityCoverageRate": 1
+    }
+  }
+}
+```
+
 ## 6. 当前限制
 
 当前埋点体系仍然是 MVP 口径，保留这些约束：
 
 - 只记录关键事件，不记录完整页面访问流
 - 去重漏斗不是严格跨端归因，只能按当前事件携带的 `userId / clientId / sessionId` 合并
+- 激活口径衡量的是当前报告窗口内同时出现资料就绪与价值动作的用户，不替代 D1 / D7 留存
 - 管理查询依赖管理员账号访问
 - App / 小程序侧埋点代码已完成，但真正开始持续出数仍依赖下一次客户端发布
 
@@ -192,8 +248,7 @@ P6 对应 MVP 路线中的“数据闭环”阶段，目标是：
 
 - 本地 `npx prisma generate`
 - 本地后端 `npm run build`
-- 本地 `npm test -- --runInBand tests/analytics-service.test.ts`
-- 本地 `npm test -- --runInBand tests/p6-data-closure-status.test.ts`
+- 本地 `npm test -- --runInBand tests/analytics-service.test.ts tests/analytics-schema.test.ts tests/p6-data-closure-status.test.ts`
 - 本地 `mobile` `npx tsc --noEmit`
 - 本地 `mini-program` `npm run type-check`
 - 生产 `POST /api/v1/analytics/events` smoke
@@ -206,6 +261,7 @@ P6 对应 MVP 路线中的“数据闭环”阶段，目标是：
 - `app_weekly_report_open` 已写入
 - `app_order_created` 已写入
 - 漏斗接口可返回完整 steps 结构
+- 激活接口可返回完整 activation overview 结构
 
 ## 8. 下一步建议
 
@@ -214,5 +270,5 @@ P6 当前已具备最小闭环能力，并新增生产日报入口。
 后续若继续增强，建议顺序：
 
 1. 把 `ops:data:p6` 固化到每日巡检流程
-2. 补知识详情打开、社区发帖评论等中间行为
+2. 继续补社区发帖评论、收藏、分享等留存行为
 3. 增加日报 / 周报看板导出或管理后台页面

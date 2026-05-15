@@ -35,6 +35,7 @@ type AppAnalyticsEventName =
   | 'app_knowledge_recent_ai_source_click'
   | 'app_knowledge_recent_ai_ask_click'
   | 'app_knowledge_detail_ai_hit_open'
+  | 'app_knowledge_detail_open'
   | 'app_knowledge_detail_ask_ai_click';
 
 const CLIENT_ID_KEY = 'analytics_client_id';

@@ -35,6 +35,7 @@ export const ANALYTICS_CLIENT_EVENT_NAMES = [
   'app_knowledge_recent_ai_source_click',
   'app_knowledge_recent_ai_ask_click',
   'app_knowledge_detail_ai_hit_open',
+  'app_knowledge_detail_open',
   'app_knowledge_detail_ask_ai_click',
 ] as const;
 
@@ -44,6 +45,7 @@ export const ANALYTICS_SERVER_EVENT_NAMES = [
   'server_ai_response_complete',
   'server_ai_request_error',
   'server_ai_knowledge_recommendations_served',
+  'server_lifecycle_profile_ready',
 ] as const;
 
 export const ANALYTICS_EVENT_NAMES = [

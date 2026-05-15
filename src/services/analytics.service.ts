@@ -14,6 +14,17 @@ type AnalyticsFunnelIdentityRow = {
   createdAt: Date;
 };
 
+type AnalyticsActivationRow = {
+  eventName: string;
+  userId: bigint | number | string | null;
+  clientId: string | null;
+  sessionId: string | null;
+  source: string;
+  page: string | null;
+  properties: Prisma.JsonValue | null;
+  createdAt: Date;
+};
+
 export async function recordAnalyticsEvent(input: {
   eventName: AnalyticsEventName;
   source: AnalyticsEventSource;
@@ -204,6 +215,12 @@ const AI_OVERVIEW_EVENT_NAMES = [
   'server_ai_knowledge_recommendations_served',
 ];
 
+const ACTIVATION_EVENT_NAMES = [
+  'server_lifecycle_profile_ready',
+  'app_chat_message_send',
+  'app_knowledge_detail_open',
+] as const;
+
 function toRecord(value: Prisma.JsonValue | null | undefined): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
     ? value as Record<string, unknown>
@@ -273,6 +290,95 @@ function toBreakdown(counter: Map<string, number>) {
   return Array.from(counter.entries())
     .map(([key, count]) => ({ key, count }))
     .sort((a, b) => b.count - a.count || a.key.localeCompare(b.key, 'zh-CN'));
+}
+
+export async function getActivationOverview(rangeDays: number) {
+  const startAt = new Date(Date.now() - rangeDays * 24 * 60 * 60 * 1000);
+  const rows = await prisma.analyticsEvent.findMany({
+    where: {
+      createdAt: {
+        gte: startAt,
+      },
+      eventName: {
+        in: [...ACTIVATION_EVENT_NAMES],
+      },
+    },
+    select: {
+      eventName: true,
+      userId: true,
+      clientId: true,
+      sessionId: true,
+      source: true,
+      page: true,
+      properties: true,
+      createdAt: true,
+    },
+  }) as AnalyticsActivationRow[];
+
+  const profileReadyIdentities = new Set<string>();
+  const aiQuestionIdentities = new Set<string>();
+  const knowledgeOpenIdentities = new Set<string>();
+  const valueActionIdentities = new Set<string>();
+  const profileStageCounter = new Map<string, number>();
+  const valueActionCounter = new Map<string, number>();
+  let totalUnidentifiedEvents = 0;
+
+  for (const row of rows) {
+    const identity = getAnalyticsFunnelIdentity(row);
+    if (!identity) {
+      totalUnidentifiedEvents += 1;
+      continue;
+    }
+
+    if (row.eventName === 'server_lifecycle_profile_ready') {
+      profileReadyIdentities.add(identity);
+      const properties = toRecord(row.properties);
+      incrementCounter(profileStageCounter, typeof properties.lifecycleStage === 'string' ? properties.lifecycleStage : 'unknown');
+      continue;
+    }
+
+    if (row.eventName === 'app_chat_message_send') {
+      aiQuestionIdentities.add(identity);
+    } else if (row.eventName === 'app_knowledge_detail_open') {
+      knowledgeOpenIdentities.add(identity);
+    }
+    valueActionIdentities.add(identity);
+    incrementCounter(valueActionCounter, row.eventName);
+  }
+
+  const activatedIdentities = Array.from(profileReadyIdentities)
+    .filter((identity) => valueActionIdentities.has(identity));
+  const totalIdentifiedEvents = rows.length - totalUnidentifiedEvents;
+
+  return {
+    rangeDays,
+    startAt: startAt.toISOString(),
+    endAt: new Date().toISOString(),
+    activationDefinition: {
+      profileReadyEvent: 'server_lifecycle_profile_ready',
+      valueActionEvents: ['app_chat_message_send', 'app_knowledge_detail_open'],
+      identityPriority: ['userId', 'clientId', 'sessionId'],
+    },
+    counts: {
+      profileReadyUniqueCount: profileReadyIdentities.size,
+      aiQuestionUniqueCount: aiQuestionIdentities.size,
+      knowledgeOpenUniqueCount: knowledgeOpenIdentities.size,
+      valueActionUniqueCount: valueActionIdentities.size,
+      activatedUniqueCount: activatedIdentities.length,
+      profileToActivationRate: profileReadyIdentities.size > 0
+        ? Number((activatedIdentities.length / profileReadyIdentities.size).toFixed(4))
+        : null,
+      totalIdentifiedEvents,
+      totalUnidentifiedEvents,
+      identityCoverageRate: rows.length > 0
+        ? Number((totalIdentifiedEvents / rows.length).toFixed(4))
+        : null,
+    },
+    breakdown: {
+      profileReadyByStage: toBreakdown(profileStageCounter),
+      valueActionByEvent: toBreakdown(valueActionCounter),
+    },
+  };
 }
 
 export async function getAIOverview(rangeDays: number) {

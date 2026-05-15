@@ -13,7 +13,12 @@ jest.mock('../src/config/database', () => ({
   },
 }));
 
-import { getAIOverview, getAnalyticsFunnel, recordAnalyticsEvent } from '../src/services/analytics.service';
+import {
+  getAIOverview,
+  getActivationOverview,
+  getAnalyticsFunnel,
+  recordAnalyticsEvent,
+} from '../src/services/analytics.service';
 
 describe('analytics.service 单元测试', () => {
   beforeEach(() => {
@@ -201,6 +206,100 @@ describe('analytics.service 单元测试', () => {
       totalUnidentifiedEvents: 1,
       identityCoverageRate: 0.875,
     });
+  });
+
+  it('getActivationOverview 会按生命周期资料就绪 + AI 提问或知识查看统计首日激活', async () => {
+    mockAnalyticsFindMany.mockResolvedValue([
+      {
+        eventName: 'server_lifecycle_profile_ready',
+        userId: 1n,
+        clientId: null,
+        sessionId: null,
+        source: 'server',
+        page: 'auth/profile',
+        properties: { lifecycleStage: 'pregnant' },
+        createdAt: new Date('2026-05-01T00:00:00.000Z'),
+      },
+      {
+        eventName: 'app_chat_message_send',
+        userId: 1n,
+        clientId: 'client-user-1',
+        sessionId: 'session-user-1',
+        source: 'app',
+        page: 'ChatScreen',
+        properties: { entrySource: 'home_suggested_question' },
+        createdAt: new Date('2026-05-01T00:05:00.000Z'),
+      },
+      {
+        eventName: 'server_lifecycle_profile_ready',
+        userId: 2n,
+        clientId: null,
+        sessionId: null,
+        source: 'server',
+        page: 'auth/profile',
+        properties: { lifecycleStage: 'postpartum' },
+        createdAt: new Date('2026-05-01T00:10:00.000Z'),
+      },
+      {
+        eventName: 'app_knowledge_detail_open',
+        userId: 3n,
+        clientId: 'client-user-3',
+        sessionId: 'session-user-3',
+        source: 'app',
+        page: 'KnowledgeDetailScreen',
+        properties: { articleSlug: 'feeding-guide' },
+        createdAt: new Date('2026-05-01T00:15:00.000Z'),
+      },
+      {
+        eventName: 'server_lifecycle_profile_ready',
+        userId: null,
+        clientId: null,
+        sessionId: null,
+        source: 'server',
+        page: 'auth/profile',
+        properties: {},
+        createdAt: new Date('2026-05-01T00:20:00.000Z'),
+      },
+    ]);
+
+    const result = await getActivationOverview(7);
+
+    expect(mockAnalyticsFindMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        eventName: {
+          in: expect.arrayContaining([
+            'server_lifecycle_profile_ready',
+            'app_chat_message_send',
+            'app_knowledge_detail_open',
+          ]),
+        },
+      }),
+      select: {
+        eventName: true,
+        userId: true,
+        clientId: true,
+        sessionId: true,
+        source: true,
+        page: true,
+        properties: true,
+        createdAt: true,
+      },
+    }));
+    expect(result.counts).toMatchObject({
+      profileReadyUniqueCount: 2,
+      aiQuestionUniqueCount: 1,
+      knowledgeOpenUniqueCount: 1,
+      valueActionUniqueCount: 2,
+      activatedUniqueCount: 1,
+      profileToActivationRate: 0.5,
+      totalIdentifiedEvents: 4,
+      totalUnidentifiedEvents: 1,
+      identityCoverageRate: 0.8,
+    });
+    expect(result.breakdown.valueActionByEvent).toEqual([
+      { key: 'app_chat_message_send', count: 1 },
+      { key: 'app_knowledge_detail_open', count: 1 },
+    ]);
   });
 
   it('getAIOverview 会汇总回答质量、动作点击和反馈分布', async () => {

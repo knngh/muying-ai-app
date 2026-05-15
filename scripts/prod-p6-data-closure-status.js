@@ -165,6 +165,29 @@ function buildP6DataClosureReport(input) {
     nextActions.push('Keep product AI entrypoint tracking under observation until real user traffic is present.');
   }
 
+  const activationOverview = unwrapData(input.activationOverview);
+  const activationCounts = toRecord(activationOverview.counts);
+  const profileReadyUniqueCount = toNumber(activationCounts.profileReadyUniqueCount);
+  const aiQuestionUniqueCount = toNumber(activationCounts.aiQuestionUniqueCount);
+  const knowledgeOpenUniqueCount = toNumber(activationCounts.knowledgeOpenUniqueCount);
+  const valueActionUniqueCount = toNumber(activationCounts.valueActionUniqueCount);
+  const activatedUniqueCount = toNumber(activationCounts.activatedUniqueCount);
+  const profileToActivationRate = typeof activationCounts.profileToActivationRate === 'number'
+    ? activationCounts.profileToActivationRate
+    : null;
+  const activationIdentityCoverageRate = typeof activationCounts.identityCoverageRate === 'number'
+    ? activationCounts.identityCoverageRate
+    : null;
+
+  if (profileReadyUniqueCount > 0 && activatedUniqueCount <= 0) {
+    attention.push('activation completed user count is 0');
+    nextActions.push('Inspect first-day activation flow: profile setup is present but AI question or knowledge-open value action is missing.');
+  }
+  if (activationIdentityCoverageRate !== null && activationIdentityCoverageRate < IDENTITY_COVERAGE_THRESHOLD) {
+    attention.push(`activation identity coverage is below ${IDENTITY_COVERAGE_THRESHOLD}: ${activationIdentityCoverageRate.toFixed(4)}`);
+    nextActions.push('Audit identity propagation for profile readiness, AI question, and knowledge detail open analytics.');
+  }
+
   const status = blockers.length > 0
     ? 'blocker'
     : attention.length > 0
@@ -208,6 +231,16 @@ function buildP6DataClosureReport(input) {
       providerBlocks,
       productEntrypointEvents: productEvents,
       coveredProductEntrypoints: coveredEntrySources(productCoverage),
+    },
+    activation: {
+      profileReadyUniqueCount,
+      aiQuestionUniqueCount,
+      knowledgeOpenUniqueCount,
+      valueActionUniqueCount,
+      activatedUniqueCount,
+      profileToActivationRate,
+      identityCoverageRate: activationIdentityCoverageRate,
+      breakdown: toRecord(activationOverview.breakdown),
     },
   };
 }
@@ -264,12 +297,14 @@ async function collectSnapshot(adminToken) {
     aiHealth,
     funnel,
     aiOverview,
+    activationOverview,
   ] = await Promise.all([
     getJson(`${BASE_URL}/health`),
     getJson(LEGACY_HEALTH_URL),
     getJson(`${API_BASE}/ai/health`),
     getJson(`${API_BASE}/analytics/funnel?rangeDays=${RANGE_DAYS}`, adminToken),
     getJson(`${API_BASE}/analytics/ai-overview?rangeDays=${RANGE_DAYS}`, adminToken),
+    getJson(`${API_BASE}/analytics/activation-overview?rangeDays=${RANGE_DAYS}`, adminToken),
   ]);
 
   return {
@@ -278,6 +313,7 @@ async function collectSnapshot(adminToken) {
     aiHealth,
     funnel,
     aiOverview,
+    activationOverview,
   };
 }
 

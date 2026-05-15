@@ -227,6 +227,7 @@ let translationRetryTimer: ReturnType<typeof setTimeout> | null = null
 let translationRetryCount = 0
 const MAX_TRANSLATION_RETRY_COUNT = 12
 let openSourceType: '' | 'chat_hit' = ''
+let detailOpenTrackedKey = ''
 let openAiHitContext: {
   qaId?: string
   trigger?: string
@@ -588,6 +589,24 @@ async function loadArticleDetail(slug: string) {
   persistRecentKnowledge()
   syncContinueReading()
   await measurePageMetrics()
+
+  const detailTrackKey = `${slug}:${loadedArticle.id}`
+  if (detailOpenTrackedKey !== detailTrackKey) {
+    detailOpenTrackedKey = detailTrackKey
+    trackMiniEvent('app_knowledge_detail_open', {
+      page: 'KnowledgeDetailPage',
+      properties: {
+        slug,
+        articleSlug: loadedArticle.slug || slug,
+        articleId: loadedArticle.id,
+        originSource: openSourceType || null,
+        sourceOrg: loadedArticle.sourceOrg || loadedArticle.source || null,
+        topic: loadedArticle.topic || null,
+        contentType: loadedArticle.contentType || null,
+        isVerified: Boolean(loadedArticle.isVerified),
+      },
+    })
+  }
 
   if (openSourceType === 'chat_hit' && article.value?.slug === slug) {
     trackMiniEvent('app_knowledge_detail_ai_hit_open', {
