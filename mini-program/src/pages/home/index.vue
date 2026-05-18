@@ -9,14 +9,6 @@
       <text class="hero-subtitle">{{ heroSubtitle }}</text>
     </view>
 
-    <StageRecommend
-      :title="stageRecommendTitle"
-      :caption="stageRecommendCaption"
-      :badge="stageRecommendBadge"
-      :items="stageRecommendationItems"
-      @open-recommendation="openStageRecommendation"
-    />
-
     <view class="home-card-list">
       <view
         v-for="item in primaryEntries"
@@ -56,20 +48,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import { onShareAppMessage, onShareTimeline, onShow } from '@dcloudio/uni-app'
-import StageRecommend from '@/components/home/StageRecommend.vue'
-import { aiApi, type KnowledgeRecommendedQuestion, type KnowledgeRecommendedQuestionStage } from '@/api/ai'
 import { useAppStore } from '@/stores/app'
-import { useKnowledgeStore } from '@/stores/knowledge'
 import { calculatePregnancyWeekFromDueDate } from '@/utils'
 import { getKnowledgeDisplayTitle } from '@/utils/knowledge-format'
-import { getStageRecommendationItems, type RecentKnowledgeItem, type StageRecommendationItem } from '@/utils/home-helpers'
+import type { RecentKnowledgeItem } from '@/utils/home-helpers'
 
 const appStore = useAppStore()
-const knowledgeStore = useKnowledgeStore()
 const RECENT_KNOWLEDGE_STORAGE_KEY = 'recentKnowledgeArticles'
-let recommendationRequestId = 0
 
 const TAB_PAGES = new Set([
   '/pages/home/index',
@@ -87,8 +74,6 @@ const PUBLIC_PAGES = new Set([
 const sessionLoggedIn = ref(Boolean(uni.getStorageSync('token')))
 const storedWeek = ref<number | null>(null)
 const recentKnowledge = ref<RecentKnowledgeItem[]>([])
-const stageRecommendationItems = ref<StageRecommendationItem[]>(getStageRecommendationItems(null))
-const stageRecommendationSource = ref<'knowledge_ops_report' | 'fallback'>('fallback')
 
 const syncHomeState = () => {
   uni.removeStorageSync('pendingChatDraft')
@@ -132,14 +117,6 @@ const heroSubtitle = computed(() => (
     ? '专属孕期知识、里程碑日历与时光档案，记录您与宝宝的每一个美好瞬间。'
     : '提供专业、贴心的孕期指导，登录后即可开启您的专属孕育之旅。'
 ))
-const stageRecommendStage = computed(() => resolveKnowledgeRecommendationStage(currentWeek.value))
-const stageRecommendTitle = computed(() => (currentWeek.value ? '本阶段先看这 3 个问题' : '先从这 3 个权威问题开始'))
-const stageRecommendCaption = computed(() => (
-  stageRecommendationSource.value === 'knowledge_ops_report'
-    ? '来自安全候选题库，点开即可进入权威资料筛选。'
-    : '根据当前阶段推荐，先查资料再决定是否继续提问。'
-))
-const stageRecommendBadge = computed(() => (currentWeek.value ? `孕 ${currentWeek.value} 周` : '权威入口'))
 
 const primaryEntries = computed(() => [
   {
@@ -189,77 +166,14 @@ function openRecentKnowledge(slug: string) {
   uni.navigateTo({ url: `/pages/knowledge-detail/index?slug=${encodeURIComponent(slug)}` })
 }
 
-function resolveKnowledgeRecommendationStage(week?: number | null): KnowledgeRecommendedQuestionStage | null {
-  if (!week) return null
-  if (week <= 12) return 'first-trimester'
-  if (week <= 27) return 'second-trimester'
-  return 'third-trimester'
-}
-
-function getRecommendedQuestionDescription(question: KnowledgeRecommendedQuestion): string {
-  if (question.riskLevel === 'yellow') {
-    return question.boundaryNote || '仅用于科普与就医准备，先看边界再决定下一步。'
-  }
-
-  if (question.sourceOrg) {
-    return `${question.sourceOrg} · 适合先查权威资料，再继续提问。`
-  }
-
-  return '来自权威知识库候选题，适合先查资料再继续提问。'
-}
-
-function mapRecommendedQuestion(question: KnowledgeRecommendedQuestion, index: number): StageRecommendationItem {
-  return {
-    key: question.id || `${question.searchKeyword || question.question}-${index}`,
-    title: question.question,
-    desc: getRecommendedQuestionDescription(question),
-    keyword: question.searchKeyword || question.question,
-    stage: question.targetStage[0] || stageRecommendStage.value,
-  }
-}
-
-async function loadStageRecommendations() {
-  const requestId = ++recommendationRequestId
-  const fallbackItems = getStageRecommendationItems(currentWeek.value)
-  stageRecommendationItems.value = fallbackItems
-
-  try {
-    const response = await aiApi.getRecommendedKnowledgeQuestions({
-      stage: stageRecommendStage.value,
-      limit: 3,
-    })
-    if (requestId !== recommendationRequestId) return
-
-    const nextItems = (response.questions || []).map(mapRecommendedQuestion)
-    stageRecommendationSource.value = nextItems.length > 0 ? response.source : 'fallback'
-    stageRecommendationItems.value = nextItems.length > 0 ? nextItems : fallbackItems
-  } catch {
-    if (requestId !== recommendationRequestId) return
-    stageRecommendationSource.value = 'fallback'
-    stageRecommendationItems.value = fallbackItems
-  }
-}
-
-function openStageRecommendation(item: StageRecommendationItem) {
-  void knowledgeStore.applyFilters({
-    keyword: item.keyword || item.title,
-    source: 'all',
-    stage: item.stage,
-  })
-  uni.switchTab({ url: '/pages/knowledge/index' })
-}
-
 const navigateTo = (url: string) => {
   if (!PUBLIC_PAGES.has(url) && !checkLogin()) return
   if (TAB_PAGES.has(url)) { uni.switchTab({ url }); return }
   uni.navigateTo({ url })
 }
 
-watch(currentWeek, () => { void loadStageRecommendations() }, { immediate: true })
-
 onShow(() => {
   syncHomeState()
-  void loadStageRecommendations()
   if (sessionLoggedIn.value && !appStore.user) {
     void appStore.fetchUser()
   }
