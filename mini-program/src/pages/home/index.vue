@@ -49,9 +49,10 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { onShareAppMessage, onShareTimeline, onShow } from '@dcloudio/uni-app'
+import { onLoad, onShareAppMessage, onShareTimeline, onShow } from '@dcloudio/uni-app'
 import { useAppStore } from '@/stores/app'
 import { calculatePregnancyWeekFromDueDate } from '@/utils'
+import { buildAcquisitionPath, buildAcquisitionQuery, recordAcquisitionContext } from '@/utils/acquisition'
 import { getKnowledgeDisplayTitle } from '@/utils/knowledge-format'
 import type { RecentKnowledgeItem } from '@/utils/home-helpers'
 
@@ -163,14 +164,18 @@ const checkLogin = (): boolean => {
 }
 
 function openRecentKnowledge(slug: string) {
-  uni.navigateTo({ url: `/pages/knowledge-detail/index?slug=${encodeURIComponent(slug)}` })
+  uni.navigateTo({ url: buildAcquisitionPath('/pages/knowledge-detail/index', { slug }) })
 }
 
 const navigateTo = (url: string) => {
   if (!PUBLIC_PAGES.has(url) && !checkLogin()) return
   if (TAB_PAGES.has(url)) { uni.switchTab({ url }); return }
-  uni.navigateTo({ url })
+  uni.navigateTo({ url: buildAcquisitionPath(url) })
 }
+
+onLoad((options) => {
+  recordAcquisitionContext(options)
+})
 
 onShow(() => {
   syncHomeState()
@@ -179,8 +184,24 @@ onShow(() => {
   }
 })
 
-onShareAppMessage(() => ({ title: '贝护妈妈：科学护航，安心陪伴每一天', path: '/pages/home/index', query: '' }))
-onShareTimeline(() => ({ title: '贝护妈妈：科学护航，安心陪伴每一天', query: '' }))
+function buildSharePayload() {
+  const query = buildAcquisitionQuery()
+
+  return {
+    title: '贝护妈妈：科学护航，安心陪伴每一天',
+    path: buildAcquisitionPath('/pages/home/index'),
+    query,
+  }
+}
+
+onShareAppMessage(() => buildSharePayload())
+onShareTimeline(() => {
+  const payload = buildSharePayload()
+  return {
+    title: payload.title,
+    query: payload.query,
+  }
+})
 </script>
 
 <style scoped>

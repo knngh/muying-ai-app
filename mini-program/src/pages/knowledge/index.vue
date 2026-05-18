@@ -216,9 +216,10 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { onReachBottom, onShareAppMessage, onShareTimeline, onShow } from '@dcloudio/uni-app'
+import { onLoad, onReachBottom, onShareAppMessage, onShareTimeline, onShow } from '@dcloudio/uni-app'
 import { useKnowledgeStore } from '@/stores/knowledge'
 import type { Article } from '@/api/modules'
+import { buildAcquisitionPath, buildAcquisitionQuery, recordAcquisitionContext } from '@/utils/acquisition'
 import { getAuthorityRegionLabel, getAuthorityRegionTag } from '@/utils/authority-source'
 import {
   buildKnowledgeSourceDigest,
@@ -347,6 +348,10 @@ onMounted(async () => {
   await loadArticles(true)
 })
 
+onLoad((options) => {
+  recordAcquisitionContext(options)
+})
+
 onShow(async () => {
   syncLocalFiltersFromStore()
   if (articles.value.length === 0) {
@@ -410,7 +415,12 @@ function resetFilters() {
 
 function goToDetail(article: Article) {
   const shouldWarmTranslation = isChineseKnowledgeArticle(article) ? '0' : '1'
-  uni.navigateTo({ url: `/pages/knowledge-detail/index?slug=${encodeURIComponent(article.slug)}&translation=${shouldWarmTranslation}` })
+  uni.navigateTo({
+    url: buildAcquisitionPath('/pages/knowledge-detail/index', {
+      slug: article.slug,
+      translation: shouldWarmTranslation,
+    }),
+  })
 }
 
 function getReadingHint(article: Article): string {
@@ -523,11 +533,12 @@ function buildSharePayload() {
   const title = keyword
     ? `贝护妈妈权威知识库：${keyword}`
     : '贝护妈妈权威知识库：孕产与婴幼儿权威资料'
+  const query = buildAcquisitionQuery(keyword ? { keyword } : undefined)
 
   return {
     title,
-    path: '/pages/knowledge/index',
-    query: keyword ? `keyword=${encodeURIComponent(keyword)}` : '',
+    path: buildAcquisitionPath('/pages/knowledge/index', keyword ? { keyword } : undefined),
+    query,
   }
 }
 

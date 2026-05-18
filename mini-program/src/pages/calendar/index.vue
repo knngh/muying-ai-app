@@ -338,11 +338,12 @@
 
 <script setup lang="ts">
 import { ref, computed, nextTick } from 'vue'
-import { onShareAppMessage, onShareTimeline, onShow } from '@dcloudio/uni-app'
+import { onLoad, onShareAppMessage, onShareTimeline, onShow } from '@dcloudio/uni-app'
 import mockDataArray from './mockData.json'
 import { useAppStore } from '@/stores/app'
 import { calendarApi, type PregnancyTodoProgress, type PregnancyDiary, type PregnancyCustomTodo } from '@/api/modules'
 import { calculatePregnancyWeekFromDueDate } from '@/utils'
+import { buildAcquisitionPath, buildAcquisitionQuery, recordAcquisitionContext } from '@/utils/acquisition'
 import { buildWeekPriorityPlan } from '@/utils/ai-assist'
 
 const weeksList = ref(Array.from({ length: 40 }, (_, i) => ({ num: i + 1 })))
@@ -366,6 +367,7 @@ const resolveInitialWeek = () => {
 const currentSelectedWeek = ref(resolveInitialWeek())
 const timelineScrollTarget = ref(`week-${currentSelectedWeek.value}`)
 const activeTab = ref('guide') // 'guide' | 'todo' | 'diary'
+const initialSharedWeek = ref<number | null>(null)
 
 // 模拟日记数据库
 const userDiaries = ref<Record<number, PregnancyDiary>>({})
@@ -576,6 +578,12 @@ const syncSelectedWeekFromSession = async () => {
   const resolvedWeek = resolveInitialWeek()
   currentSelectedWeek.value = resolvedWeek
   await scrollToWeek(resolvedWeek)
+}
+
+function readWeekFromQuery(options?: Record<string, unknown> | null): number | null {
+  const value = options?.week
+  const week = Number.parseInt(String(value || ''), 10)
+  return week >= 1 && week <= 40 ? week : null
 }
 
 const handleSelectWeek = (e: any) => {
@@ -826,17 +834,35 @@ const toggleTodo = async (todo: { todoKey: string; stateKey: string; completed: 
   }
 }
 
+onLoad((options) => {
+  recordAcquisitionContext(options)
+
+  const sharedWeek = readWeekFromQuery(options)
+  if (sharedWeek) {
+    initialSharedWeek.value = sharedWeek
+    currentSelectedWeek.value = sharedWeek
+    void scrollToWeek(sharedWeek)
+  }
+})
+
 onShow(() => {
-  void syncSelectedWeekFromSession()
+  if (initialSharedWeek.value) {
+    void scrollToWeek(initialSharedWeek.value)
+    initialSharedWeek.value = null
+  } else {
+    void syncSelectedWeekFromSession()
+  }
   loginUserId.value = resolveLoginUserId()
   void Promise.all([syncTodoContext(), syncDiaryContext(), syncCustomTodoContext()])
 })
 
 function buildSharePayload() {
+  const query = buildAcquisitionQuery({ week: currentSelectedWeek.value })
+
   return {
     title: `贝护妈妈孕周日历：第 ${currentSelectedWeek.value} 周重点与记录`,
-    path: '/pages/calendar/index',
-    query: '',
+    path: buildAcquisitionPath('/pages/calendar/index', { week: currentSelectedWeek.value }),
+    query,
   }
 }
 

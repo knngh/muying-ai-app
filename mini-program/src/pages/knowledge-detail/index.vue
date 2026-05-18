@@ -172,6 +172,7 @@ import { articleApi, isTranslationPendingError } from '@/api/modules'
 import type { AuthorityArticleTranslation } from '@/api/modules'
 import type { Article } from '@/api/modules'
 import { useKnowledgeStore } from '@/stores/knowledge'
+import { buildAcquisitionPath, buildAcquisitionQuery, recordAcquisitionContext } from '@/utils/acquisition'
 import { getAuthorityRegionLabel, getAuthorityRegionTag, isChineseAuthoritySource } from '@/utils/authority-source'
 import { trackMiniEvent } from '@/utils/analytics'
 import {
@@ -430,6 +431,7 @@ const translationReadyText = computed(() => {
 })
 
 onLoad((options) => {
+  recordAcquisitionContext(options)
   viewportHeightPx.value = uni.getSystemInfoSync().windowHeight || 1
   readingProgress.value = 0
   showBackToTop.value = false
@@ -897,10 +899,11 @@ function goBackToKnowledge() {
 
 function buildSharePayload() {
   const title = displayedTitle.value || article.value?.title || '贝护妈妈权威知识库'
+  const extra = currentSlug ? { slug: currentSlug } : undefined
   const path = currentSlug
-    ? `/pages/knowledge-detail/index?slug=${encodeURIComponent(currentSlug)}`
-    : '/pages/knowledge/index'
-  const query = currentSlug ? `slug=${encodeURIComponent(currentSlug)}` : ''
+    ? buildAcquisitionPath('/pages/knowledge-detail/index', extra)
+    : buildAcquisitionPath('/pages/knowledge/index')
+  const query = buildAcquisitionQuery(extra)
 
   return {
     title,

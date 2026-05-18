@@ -339,18 +339,19 @@ function getStringProperty(properties: Record<string, unknown>, keys: string[]):
 
 function getAcquisitionChannel(properties: Record<string, unknown>): string | undefined {
   return getStringProperty(properties, [
-    'channel',
     'acquisitionChannel',
     'trafficChannel',
     'utmChannel',
     'utmSource',
     'utm_source',
     'sourceChannel',
+    'channel',
   ]);
 }
 
 function getAcquisitionCampaign(properties: Record<string, unknown>): string | undefined {
   return getStringProperty(properties, [
+    'acquisitionCampaign',
     'campaign',
     'campaignId',
     'utmCampaign',
@@ -362,11 +363,20 @@ function getAcquisitionCampaign(properties: Record<string, unknown>): string | u
 
 function getAcquisitionScene(properties: Record<string, unknown>): string | undefined {
   return getStringProperty(properties, [
+    'acquisitionScene',
     'scene',
     'entryScene',
     'fromScene',
     'triggerScene',
     'downloadScene',
+  ]);
+}
+
+function getAcquisitionEntrySource(properties: Record<string, unknown>): string | undefined {
+  return getStringProperty(properties, [
+    'acquisitionEntrySource',
+    'entrySource',
+    'source',
   ]);
 }
 
@@ -834,7 +844,7 @@ export async function getAcquisitionOverview(rangeDays: number) {
     const channel = getAcquisitionChannel(properties);
     const campaign = getAcquisitionCampaign(properties);
     const scene = getAcquisitionScene(properties);
-    const entrySource = getEntrypointFromProperties(properties);
+    const entrySource = getAcquisitionEntrySource(properties);
 
     for (const [key, map] of [
       [channel, byChannel],

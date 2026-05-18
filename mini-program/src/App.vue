@@ -2,8 +2,62 @@
 import { onLaunch } from '@dcloudio/uni-app'
 import { useAppStore } from '@/stores/app'
 import { clearLocalSession, isStoredAuthTokenUsable } from '@/utils'
+import { trackMiniEvent } from '@/utils/analytics'
+import { inferAcquisitionEntrySource, recordAcquisitionContext } from '@/utils/acquisition'
 
-onLaunch(() => {
+let lastAcquisitionLaunchSignature = ''
+
+function getLaunchQuery(options: unknown): Record<string, unknown> | null {
+  if (!options || typeof options !== 'object') {
+    return null
+  }
+
+  const query = (options as { query?: unknown }).query
+  return query && typeof query === 'object' ? query as Record<string, unknown> : null
+}
+
+function getLaunchPath(options: unknown): string | null {
+  if (!options || typeof options !== 'object') {
+    return null
+  }
+
+  const path = (options as { path?: unknown }).path
+  return typeof path === 'string' && path.trim() ? path.trim() : null
+}
+
+function trackAcquisitionLaunch(options: unknown) {
+  const context = recordAcquisitionContext(getLaunchQuery(options))
+  if (!context) {
+    return
+  }
+
+  const entryPath = getLaunchPath(options)
+  const entrySource = context.entrySource || inferAcquisitionEntrySource(entryPath)
+  const signature = [
+    entryPath || '',
+    context.channel || '',
+    context.campaign || '',
+    context.scene || '',
+    entrySource || '',
+  ].join('|')
+
+  if (signature === lastAcquisitionLaunchSignature) {
+    return
+  }
+
+  lastAcquisitionLaunchSignature = signature
+  trackMiniEvent('mini_program_app_download_click', {
+    page: entryPath || 'AppLaunch',
+    properties: {
+      entryPath,
+      entrySource,
+    },
+  })
+}
+
+onLaunch((options) => {
+  trackAcquisitionLaunch(options)
+
   const token = uni.getStorageSync('token')
   if (!token) {
     return

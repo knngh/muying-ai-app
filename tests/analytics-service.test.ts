@@ -747,6 +747,85 @@ describe('analytics.service 单元测试', () => {
     });
   });
 
+  it('getAcquisitionOverview 会优先使用 acquisition 归因字段，避免事件自有 channel 污染获客渠道', async () => {
+    mockAnalyticsFindMany.mockResolvedValue([
+      {
+        eventName: 'mini_program_app_download_click',
+        userId: null,
+        clientId: 'client-share-1',
+        sessionId: 'session-share-1',
+        source: 'mini_program',
+        page: 'KnowledgeDetailPage',
+        properties: {
+          channel: 'share_app_message',
+          acquisitionChannel: 'xiaohongshu',
+          campaign: 'newborn-fever',
+          acquisitionCampaign: 'p7-newborn-fever',
+          scene: 'share_panel',
+          acquisitionScene: 'knowledge_detail_download_card',
+          entrySource: 'knowledge_share',
+          acquisitionEntrySource: 'knowledge_detail',
+        },
+        createdAt: new Date('2026-05-12T00:00:00.000Z'),
+      },
+      {
+        eventName: 'app_knowledge_detail_open',
+        userId: null,
+        clientId: 'client-share-1',
+        sessionId: 'session-share-1',
+        source: 'app',
+        page: 'KnowledgeDetailScreen',
+        properties: {
+          channel: 'native_share',
+          acquisitionChannel: 'xiaohongshu',
+          acquisitionCampaign: 'p7-newborn-fever',
+          acquisitionScene: 'knowledge_detail_download_card',
+          entrySource: 'knowledge_detail',
+          acquisitionEntrySource: 'knowledge_detail',
+        },
+        createdAt: new Date('2026-05-12T00:05:00.000Z'),
+      },
+    ]);
+
+    const result = await getAcquisitionOverview(7);
+
+    expect(result.breakdown.byChannel).toEqual([
+      expect.objectContaining({
+        key: 'xiaohongshu',
+        eventCount: 2,
+        acquisitionEventCount: 1,
+        activatedUniqueCount: 1,
+      }),
+    ]);
+    expect(result.breakdown.byCampaign).toEqual([
+      expect.objectContaining({
+        key: 'p7-newborn-fever',
+        acquisitionUniqueCount: 1,
+        activatedUniqueCount: 1,
+      }),
+    ]);
+    expect(result.breakdown.byScene).toEqual([
+      expect.objectContaining({
+        key: 'knowledge_detail_download_card',
+        acquisitionEventCount: 1,
+      }),
+    ]);
+    expect(result.breakdown.byEntrySource).toEqual([
+      expect.objectContaining({
+        key: 'knowledge_detail',
+        acquisitionUniqueCount: 1,
+        activatedUniqueCount: 1,
+      }),
+    ]);
+    expect(result.topAcquisitionSegments[0]).toMatchObject({
+      channel: 'xiaohongshu',
+      campaign: 'p7-newborn-fever',
+      scene: 'knowledge_detail_download_card',
+      entrySource: 'knowledge_detail',
+      activatedUniqueCount: 1,
+    });
+  });
+
   it('getAIOverview 会汇总回答质量、动作点击和反馈分布', async () => {
     mockAnalyticsFindMany.mockResolvedValue([
       {

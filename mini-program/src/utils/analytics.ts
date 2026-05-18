@@ -1,3 +1,5 @@
+import { getAcquisitionAnalyticsProperties } from './acquisition'
+
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://beihu.me/api/v1'
 const CLIENT_ID_KEY = 'analytics_client_id'
 const SESSION_ID = createId()
@@ -51,7 +53,7 @@ export function trackMiniEvent(
         page: input.page,
         clientId: getClientId(),
         sessionId: SESSION_ID,
-        properties: input.properties,
+        properties: getAcquisitionAnalyticsProperties(input.properties),
       },
     })
   } catch {
