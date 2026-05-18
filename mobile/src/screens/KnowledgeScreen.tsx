@@ -15,7 +15,6 @@ import {
   IconButton,
   Button,
 } from 'react-native-paper'
-import LinearGradient from 'react-native-linear-gradient'
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons'
 import { useNavigation } from '@react-navigation/native'
 import type { StackNavigationProp } from '@react-navigation/stack'
@@ -795,7 +794,6 @@ export default function KnowledgeScreen() {
         onPress={() => navigation.navigate('KnowledgeDetail', { slug: item.slug })}
       >
         <Card.Content>
-          <View style={styles.articleWash} />
           <View style={styles.articleTopRow}>
             <Text style={styles.articleEyebrow}>权威内容</Text>
             <View style={styles.articleSignalRow}>
@@ -1123,14 +1121,7 @@ export default function KnowledgeScreen() {
         </View>
       ) : null}
 
-      <LinearGradient
-        colors={['rgba(248,227,214,0.96)', 'rgba(241,209,191,0.92)', 'rgba(250,244,238,0.98)']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.filterPanel}
-      >
-        <View style={styles.filterGlow} />
-        <View style={styles.filterRing} />
+      <View style={styles.filterPanel}>
         <Text style={styles.filterPanelEyebrow}>筛选条件</Text>
         <Text style={styles.filterPanelTitle}>按阶段、分类和主题快速缩小范围</Text>
         <View style={styles.filterStatsRow}>
@@ -1195,7 +1186,7 @@ export default function KnowledgeScreen() {
             </View>
           ) : null}
         </View>
-      </LinearGradient>
+      </View>
 
       {/* Category Filter */}
       {categories.length > 0 && (
@@ -1270,14 +1261,7 @@ export default function KnowledgeScreen() {
 
   return (
     <ScreenContainer style={styles.container}>
-      <LinearGradient
-        colors={['rgba(248,227,214,0.96)', 'rgba(241,209,191,0.92)', 'rgba(250,244,238,0.98)']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.header}
-      >
-        <View style={styles.headerGlow} />
-        <View style={styles.headerRing} />
+      <View style={styles.header}>
         <Text style={styles.headerEyebrow}>知识库</Text>
         <Text style={styles.headerTitle}>按阶段找到更贴近当前周期的权威内容</Text>
         <Text style={styles.headerSubtitle}>
@@ -1285,7 +1269,7 @@ export default function KnowledgeScreen() {
             ? '备孕期权威内容仍在持续补齐，当前默认先展示全站可用文章，并优先提供备孕相关检索建议。'
             : `默认优先展示更贴近 ${stageSummary.lifecycleLabel} 的内容，可继续按分类、标签与来源收窄。`}
         </Text>
-      </LinearGradient>
+      </View>
 
       <Searchbar
         placeholder={isPreparationLifecycle ? '搜索备孕、孕期相关内容' : `搜索${stageSummary.lifecycleLabel}相关内容`}
@@ -1445,35 +1429,15 @@ const styles = StyleSheet.create({
     marginHorizontal: spacing.md,
     marginTop: spacing.md,
     padding: spacing.md,
-    borderRadius: borderRadius.lg,
-    overflow: 'hidden',
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.surfaceRaised,
     borderWidth: 1,
     borderColor: colors.border,
-  },
-  headerGlow: {
-    position: 'absolute',
-    top: -24,
-    right: -16,
-    width: 132,
-    height: 132,
-    borderRadius: 66,
-    backgroundColor: 'rgba(255,248,242,0.42)',
-  },
-  headerRing: {
-    position: 'absolute',
-    top: 20,
-    right: 22,
-    width: 88,
-    height: 88,
-    borderRadius: 44,
-    borderWidth: 1,
-    borderColor: 'rgba(94,126,134,0.12)',
   },
   headerEyebrow: {
     color: colors.primaryDark,
     fontSize: 11,
     fontWeight: '700',
-    letterSpacing: 0.8,
   },
   headerTitle: {
     marginTop: spacing.xs,
@@ -1490,9 +1454,9 @@ const styles = StyleSheet.create({
   filterPanel: {
     marginTop: spacing.xs,
     marginBottom: spacing.md,
-    borderRadius: borderRadius.lg,
+    borderRadius: borderRadius.md,
     padding: spacing.md,
-    overflow: 'hidden',
+    backgroundColor: colors.surfaceRaised,
     borderWidth: 1,
     borderColor: colors.border,
   },
@@ -1546,10 +1510,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceRaised,
     borderWidth: 1,
     borderColor: colors.border,
-    shadowColor: colors.inkSoft,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.06,
-    shadowRadius: 16,
     gap: spacing.xs,
   },
   recentAiHitCardEyebrow: {
@@ -1648,30 +1608,10 @@ const styles = StyleSheet.create({
     fontSize: 10,
     marginTop: 2,
   },
-  filterGlow: {
-    position: 'absolute',
-    top: -22,
-    right: -12,
-    width: 110,
-    height: 110,
-    borderRadius: 55,
-    backgroundColor: 'rgba(255,248,242,0.34)',
-  },
-  filterRing: {
-    position: 'absolute',
-    top: 24,
-    right: 24,
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    borderWidth: 1,
-    borderColor: 'rgba(94,126,134,0.1)',
-  },
   filterPanelEyebrow: {
     color: colors.techDark,
     fontSize: 11,
     fontWeight: '700',
-    letterSpacing: 0.8,
   },
   filterPanelTitle: {
     marginTop: spacing.xs,
@@ -1917,20 +1857,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     elevation: 0,
-    shadowColor: colors.inkSoft,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.06,
-    shadowRadius: 18,
     overflow: 'hidden',
-  },
-  articleWash: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    width: 84,
-    height: 84,
-    borderBottomLeftRadius: 42,
-    backgroundColor: 'rgba(248,227,214,0.28)',
   },
   articleTopRow: {
     flexDirection: 'row',
@@ -1943,7 +1870,6 @@ const styles = StyleSheet.create({
     color: colors.primaryDark,
     fontSize: 11,
     fontWeight: '700',
-    letterSpacing: 0.8,
   },
   articleSignalRow: {
     flexDirection: 'row',

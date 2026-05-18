@@ -1,7 +1,6 @@
 import React from 'react'
 import { StyleSheet, View } from 'react-native'
 import { Avatar, Button, Chip, Text } from 'react-native-paper'
-import LinearGradient from 'react-native-linear-gradient'
 import { colors, fontSize, spacing, borderRadius } from '../../theme'
 
 interface ProfileHeaderProps {
@@ -24,14 +23,7 @@ export default function ProfileHeader({
   const statusLabel = status === 'active' ? '会员在线' : '基础模式'
 
   return (
-    <LinearGradient
-      colors={['#FAE5D7', '#F5D8C7', '#FBF3EB']}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={styles.headerCard}
-    >
-      <View style={styles.techOrbit} />
-      <View style={styles.techRing} />
+    <View style={styles.headerCard}>
       <View style={styles.statusStrip}>
         <View style={styles.statusDot} />
         <Text style={styles.statusText}>家庭档案</Text>
@@ -83,7 +75,7 @@ export default function ProfileHeader({
           编辑资料
         </Button>
       </View>
-    </LinearGradient>
+    </View>
   )
 }
 
@@ -92,10 +84,10 @@ const styles = StyleSheet.create({
     width: '100%',
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.md,
-    borderRadius: borderRadius.xl,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.surfaceRaised,
     borderWidth: 1,
-    borderColor: 'rgba(185, 104, 66, 0.18)',
-    overflow: 'hidden',
+    borderColor: colors.border,
   },
   statusStrip: {
     flexDirection: 'row',
@@ -113,7 +105,6 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: fontSize.xs,
     fontWeight: '700',
-    letterSpacing: 0.9,
     color: colors.techDark,
   },
   statusChip: {
@@ -151,7 +142,6 @@ const styles = StyleSheet.create({
     fontSize: fontSize.xs,
     fontWeight: '700',
     color: colors.primaryDark,
-    letterSpacing: 1.2,
     marginBottom: 2,
   },
   headerNickname: {
@@ -197,24 +187,5 @@ const styles = StyleSheet.create({
   secondaryButton: {
     borderRadius: borderRadius.pill,
     flex: 1,
-  },
-  techOrbit: {
-    position: 'absolute',
-    top: -26,
-    right: -20,
-    width: 170,
-    height: 170,
-    borderRadius: 85,
-    backgroundColor: 'rgba(94, 126, 134, 0.08)',
-  },
-  techRing: {
-    position: 'absolute',
-    top: 34,
-    right: 22,
-    width: 118,
-    height: 118,
-    borderRadius: 59,
-    borderWidth: 1,
-    borderColor: 'rgba(94, 126, 134, 0.12)',
   },
 })

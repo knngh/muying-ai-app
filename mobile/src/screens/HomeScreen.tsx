@@ -1,5 +1,4 @@
 import React, { useCallback, useMemo, useState } from 'react'
-import dayjs from 'dayjs'
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native'
 import LinearGradient from 'react-native-linear-gradient'
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons'
@@ -115,7 +114,16 @@ export default function HomeScreen() {
   }
 
   const openWeeklyReport = () => {
-    navigation.navigate(status === 'active' ? 'WeeklyReport' : 'Membership')
+    if (status === 'active') {
+      navigation.navigate('WeeklyReport')
+      return
+    }
+
+    navigation.navigate('Membership', {
+      source: 'home_upgrade',
+      entryAction: 'weekly_report',
+      highlight: weeklyReport.title,
+    })
   }
 
   const postCheckInNextStep = useMemo<PostCheckInNextStep | null>(() => {
@@ -402,27 +410,6 @@ export default function HomeScreen() {
       return
     }
     navigation.navigate('Main', { screen: entry.route })
-  }
-
-  const handleQuickCheckInPress = async () => {
-    void trackAppEvent('app_home_checkin_click', {
-      page: 'HomeScreen',
-      properties: {
-        hasCheckedInToday,
-        checkInStreak,
-      },
-    })
-
-    if (hasCheckedInToday) {
-      openCalendar()
-      return
-    }
-
-    const message = await handleQuickCheckIn()
-    if (message.startsWith('今日已签到')) {
-      setPostCheckInVisible(true)
-    }
-    setSnackMessage(message)
   }
 
   const handlePrimaryTaskPress = async () => {
@@ -735,39 +722,6 @@ export default function HomeScreen() {
           </StandardCard>
         </ContentSection>
 
-        <ContentSection style={styles.compactSection}>
-          <StandardCard style={styles.checkInCard}>
-            <View style={styles.checkInCardRow}>
-              <View style={styles.checkInLead}>
-                <View style={[styles.checkInIconShell, hasCheckedInToday && styles.checkInIconShellDone]}>
-                  <MaterialCommunityIcons
-                    name={hasCheckedInToday ? 'check-decagram' : 'calendar-check-outline'}
-                    size={18}
-                    color={hasCheckedInToday ? colors.green : colors.techDark}
-                  />
-                </View>
-                <View style={styles.checkInTextWrap}>
-                  <Text style={styles.checkInTitle}>{hasCheckedInToday ? '今天已完成签到' : '今天还没签到'}</Text>
-                  <Text style={styles.checkInSubtitle}>
-                    {hasCheckedInToday
-                      ? `已连续 ${checkInStreak} 天，继续保持就会进入下一档奖励`
-                      : `连续 ${checkInStreak} 天${nextCheckInBonus ? ` · 下一档 ${nextCheckInBonus.streak} 天 +${nextCheckInBonus.bonus} 积分` : ''}`}
-                  </Text>
-                </View>
-              </View>
-              <Button
-                mode={hasCheckedInToday ? 'outlined' : 'contained-tonal'}
-                onPress={() => void handleQuickCheckInPress()}
-                textColor={hasCheckedInToday ? colors.techDark : colors.ink}
-                style={styles.checkInActionButton}
-                loading={checkInSubmitting}
-              >
-                {hasCheckedInToday ? '去日历' : '立即签到'}
-              </Button>
-            </View>
-          </StandardCard>
-        </ContentSection>
-
         {momentumItems.length > 1 ? (
           <ContentSection style={styles.compactSection}>
             <StandardCard style={styles.momentumCard}>
@@ -936,30 +890,6 @@ export default function HomeScreen() {
           </ContentSection>
         ) : null}
 
-        {status === 'active' ? (
-          <ContentSection style={styles.compactSection}>
-            <StandardCard onPress={handleWeeklyReportPress} style={styles.reportAlertCard}>
-              <View style={styles.reportAlertRow}>
-                <View style={styles.reportAlertLead}>
-                  <View style={[styles.reportAlertBadge, hasUnreadWeeklyReport && styles.reportAlertBadgeUnread]}>
-                    <Text style={[styles.reportAlertBadgeText, hasUnreadWeeklyReport && styles.reportAlertBadgeTextUnread]}>
-                      {hasUnreadWeeklyReport ? '本周新报' : '周报中心'}
-                    </Text>
-                  </View>
-                  <Text style={styles.reportAlertTitle}>{weeklyReport.title}</Text>
-                  <Text style={styles.reportAlertSubtitle}>
-                    {weeklyReport.stageLabel} · {dayjs(weeklyReport.createdAt).format('MM-DD')} 生成
-                  </Text>
-                </View>
-                <View style={styles.reportAlertAction}>
-                  <Text style={styles.reportAlertActionText}>{hasUnreadWeeklyReport ? '立即查看' : '去回顾'}</Text>
-                  <MaterialCommunityIcons name="chevron-right" size={18} color={colors.primaryDark} />
-                </View>
-              </View>
-            </StandardCard>
-          </ContentSection>
-        ) : null}
-
         <ContentSection style={styles.compactSection}>
           <QuickActions entries={featureEntries} onPress={handleFeaturePress} />
         </ContentSection>
@@ -1014,18 +944,7 @@ export default function HomeScreen() {
           <WeeklyReportPreview
             report={weeklyReport}
             status={status}
-            onViewMore={() => {
-              if (status === 'active') {
-                navigation.navigate('WeeklyReport')
-                return
-              }
-
-              navigation.navigate('Membership', {
-                source: 'home_upgrade',
-                entryAction: 'weekly_report',
-                highlight: weeklyReport.title,
-              })
-            }}
+            onViewMore={handleWeeklyReportPress}
           />
         </ContentSection>
 
@@ -1189,51 +1108,6 @@ const styles = StyleSheet.create({
     lineHeight: 17,
   },
   focusActionButton: {
-    borderRadius: borderRadius.pill,
-  },
-  checkInCard: {
-    backgroundColor: 'rgba(255, 251, 247, 0.92)',
-  },
-  checkInCardRow: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md - 2,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
-  },
-  checkInLead: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  checkInIconShell: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.techLight,
-  },
-  checkInIconShellDone: {
-    backgroundColor: colors.successSoft,
-  },
-  checkInTextWrap: {
-    flex: 1,
-    gap: 2,
-  },
-  checkInTitle: {
-    color: colors.ink,
-    fontSize: fontSize.md,
-    fontWeight: '700',
-  },
-  checkInSubtitle: {
-    color: colors.textSecondary,
-    fontSize: fontSize.sm,
-    lineHeight: 18,
-  },
-  checkInActionButton: {
     borderRadius: borderRadius.pill,
   },
   momentumCard: {
@@ -1518,57 +1392,6 @@ const styles = StyleSheet.create({
   },
   membershipNudgePrimaryButton: {
     borderRadius: borderRadius.pill,
-  },
-  reportAlertCard: {
-    backgroundColor: 'rgba(255, 251, 247, 0.94)',
-  },
-  reportAlertRow: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md - 2,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
-  },
-  reportAlertLead: {
-    flex: 1,
-  },
-  reportAlertBadge: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
-    borderRadius: borderRadius.pill,
-    backgroundColor: colors.surfaceMuted,
-    marginBottom: spacing.xs,
-  },
-  reportAlertBadgeUnread: {
-    backgroundColor: colors.goldLight,
-  },
-  reportAlertBadgeText: {
-    color: colors.inkSoft,
-    fontSize: fontSize.xs,
-    fontWeight: '700',
-  },
-  reportAlertBadgeTextUnread: {
-    color: colors.gold,
-  },
-  reportAlertTitle: {
-    color: colors.ink,
-    fontSize: fontSize.lg,
-    fontWeight: '700',
-  },
-  reportAlertSubtitle: {
-    marginTop: 2,
-    color: colors.textSecondary,
-    fontSize: fontSize.sm,
-  },
-  reportAlertAction: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  reportAlertActionText: {
-    color: colors.primaryDark,
-    fontWeight: '700',
   },
   questionCard: {
     backgroundColor: 'rgba(255, 250, 245, 0.96)',

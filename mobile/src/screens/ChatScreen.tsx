@@ -3,20 +3,20 @@ import {
   FlatList,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   StyleSheet,
   View,
 } from 'react-native'
-import { Chip, IconButton, Snackbar, Text } from 'react-native-paper'
+import { Snackbar, Text } from 'react-native-paper'
 import { useNavigation, useRoute } from '@react-navigation/native'
 import type { CompositeNavigationProp, RouteProp } from '@react-navigation/native'
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs'
 import type { StackNavigationProp } from '@react-navigation/stack'
-import LinearGradient from 'react-native-linear-gradient'
 import { getDisclaimer } from '../api/ai'
 import type { AIMessage } from '../api/ai'
 import UpgradeModal from '../components/UpgradeModal'
 import { MessageBubble, EmptyState, ChatInput, TypingIndicator, ChatSkeleton } from '../components/chat'
-import { ScreenContainer, StandardCard } from '../components/layout'
+import { ScreenContainer } from '../components/layout'
 import { useChatLogic } from '../hooks/useChatLogic'
 import { trackAppEvent } from '../services/analytics'
 import { useAppStore } from '../stores/appStore'
@@ -348,60 +348,38 @@ export default function ChatScreen() {
   const renderHeader = useCallback(
     () => (
       <View style={styles.listHeader}>
-        <StandardCard style={styles.heroCard} elevation={2}>
-          <LinearGradient
-            colors={['#254652', '#3B6670', '#E7D5C7']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.heroGradient}
-          >
-            <View style={styles.heroGlow} />
-            <View style={styles.heroRing} />
-            <View style={styles.heroGrid} />
-            <View style={styles.heroBeam} />
-            <View style={styles.heroBottomLine} />
-            <View pointerEvents="none" style={styles.heroFrame}>
-              <View style={styles.heroCornerTop} />
-              <View style={styles.heroCornerBottom} />
+        <View style={styles.headerCard}>
+          <View style={styles.headerTopRow}>
+            <View style={styles.headerTitleBlock}>
+              <Text style={styles.headerEyebrow}>贝护妈妈助手</Text>
+              <Text style={styles.headerTitle}>把问题拆清楚，再给可执行下一步</Text>
             </View>
-            <View style={[styles.statusStrip, status === 'active' ? styles.statusStripActive : styles.statusStripFree]}>
-              <View style={styles.statusMeta}>
-                <View style={[styles.statusSignalDot, status === 'active' ? styles.statusSignalDotActive : styles.statusSignalDotFree]} />
-                <Text style={[styles.statusStripLabel, status === 'active' ? styles.statusStripLabelActive : styles.statusStripLabelFree]}>
-                  {status === 'active' ? '会员已开通' : '非会员模式'}
-                </Text>
-              </View>
-              <Text style={[styles.statusStripValue, status === 'active' ? styles.statusStripValueActive : styles.statusStripValueFree]}>
-                {status === 'active' ? '不限次连续追问' : `今日剩余 ${remainingCount} 次回答`}
-              </Text>
-            </View>
+          </View>
 
-            <View style={styles.headerTopRow}>
-              <View style={styles.headerChipRow}>
-                <Chip compact style={styles.heroChip} textStyle={styles.heroChipText}>
-                  {stage.lifecycleLabel}
-                </Chip>
-                <Chip compact style={styles.heroAssistChip} textStyle={styles.heroAssistChipText}>
-                  知识参考
-                </Chip>
-              </View>
-
-              <IconButton
-                icon="delete-outline"
-                iconColor="#F2FBFC"
-                containerColor="rgba(8, 26, 32, 0.08)"
-                size={15}
-                style={styles.clearButton}
-                onPress={clearMessages}
-              />
+          <View style={styles.headerMetaRow}>
+            <View style={styles.stagePill}>
+              <Text style={styles.stagePillText}>{stage.lifecycleLabel}</Text>
             </View>
-
-            <View style={styles.headerTitleRow}>
-              <View style={styles.headerTitleAccent} />
-              <Text numberOfLines={1} style={styles.headerTitle}>围绕当前阶段，把需要优先确认的问题和线索先梳理清楚</Text>
+            <View style={styles.statusPill}>
+              <View style={[styles.statusDot, status === 'active' ? styles.statusDotActive : styles.statusDotFree]} />
+              <Text style={styles.statusPillText}>{status === 'active' ? '会员模式' : '基础模式'}</Text>
             </View>
-          </LinearGradient>
-        </StandardCard>
+          </View>
+
+          <View style={styles.quotaRow}>
+            <View>
+              <Text style={styles.quotaLabel}>今日问答</Text>
+              <Text style={styles.quotaValue}>{status === 'active' ? '不限次连续追问' : `剩余 ${remainingCount} 次回答`}</Text>
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              onPress={clearMessages}
+              style={styles.newChatButton}
+            >
+              <Text style={styles.newChatButtonText}>清空对话</Text>
+            </Pressable>
+          </View>
+        </View>
 
         {error ? (
           <View style={styles.errorBar}>
@@ -410,15 +388,13 @@ export default function ChatScreen() {
         ) : null}
 
         {entrySource ? (
-          <StandardCard style={styles.sourceCard}>
-            <View style={styles.sourceCardHeader}>
-              <Chip compact style={styles.sourceChip} textStyle={styles.sourceChipText}>
-                推荐入口
-              </Chip>
+          <View style={styles.sourceNotice}>
+            <View style={styles.sourceNoticeAccent} />
+            <View style={styles.sourceNoticeBody}>
               <Text style={styles.sourceTitle}>{CHAT_SOURCE_LABEL[entrySource].title}</Text>
+              <Text style={styles.sourceSubtitle}>{CHAT_SOURCE_LABEL[entrySource].subtitle}</Text>
             </View>
-            <Text style={styles.sourceSubtitle}>{CHAT_SOURCE_LABEL[entrySource].subtitle}</Text>
-          </StandardCard>
+          </View>
         ) : null}
       </View>
     ),
@@ -504,25 +480,127 @@ const styles = StyleSheet.create({
   listHeader: {
     gap: spacing.md,
   },
-  sourceCard: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md - 2,
-    backgroundColor: 'rgba(255, 249, 243, 0.95)',
+  headerCard: {
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    backgroundColor: 'rgba(255, 253, 250, 0.96)',
+    borderWidth: 1,
+    borderColor: 'rgba(196, 216, 221, 0.64)',
   },
-  sourceCardHeader: {
+  headerTopRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: spacing.md,
   },
-  sourceChip: {
-    backgroundColor: 'rgba(220,236,238,0.9)',
+  headerTitleBlock: {
+    flex: 1,
+    gap: spacing.xs,
   },
-  sourceChipText: {
+  headerEyebrow: {
     color: colors.techDark,
+    fontSize: 12,
     fontWeight: '700',
   },
-  sourceTitle: {
+  headerTitle: {
+    color: colors.ink,
+    fontSize: 20,
+    fontWeight: '700',
+    lineHeight: 27,
+  },
+  headerMetaRow: {
+    marginTop: spacing.md,
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  stagePill: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    borderRadius: borderRadius.pill,
+    backgroundColor: colors.techLight,
+  },
+  stagePillText: {
+    color: colors.techDark,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  statusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    borderRadius: borderRadius.pill,
+    backgroundColor: colors.backgroundSoft,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  statusDot: {
+    width: 7,
+    height: 7,
+    borderRadius: borderRadius.pill,
+  },
+  statusDotActive: {
+    backgroundColor: colors.green,
+  },
+  statusDotFree: {
+    backgroundColor: colors.orange,
+  },
+  statusPillText: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  quotaRow: {
+    marginTop: spacing.md,
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.divider,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  quotaLabel: {
+    color: colors.textLight,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  quotaValue: {
+    marginTop: 2,
+    color: colors.ink,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  newChatButton: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 7,
+    borderRadius: borderRadius.pill,
+    backgroundColor: colors.surfaceMuted,
+  },
+  newChatButtonText: {
+    color: colors.techDark,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  sourceNotice: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.surfaceRaised,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  sourceNoticeAccent: {
+    width: 3,
+    borderRadius: borderRadius.pill,
+    backgroundColor: colors.tech,
+  },
+  sourceNoticeBody: {
     flex: 1,
+  },
+  sourceTitle: {
     color: colors.ink,
     fontWeight: '700',
   },
@@ -530,241 +608,6 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
     color: colors.textSecondary,
     lineHeight: 19,
-  },
-  heroCard: {
-    backgroundColor: 'transparent',
-    marginHorizontal: -4,
-  },
-  heroGradient: {
-    borderRadius: borderRadius.xl,
-    overflow: 'hidden',
-    paddingHorizontal: spacing.sm + 2,
-    paddingTop: spacing.sm + 2,
-    paddingBottom: spacing.md + 4,
-  },
-  heroGlow: {
-    position: 'absolute',
-    top: -54,
-    right: -18,
-    width: 196,
-    height: 196,
-    borderRadius: 98,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-  },
-  heroRing: {
-    position: 'absolute',
-    top: 12,
-    right: 16,
-    width: 124,
-    height: 124,
-    borderRadius: 62,
-    borderWidth: 1,
-    borderColor: 'rgba(223, 244, 248, 0.22)',
-  },
-  heroGrid: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
-    opacity: 0.4,
-    borderRadius: borderRadius.xl,
-    backgroundColor: 'rgba(255,255,255,0.02)',
-    borderWidth: 1,
-    borderColor: 'rgba(229, 245, 248, 0.16)',
-  },
-  heroBeam: {
-    position: 'absolute',
-    left: -26,
-    top: 54,
-    width: 186,
-    height: 70,
-    borderRadius: 999,
-    backgroundColor: 'rgba(255, 210, 176, 0.16)',
-    transform: [{ rotate: '-10deg' }],
-  },
-  heroBottomLine: {
-    position: 'absolute',
-    left: 18,
-    right: 18,
-    bottom: 14,
-    height: 1,
-    backgroundColor: 'rgba(228, 244, 247, 0.2)',
-  },
-  heroFrame: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
-    bottom: 10,
-    left: 10,
-    justifyContent: 'space-between',
-  },
-  heroCornerTop: {
-    width: 72,
-    height: 20,
-    borderTopWidth: 1,
-    borderLeftWidth: 1,
-    borderColor: 'rgba(233, 246, 248, 0.38)',
-    borderTopLeftRadius: borderRadius.md,
-  },
-  heroCornerBottom: {
-    width: 72,
-    height: 20,
-    alignSelf: 'flex-end',
-    borderBottomWidth: 1,
-    borderRightWidth: 1,
-    borderColor: 'rgba(255, 223, 193, 0.38)',
-    borderBottomRightRadius: borderRadius.md,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
-  },
-  headerBlock: {
-    flex: 1,
-  },
-  headerTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
-    marginBottom: 6,
-  },
-  headerChipRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.xs,
-    flex: 1,
-  },
-  heroChip: {
-    minHeight: 25,
-    backgroundColor: 'rgba(242, 252, 255, 0.12)',
-    borderColor: 'rgba(223, 244, 248, 0.22)',
-    borderWidth: 1,
-  },
-  heroChipText: {
-    color: '#F6FCFD',
-    fontSize: 9,
-    fontWeight: '700',
-    letterSpacing: 0.35,
-  },
-  heroAssistChip: {
-    minHeight: 25,
-    backgroundColor: 'rgba(255, 231, 211, 0.1)',
-    borderColor: 'rgba(255, 228, 205, 0.2)',
-    borderWidth: 1,
-  },
-  heroAssistChipText: {
-    color: '#FFE7D2',
-    fontSize: 9,
-    fontWeight: '700',
-    letterSpacing: 0.35,
-  },
-  headerTitleRow: {
-    marginTop: 2,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  headerTitleAccent: {
-    width: 3,
-    height: 16,
-    borderRadius: borderRadius.pill,
-    backgroundColor: '#FFE0BC',
-    shadowColor: '#FFE0BC',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.55,
-    shadowRadius: 4,
-  },
-  headerTitle: {
-    flex: 1,
-    color: colors.white,
-    fontSize: 12,
-    fontWeight: '600',
-    lineHeight: 18,
-    letterSpacing: 0.2,
-    textShadowColor: 'rgba(18, 33, 37, 0.28)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
-  },
-  clearButton: {
-    margin: 0,
-    width: 28,
-    height: 28,
-    alignSelf: 'flex-end',
-    borderRadius: borderRadius.pill,
-    borderWidth: 1,
-    borderColor: 'rgba(235, 247, 249, 0.18)',
-    backgroundColor: 'rgba(14, 38, 46, 0.18)',
-  },
-  statusStrip: {
-    marginBottom: spacing.sm,
-    minHeight: 42,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
-    paddingHorizontal: 13,
-    paddingVertical: 8,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-  },
-  statusStripActive: {
-    backgroundColor: 'rgba(10, 31, 39, 0.3)',
-    borderColor: 'rgba(255, 219, 174, 0.24)',
-  },
-  statusStripFree: {
-    backgroundColor: 'rgba(10, 31, 39, 0.28)',
-    borderColor: 'rgba(214, 234, 237, 0.2)',
-  },
-  statusMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-  },
-  statusSignalDot: {
-    width: 7,
-    height: 7,
-    borderRadius: borderRadius.pill,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.9,
-    shadowRadius: 6,
-  },
-  statusSignalDotActive: {
-    backgroundColor: '#FFD38B',
-    shadowColor: '#FFD38B',
-  },
-  statusSignalDotFree: {
-    backgroundColor: '#9EDCE4',
-    shadowColor: '#9EDCE4',
-  },
-  statusStripLabel: {
-    fontSize: 9,
-    lineHeight: 14,
-    fontWeight: '700',
-    letterSpacing: 0.45,
-  },
-  statusStripLabelActive: {
-    color: '#FFE7C7',
-  },
-  statusStripLabelFree: {
-    color: '#D9EEF0',
-  },
-  statusStripValue: {
-    fontSize: 11,
-    lineHeight: 15,
-    fontWeight: '700',
-    textAlign: 'right',
-    flexShrink: 1,
-    letterSpacing: 0.3,
-  },
-  statusStripValueActive: {
-    color: '#FFF8E7',
-  },
-  statusStripValueFree: {
-    color: '#F6FCFD',
   },
   errorBar: {
     borderRadius: borderRadius.md,
@@ -776,7 +619,7 @@ const styles = StyleSheet.create({
   },
   messageList: {
     paddingHorizontal: spacing.md,
-    paddingTop: spacing.sm,
+    paddingTop: spacing.md,
     paddingBottom: spacing.xxxl * 4 + spacing.lg,
   },
   messageListEmpty: {

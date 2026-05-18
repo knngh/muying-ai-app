@@ -334,7 +334,7 @@ const translationDescriptionText = computed(() => {
     return translationNoticeText.value
   }
 
-  return '打开文章后会由 MiniMax 优先生成中文阅读版，生成一次后后续直接读取缓存。'
+  return '打开文章后会由系统翻译服务生成中文阅读版，生成一次后后续直接读取缓存。'
 })
 
 const authorityRegionLabel = computed(() => getAuthorityRegionLabel(article.value))
@@ -495,12 +495,12 @@ function openTrustCenter() {
 
 function normalizeTranslationError(err: unknown): string {
   if (isTranslationPendingError(err)) {
-    return 'MiniMax 正在生成中文阅读版，完成后会自动切换'
+    return '中文阅读版正在生成，完成后会自动切换'
   }
 
   const message = err instanceof Error ? err.message : '翻译失败，请稍后重试'
   if (/timeout|超时|timed out/i.test(message)) {
-    return 'MiniMax 正在生成中文阅读版，完成后会自动刷新'
+    return '中文阅读版正在生成，完成后会自动刷新'
   }
 
   return message
@@ -533,7 +533,7 @@ async function toggleTranslation() {
       }
       const message = normalizeTranslationError(err)
       translationError.value = message
-      uni.showToast({ title: message.includes('MiniMax 正在生成') ? '正在生成译文' : '翻译失败', icon: 'none' })
+      uni.showToast({ title: message.includes('正在生成') ? '正在生成译文' : '翻译失败', icon: 'none' })
       return
     } finally {
       translating.value = false
@@ -711,7 +711,7 @@ function scheduleTranslationRetry(slug: string, retryAfterMs?: number) {
   }
 
   if (translationRetryCount >= MAX_TRANSLATION_RETRY_COUNT) {
-    translationError.value = 'MiniMax 翻译仍在后台生成，完成后再次打开会直接读取缓存'
+    translationError.value = '中文阅读版仍在后台生成，完成后再次打开会直接读取缓存'
     return
   }
 

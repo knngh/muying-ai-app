@@ -6,7 +6,12 @@ import prisma from '../config/database';
 import { getAuthoritySourceConfig, inferAuthorityLocaleDefaults } from '../config/authority-sources';
 import { successResponse, paginatedResponse, AppError, ErrorCodes } from '../middlewares/error.middleware';
 import { cache, CacheKeys, CacheTTL } from '../services/cache.service';
-import { callTaskModelDetailed, type AITaskModelRole } from '../services/ai-gateway.service';
+import {
+  callTaskModelDetailed,
+  isAIGatewayModalDirectRateLimitError,
+  isAIGatewayProviderError,
+  type AITaskModelRole,
+} from '../services/ai-gateway.service';
 import {
   detectAudience,
   detectTopic,
@@ -43,7 +48,6 @@ import {
 } from '../utils/authority-translation-source';
 import {
   resolveAuthorityTranslationTaskRoles,
-  shouldUsePrimaryOnlyForAuthorityTranslation,
 } from '../utils/authority-translation-routing';
 
 interface AuthorityCacheRecord {
@@ -144,6 +148,13 @@ const AUTHORITY_TRANSLATION_PROVIDER_TIMEOUT_MS = Math.min(
   45000,
   Math.max(3000, Number.parseInt(process.env.AUTHORITY_TRANSLATION_PROVIDER_TIMEOUT_MS || '45000', 10) || 45000),
 );
+const AUTHORITY_TRANSLATION_WARMUP_PROVIDER_TIMEOUT_MS = Math.min(
+  120000,
+  Math.max(
+    AUTHORITY_TRANSLATION_PROVIDER_TIMEOUT_MS,
+    Number.parseInt(process.env.AUTHORITY_TRANSLATION_WARMUP_PROVIDER_TIMEOUT_MS || '90000', 10) || 90000,
+  ),
+);
 const AUTHORITY_TRANSLATION_TASK_ROLES: AITaskModelRole[] = resolveAuthorityTranslationTaskRoles();
 const AUTHORITY_TRANSLATION_LIST_PREWARM_LIMIT = Math.max(
   0,
@@ -157,6 +168,10 @@ const AUTHORITY_TRANSLATION_MAX_TOKENS = Math.max(
   1000,
   Number.parseInt(process.env.AUTHORITY_TRANSLATION_MAX_TOKENS || '1600', 10) || 1600,
 );
+
+interface AuthorityTranslationExecutionOptions {
+  providerTimeoutMs?: number;
+}
 
 interface AuthorityTranslationCacheRecord {
   slug: string;
@@ -953,12 +968,154 @@ function pickFirstNonEmptyString(...values: unknown[]): string {
 
 function extractSectionBody(input: string, labels: string[]): string {
   const escapedLabels = labels.map((label) => label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const optionalLabelNote = '(?:\\s*[（(][^\\n）)]{0,40}[）)])?';
+  const boundaryLabels = [
+    'translated_title',
+    'translated_summary',
+    'translated_content',
+    '译后标题',
+    '译后摘要',
+    '译后正文',
+    '译后的标题',
+    '译后的摘要',
+    '译后的正文',
+    '译文标题',
+    '译文摘要',
+    '译文正文',
+    '原文标题',
+    '原文摘要',
+    '原文正文',
+    '标题',
+    '摘要',
+    '正文',
+    '内容',
+    'Title',
+    'Summary',
+    'Content',
+  ].map((label) => label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
   const pattern = new RegExp(
-    `(?:^|\\n)\\s*(?:${escapedLabels.join('|')})\\s*[:：]\\s*([\\s\\S]*?)(?=(?:\\n\\s*(?:${escapedLabels.join('|')}|标题|摘要|正文|内容|Title|Summary|Content)\\s*[:：])|$)`,
+    `(?:^|\\n)\\s*(?:${escapedLabels.join('|')})${optionalLabelNote}\\s*[:：]\\s*([\\s\\S]*?)(?=(?:\\n\\s*(?:${boundaryLabels.join('|')})${optionalLabelNote}\\s*[:：])|$)`,
     'i',
   );
   const matched = input.match(pattern);
   return matched?.[1]?.trim() || '';
+}
+
+function matchInlineSectionLabel(line: string, labels: string[]): string | null {
+  const escapedLabels = labels.map((label) => label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const optionalLabelNote = '(?:\\s*[（(][^\\n）)]{0,40}[）)])?';
+  const matched = line.match(new RegExp(`^\\s*(?:${escapedLabels.join('|')})${optionalLabelNote}\\s*[:：]\\s*(.*)$`, 'i'));
+  return matched ? matched[1].trim() : null;
+}
+
+function isHunyuanPreambleLine(line: string): boolean {
+  return /^(?:来源机构|来源|原文标题|原文摘要|原文正文|译后标题|译后摘要|译后正文|译文标题|译文摘要|译文正文|标题|摘要|正文|内容|Source|Title|Summary|Content)(?:\s*[（(][^\n）)]{0,40}[）)])?\s*[:：]?\s*$/i.test(line.trim());
+}
+
+function isModalDirectGlmFirstForTranslation(): boolean {
+  const firstRole = AUTHORITY_TRANSLATION_TASK_ROLES[0];
+  if (firstRole !== 'glm_classify') {
+    return false;
+  }
+
+  const hasModalDirectKey = Boolean(process.env.AI_MODAL_DIRECT_KEY || process.env.MODAL_DIRECT_API_KEY);
+  const provider = (
+    process.env.AI_GLM_PROVIDER
+    || (hasModalDirectKey ? (process.env.AI_MODAL_DIRECT_PROVIDER || 'modal-direct') : '')
+  ).toLowerCase();
+  const model = process.env.AI_GLM_MODEL
+    || (hasModalDirectKey ? (process.env.AI_MODAL_DIRECT_MODEL || 'zai-org/GLM-5.1-FP8') : '');
+  return provider.includes('modal')
+    || /glm-5\.1-fp8/i.test(model);
+}
+
+function shouldStopAfterTranslationTaskFailure(taskRole: AITaskModelRole, error: unknown): boolean {
+  return taskRole === 'glm_classify'
+    && isModalDirectGlmFirstForTranslation()
+    && (isAIGatewayProviderError(error, 'modal-direct') || error instanceof Error);
+}
+
+function normalizeHunyuanContentTail(lines: string[], labels: string[]): string | null {
+  const workingLines = [...lines];
+  while (workingLines.length > 0 && workingLines[0].trim() === '') {
+    workingLines.shift();
+  }
+
+  if (workingLines.length > 0) {
+    const firstLine = workingLines[0].trim();
+    const inlineTailContent = matchInlineSectionLabel(firstLine, labels);
+    if (inlineTailContent !== null) {
+      const contentLines = [inlineTailContent, ...workingLines.slice(1)].join('\n').trim();
+      if (contentLines) {
+        return contentLines;
+      }
+    }
+  }
+
+  while (workingLines.length > 0 && isHunyuanPreambleLine(workingLines[0])) {
+    workingLines.shift();
+    while (workingLines.length > 0 && workingLines[0].trim() === '') {
+      workingLines.shift();
+    }
+  }
+
+  const contentLines = workingLines.join('\n').trim();
+  return contentLines || null;
+}
+
+function extractHunyuanStyleTranslationPayload(input: string): {
+  translatedTitle: string;
+  translatedSummary: string;
+  translatedContent: string;
+} | null {
+  const lines = input.split('\n');
+  const titleLabels = ['translated_title', '译后标题', '译后的标题', '译文标题', '原文标题', '标题', 'Title'];
+  const summaryLabels = ['translated_summary', '译后摘要', '译后的摘要', '译文摘要', '原文摘要', '摘要', 'Summary'];
+  const contentLabels = ['translated_content', '译后正文', '译后的正文', '译文正文', '原文正文', '正文', '内容', 'Content'];
+  const findLabel = (labels: string[]) => {
+    for (let index = 0; index < lines.length; index += 1) {
+      const value = matchInlineSectionLabel(lines[index], labels);
+      if (value !== null) {
+        return { index, value };
+      }
+    }
+    return null;
+  };
+
+  const title = findLabel(titleLabels);
+  const summary = findLabel(summaryLabels);
+  const content = findLabel(contentLabels);
+  if (!title && !summary) {
+    return null;
+  }
+
+  if (content) {
+    const contentLines = normalizeHunyuanContentTail([content.value, ...lines.slice(content.index + 1)], contentLabels);
+    return contentLines ? {
+      translatedTitle: title?.value || '',
+      translatedSummary: summary?.value || '',
+      translatedContent: contentLines,
+    } : null;
+  }
+
+  if (!summary) {
+    return null;
+  }
+
+  const contentLines = normalizeHunyuanContentTail(lines.slice(summary.index + 1), contentLabels);
+  if (contentLines) {
+    return {
+      translatedTitle: title?.value || '',
+      translatedSummary: summary.value,
+      translatedContent: contentLines,
+    };
+  }
+
+  return summary.value && title ? {
+    translatedTitle: title?.value || '',
+    translatedSummary: summary.value,
+    translatedContent: summary.value,
+  } : null;
 }
 
 function extractTranslationPayload(
@@ -1013,9 +1170,19 @@ function extractTranslationPayload(
     }
   }
 
-  const sectionTitle = extractSectionBody(normalizedAnswer, ['translated_title', '标题', 'Title']);
-  const sectionSummary = extractSectionBody(normalizedAnswer, ['translated_summary', '摘要', 'Summary']);
-  const sectionContent = extractSectionBody(normalizedAnswer, ['translated_content', '正文', '内容', 'Content']);
+  const hunyuanStylePayload = extractHunyuanStyleTranslationPayload(normalizedAnswer);
+  if (hunyuanStylePayload) {
+    return {
+      translatedTitle: hunyuanStylePayload.translatedTitle || sourceTitle,
+      translatedSummary: hunyuanStylePayload.translatedSummary || sourceSummary,
+      translatedContent: hunyuanStylePayload.translatedContent,
+      parseMode: 'section',
+    };
+  }
+
+  const sectionTitle = extractSectionBody(normalizedAnswer, ['translated_title', '译后标题', '译后的标题', '译文标题', '原文标题', '标题', 'Title']);
+  const sectionSummary = extractSectionBody(normalizedAnswer, ['translated_summary', '译后摘要', '译后的摘要', '译文摘要', '原文摘要', '摘要', 'Summary']);
+  const sectionContent = extractSectionBody(normalizedAnswer, ['translated_content', '译后正文', '译后的正文', '译文正文', '原文正文', '正文', '内容', 'Content']);
   if (sectionContent) {
     return {
       translatedTitle: sectionTitle || sourceTitle,
@@ -1041,7 +1208,11 @@ function extractTranslationPayload(
   };
 }
 
-async function translateAuthorityRecord(slug: string, record: AuthorityCacheRecord): Promise<AuthorityTranslationCacheRecord> {
+async function translateAuthorityRecord(
+  slug: string,
+  record: AuthorityCacheRecord,
+  options: AuthorityTranslationExecutionOptions = {},
+): Promise<AuthorityTranslationCacheRecord> {
   const sourceUpdatedAt = resolveAuthorityTranslationSourceUpdatedAt(record);
   const sourceFingerprint = buildAuthorityTranslationSourceFingerprint(record);
   const cached = getCachedAuthorityTranslation(slug, sourceUpdatedAt, sourceFingerprint);
@@ -1111,15 +1282,18 @@ async function translateAuthorityRecord(slug: string, record: AuthorityCacheReco
       result = await callTaskModelDetailed(taskRole, translationMessages, {
         temperature: 0.2,
         maxTokens: AUTHORITY_TRANSLATION_MAX_TOKENS,
-        timeoutMs: AUTHORITY_TRANSLATION_PROVIDER_TIMEOUT_MS,
-        primaryOnly: shouldUsePrimaryOnlyForAuthorityTranslation(taskRole),
-        stopOnProviderFailure: shouldUsePrimaryOnlyForAuthorityTranslation(taskRole)
+        timeoutMs: options.providerTimeoutMs ?? AUTHORITY_TRANSLATION_PROVIDER_TIMEOUT_MS,
+        primaryOnly: true,
+        stopOnProviderFailure: taskRole === 'glm_classify' && isModalDirectGlmFirstForTranslation()
           ? ['modal-direct']
           : undefined,
       });
     } catch (error) {
       lastError = error;
       console.error(`[Authority Translation] Task failed for ${slug} via ${taskRole}:`, error);
+      if (isAIGatewayModalDirectRateLimitError(error) || shouldStopAfterTranslationTaskFailure(taskRole, error)) {
+        break;
+      }
       continue;
     }
 
@@ -1178,7 +1352,11 @@ async function translateAuthorityRecord(slug: string, record: AuthorityCacheReco
   return payload;
 }
 
-function getOrCreateAuthorityTranslation(slug: string, record: AuthorityCacheRecord): Promise<AuthorityTranslationCacheRecord> {
+function getOrCreateAuthorityTranslation(
+  slug: string,
+  record: AuthorityCacheRecord,
+  options: AuthorityTranslationExecutionOptions = {},
+): Promise<AuthorityTranslationCacheRecord> {
   const sourceUpdatedAt = resolveAuthorityTranslationSourceUpdatedAt(record);
   const sourceFingerprint = buildAuthorityTranslationSourceFingerprint(record);
   const cached = getCachedAuthorityTranslation(slug, sourceUpdatedAt, sourceFingerprint);
@@ -1194,7 +1372,7 @@ function getOrCreateAuthorityTranslation(slug: string, record: AuthorityCacheRec
     return inFlight;
   }
 
-  const task = translateAuthorityRecord(slug, record)
+  const task = translateAuthorityRecord(slug, record, options)
     .finally(() => {
       authorityTranslationInFlight.delete(slug);
       authorityTranslationInFlightTimestamps.delete(slug);
@@ -1211,7 +1389,9 @@ function prewarmAuthorityTranslation(slug: string, record: AuthorityCacheRecord)
     return;
   }
 
-  void getOrCreateAuthorityTranslation(slug, record).catch((error) => {
+  void getOrCreateAuthorityTranslation(slug, record, {
+    providerTimeoutMs: AUTHORITY_TRANSLATION_WARMUP_PROVIDER_TIMEOUT_MS,
+  }).catch((error) => {
     console.error(`[Authority Translation] Prewarm failed for ${slug}:`, error);
   });
 }

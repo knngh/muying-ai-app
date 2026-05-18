@@ -13,6 +13,7 @@ import {
   type AuthorityTranslationFailureRecord,
   type AuthorityTranslationFailureRetryCandidate,
 } from '../utils/authority-translation-failure-retry';
+import { mapWithConcurrency } from '../utils/concurrency';
 
 const INPUT_FILE = process.env.INPUT_FILE || path.join(process.cwd(), 'data', 'authority-translation-failures.json');
 const REPORT_FILE = process.env.REPORT_FILE || path.join(process.cwd(), 'tmp', 'authority-translation-failure-retry-report.json');
@@ -26,6 +27,15 @@ function parseNonNegativeInt(value: string | undefined, fallback: number): numbe
 
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) ? Math.max(0, parsed) : fallback;
+}
+
+function parsePositiveInt(value: string | undefined, fallback: number): number {
+  if (value === undefined || value.trim() === '') {
+    return fallback;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? Math.max(1, parsed) : fallback;
 }
 
 function readFailureCache(filePath: string): Record<string, AuthorityTranslationFailureRecord> {
@@ -42,6 +52,10 @@ function readFailureCache(filePath: string): Record<string, AuthorityTranslation
 async function main() {
   const failures = readFailureCache(INPUT_FILE);
   const retryLimit = parseNonNegativeInt(process.env.LIMIT || process.env.AUTHORITY_TRANSLATION_FAILURE_RETRY_LIMIT, 5);
+  const retryConcurrency = parsePositiveInt(
+    process.env.CONCURRENCY || process.env.AUTHORITY_TRANSLATION_FAILURE_RETRY_CONCURRENCY,
+    1,
+  );
   const rawPlan = buildAuthorityTranslationFailureRetryPlan(failures, {
     limit: Number.MAX_SAFE_INTEGER,
     includeBlocked: /^true$/i.test(process.env.INCLUDE_BLOCKED || ''),
@@ -93,7 +107,7 @@ async function main() {
   const staleRetryableFailures = prunedFailures.filter((candidate) => candidate.retryable).length;
 
   if (!DRY_RUN) {
-    for (const candidate of plan.selectedFailures) {
+    const retryResults = await mapWithConcurrency(plan.selectedFailures, retryConcurrency, async (candidate) => {
       try {
         const result = await warmPublishedAuthorityTranslations({
           limit: 1,
@@ -102,27 +116,27 @@ async function main() {
           slug: candidate.slug,
         });
         if (result.warmed <= 0 && result.cached <= 0) {
-          retried.push({
+          return {
             slug: candidate.slug,
             ok: false,
             message: result.failures[0]?.message || 'authority record not found or not selected for retry',
-          });
-          continue;
+          };
         }
 
-        retried.push({
+        return {
           slug: candidate.slug,
           ok: true,
           cleared: true,
-        });
+        };
       } catch (error) {
-        retried.push({
+        return {
           slug: candidate.slug,
           ok: false,
           message: error instanceof Error ? error.message : String(error),
-        });
+        };
       }
-    }
+    });
+    retried.push(...retryResults);
 
     if (PRUNE_STALE && prunedFailures.length > 0) {
       for (const candidate of prunedFailures) {
@@ -139,6 +153,7 @@ async function main() {
     reportFile: REPORT_FILE,
     dryRun: DRY_RUN,
     pruneStale: PRUNE_STALE,
+    concurrency: retryConcurrency,
     actionableRetryableFailures: plan.selectedFailures.filter((candidate) => candidate.retryable).length,
     staleRetryableFailures,
     prunedFailures: !DRY_RUN && PRUNE_STALE ? prunedFailures.map((candidate) => ({

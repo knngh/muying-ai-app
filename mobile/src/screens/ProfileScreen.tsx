@@ -1,7 +1,6 @@
 import React, { useEffect } from 'react'
 import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native'
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons'
-import LinearGradient from 'react-native-linear-gradient'
 import { Button, Snackbar, Text } from 'react-native-paper'
 import { useNavigation, useRoute } from '@react-navigation/native'
 import type { CompositeNavigationProp, RouteProp } from '@react-navigation/native'
@@ -150,13 +149,7 @@ export default function ProfileScreen() {
         </ContentSection>
 
         <ContentSection style={styles.tightSection}>
-          <LinearGradient
-            colors={['rgba(220,236,238,0.92)', 'rgba(235,245,247,0.94)', 'rgba(250,252,253,0.98)']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.stageFocusCard}
-          >
-            <View style={styles.stageFocusGlow} />
+          <View style={styles.stageFocusCard}>
             <View style={styles.stageFocusHeader}>
               <View style={styles.stageFocusIconShell}>
                 <MaterialCommunityIcons name="radar" size={18} color={colors.techDark} />
@@ -175,7 +168,7 @@ export default function ProfileScreen() {
               <Text style={styles.stageFocusActionText}>去日历安排本周重点</Text>
               <MaterialCommunityIcons name="chevron-right" size={18} color={colors.techDark} />
             </TouchableOpacity>
-          </LinearGradient>
+          </View>
         </ContentSection>
 
         <ContentSection style={styles.tightSection}>
@@ -184,54 +177,6 @@ export default function ProfileScreen() {
             <Text style={styles.sectionMeta}>关键信息一页查看</Text>
           </View>
           <AccountInfo rows={accountRows} onPress={openEditModal} />
-        </ContentSection>
-
-        <ContentSection style={styles.tightSection}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>档案入口</Text>
-            <Text style={styles.sectionMeta}>详情单独展开</Text>
-          </View>
-          <View style={styles.archiveGrid}>
-            <TouchableOpacity style={styles.archiveEntryCard} activeOpacity={0.9} onPress={() => navigation.navigate('PregnancyProfile')}>
-              <LinearGradient
-                colors={['rgba(220,236,238,0.92)', 'rgba(203,225,229,0.92)', 'rgba(247,250,252,0.98)']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.archiveEntryGradient}
-              >
-                <View style={styles.archiveEntryGlow} />
-                <Text style={styles.archiveEntryEyebrow}>孕期专用</Text>
-                <Text style={styles.archiveEntryTitle}>孕期档案</Text>
-                <Text style={styles.archiveEntryText} numberOfLines={3}>
-                  当前孕周、关键节点和本周记录集中查看。
-                </Text>
-                <View style={styles.archiveEntryFooter}>
-                  <Text style={styles.archiveEntryAction}>查看档案</Text>
-                  <MaterialCommunityIcons name="chevron-right" size={18} color={colors.techDark} />
-                </View>
-              </LinearGradient>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.archiveEntryCard} activeOpacity={0.9} onPress={() => navigation.navigate('FamilyProfile')}>
-              <LinearGradient
-                colors={['rgba(248,227,214,0.96)', 'rgba(241,209,191,0.92)', 'rgba(250,244,238,0.98)']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.archiveEntryGradient}
-              >
-                <View style={styles.archiveEntryGlow} />
-                <Text style={styles.archiveEntryEyebrow}>长期视图</Text>
-                <Text style={styles.archiveEntryTitle}>家庭档案</Text>
-                <Text style={styles.archiveEntryText} numberOfLines={3}>
-                  生命周期时间轴、家庭信息和关注点汇总。
-                </Text>
-                <View style={styles.archiveEntryFooter}>
-                  <Text style={[styles.archiveEntryAction, styles.archiveEntryActionInk]}>查看档案</Text>
-                  <MaterialCommunityIcons name="chevron-right" size={18} color={colors.ink} />
-                </View>
-              </LinearGradient>
-            </TouchableOpacity>
-          </View>
         </ContentSection>
 
         <ContentSection style={styles.tightSection}>
@@ -353,20 +298,11 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   stageFocusCard: {
-    borderRadius: borderRadius.xl,
+    borderRadius: borderRadius.md,
     padding: spacing.sm + 4,
-    overflow: 'hidden',
+    backgroundColor: colors.surfaceRaised,
     borderWidth: 1,
-    borderColor: 'rgba(94,126,134,0.12)',
-  },
-  stageFocusGlow: {
-    position: 'absolute',
-    top: -18,
-    right: -12,
-    width: 92,
-    height: 92,
-    borderRadius: 46,
-    backgroundColor: 'rgba(255,255,255,0.36)',
+    borderColor: colors.border,
   },
   stageFocusHeader: {
     flexDirection: 'row',
@@ -389,7 +325,6 @@ const styles = StyleSheet.create({
     color: colors.techDark,
     fontSize: fontSize.xs,
     fontWeight: '700',
-    letterSpacing: 0.8,
   },
   stageFocusTitle: {
     color: colors.inkDeep,
@@ -478,67 +413,6 @@ const styles = StyleSheet.create({
     color: colors.primaryDark,
     fontSize: fontSize.sm,
     fontWeight: '700',
-  },
-  archiveGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-  },
-  archiveEntryCard: {
-    flexBasis: '47%',
-    flexGrow: 1,
-    overflow: 'hidden',
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  archiveEntryGradient: {
-    minHeight: 134,
-    padding: spacing.sm,
-    overflow: 'hidden',
-  },
-  archiveEntryGlow: {
-    position: 'absolute',
-    top: -22,
-    right: -14,
-    width: 110,
-    height: 110,
-    borderRadius: 55,
-    backgroundColor: 'rgba(255,248,242,0.44)',
-  },
-  archiveEntryEyebrow: {
-    color: colors.primaryDark,
-    fontSize: fontSize.xs,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-    marginBottom: spacing.xs,
-  },
-  archiveEntryTitle: {
-    color: colors.inkDeep,
-    fontSize: fontSize.md,
-    fontWeight: '800',
-    marginBottom: 2,
-  },
-  archiveEntryText: {
-    color: colors.inkSoft,
-    fontSize: fontSize.xs,
-    lineHeight: 16,
-    maxWidth: '92%',
-  },
-  archiveEntryFooter: {
-    marginTop: 'auto',
-    paddingTop: spacing.xs + 2,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  archiveEntryAction: {
-    color: colors.techDark,
-    fontSize: fontSize.sm,
-    fontWeight: '700',
-  },
-  archiveEntryActionInk: {
-    color: colors.ink,
   },
   logoutButton: {
     marginTop: spacing.sm,

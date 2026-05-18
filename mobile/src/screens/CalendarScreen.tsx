@@ -963,8 +963,6 @@ export default function CalendarScreen() {
             end={{ x: 1, y: 1 }}
             style={styles.heroGradient}
           >
-            <View style={styles.heroGlow} />
-            <View style={styles.heroRing} />
             <View style={styles.heroTop}>
               <View style={styles.heroTopText}>
                 <View style={styles.heroChipRow}>
@@ -1051,7 +1049,6 @@ export default function CalendarScreen() {
             return (
               <View key={item.label} style={styles.statCard}>
                 <LinearGradient colors={item.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.statCardGradient}>
-                  <View style={styles.statCardGlow} />
                   <View style={styles.statCardTop}>
                     <View
                       style={[
@@ -1214,7 +1211,6 @@ export default function CalendarScreen() {
 
         <Card style={styles.engineCard}>
           <LinearGradient colors={['#3B2923', '#754534', '#DB9B65']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.engineGradient}>
-            <View style={styles.engineGlow} />
             <Text style={styles.engineEyebrow}>安排建议</Text>
             <Text style={styles.engineTitle}>先看建议时间窗，再放到合适日期</Text>
             <Text style={styles.engineDescription}>
@@ -1557,25 +1553,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     padding: spacing.xs + 2,
   },
-  heroGlow: {
-    position: 'absolute',
-    top: -34,
-    right: -24,
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    backgroundColor: 'rgba(255,248,242,0.5)',
-  },
-  heroRing: {
-    position: 'absolute',
-    top: 18,
-    right: 24,
-    width: 118,
-    height: 118,
-    borderRadius: 59,
-    borderWidth: 1,
-    borderColor: 'rgba(94,126,134,0.12)',
-  },
   heroTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1696,14 +1673,10 @@ const styles = StyleSheet.create({
   },
   statCard: {
     width: '47%',
-    borderRadius: borderRadius.xl,
+    borderRadius: borderRadius.md,
     borderWidth: 1,
     borderColor: 'rgba(184,138,72,0.14)',
     overflow: 'hidden',
-    shadowColor: colors.shadowStrong,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.06,
-    shadowRadius: 16,
   },
   statCardGradient: {
     height: 118,
@@ -1711,15 +1684,6 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs + 1,
     justifyContent: 'space-between',
     position: 'relative',
-  },
-  statCardGlow: {
-    position: 'absolute',
-    top: -18,
-    right: -8,
-    width: 82,
-    height: 82,
-    borderRadius: 41,
-    backgroundColor: 'rgba(255,255,255,0.36)',
   },
   statCardTop: {
     flexDirection: 'row',
@@ -2090,19 +2054,9 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     position: 'relative',
   },
-  engineGlow: {
-    position: 'absolute',
-    right: -30,
-    top: -20,
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    backgroundColor: 'rgba(255, 214, 170, 0.18)',
-  },
   engineEyebrow: {
     fontSize: fontSize.xs,
     fontWeight: '700',
-    letterSpacing: 1.2,
     color: '#F6D7B1',
   },
   engineTitle: {

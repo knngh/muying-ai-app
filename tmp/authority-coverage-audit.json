@@ -1,152 +1,140 @@
 {
-  "generatedAt": "2026-05-07T04:49:52.638Z",
+  "generatedAt": "2026-05-14T04:18:30.871Z",
   "inputFile": "/Users/zhugehao/muying-ai-app-main-latest/data/expanded-qa-data-5000.enriched.json",
-  "total": 3140,
+  "total": 1771,
   "rawTotal": 3306,
   "excludedByGuard": [
     {
+      "reason": "diagnosed_case_followup",
+      "count": 347
+    },
+    {
+      "reason": "personal_treatment_request",
+      "count": 329
+    },
+    {
+      "reason": "adult_reproductive_case",
+      "count": 227
+    },
+    {
+      "reason": "low_information_case_template",
+      "count": 115
+    },
+    {
+      "reason": "emergency_or_poisoning_case",
+      "count": 113
+    },
+    {
+      "reason": "biometric_measurement_case",
+      "count": 112
+    },
+    {
       "reason": "category_scope_conflict",
-      "count": 81
+      "count": 92
+    },
+    {
+      "reason": "high_sensitivity_dataset_topic",
+      "count": 82
     },
     {
       "reason": "beyond_app_child_age",
       "count": 54
     },
     {
-      "reason": "high_sensitivity_dataset_topic",
-      "count": 23
+      "reason": "unsupported_service_request",
+      "count": 52
     },
     {
       "reason": "off_scope_adult_health",
-      "count": 4
-    },
-    {
-      "reason": "unsupported_service_request",
-      "count": 4
+      "count": 12
     }
   ],
-  "authorityCovered": 1659,
-  "missingAuthorityCoverage": 1481,
-  "coverageRate": 52.83,
+  "authorityCovered": 1040,
+  "missingAuthorityCoverage": 731,
+  "coverageRate": 58.72,
   "missingByCategory": [
     {
       "category": "parenting-0-1",
-      "count": 510
+      "count": 244
     },
     {
       "category": "pregnancy-mid",
-      "count": 151
+      "count": 116
     },
     {
       "category": "nutrition-baby",
-      "count": 106
-    },
-    {
-      "category": "pregnancy-birth",
-      "count": 86
+      "count": 71
     },
     {
       "category": "common-disease",
-      "count": 85
+      "count": 39
     },
     {
       "category": "parenting-newborn",
-      "count": 84
+      "count": 37
     },
     {
       "category": "parenting-1-3",
-      "count": 80
+      "count": 35
     },
     {
       "category": "pregnancy-prep",
-      "count": 76
+      "count": 34
     },
     {
       "category": "common-development",
-      "count": 62
+      "count": 29
     },
     {
-      "category": "common-symptoms",
-      "count": 49
+      "category": "pregnancy-birth",
+      "count": 24
     },
     {
       "category": "pregnancy-late",
-      "count": 38
-    },
-    {
-      "category": "parenting-3-6",
-      "count": 31
-    },
-    {
-      "category": "vaccine-reaction",
-      "count": 21
-    },
-    {
-      "category": "pregnancy-early",
-      "count": 21
-    },
-    {
-      "category": "common-safety",
       "count": 19
     },
     {
-      "category": "vaccine-second",
-      "count": 17
-    },
-    {
-      "category": "vaccine-schedule",
+      "category": "common-symptoms",
       "count": 16
     },
     {
       "category": "nutrition-child",
-      "count": 15
+      "count": 13
+    },
+    {
+      "category": "parenting-3-6",
+      "count": 12
+    },
+    {
+      "category": "vaccine-schedule",
+      "count": 9
+    },
+    {
+      "category": "vaccine-reaction",
+      "count": 8
+    },
+    {
+      "category": "pregnancy-early",
+      "count": 8
+    },
+    {
+      "category": "vaccine-second",
+      "count": 6
     },
     {
       "category": "vaccine-first",
-      "count": 11
+      "count": 5
+    },
+    {
+      "category": "common-safety",
+      "count": 4
     },
     {
       "category": "nutrition-pregnancy",
-      "count": 3
+      "count": 2
     }
   ],
   "remediationQueue": [
-    {
-      "id": "qa-20260316-0026",
-      "category": "common-development",
-      "question": "怀孕九周今天有点出血是什么问题孕囊形态不规整，胚芽小先兆流产？胎儿发育迟缓？",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-0039",
-      "category": "common-symptoms",
-      "question": "三十九州加四天宫缩时伴有疼痛",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "acog",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-0067",
-      "category": "nutrition-baby",
-      "question": "医生我又一亲戚，在怀孕7个多月的时候检查出血压高，后住院治疗，孩子11月中旬出生，属早产，目前大人血压高（今天是高压130，低压104），这个要怎么办，如果大人服用了降压药，小孩可以吃母乳吗，会不会对孩子有影响，如果大人一直血压降不下来怎么办，谢谢。，",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "acog",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
     {
       "id": "qa-20260316-0069",
       "category": "pregnancy-mid",
@@ -157,18 +145,6 @@
         "acog",
         "nhs",
         "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-0078",
-      "category": "pregnancy-prep",
-      "question": "怀孕前感冒了吃了感冒药对宝宝有影响吗？",
-      "suggestedSourceIds": [
-        "nhc-rkjt",
-        "govcn-muying",
-        "govcn-jiedu-muying",
-        "ncwch-maternal-child-health",
-        "mchscn-monitoring"
       ]
     },
     {
@@ -184,30 +160,6 @@
       ]
     },
     {
-      "id": "qa-20260316-0088",
-      "category": "pregnancy-prep",
-      "question": "怀孕前期打针吃药我现在怀孕了，我最后一吃月经是6月4日，我在6月15。16日感冒咳嗽打了两天吊瓶，大概在18，19号还吃了感冒药，现在才知道怀孕了，不知道孩子能不能要。",
-      "suggestedSourceIds": [
-        "nhc-rkjt",
-        "govcn-muying",
-        "govcn-jiedu-muying",
-        "ncwch-maternal-child-health",
-        "mchscn-monitoring"
-      ]
-    },
-    {
-      "id": "qa-20260316-0089",
-      "category": "vaccine-reaction",
-      "question": "男性发烧打针期间有性生活怀孕对胎儿有什么影响",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
       "id": "qa-20260316-0090",
       "category": "pregnancy-mid",
       "question": "37岁怀孕快5个月，晚上睡觉腰部、臀部、大腿疼痛，胎动比白天频繁，大人睡眠不好，请问是何原因？3个月的时候检查一切正常此症状是否正常，该注意些啥子",
@@ -217,66 +169,6 @@
         "acog",
         "nhs",
         "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-0136",
-      "category": "vaccine-second",
-      "question": "宝宝注射了流感疫苗后咳嗽可以吃药吗",
-      "suggestedSourceIds": [
-        "nhc-rkjt",
-        "govcn-muying",
-        "govcn-jiedu-muying",
-        "ncwch-maternal-child-health",
-        "mchscn-monitoring"
-      ]
-    },
-    {
-      "id": "qa-20260316-0142",
-      "category": "parenting-3-6",
-      "question": "我家小孩子最近总是呼吸困难，诶次都是大口呼吸气，去医院检查了说是患有支气管哮喘，医生建议及时的配合治疗和注意饮食习惯。",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "acog",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-0147",
-      "category": "common-disease",
-      "question": "个月宝宝血常规嗜酸性粒细胞指标超高强医生不让吃胡萝卜和桔子是会导致过敏吗血常规嗜酸性粒细胞超高胡萝卜桔子海鲜都不能吃吗？目前下巴上有些红色疹子不确定是不是湿疹",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-0161",
-      "category": "nutrition-baby",
-      "question": "宝宝发烧咳嗽眼睛里有眼屎宝宝有九个月了这两天发烧咳嗽睡觉眼睛里有绿眼屎，宝宝吃的是母乳",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-0168",
-      "category": "parenting-1-3",
-      "question": "我生宝宝已2个来月，会阴撕裂的伤口未感染，未红肿，表面看上去恢复得不错。但走路和抬腿或双腿张开较大辐度时感觉疼痛。伸手去按反而感觉不到疼痛。42天的时候到医院复查时，医生说再观察看看。现在都2个多月了，痛感还在。请问是什么原因。是不是里面缝线的地方没长好，还是长什么东西了？",
-      "suggestedSourceIds": [
-        "acog",
-        "nhc-fys",
-        "ncwch-maternal-child-health",
-        "cnsoc-dietary-guidelines",
-        "chinanutri-maternal-child"
       ]
     },
     {
@@ -304,18 +196,6 @@
       ]
     },
     {
-      "id": "qa-20260316-0193",
-      "category": "nutrition-baby",
-      "question": "宝宝腹泻，已经七八天了宝宝四个月大。最近腹泻。便便颜色为黄色，每次便便的量不多，但次数多一天拉个十回左右。最后几泡便便是泡沫了。母乳喂养，发现拉肚子就给吃了妈咪爱和思密达。宝宝精神状态和吃奶都还算正常。肚子偶尔有咕噜咕噜的声音，肚皮是凉凉的。",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
       "id": "qa-20260316-0306",
       "category": "pregnancy-mid",
       "question": "宝宝胎动怎么数啊。他的胎动次数有规律么，难道不是宝宝想动就动不想动就不动么，要在什么时候开始数胎动啊。",
@@ -328,81 +208,9 @@
       ]
     },
     {
-      "id": "qa-20260316-0310",
-      "category": "parenting-0-1",
-      "question": "孩子是瘢痕体质，额头受伤很深，拆线后有瘢？孩子是瘢痕体质，额头受伤很深，拆线后有瘢痕凸起，用康瑞保和美皮护有用吗。",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "acog",
-        "nhs"
-      ]
-    },
-    {
-      "id": "qa-20260316-0318",
-      "category": "pregnancy-birth",
-      "question": "过预产期了还没分娩头胎，过预产期1天了，前半个月去检查胎儿没入盆，是否能顺产，还要不要去检查一次",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "acog",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-0321",
-      "category": "common-development",
-      "question": "我家宝宝有四个肾，有一个发育不正常，尿管和膀胱出有囊肿，现在形成巨型书输尿管。问一下这样的孩子以后的生活能行吗？",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
       "id": "qa-20260316-0324",
       "category": "nutrition-baby",
       "question": "喂奶后乳房为何针扎疼呢",
-      "suggestedSourceIds": [
-        "acog",
-        "nhc-fys",
-        "ncwch-maternal-child-health",
-        "cnsoc-dietary-guidelines",
-        "chinanutri-maternal-child"
-      ]
-    },
-    {
-      "id": "qa-20260316-0331",
-      "category": "common-symptoms",
-      "question": "孩子最近感觉有些不舒服后来去检查了医生说是得了脑桥小脑角综合征之前我的孩子一直很好的很少生病不知道这个病的症状跟哪些病的症状比较容易混淆脑桥小脑角综合征容易与哪些症状混淆？（",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "acog",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-0333",
-      "category": "parenting-newborn",
-      "question": "宝宝是母乳性黄疸，吃了一段时间茵栀黄，退了，停药后又黄了，怎么办呀，茵栀黄吃多了是不是对宝宝不好？母乳性黄疸宝宝是母乳性黄疸，吃了一段时间茵栀黄，退了，停药后又黄了，怎么办呀，茵栀黄吃多了是不是对宝宝不好？",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-0336",
-      "category": "pregnancy-birth",
-      "question": "分娩时情况我是9。24号下午生的孩子，25号下午小便时感觉疼痛。结果发现大阴唇里侧被划破有两厘米长口子？该怎么治疗？",
       "suggestedSourceIds": [
         "acog",
         "nhc-fys",
@@ -424,30 +232,6 @@
       ]
     },
     {
-      "id": "qa-20260316-0348",
-      "category": "parenting-newborn",
-      "question": "宝宝是母乳性黄疸，吃了一段时间茵栀黄，退了，停药后又黄了，怎么办呀，茵栀黄吃多了是不是对宝宝不好？母乳性黄疸宝宝是母乳性黄疸，吃了一段时间茵栀黄，退了，停药后又黄了，怎么办呀，茵栀黄吃多了是不是对宝宝不好？",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-0364",
-      "category": "pregnancy-prep",
-      "question": "我怀孕五个多月了可以吃贝特晓芙牌叶酸铁钙片吗？我听别人说叶酸和铁补多了也不好。谢谢。",
-      "suggestedSourceIds": [
-        "nhc-rkjt",
-        "govcn-muying",
-        "govcn-jiedu-muying",
-        "ncwch-maternal-child-health",
-        "mchscn-monitoring"
-      ]
-    },
-    {
       "id": "qa-20260316-0374",
       "category": "pregnancy-prep",
       "question": "怀孕前期吃什么吐什么，要吃点什么才不会有呕吐的状态？",
@@ -460,114 +244,6 @@
       ]
     },
     {
-      "id": "qa-20260316-0377",
-      "category": "common-development",
-      "question": "这样能算出孩子的身高吗怀孕8个月股骨长70mm说明腿长吗",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "acog",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-0378",
-      "category": "common-safety",
-      "question": "我上个月24号大姨妈完这个月五号有房事吃了紧急避孕药然后昨天晚上又有房事还没吃避孕药有什么影响？会不会怀孕？安全期是多久急死了",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "acog",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-0380",
-      "category": "parenting-0-1",
-      "question": "宝宝头围30。7cm。腹围29。9cm肱骨长5。5cm。股骨长6。6cm可以宝宝头围30。7cm。腹围29。9cm肱骨长5。5cm。股骨长6。6cm可以算出宝宝有多重吗？",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-0385",
-      "category": "parenting-0-1",
-      "question": "宝宝肚子拉蛋花水样宝宝肚子拉稀，水一样不爱喝奶没有食欲",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-0393",
-      "category": "pregnancy-late",
-      "question": "我想问下，孕35周胎儿偏小3周，是不是发育迟缓，对胎儿健康及智力有没有影响？而且我胎位不正。双顶径80，股骨60，羊水右上27，左上26，右下30，左下32。胎盘附着于子宫后壁，厚28，成熟度I-II度。我体重140斤，该做的检查都有做。胎儿偏小对宝宝的健康有没有影响？",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "acog",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-0398",
-      "category": "common-safety",
-      "question": "b超可以推算怀孕时间吗？末次月经1月22号，同房时间2月6号到12号，因为意外和别人同房2月21号，b超结果比实际孕周小9天，请问是怎么回事？孩子到底是谁的？",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "acog",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-0400",
-      "category": "parenting-0-1",
-      "question": "小孩流眼屎怎么办周大夫我家宝宝昨天好好的今天早上一看眼屎很多，白眼球有点红血丝，不流泪。眼皮有一点肿请问是什么原因。怎么治疗",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-0401",
-      "category": "parenting-0-1",
-      "question": "生孩子哺乳后乳房干瘪下垂怎么回事有办法补救吗",
-      "suggestedSourceIds": [
-        "acog",
-        "nhc-fys",
-        "ncwch-maternal-child-health",
-        "cnsoc-dietary-guidelines",
-        "chinanutri-maternal-child"
-      ]
-    },
-    {
-      "id": "qa-20260316-0407",
-      "category": "common-disease",
-      "question": "大夫我最近打算要孩子所以我去的市妇婴医院检查化验的结果是风疹病毒抗体是阳性说我感染病毒我想知道怎么回事？怎么造成的大夫告诉我一个月后去复查如果复查是转为阴性再要孩子我也问过我的家人我没有得过风疹我想知道怎么回事？怎么治疗（",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "acog",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
       "id": "qa-20260316-0412",
       "category": "pregnancy-mid",
       "question": "怀孕四个半月了、感觉胎动不是那么频繁…正常吗？",
@@ -575,54 +251,6 @@
         "who",
         "cdc",
         "acog",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-0413",
-      "category": "vaccine-reaction",
-      "question": "医生我是一名教师，目前学校很多学生发烧。我准备怀孕，请问如果打甲流疫苗后，要多久才能怀孕啊？",
-      "suggestedSourceIds": [
-        "nhc-rkjt",
-        "govcn-muying",
-        "govcn-jiedu-muying",
-        "ncwch-maternal-child-health",
-        "mchscn-monitoring"
-      ]
-    },
-    {
-      "id": "qa-20260316-0414",
-      "category": "parenting-0-1",
-      "question": "女医院检查说有俩个宝宝，得进一步检查，他们说得做四维，我不知道价钱感谢",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "acog",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-0420",
-      "category": "pregnancy-birth",
-      "question": "怀孕393胎儿双顶径100mm股骨长78mm好生吗一切都很正常请问可以顺产吗",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "acog",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-0425",
-      "category": "parenting-0-1",
-      "question": "我家宝宝11个半月大，男孩，已经长出两颗下门牙，目前正在长第三颗牙齿，但是不是上门牙，而是下侧牙，上门牙还没有要长牙的迹象，这种情况正常吗？怎么办？这种情况正常吗？如果不正常怎么办？",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
         "nhs",
         "mayo-clinic-zh"
       ]
@@ -652,102 +280,6 @@
       ]
     },
     {
-      "id": "qa-20260316-0432",
-      "category": "parenting-0-1",
-      "question": "我生完小孩后，给小孩断奶后，发先自己的乳房一变大一变小，让我很头痛，穿衣服都让我烦。我该怎么，才能让自己的乳房不那么，明显呢、",
-      "suggestedSourceIds": [
-        "acog",
-        "nhc-fys",
-        "ncwch-maternal-child-health",
-        "cnsoc-dietary-guidelines",
-        "chinanutri-maternal-child"
-      ]
-    },
-    {
-      "id": "qa-20260316-0440",
-      "category": "pregnancy-prep",
-      "question": "股骨长正常吗B超检查后医生说怀孕31周6天，股骨长57mm孕前经期正常，这样的长度正常吗还是偏短",
-      "suggestedSourceIds": [
-        "nhc-rkjt",
-        "govcn-muying",
-        "govcn-jiedu-muying",
-        "ncwch-maternal-child-health",
-        "mchscn-monitoring"
-      ]
-    },
-    {
-      "id": "qa-20260316-0446",
-      "category": "common-disease",
-      "question": "我得了流行性腮腺炎，肿了4天。儿子暂时没有，可能受到腮腺炎感染，能不能打流腮疫苗？",
-      "suggestedSourceIds": [
-        "nhc-rkjt",
-        "govcn-muying",
-        "govcn-jiedu-muying",
-        "ncwch-maternal-child-health",
-        "mchscn-monitoring"
-      ]
-    },
-    {
-      "id": "qa-20260316-0450",
-      "category": "parenting-newborn",
-      "question": "新生儿再有甲醛的房子里住三个月后如何补救我家装修完房子两三个月就搬进来了，当时怀孕九个月，后来直到宝宝出生到现在两个半月了一直住在这里，如果甲醛超超，宝宝一定会得病吗？怎么样检测宝宝体内甲醛含量有多少，接下来怎么办",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-0454",
-      "category": "parenting-0-1",
-      "question": "舅舅、哥哥姐姐弟弟都是聋哑，我可以生孩子吗",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "acog",
-        "nhs"
-      ]
-    },
-    {
-      "id": "qa-20260316-0455",
-      "category": "parenting-newborn",
-      "question": "孩子出生查出室间隔于大动脉短轴切面相当于9-10钟处连续中断，大小约3mm彩色DOPPLE检查见一束五彩血流由左室进右室。诊断为先心病：室间隔缺损，新生儿卵圆孔未闭",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "acog",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-0458",
-      "category": "parenting-0-1",
-      "question": "每次月经十多天才干净，这是什么原因每次血经初期只有一点血迹，要过三四天才血迹才正常，就从生完孩子就这样，到医院也做过常规妇科检查，是宫颈靡烂，做过利普刀，之后内裤白带是减少了，只是每次月经来时要过三四天血迹才正常、十来天才彻底干净。做过利普刀，没做利普刀之前就这样，之后，只是白带减少了",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "acog",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-0459",
-      "category": "parenting-0-1",
-      "question": "生完小孩半年后，为了断奶打了一针回奶针，结果使乳房萎缩变小。",
-      "suggestedSourceIds": [
-        "acog",
-        "nhc-fys",
-        "ncwch-maternal-child-health",
-        "cnsoc-dietary-guidelines",
-        "chinanutri-maternal-child"
-      ]
-    },
-    {
       "id": "qa-20260316-0465",
       "category": "parenting-0-1",
       "question": "生了孩子以后心情每天就很坏，每天就想哭，什么也不想干。在地方吃了一些药想找专家帮我分析",
@@ -772,90 +304,6 @@
       ]
     },
     {
-      "id": "qa-20260316-0476",
-      "category": "parenting-0-1",
-      "question": "宝宝阴道针眼大小怎么回事？是不是不正常",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-0479",
-      "category": "parenting-0-1",
-      "question": "母亲是o型血父亲是a型血孩子溶血的几率有？母亲是o型血父亲是a型血孩子溶血的几率有多少。无请专家帮忙解答",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-0482",
-      "category": "parenting-0-1",
-      "question": "广东最好白颠风的治疗医院最近一段时间发现我女儿脸上出现两块白斑，去医院检查是白癜风，听医生说白癜风这种病的最大的特点就是扩散，现在家人都很烦恼孩子这么小应如何治疗？",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "acog",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-0486",
-      "category": "parenting-1-3",
-      "question": "我女儿今年3岁多了一直都非常的调皮不管是什么只要是她喜欢的她都要去动看她喜欢的动画片时她也静不下来今年刚上幼儿园老师反映过很多次因此我怀疑我女儿是不是多动症想知道我女儿是不是多动症翱",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-0492",
-      "category": "parenting-newborn",
-      "question": "怀孕初风疹阳性，宝宝出生后需要做哪些检查？怀孕12周查出风疹igg和igm双阳，孕24周做了脐带血穿刺，结果是阴性的，彩超检查心脏发育正常。宝宝6月中旬出生的，外观上没有任何缺陷。请问宝宝需要做进一步检查以排除先天性风疹综合症吗？需要做哪些检查？什么时候查合适。",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "acog",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-0495",
-      "category": "parenting-0-1",
-      "question": "我有小三阳，我老婆有大三阳，肝功能都正常，准备要小孩，可以吗:是否可以要小孩",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "acog",
-        "nhs"
-      ]
-    },
-    {
-      "id": "qa-20260316-0499",
-      "category": "pregnancy-late",
-      "question": "我结婚前118斤，结婚后就开始胖，怀孕到？我结婚前118斤，结婚后就开始胖，怀孕到临产时200斤，现在孩子两岁了，我还有170斤，咋？？？？。",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "acog",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
       "id": "qa-20260316-0501",
       "category": "vaccine-schedule",
       "question": "8月龄接种1剂麻风疫苗，1岁半接种1剂麻腮风疫苗，现女儿2周岁16天，还需接种麻疹和腮腺炎疫苗吗8月龄接种1剂麻风疫苗，1岁半接种1剂麻腮风疫苗，现女儿2周岁16天，还需接种麻疹和腮腺炎疫苗吗",
@@ -868,45 +316,9 @@
       ]
     },
     {
-      "id": "qa-20260316-0502",
-      "category": "vaccine-second",
-      "question": "（成年人）接种流感疫苗一周后，出现感冒症状，流涕，鼻塞，流眼泪，请问这是属于该疫苗的反应吗？",
-      "suggestedSourceIds": [
-        "nhc-rkjt",
-        "govcn-muying",
-        "govcn-jiedu-muying",
-        "ncwch-maternal-child-health",
-        "mchscn-monitoring"
-      ]
-    },
-    {
-      "id": "qa-20260316-0515",
-      "category": "parenting-0-1",
-      "question": "我爱人腰椎间盘突出症有三年，由于疼痛不厉害，一直未进行治疗，近一个月由于帮儿子带孩子，腰部、胯及大腿酸麻痛的厉害，现在不能弯腰，请问专家如何治疗，曾贴过膏药用过六味地黄丸当时疼痛减轻或消失，请问用什么药如何治疗",
-      "suggestedSourceIds": [
-        "acog",
-        "nhc-fys",
-        "ncwch-maternal-child-health",
-        "cnsoc-dietary-guidelines",
-        "chinanutri-maternal-child"
-      ]
-    },
-    {
       "id": "qa-20260316-0517",
       "category": "pregnancy-prep",
       "question": "验血hcg是不是怀孕了备孕期感冒，由于不敢乱吃药，于是医生先做了血检查，结果是β亚单位HCG44。41，参考值＜5mIU／ml，请问这是怀孕吗？怀孕多久了？",
-      "suggestedSourceIds": [
-        "nhc-rkjt",
-        "govcn-muying",
-        "govcn-jiedu-muying",
-        "ncwch-maternal-child-health",
-        "mchscn-monitoring"
-      ]
-    },
-    {
-      "id": "qa-20260316-0549",
-      "category": "vaccine-reaction",
-      "question": "医生宝宝接种b型流感嗜血杆菌疫苗后出现发烧嗜睡没精神怎么回事接种后第二天就出现嗜睡没精神还有点小烧",
       "suggestedSourceIds": [
         "nhc-rkjt",
         "govcn-muying",
@@ -928,141 +340,9 @@
       ]
     },
     {
-      "id": "qa-20260316-0565",
-      "category": "common-disease",
-      "question": "宝宝用金蛇脂行么？去湿疹的。",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-0574",
-      "category": "common-disease",
-      "question": "宝宝屁股长尿布湿疹了抹什么药",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-0587",
-      "category": "parenting-newborn",
-      "question": "生完孩子，月子病，关节疼痛",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-0592",
-      "category": "pregnancy-birth",
-      "question": "。去年也是这个时候梅雨季节高温流产后没注意着凉感冒，还穿短衣短裤骑摩托车淋雨双膝盖受寒，之后双膝受寒就胀痛无力了感觉温度，感觉很凉，尽管室温有30多度都这样，用手摸着才感觉好点。感觉有季节性我要怎么办比较好",
-      "suggestedSourceIds": [
-        "acog",
-        "nhc-fys",
-        "ncwch-maternal-child-health",
-        "cnsoc-dietary-guidelines",
-        "chinanutri-maternal-child"
-      ]
-    },
-    {
-      "id": "qa-20260316-0600",
-      "category": "pregnancy-prep",
-      "question": "未做孕前检查，意外怀孕30天，之前睡眠质量不好，嗓子发炎喝过双黄消炎片，怎莫办:",
-      "suggestedSourceIds": [
-        "nhc-rkjt",
-        "govcn-muying",
-        "govcn-jiedu-muying",
-        "ncwch-maternal-child-health",
-        "mchscn-monitoring"
-      ]
-    },
-    {
-      "id": "qa-20260316-0607",
-      "category": "common-disease",
-      "question": "医生，一岁半的孩子脸上起湿疹，用什么药摸:",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-0609",
-      "category": "common-disease",
-      "question": "请专家帮我配药，已经折磨我两年的皮肤病一到冬季皮肤瘙痒，一挠就会出现红色小疙瘩，甚至成片抓痕印。冷了耶痒，热了也痒，不知道是什么原因？很多医生说是湿疹，还有说是神经性皮炎",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
       "id": "qa-20260316-0627",
       "category": "vaccine-schedule",
       "question": "麻风疫苗什么时候打小时候打过一次什么时候打疫苗",
-      "suggestedSourceIds": [
-        "nhc-rkjt",
-        "govcn-muying",
-        "govcn-jiedu-muying",
-        "ncwch-maternal-child-health",
-        "mchscn-monitoring"
-      ]
-    },
-    {
-      "id": "qa-20260316-0629",
-      "category": "nutrition-baby",
-      "question": "宝宝腹泻，饮食用腹泻奶粉和米粉，那个更适合？",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-0643",
-      "category": "nutrition-baby",
-      "question": "宝宝上火便秘怎么办如何治疗顽固性便秘宝宝长期食用奶粉、牛奶等高热量的食品造成上火便秘。应该怎么办？请大家教教我该怎么做。",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-0644",
-      "category": "common-disease",
-      "question": "我想咨询我的脚是脚气还是湿疹或是其？我想咨询我的脚是脚气还是湿疹或是其他。",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-0667",
-      "category": "vaccine-second",
-      "question": "注射流感疫苗后喝酒，第二天有轻微感冒状态？注射流感疫苗后喝酒，第二天有轻微感冒状态，一周了仍感觉头发麻、不清醒状态，不知为何？请解答。谢谢。吃点999感冒颗粒是否医院检查",
       "suggestedSourceIds": [
         "nhc-rkjt",
         "govcn-muying",
@@ -1096,42 +376,6 @@
       ]
     },
     {
-      "id": "qa-20260316-0695",
-      "category": "vaccine-schedule",
-      "question": "我女儿注射麻风腮疫苗3天注射后一直发热39度怎么治",
-      "suggestedSourceIds": [
-        "nhc-rkjt",
-        "govcn-muying",
-        "govcn-jiedu-muying",
-        "ncwch-maternal-child-health",
-        "mchscn-monitoring"
-      ]
-    },
-    {
-      "id": "qa-20260316-0698",
-      "category": "parenting-newborn",
-      "question": "崔医生我家宝宝刚四十天，我好像坐月子没有做好，腰疼脚后跟也疼，肩膀也像有块石头似的压着疼痛，怎么回事该怎么治疗，我家住床是凉着了？现在腰部冰凉用中医调理还是怎么办，都说月子病不好治，我是风湿吗",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-0705",
-      "category": "nutrition-baby",
-      "question": "高烧退后，呕吐，腹泻宝宝今年十个月，12月21日发高烧，打针退烧后12月23日开始拉肚子，轻微。12月24日拉了7次，吃过母乳后呕吐，睡觉醒来也会吐，而且比平时嗜睡。拉的大便是水、蛋花状，请问这是什么原因",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "acog",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
       "id": "qa-20260316-0709",
       "category": "common-disease",
       "question": "怀孕4个多月就开始张疙瘩，还痒。现在5个半月还在扩展全身都是。晚上痒死了。看了医生说是过敏湿疹，配了两种药一种过敏，那一种不管用。到底是什么病呢，以前从没过。",
@@ -1156,18 +400,6 @@
       ]
     },
     {
-      "id": "qa-20260316-0717",
-      "category": "common-disease",
-      "question": "身上过敏吃了很多抗过敏药和擦的都不管用有的医生说说湿疹红斑有的又说荨麻疹好了这又发其他地方越来越凶不知道该怎么治疗了没发病之前吃过回奶的中药和阿莫西林后才开发的也不知道是不是药物过敏不敢确定如果做过敏源直接脱敏管用吗有没有效果",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
       "id": "qa-20260316-0720",
       "category": "vaccine-reaction",
       "question": "孩子接种疫苗后红肿怎么样能消除",
@@ -1180,45 +412,9 @@
       ]
     },
     {
-      "id": "qa-20260316-0740",
-      "category": "common-disease",
-      "question": "孩子刚满月湿疹用什哪类药效果好",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
       "id": "qa-20260316-0748",
       "category": "vaccine-reaction",
       "question": "卡介疫苗接种后宝宝发烧宝宝卡介疫苗接种后两个月发烧三十八度五，胳膊上发炎正常吗",
-      "suggestedSourceIds": [
-        "nhc-rkjt",
-        "govcn-muying",
-        "govcn-jiedu-muying",
-        "ncwch-maternal-child-health",
-        "mchscn-monitoring"
-      ]
-    },
-    {
-      "id": "qa-20260316-0752",
-      "category": "parenting-1-3",
-      "question": "以前正常送幼儿园之后出现症状不爱说话不爱玩不能和小朋友做游戏对玩具不感兴趣智力达不到同龄儿童总像迷迷糊糊的有一些刻板性动作睡眠不好什么都害怕做的磁共振和脑电出的结果是左脑发育不太好精神发育迟缓需要在做什么更详细的检查吗他能治疗吗",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "acog",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-0794",
-      "category": "vaccine-reaction",
-      "question": "大夫，我们家宝宝十个月大，昨天下午五点打的麻风疫苗，大约一个小时后就开始发烧，因为是发烧（感冒也是爱发烧）所以不确定是不是打疫苗出的问题，用药退不了烧，今天用药退烧后又重复发烧，到39。5，请问大夫，我该如何给孩子治疗呀",
       "suggestedSourceIds": [
         "nhc-rkjt",
         "govcn-muying",
@@ -1240,81 +436,9 @@
       ]
     },
     {
-      "id": "qa-20260316-0802",
-      "category": "vaccine-schedule",
-      "question": "我2104年10月全程注射过狂犬疫苗，今天被狗咬去了打了2针加强针，因为快半年了打了也好放心，2104年10月全程注射过狂犬疫苗。我就是想问问，，这2针加强针的保护期是多长时间，，请医生给我个答案",
-      "suggestedSourceIds": [
-        "nhc-rkjt",
-        "govcn-muying",
-        "govcn-jiedu-muying",
-        "ncwch-maternal-child-health",
-        "mchscn-monitoring"
-      ]
-    },
-    {
-      "id": "qa-20260316-0807",
-      "category": "common-disease",
-      "question": "维生素b12和什么药配合才能治湿疹",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-0818",
-      "category": "pregnancy-birth",
-      "question": "腰痛臀部疼痛麻痹流产后因为腰酸就让老公帮我按了几下腰，不知道是不是太出力了，过了一个月后腰突然放射性痛，臀部神经肌肉都痛，还麻痹，妇科检查又没有问题，因为上班没有怎么休息，是风湿还是坐骨神经痛，很担心",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "acog",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-0826",
-      "category": "pregnancy-birth",
-      "question": "哺乳期能吃避孕药么我刚生完宝宝两个月，在两个月时阴道有出血，不知道是不是来月经。23号早上来的一股热流。到晚上就没多少了，晚上做了一次，24号又有血了。这样需要吃避孕药么，纯母乳喂养。我剖腹产。",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-0837",
-      "category": "common-disease",
-      "question": "湿疹吃什么药，最好是西药。以前在一家中医看过，但医生给我开的中成药，也没有药名，其中有个瓶子装的，小颗粒的，一次吃20粒，有什么可以吃的药，不要什么药膏之类的",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
       "id": "qa-20260316-0853",
       "category": "pregnancy-prep",
       "question": "请问孕妇有便秘怎么办怀孕前都有可能？请问孕妇有便秘怎么办怀孕前都有可能是有压力还有可能是跟吃饭有关三四天才大便一次还很少。没有有食疗的方法吗",
-      "suggestedSourceIds": [
-        "nhc-rkjt",
-        "govcn-muying",
-        "govcn-jiedu-muying",
-        "ncwch-maternal-child-health",
-        "mchscn-monitoring"
-      ]
-    },
-    {
-      "id": "qa-20260316-0872",
-      "category": "vaccine-second",
-      "question": "个月我们家宝宝6个月了，医生说打B型流感疫苗148元，是自愿的，不知道这个疫苗有必须打吗",
       "suggestedSourceIds": [
         "nhc-rkjt",
         "govcn-muying",
@@ -1348,30 +472,6 @@
       ]
     },
     {
-      "id": "qa-20260316-0916",
-      "category": "parenting-0-1",
-      "question": "我小孩现在得了手足口病。是重型的。还抽搐？我小孩现在得了手足口病。是重型的。还抽搐。还引起脑炎，这病严重吗。没有怎么诊疗",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-0919",
-      "category": "pregnancy-birth",
-      "question": "我是顺产小孩出生二天发现蛛网膜下腔出血如果抛腹产小孩会有这种情况吗？是什么原因造成小孩得这种病的。",
-      "suggestedSourceIds": [
-        "acog",
-        "nhc-fys",
-        "ncwch-maternal-child-health",
-        "cnsoc-dietary-guidelines",
-        "chinanutri-maternal-child"
-      ]
-    },
-    {
       "id": "qa-20260316-0929",
       "category": "nutrition-baby",
       "question": "宝宝两个月了，有个鼻孔老是流鼻血是怎么回事呢，上次去医院查了血小板是正常的50天的时候去医院看了，查了血小板医生说正常的，我想问一下是哪些原因引起的鼻出血，我家宝宝吃的是奶粉，会不会是吃奶粉引起的",
@@ -1381,78 +481,6 @@
         "aap",
         "nhs",
         "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-0932",
-      "category": "common-disease",
-      "question": "在涂料厂上班，得了湿疹，手指很痒，起了很多水疱，过几天皮肤变硬然后开裂，开裂好了，硬的皮肤掉了，再长嫩的皮肤，再起水疱，反复发作，有半个月了",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-0948",
-      "category": "pregnancy-mid",
-      "question": "怀孕3个月食物中毒昨天下午吃了点野生菌，大概60分钟就呕吐。晚上开始腹痛腹泻，腹泻大概4次。大便为水还有胃痛。今早起来腹泻有所好转，有轻微的腹痛今早去医院做产检，胎儿有心跳跟胎动需要进一步治疗吗",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "acog",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-0959",
-      "category": "common-disease",
-      "question": "手上长水泡，退皮，痒，有医生说是湿疹，也有说是真菌感染，吃药没见好转，想问问到底是啥？想了解这方便的情况，该怎么治疗？",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-0961",
-      "category": "parenting-newborn",
-      "question": "感冒咳嗽，有痰新生儿感冒咳嗽，鼻子呼吸不畅，喉咙有痰",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-0969",
-      "category": "nutrition-baby",
-      "question": "医生说宝宝患的是肠炎，还有轻度脱水，现在宝宝没有拉了，但是大便里有奶瓣，请问可以给宝宝吃妈咪爱吗，还要吃腹泻奶粉吗",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "acog",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-0975",
-      "category": "common-disease",
-      "question": "过敏可以打疫苗吗？我家宝宝两个月零八天，脸上长痘医生说是过敏，给宝宝开了吃的药还有涂的药，刚好要打疫苗，请问可以去打吗？",
-      "suggestedSourceIds": [
-        "nhc-rkjt",
-        "govcn-muying",
-        "govcn-jiedu-muying",
-        "ncwch-maternal-child-health",
-        "mchscn-monitoring"
       ]
     },
     {
@@ -1468,54 +496,6 @@
       ]
     },
     {
-      "id": "qa-20260316-0981",
-      "category": "vaccine-reaction",
-      "question": "两岁半宝宝感冒宝宝两岁半，感冒有点发烧，流鼻涕，咳嗽有痰，已经吃了两天药了不见好，到门诊看了下已经到气管了，医生让输液，可宝宝从来没有打过针所以就没打，就有拿了点药点药。可是宝宝不吃饭怎么办？光是吃药也不行啊以前感冒发烧什么的都是吃点药就好了从来啊打针。宝宝现在这短时间不爱吃饭",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-0992",
-      "category": "pregnancy-prep",
-      "question": "全部症状：神经性头疼，感冒发病时间及原因：怀孕前3周和孕后3周治疗情况：药物治疗",
-      "suggestedSourceIds": [
-        "nhc-rkjt",
-        "govcn-muying",
-        "govcn-jiedu-muying",
-        "ncwch-maternal-child-health",
-        "mchscn-monitoring"
-      ]
-    },
-    {
-      "id": "qa-20260316-1000",
-      "category": "common-disease",
-      "question": "我们家孩子脸上长湿疹，擦了肤乐霜了，后面？我们家孩子脸上长湿疹，擦了肤乐霜了，后面又复发了。医生拿了肤乐霜，擦了不见好转。我听朋友说需要两种药混合擦，一种是黄色的，一种是白色的软膏，请问是哪两种药，一般药店能买到吗？",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-1004",
-      "category": "common-safety",
-      "question": "我8月15来的姨妈，然后推迟到9月30号在来的，然后月经走后醉酒与不认识的人发生的关系，事后10月10号每天都有和我老公发生关系，现在怀孕了宝宝会是谁的啊急救",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
       "id": "qa-20260316-1005",
       "category": "parenting-0-1",
       "question": "我的小孩手指甲上面又长了一层指甲是为什么",
@@ -1525,18 +505,6 @@
         "aap",
         "acog",
         "nhs"
-      ]
-    },
-    {
-      "id": "qa-20260316-1010",
-      "category": "pregnancy-birth",
-      "question": "胎儿已足月脐带绕脖子两圈能顺产吗",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "acog",
-        "nhs",
-        "mayo-clinic-zh"
       ]
     },
     {
@@ -1564,18 +532,6 @@
       ]
     },
     {
-      "id": "qa-20260316-1018",
-      "category": "parenting-newborn",
-      "question": "小孩会的核黄疸吗孩子出生第四天黄疸309，第三天晚上开始嗜睡，拒奶，吸允力变差，小孩得核黄疸的几率大吗第四天中午转院到安徽省立儿童医院，做了全身检查均正常，做蓝光治疗，输白蛋白，住院第三天，黄疸降低了很多，宝宝精神很好，喝奶正常了",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "acog",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
       "id": "qa-20260316-1026",
       "category": "pregnancy-birth",
       "question": "产后十几天小孩吃着吃着奶水不足怎么办",
@@ -1588,69 +544,9 @@
       ]
     },
     {
-      "id": "qa-20260316-1038",
-      "category": "pregnancy-birth",
-      "question": "带状疱疹分娩方式选择足月孕妇患带状疱疹，要生了选择生还是刨腹",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "acog",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-1039",
-      "category": "parenting-0-1",
-      "question": "宝宝得了皮肤病，说是荨麻疹检查过，都是拿些药膏或吃得药。但不管用荨麻疹该怎样治疗和预防",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "acog",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
       "id": "qa-20260316-1047",
       "category": "parenting-0-1",
       "question": "宝宝老吐奶孩子老是吐奶喂过奶后一个多小时也吐",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-1048",
-      "category": "pregnancy-prep",
-      "question": "已经30了，准备怀孕，所以今天专门去做了个孕前检查，结果B超结论是不全纵隔子宫现在该怎么治疗",
-      "suggestedSourceIds": [
-        "nhc-rkjt",
-        "govcn-muying",
-        "govcn-jiedu-muying",
-        "ncwch-maternal-child-health",
-        "mchscn-monitoring"
-      ]
-    },
-    {
-      "id": "qa-20260316-1052",
-      "category": "pregnancy-early",
-      "question": "38+2周B超显示：羊水量：右上象限0CM，右下象限0CM，左上象限7。7CM，左下象限2。3CM。胎头位于耻骨联合上方，双顶颈约9。4CM，股骨长约7。2CM，胎儿颈部可见U型压迹并见绕颈血流信号。S/D值：3。8。请专家给予最详细专业的解释及问题的办法。谢谢",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "acog",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-1060",
-      "category": "nutrition-baby",
-      "question": "在喂母乳，却感冒了？在哺乳期，却感冒了。宝宝刚满月怎么办？不是很严重。吃什么药好呢。",
       "suggestedSourceIds": [
         "who",
         "cdc",
@@ -1672,30 +568,6 @@
       ]
     },
     {
-      "id": "qa-20260316-1077",
-      "category": "parenting-0-1",
-      "question": "一个像小孩子弹一样的木头颗粒近嘴里了应该怎么办？",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "acog",
-        "nhs"
-      ]
-    },
-    {
-      "id": "qa-20260316-1078",
-      "category": "parenting-0-1",
-      "question": "宝宝8个月不会主动伸手拿东西，坐不稳，不会扶站。检查运动神经发育迟缓，做了梳磁共振，结果是第三脑室稍饱满。应该怎治疗，要治疗多久康复？",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "acog",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
       "id": "qa-20260316-1094",
       "category": "nutrition-baby",
       "question": "现在不给宝宝吃母乳（戒奶），乳房现在很胀该怎么办现在不给宝宝吃母乳（戒奶），乳房现在很胀该怎么办",
@@ -1703,18 +575,6 @@
         "who",
         "cdc",
         "aap",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-1098",
-      "category": "pregnancy-birth",
-      "question": "怀孕39周了，胎儿还没有入盆，怎么办有b超检查能顺产吗，还要多久才生",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "acog",
         "nhs",
         "mayo-clinic-zh"
       ]
@@ -1744,105 +604,9 @@
       ]
     },
     {
-      "id": "qa-20260316-1109",
-      "category": "parenting-0-1",
-      "question": "追问一下，宝宝四个半月能吃吗？煮水煮多久，一次喝多少？",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-1110",
-      "category": "parenting-0-1",
-      "question": "我妻子从下午4点多进产房到10点10分才产出宝？我妻子从下午4点多进产房到10点10分才产出宝宝医生说吸入羊水要检查请问严重吗。",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "acog",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-1115",
-      "category": "parenting-0-1",
-      "question": "30岁脚部骨折拍了ct打石膏多久能要小孩？结婚多年以来一直都没有怀上，上个星期不小心在楼梯上摔了下来，导致了脚踝骨的地方骨折，到医院做了ct检查，还打了石膏，请问医生这要多久时间后才能要小孩子啊。30岁脚部骨折拍了ct打石膏多就能要小孩？",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "acog",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-1118",
-      "category": "parenting-0-1",
-      "question": "检查四维彩超宝宝脊椎看不见怎么办",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "acog",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-1119",
-      "category": "pregnancy-prep",
-      "question": "四维彩超是什么怀孕20周能检查四维彩超吗具体检查什么呢？四维彩超是什么怀孕20周能检查四维彩超吗具体检查什么呢？四维彩超是什么怀孕20周能检查四维彩超吗具体检查什么呢？（）",
-      "suggestedSourceIds": [
-        "nhc-rkjt",
-        "govcn-muying",
-        "govcn-jiedu-muying",
-        "ncwch-maternal-child-health",
-        "mchscn-monitoring"
-      ]
-    },
-    {
-      "id": "qa-20260316-1121",
-      "category": "pregnancy-prep",
-      "question": "我怀孕前有阴道炎，现在我怀孕8个月了，对？我怀孕前有阴道炎，现在我怀孕8个月了，对宝宝有影响吗。",
-      "suggestedSourceIds": [
-        "nhc-rkjt",
-        "govcn-muying",
-        "govcn-jiedu-muying",
-        "ncwch-maternal-child-health",
-        "mchscn-monitoring"
-      ]
-    },
-    {
       "id": "qa-20260316-1125",
       "category": "parenting-0-1",
       "question": "断奶期间，妈妈是离开宝宝不见面好，还是陪孩子给予安慰好？",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-1126",
-      "category": "parenting-1-3",
-      "question": "患者信息：男1岁河北沧州医生建议宝宝半个小时后再喂奶，由于孩子哭的厉害，刚半个小时就喂奶了，结果严重吐奶，晚上又吐了一回是否影响药效曾经治疗情况及是否有过敏、遗传病史：没",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-1127",
-      "category": "parenting-0-1",
-      "question": "五个半月的宝宝今天打完白百破的预防针，今天晚上眼睛周围起了好多小红疙瘩？请问应该怎么办？急急急ji",
       "suggestedSourceIds": [
         "who",
         "cdc",
@@ -1876,30 +640,6 @@
       ]
     },
     {
-      "id": "qa-20260316-1134",
-      "category": "common-disease",
-      "question": "宝宝这几天睡觉醒来，眼睛分泌好多眼屎，脸上有湿疹起宝宝这几天睡觉醒来，眼睛分泌好多眼屎，脸上有湿疹起了好多红点，怎么治疗？",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-1138",
-      "category": "pregnancy-mid",
-      "question": "全部症状：宫缩频繁但是肚子不痛，平均5分钟宫缩一次。胎动厉害，晚上睡觉时，大腿根部疼痛，尾巴根部疼的厉害。发病时间及原因：2011-10-2819时30分左右治疗情况",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "acog",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
       "id": "qa-20260316-1139",
       "category": "pregnancy-mid",
       "question": "胎动次数频繁我怀孕38周了，从今天下午开始，胎动次数比前几天都要多，而且动的动静挺大的，请问什么原因？",
@@ -1912,18 +652,6 @@
       ]
     },
     {
-      "id": "qa-20260316-1141",
-      "category": "nutrition-baby",
-      "question": "产妇做了ct孩子吃奶了影响到底有多大",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "acog",
-        "nhs"
-      ]
-    },
-    {
       "id": "qa-20260316-1143",
       "category": "vaccine-first",
       "question": "宝宝三个月扎乙肝疫苗。针眼边上起一圈红疹是什么情况、严重嘛",
@@ -1933,18 +661,6 @@
         "govcn-jiedu-muying",
         "ncwch-maternal-child-health",
         "mchscn-monitoring"
-      ]
-    },
-    {
-      "id": "qa-20260316-1155",
-      "category": "parenting-0-1",
-      "question": "宝宝爱磨牙怎么办宝宝爱磨牙怎么办",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "nhs",
-        "mayo-clinic-zh"
       ]
     },
     {
@@ -1972,18 +688,6 @@
       ]
     },
     {
-      "id": "qa-20260316-1165",
-      "category": "parenting-0-1",
-      "question": "小孩贫血怎么办？小孩贫血怎么办？大家说吃补血的食物有助于补血，但是我也给孩子吃了，为什么一点效果都没有？现在想买铁之缘片来补，医生们觉得这个补血怎么样？小孩贫血怎么办？",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "acog",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
       "id": "qa-20260316-1169",
       "category": "common-disease",
       "question": "宝宝是消化不良引起的肠炎是否可以接种麻疹",
@@ -1991,30 +695,6 @@
         "who",
         "cdc",
         "aap",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-1172",
-      "category": "pregnancy-birth",
-      "question": "刚刚你回复的室间隔缺损先心病人，可以怀孕吗？目前已经意外怀孕一个多月了，可以在生产之前手术吗？",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "acog",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-1173",
-      "category": "pregnancy-birth",
-      "question": "还有多长时间分娩？我怀孕35周零3天。胎儿双顶9。3，胎盘成熟度3级，羊水最大深度5。8。胎儿正常吗？",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "acog",
         "nhs",
         "mayo-clinic-zh"
       ]
@@ -2044,30 +724,6 @@
       ]
     },
     {
-      "id": "qa-20260316-1182",
-      "category": "nutrition-baby",
-      "question": "宝宝八个月，前天家人喂了旺仔小馒头，喂了估计有20多个，然后晚上吐了2次奶，吐的量挺多，不知道是不是吃小馒头太多的原因，昨天拉了2、3次稀便。最近他吃奶干呕，大便发白，是消化不好么？应该吃什么？应该吃些什么药，一次吃多少",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-1191",
-      "category": "common-safety",
-      "question": "意外怀孕，想要流产，请问医生用那种方法比较好点，对以后会不会走影响呢，谢谢医生",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "acog",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
       "id": "qa-20260316-1195",
       "category": "pregnancy-prep",
       "question": "准备怀孕的话都要做哪些身体检查要注意些什么",
@@ -2077,18 +733,6 @@
         "govcn-jiedu-muying",
         "ncwch-maternal-child-health",
         "mchscn-monitoring"
-      ]
-    },
-    {
-      "id": "qa-20260316-1199",
-      "category": "parenting-0-1",
-      "question": "宝宝有蚕豆病妈妈可以用鹿角外敷吗",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "nhs",
-        "mayo-clinic-zh"
       ]
     },
     {
@@ -2116,18 +760,6 @@
       ]
     },
     {
-      "id": "qa-20260316-1208",
-      "category": "parenting-0-1",
-      "question": "如果唐氏和四维检查一切正常，能说明宝宝没事吗？",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "acog",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
       "id": "qa-20260316-1212",
       "category": "pregnancy-mid",
       "question": "・我怀孕4个半月了・三天前胎动挺厉害・可最近这几天一直没大感觉胎动・・去听胎心是152・属于正常还是需要检查啊？？？",
@@ -2135,30 +767,6 @@
         "who",
         "cdc",
         "acog",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-1214",
-      "category": "parenting-0-1",
-      "question": "那里可以把小孩吃掉的戒指取出来啊",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "acog",
-        "nhs"
-      ]
-    },
-    {
-      "id": "qa-20260316-1215",
-      "category": "parenting-3-6",
-      "question": "患者信息：男5岁福建漳州2010年8月22日摔伤后，颅骨骨折，至今都出现鼻漏，已一年了。一年中有鼻漏有好过两次。现在不知怎么办才好，小孩又不静躺。曾经治疗情况及是否有过敏、遗传病史：无病史",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
         "nhs",
         "mayo-clinic-zh"
       ]
@@ -2176,93 +784,9 @@
       ]
     },
     {
-      "id": "qa-20260316-1225",
-      "category": "common-development",
-      "question": "怀孕32周双顶径7。8厘米股骨5。5？怀孕32周双顶径7。8厘米股骨5。5厘米心率121次/分医生说孩子腿短。无对孩子以后身高有什么影响",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "acog",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-1227",
-      "category": "common-symptoms",
-      "question": "全部症状：发病时间及原因：治疗情况：一直不知道对孩子不会所以就没当回事。",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "acog",
-        "nhs"
-      ]
-    },
-    {
       "id": "qa-20260316-1230",
       "category": "common-development",
       "question": "朋友的孩子正是发育的时候，可是朋友的孩子却总是胀气，朋友为此很苦恼，也不知道该怎么办，朋友想知道，孩子胀气浑身没劲怎么办？？？",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-1236",
-      "category": "parenting-0-1",
-      "question": "5个月宝宝今天早上8点多打完脊灰百白破，三个小时后流了6，7滴鼻血怎么回事？谢谢你陈大夫。孩子小，很害怕啊。",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-1242",
-      "category": "nutrition-child",
-      "question": "小儿胃火大爱吃甜食零食舌苔厚挑食青菜不吃爱吃肉类咳嗽时有时候吃药有时候打点滴孩子最好能正常吃饭最好能吃一些青菜和蛋类（",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-1243",
-      "category": "vaccine-first",
-      "question": "一个月宝宝打第二针乙肝疫苗，哭闹不肯睡觉，容易吐奶，是不是打针的影响？",
-      "suggestedSourceIds": [
-        "nhc-rkjt",
-        "govcn-muying",
-        "govcn-jiedu-muying",
-        "ncwch-maternal-child-health",
-        "mchscn-monitoring"
-      ]
-    },
-    {
-      "id": "qa-20260316-1249",
-      "category": "parenting-0-1",
-      "question": "小孩贫血怎么办？小孩贫血怎么办？大家说吃补血的食物有助于补血，但是我也给孩子吃了，为什么一点效果都没有？现在想买铁之缘片来补，医生们觉得这个补血怎么样？小孩贫血怎么办？",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "acog",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-1256",
-      "category": "parenting-0-1",
-      "question": "我家宝宝吓到了半夜大哭，吃了一天的琥珀抱龙丸就好了，请问还用再吃吗，要吃多长时间？",
       "suggestedSourceIds": [
         "who",
         "cdc",
@@ -2320,42 +844,6 @@
       ]
     },
     {
-      "id": "qa-20260316-1276",
-      "category": "pregnancy-prep",
-      "question": "准备怀孕感冒了，喝了感冒冲剂没事吧可以和感冒冲剂吗",
-      "suggestedSourceIds": [
-        "nhc-rkjt",
-        "govcn-muying",
-        "govcn-jiedu-muying",
-        "ncwch-maternal-child-health",
-        "mchscn-monitoring"
-      ]
-    },
-    {
-      "id": "qa-20260316-1278",
-      "category": "common-symptoms",
-      "question": "感觉膀胱下坠，尿不出来，尿血？月经刚来不久，但是为什么会感觉膀胱有下坠感，以前有过两三次尿急尿痛症状，自己吃点消炎药，三两天就好了，现在居然还开始尿血，有时候还尿布出来，一尿就是血块。请问这是怎么回事啊，应该怎么办？",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "acog",
-        "nhs"
-      ]
-    },
-    {
-      "id": "qa-20260316-1283",
-      "category": "common-safety",
-      "question": "意外怀孕了可吃了药咋办？为了治疗妇科病吃了半个月的药，都写了孕妇禁用，可我又意外怀孕了，怎么办？孩子是不是不能要了，影响会很大吧？请求医生帮帮我",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "acog",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
       "id": "qa-20260316-1287",
       "category": "parenting-0-1",
       "question": "我的宝宝六个半月的时候出了第一颗牙，现在有四颗牙了，在长第五颗牙齿，但是下面两颗牙的颜色慢慢的变深了，现在有点绿绿的，已经三个多星期了，去医院看过了，医生说正常的没有颜色，请问有谁知道是怎么回事？怎么办",
@@ -2380,42 +868,6 @@
       ]
     },
     {
-      "id": "qa-20260316-1292",
-      "category": "nutrition-baby",
-      "question": "刚生完小孩，四个半月，最近体温一直都在3？刚生完小孩，四个半月，最近体温一直都在37到37。5左右，有4天，孩子现在不吃奶了，我也没有其他感冒的症状。检查血常规血象不高，稍稍贫血，也没有甲亢。是怎么回事。现在吃利君沙是怎么回事，还需要检查什么？",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "acog",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-1294",
-      "category": "parenting-1-3",
-      "question": "宝宝得了霰粒肿1岁3个月得了霰粒肿，眼科医生说3岁以后再去，什么药也没开，心里很担心想问下真的要等到3岁吗？谢谢",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-1295",
-      "category": "pregnancy-prep",
-      "question": "四维彩超是什么怀孕20周能检查四维彩超吗具体检查什么呢？四维彩超是什么怀孕20周能检查四维彩超吗具体检查什么呢？四维彩超是什么怀孕20周能检查四维彩超吗具体检查什么呢？（）",
-      "suggestedSourceIds": [
-        "nhc-rkjt",
-        "govcn-muying",
-        "govcn-jiedu-muying",
-        "ncwch-maternal-child-health",
-        "mchscn-monitoring"
-      ]
-    },
-    {
       "id": "qa-20260316-1297",
       "category": "nutrition-baby",
       "question": "宝宝纯母乳喂养需要补充鱼肝油吗？妈妈补充维生素宝宝还需要补吗？",
@@ -2423,66 +875,6 @@
         "who",
         "cdc",
         "aap",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-1300",
-      "category": "parenting-0-1",
-      "question": "我现在都6个多月了前34个月都没好好吃饭现在爱吃辣椒小孩不大才1斤多沉小孩怎么才长啊",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "acog",
-        "nhs"
-      ]
-    },
-    {
-      "id": "qa-20260316-1302",
-      "category": "parenting-0-1",
-      "question": "请问我生完孩子七个月了。可是下面总是断断续续有血，偶尔小腹有点疼，孩子俩个月去医院检查说是宫颈有点充血，吃的消炎药一直到三个月时候才好，五个月多就来月经了，六个月时候又来一次，这个月还没来下面又有血了，不知道是不是月经，怎么回事呢？",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "acog",
-        "nhs",
-        "mayo-clinic-zh"
-      ]
-    },
-    {
-      "id": "qa-20260316-1303",
-      "category": "pregnancy-prep",
-      "question": "怀孕2个多月，出现了右腿抽筋症状，想补钙。发现怀孕前吃的南京特丰药业的复方葡萄糖酸钙口服溶液，请问是否还可以继续口服？另外:孕妇吃什么补钙好呢？",
-      "suggestedSourceIds": [
-        "nhc-rkjt",
-        "govcn-muying",
-        "govcn-jiedu-muying",
-        "ncwch-maternal-child-health",
-        "mchscn-monitoring"
-      ]
-    },
-    {
-      "id": "qa-20260316-1304",
-      "category": "parenting-0-1",
-      "question": "小孩鼻子里面发炎，白天不停的打呼",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "aap",
-        "acog",
-        "nhs"
-      ]
-    },
-    {
-      "id": "qa-20260316-1308",
-      "category": "parenting-0-1",
-      "question": "淮安妇幼保健院微量元素检查周日做吗，什么时候出结果，要挂号什么课我想带小孩做微量元素检查，周日有人检查吗，到那里找什么医生做，要找哪课室",
-      "suggestedSourceIds": [
-        "who",
-        "cdc",
-        "acog",
         "nhs",
         "mayo-clinic-zh"
       ]
@@ -2509,6 +901,1638 @@
         "aap",
         "nhs",
         "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1319",
+      "category": "pregnancy-mid",
+      "question": "怀孕三个多月的时候还能感觉到胎动，为什么之后都感觉不到了？有什么问题么",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1333",
+      "category": "pregnancy-prep",
+      "question": "乙肝大三阳女怀孕前该做什么检查，如何防止孩子感染？",
+      "suggestedSourceIds": [
+        "nhc-rkjt",
+        "govcn-muying",
+        "govcn-jiedu-muying",
+        "ncwch-maternal-child-health",
+        "mchscn-monitoring"
+      ]
+    },
+    {
+      "id": "qa-20260316-1337",
+      "category": "parenting-0-1",
+      "question": "宝宝老是拉屎还出冷汗怎么回事？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1343",
+      "category": "pregnancy-late",
+      "question": "子宫两侧里面刺痛我怀孕8个月了，这两天子宫外阴两侧里面刺痛，请问这是怎么回事？是有什么病装吗？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1345",
+      "category": "parenting-0-1",
+      "question": "孩子40天了，大便不出来，怎么办？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-1350",
+      "category": "parenting-0-1",
+      "question": "最近这段期间，我们家宝宝不知道是怎么回事？体质特别的差动不动的就生病，请问导致孩子体质差的原因都有哪些呢？孩子应该注意些什么呢？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1352",
+      "category": "pregnancy-mid",
+      "question": "检查说我怀孕3个半月胎动厉害我现在怀孕3个半月了，检查说胎儿动得很厉害是怎么回事？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1355",
+      "category": "parenting-0-1",
+      "question": "宝宝19号打得18个月白百破、打完针眼四周红肿、第三天腿上二十几个小红疙瘩、痒、孩子总抓、抓完就像蚊子包似的、我该怎么办",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1368",
+      "category": "nutrition-child",
+      "question": "我家孩子偏食非常严重，平时几乎不吃什么蔬菜和水果，但是特别喜欢吃肉丸和鸡翅，如果没有他就不吃饭了，表示抗议。",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-1373",
+      "category": "pregnancy-mid",
+      "question": "怀孕7个月20天胎儿双顶径8。9cm股长6。1cm正常吗？是不是腿发育的慢啊",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1376",
+      "category": "nutrition-baby",
+      "question": "八个半月的宝宝嘴角一圈红红的都裂开起皮了，还很痒，都好几个月了还没好，他们说是缺锌，今天给他吃了半支锌口服液，好像吃奶量多了，是不是缺锌也影响食欲啊？怎么回事呢",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1380",
+      "category": "common-disease",
+      "question": "我的孩子对青霉素过敏，最近学校将进行甲流疫苗接种，我想请问：像我的孩子这样对青霉素过敏者，能否接踵甲流疫苗？",
+      "suggestedSourceIds": [
+        "nhc-rkjt",
+        "govcn-muying",
+        "govcn-jiedu-muying",
+        "ncwch-maternal-child-health",
+        "mchscn-monitoring"
+      ]
+    },
+    {
+      "id": "qa-20260316-1394",
+      "category": "parenting-0-1",
+      "question": "小孩拉稀还带奶瓣我家小孩50天。拉稀还带奶瓣。而且一次与一次间隔时间很短",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-1396",
+      "category": "parenting-0-1",
+      "question": "宝宝老吐奶孩子老是吐奶喂过奶后一个多小时也吐",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1402",
+      "category": "pregnancy-mid",
+      "question": "足跟疼，肿胀，怀孕7个月，怎么按摩",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1411",
+      "category": "parenting-0-1",
+      "question": "医生，一般宝宝得了黄胆值是140多，如果打几天护脑针的话，黄胆值会将下来吗？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1412",
+      "category": "parenting-0-1",
+      "question": "孩子脸上长了一块白斑，是怎么了，要怎么办才好呢，有人说是白癜风",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-1430",
+      "category": "parenting-0-1",
+      "question": "宝宝断奶，可奶水涨的难受，能挤出来吗",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1437",
+      "category": "common-symptoms",
+      "question": "我家宝宝是过敏体质，总是全身这抓抓，那抓抓，有医生说是体质差，也有说是荨麻疹，但是她也没有荨麻疹症状，怎么办？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1461",
+      "category": "nutrition-baby",
+      "question": "我在喂宝宝吃奶时，有种想吐的感觉，这样的情况已经20天了。请问是什么原因？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1464",
+      "category": "common-development",
+      "question": "我那小孩偏食好严重，就只吃几种菜，其它的菜动不动一下，水果也是，现在体重也很轻，脸上也有点黄，我好担心我小孩的身体健康，有没有更好的方法可以让我的小孩不再偏食",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1478",
+      "category": "parenting-0-1",
+      "question": "宝宝老吐奶孩子老是吐奶喂过奶后一个多小时也吐",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1486",
+      "category": "pregnancy-mid",
+      "question": "怀孕十五周多肚子老是发紧里面有动静然后就打屁是不是胎动啊",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1488",
+      "category": "pregnancy-late",
+      "question": "问题描述：怀孕后期为什么会脚肿",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1498",
+      "category": "pregnancy-late",
+      "question": "我怀孕8个月了，最近总是便秘，还带有血，拉完屁股带血。请问我这是怎么回事？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1507",
+      "category": "parenting-newborn",
+      "question": "月子期间奶漏怎么办？宝宝吃一面那面也跟着漏奶漏的还挺多有什么方法能吃一面那面不漏奶么？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1511",
+      "category": "parenting-0-1",
+      "question": "宝宝老是拉屎还出冷汗怎么回事？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1516",
+      "category": "parenting-0-1",
+      "question": "宝宝老吐奶孩子老是吐奶喂过奶后一个多小时也吐",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1520",
+      "category": "parenting-0-1",
+      "question": "我家宝宝出过小儿急疹了但是现在身上又出疹子了是怎么回事我想知道这属于什么疹子",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1524",
+      "category": "parenting-0-1",
+      "question": "我家三个多月的宝宝老是出湿诊可怎么是好",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1541",
+      "category": "parenting-0-1",
+      "question": "宝宝老吐奶孩子老是吐奶喂过奶后一个多小时也吐",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1543",
+      "category": "parenting-0-1",
+      "question": "宝宝老吐奶孩子老是吐奶喂过奶后一个多小时也吐",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1555",
+      "category": "nutrition-baby",
+      "question": "2个月的宝宝这两天一吃奶就哭还老大惊是乍回事。:",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1566",
+      "category": "common-symptoms",
+      "question": "大三阳要注意什么小孩怎么办没有症状。",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-1576",
+      "category": "pregnancy-late",
+      "question": "怀孕39周肚子像痛经一样痛是不是要临产了",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1577",
+      "category": "pregnancy-birth",
+      "question": "我老婆要生孩子了，最近去医院检查，说有小三阳，请问下。小孩有什么问题吗？传染吗？能母乳吗？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1579",
+      "category": "parenting-0-1",
+      "question": "我家宝宝两个半月了，我上班一天必须站六个小时，我想去上班想知道这样对我的身体好吗？我现在伤口恢复挺好的，就是眼睛看电视时间长了会乏。",
+      "suggestedSourceIds": [
+        "acog",
+        "nhc-fys",
+        "ncwch-maternal-child-health",
+        "cnsoc-dietary-guidelines",
+        "chinanutri-maternal-child"
+      ]
+    },
+    {
+      "id": "qa-20260316-1583",
+      "category": "parenting-1-3",
+      "question": "我家宝宝今年刚上幼儿园，总是生病，并且还经常吃药，严重时还要打针，导致现在体质比较虚弱，爱出虚汗，有什么方法解决一下，急。",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1584",
+      "category": "parenting-0-1",
+      "question": "我是0型血我老公是A型，生出来的孩子是不是婴儿不合溶血病",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1592",
+      "category": "parenting-0-1",
+      "question": "我家宝宝老是哭不怎么爱吃是不是有什么病啊",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1593",
+      "category": "nutrition-baby",
+      "question": "患有乙肝大三阳的准妈妈，小孩出世了，是不是不能喂母乳",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1635",
+      "category": "parenting-0-1",
+      "question": "我家孩子三周偏胖就是不爱吃饭请问是怎么回事",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-1644",
+      "category": "pregnancy-birth",
+      "question": "顺产无痛分娩管用吗顺产无痛分娩管用吗",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1678",
+      "category": "parenting-0-1",
+      "question": "宝宝快半个月了，黄胆一直没退，怎么回事",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1704",
+      "category": "parenting-1-3",
+      "question": "我想问一下B型流感嗜血杆菌混合疫苗（HIB疫苗）有没有必要给2岁宝宝打我想问一下B型流感嗜血杆菌混合疫苗（HIB疫苗）有没有必要给2岁宝宝打",
+      "suggestedSourceIds": [
+        "nhc-rkjt",
+        "govcn-muying",
+        "govcn-jiedu-muying",
+        "ncwch-maternal-child-health",
+        "mchscn-monitoring"
+      ]
+    },
+    {
+      "id": "qa-20260316-1717",
+      "category": "parenting-3-6",
+      "question": "我孩子5岁了，她从小的时候两边股骨只要动都会响，以前没有喊痛，现在她偶尔股骨和膝盖会痛，痛得站不起来，我想请问是什么原因",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-1722",
+      "category": "parenting-0-1",
+      "question": "奶水太多每次宝宝吸奶时另一个就在流奶水怎么办",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1736",
+      "category": "parenting-0-1",
+      "question": "一个多月的小孩三天拉一次大便是正常吗",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-1743",
+      "category": "parenting-0-1",
+      "question": "我家孩子有扁桃体肥大和鼻炎有多年了，可是一直都没有治好，前几天又发生腮腺炎。请问以上病情是那个病列引起原因呢、？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-1745",
+      "category": "parenting-3-6",
+      "question": "宝宝皮肤瘙痒，发肿块？男宝5岁，一到夏天皮肤就瘙痒一抠就发出类似与蚊子块一样的肿块。家里并没有蚊子。一发就是好几个，一长串。看看都心疼。",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1753",
+      "category": "pregnancy-birth",
+      "question": "昨天去医院检查宝宝头部已经入盆请问再等几天生产预产期8月20号",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1755",
+      "category": "parenting-3-6",
+      "question": "我家孩子5岁了，经常爱生病，身体瘦瘦的，也不爱吃饭，但精神上还是很活泼，家人建议我去医院给孩子查一下是不是缺乏营养。",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-1759",
+      "category": "parenting-0-1",
+      "question": "小孩脖子有大块白斑那白斑是什么最近才有",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-1765",
+      "category": "common-symptoms",
+      "question": "腮腺炎有什么症状孩子脸庞两侧肿，摸上去还有嘎达，请问是腮腺炎吗？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-1767",
+      "category": "vaccine-reaction",
+      "question": "请问医生，注射过风疹疫苗会得风疹吗？风疹？请问医生，注射过风疹疫苗会得风疹吗？风疹会发烧吗？风疹痒吗。涂抹红霉素软膏。请问是风疹吗？曾经注射过疫苗。",
+      "suggestedSourceIds": [
+        "nhc-rkjt",
+        "govcn-muying",
+        "govcn-jiedu-muying",
+        "ncwch-maternal-child-health",
+        "mchscn-monitoring"
+      ]
+    },
+    {
+      "id": "qa-20260316-1773",
+      "category": "pregnancy-birth",
+      "question": "孕妇得甲肝如何治愈分娩后在治可以吗",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1774",
+      "category": "pregnancy-mid",
+      "question": "我怀孕六个月了，之前胎动挺频繁的，可这两天明显减弱了，有时候都感觉不到了，这",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1784",
+      "category": "parenting-0-1",
+      "question": "宝宝刚满月舌苔发黄是怎么回事？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1790",
+      "category": "parenting-0-1",
+      "question": "小孩腿上长白斑除了白癫风还有可能是什么小孩腿上长白斑除了白癫风还有可能是什么",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-1801",
+      "category": "nutrition-baby",
+      "question": "产妇得了肺结核之前不知道宝宝吃母乳会传染给宝宝吗想咨询一下",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1836",
+      "category": "parenting-1-3",
+      "question": "不发烧，全身出疹子，是幼儿急疹吗？宝宝19个月",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1872",
+      "category": "parenting-0-1",
+      "question": "宝宝老吐奶孩子老是吐奶喂过奶后一个多小时也吐",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1875",
+      "category": "parenting-newborn",
+      "question": "宝宝肚子涨和黄疸有关吗，宝宝十六天了",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1899",
+      "category": "parenting-newborn",
+      "question": "小孩刚出生四天左眼有血丝。是什么原因？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1909",
+      "category": "vaccine-schedule",
+      "question": "打了其它育苗后多久才能打水痘，宝宝现在一岁3月多，去市里种育苗，护士说要一岁半才打水痘，但是我们镇上现在就发了接种水痘的单子，我就不知道该不该打。请问该什么时候打，谢谢",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1916",
+      "category": "pregnancy-mid",
+      "question": "怀孕七月有胎动正常吗怀孕四个月可以有胎动吗",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1918",
+      "category": "parenting-0-1",
+      "question": "我想在哺乳期把在腋下开刀用麻药对小孩有没？我想在哺乳期把在腋下开刀用麻药对小孩有没有什么坏处。",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-1925",
+      "category": "parenting-0-1",
+      "question": "我家宝宝13个月了肚胀，肚泻但是他还要吃东西怎么办",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1926",
+      "category": "pregnancy-mid",
+      "question": "我在三个月时候做的彩超检查，双顶径31mm，股骨长16mm，羊水深42mm，我现在四个月了，大家都说能感觉到胎动，可我怎么没感觉到呢？最近3天我手和脚有特别小的小包，破了还有水，很痒，这和怀孕有关吗？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1933",
+      "category": "parenting-0-1",
+      "question": "16个月孩子做不住爱咬人一笑金鼻子",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-1940",
+      "category": "pregnancy-mid",
+      "question": "怀孕八个多月差不多九个月胎动减少胎动也比较轻微正常吗？有时半夜感觉不到胎动",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1941",
+      "category": "vaccine-reaction",
+      "question": "两岁小孩打甲肝疫苗一天后发烧怎么回事应该怎么办",
+      "suggestedSourceIds": [
+        "nhc-rkjt",
+        "govcn-muying",
+        "govcn-jiedu-muying",
+        "ncwch-maternal-child-health",
+        "mchscn-monitoring"
+      ]
+    },
+    {
+      "id": "qa-20260316-1945",
+      "category": "parenting-0-1",
+      "question": "我宝宝五个月出麻子几天可以洗澡？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1955",
+      "category": "pregnancy-mid",
+      "question": "怀孕4个月宝宝的肾脏不好，l是什么原因引起的呢？怀孕4个月宝宝的肾脏不好，l是什么原因引起的呢。",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1960",
+      "category": "parenting-0-1",
+      "question": "才一个多月，宝宝已经贫血了，这几天都抽了一百毫升了，明天还要抽，会不会有事？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1970",
+      "category": "pregnancy-mid",
+      "question": "怀孕25周，宝宝连续胎动3个钟了，正常吗",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1972",
+      "category": "nutrition-baby",
+      "question": "我想问下大三阳可以喂小孩吃奶吗",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-1973",
+      "category": "pregnancy-mid",
+      "question": "怀孕28周躺下侧卧睡胎动频繁，尤其左侧卧睡或者又侧睡的时候，感觉压到胎儿了，胎动特别厉害，特别用力怀孕28周躺下侧卧睡胎动频繁，尤其左侧卧睡或者又侧睡的时候，感觉压到胎儿了，胎动特别厉害，特别用力的踢，平躺又觉得胸闷，站起来或做起来就没胎动了。天天晚上没法睡觉，怎么办？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1978",
+      "category": "parenting-newborn",
+      "question": "哺乳期15天孩子没吃奶，有回奶迹象，孩子我家宝宝一个月了因黄疸原因住院十五天没吃奶现在没奶了怎么办有什么好的办法吗？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1985",
+      "category": "pregnancy-late",
+      "question": "我怀孕8个月了，还能做三维B超检查胎儿的心脏吗？，",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-1988",
+      "category": "parenting-0-1",
+      "question": "我是一名乙肝大三阳我是一名乙肝大三阳生了孩子。喂了奶。小孩会跟我一样吗？我很怕传给孩子。我该怎么办",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-2003",
+      "category": "parenting-0-1",
+      "question": "我的小孩还没出月，出生19天，眼睛和看起来还黄黄的，出生20多天了，好像没怎么长，好像跟刚生出来差不多，不知道是不经常看到他，没觉得长大。19天了，感觉没长重",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-2011",
+      "category": "parenting-3-6",
+      "question": "我的孩子6岁，在11月17号夜里突然发烧，第二天吐过之后就退烧了。但是在18号晚上在两条腿上起了类似于鸡皮疙瘩似的疹子，而且痒，吃了开瑞坦，可是20号全身起的更多了包括脸上密密麻麻都是，请问这是什么问题？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-2013",
+      "category": "pregnancy-prep",
+      "question": "怀孕初期在吃叶酸片厌食可以吃贝因美孕妇奶吗",
+      "suggestedSourceIds": [
+        "nhc-rkjt",
+        "govcn-muying",
+        "govcn-jiedu-muying",
+        "ncwch-maternal-child-health",
+        "mchscn-monitoring"
+      ]
+    },
+    {
+      "id": "qa-20260316-2021",
+      "category": "parenting-0-1",
+      "question": "哺乳期烫头不是染头烫发和染发哪个危害宝宝大？现在是哺乳期，宝宝会有什么危害？必须要断奶吗",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-2022",
+      "category": "pregnancy-mid",
+      "question": "怀孕四个多月。老早就有了胎动。为什么有的时候胎动的时候觉得小肚子里瞬间往下压了一下，好像从小肚子连接阴道那里的有什么东西跟着一起晃动，这是怎么回事？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-2035",
+      "category": "nutrition-baby",
+      "question": "宝宝六个半月最近吃奶半睡半醒时全身抖动这是怎么了我想知道是甚么原因因起需要做什么检查谢谢",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-2037",
+      "category": "parenting-0-1",
+      "question": "宝宝舌头被烫了味蕾被烫平了还能长出来吗",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-2042",
+      "category": "pregnancy-mid",
+      "question": "怀孕20周了，宝宝还没胎动，请问是怎么回事？？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-2053",
+      "category": "nutrition-baby",
+      "question": "五个月宝宝消化一直不好是喝羊奶粉呢还是牛奶粉。？？老是拉奶瓣。一天拉好多次。怎么办？他们说羊奶粉容易消化。",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-2058",
+      "category": "parenting-0-1",
+      "question": "怀宝宝了吃了天麻炖鸡晚上吐了第二天一直不想吃东西对宝宝有影响吗:",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-2061",
+      "category": "parenting-newborn",
+      "question": "刚出生的婴儿才17天可以剪指甲吗婴儿才17天可以剪指甲吗",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-2063",
+      "category": "pregnancy-mid",
+      "question": "怀孕八个月，下体有淡黄色液体流出，医生检查说不是破水，胎动什么都挺正常，现在在医院输保胎液，没什么效果到底是怎么回事呢，应该采取什么措施",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-2075",
+      "category": "parenting-0-1",
+      "question": "多次打胎怀不上小孩了还能治疗吗？多次打胎怀不上小孩了还能治疗吗？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-2080",
+      "category": "pregnancy-prep",
+      "question": "刚要准备怀孕，去药店买叶酸，推荐我买了维妥立牌的叶酸铁片，能不能吃，会不会有什么影响？回来上网查了，网上都是推荐斯利安的叶酸片，能不能帮我解答，谢谢。",
+      "suggestedSourceIds": [
+        "nhc-rkjt",
+        "govcn-muying",
+        "govcn-jiedu-muying",
+        "ncwch-maternal-child-health",
+        "mchscn-monitoring"
+      ]
+    },
+    {
+      "id": "qa-20260316-2084",
+      "category": "parenting-0-1",
+      "question": "怎么样才能让奶水更多，够宝宝吃。",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-2093",
+      "category": "common-symptoms",
+      "question": "大夫孩子最近经常喊头疼，做头部CT无异常，五官科检查也说没有什么异常",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-2094",
+      "category": "parenting-0-1",
+      "question": "我家小孩有黄胆住院烤蓝光对孩子以后有后以证",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-2101",
+      "category": "nutrition-pregnancy",
+      "question": "吃螃蟹会导致流产吗？听说怀孕吃螃蟹会当时流产？这个说法会不会是真的？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-2103",
+      "category": "parenting-0-1",
+      "question": "宝宝老出汗时怎么回事？宝宝老出汗时怎么回事。",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-2104",
+      "category": "pregnancy-mid",
+      "question": "患者女36岁怀孕16周想问下做大排畸能不能预约上，",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-2115",
+      "category": "parenting-0-1",
+      "question": "我家宝宝3周半了每天晚上睡着后，后背就流汗，汗流的好多好多，一直要流1个小时左右他每天睡着以后我都要给他背后的被子掀开不然的话被子能全湿了，流汗时间也就睡着以后的1-2个小时流汗，然后就不流汗了，请问这是怎么回事啊",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-2116",
+      "category": "pregnancy-prep",
+      "question": "有过一次自然流产，下次怀孕前要到医院做哪些检查呢",
+      "suggestedSourceIds": [
+        "nhc-rkjt",
+        "govcn-muying",
+        "govcn-jiedu-muying",
+        "ncwch-maternal-child-health",
+        "mchscn-monitoring"
+      ]
+    },
+    {
+      "id": "qa-20260316-2117",
+      "category": "parenting-0-1",
+      "question": "宝宝急疹出疹后可以去宝宝洗澡的浴室洗澡吗宝宝急疹出疹后可以去宝宝洗澡的浴室洗澡吗",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-2123",
+      "category": "parenting-0-1",
+      "question": "宝宝鼻孔里有一块红血丝样的东西，是不是胎记啊？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-2125",
+      "category": "nutrition-baby",
+      "question": "四个半月宝宝吃完奶粉就拉绿色带奶瓣验过大便没事请问是怎么回事吃药也没效果医生说是宝宝着凉或喂养不适当想问问是怎么回事",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-2130",
+      "category": "parenting-0-1",
+      "question": "一岁一个月小孩有轻微的斗斗眼怎么办？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-2131",
+      "category": "parenting-0-1",
+      "question": "给宝宝用尿布好还是用尿不湿好？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-2133",
+      "category": "parenting-0-1",
+      "question": "乳房保养时挤出黄色粘稠状的奶。给孩子断奶两年了。但是乳房保养按摩时。总是能挤出来淡黄色粘稠状的奶。怎么回事。胸部按摩也不疼。也没有包块。脑子里也没垂体瘤。是什么病啊。严重吗。",
+      "suggestedSourceIds": [
+        "acog",
+        "nhc-fys",
+        "ncwch-maternal-child-health",
+        "cnsoc-dietary-guidelines",
+        "chinanutri-maternal-child"
+      ]
+    },
+    {
+      "id": "qa-20260316-2138",
+      "category": "parenting-0-1",
+      "question": "过度劳累会导致早产吗？我想问过度劳累会早产吗？因为我现在要带11个月大的宝宝，每天还要洗衣服……",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-2144",
+      "category": "parenting-0-1",
+      "question": "小孩针打的多对大脑有影响么？有什么影响？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-2148",
+      "category": "pregnancy-birth",
+      "question": "产后十几天了奶涨有硬块，吸奶器也吸了，催奶师也按了几次，消炎针也打了，现在宝宝也吃着奶，仍然有硬块。请问现在怎么办？无怎么才能不涨奶，消除硬块。",
+      "suggestedSourceIds": [
+        "acog",
+        "nhc-fys",
+        "ncwch-maternal-child-health",
+        "cnsoc-dietary-guidelines",
+        "chinanutri-maternal-child"
+      ]
+    },
+    {
+      "id": "qa-20260316-2156",
+      "category": "pregnancy-late",
+      "question": "我怀孕8个月零两周，昨天开始右脚浮肿，左脚就不肿，早上起来也是右脚有点肿上周检查一切正常向指定是怎么回事，怎么引起的",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-2181",
+      "category": "parenting-0-1",
+      "question": "我今天39周宝宝还没有发动。有什么办法呢我今天39周宝宝还没有发动。有什么办法呢",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-2182",
+      "category": "pregnancy-mid",
+      "question": "怀孕七个月了、突然胎动一直不停…我很害怕",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-2184",
+      "category": "pregnancy-mid",
+      "question": "是不是越接近预产期胎动就越频繁？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-2189",
+      "category": "common-development",
+      "question": "几个月检查小孩发育最合适怀孕四个月了我们想检查小孩的发育情况想做个四维彩超请问什么时候最合适",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-2192",
+      "category": "nutrition-child",
+      "question": "我家的宝宝之前食欲一直很好呢，有什么就吃什么，现在不行了，学会挑食了，挑东西吃，我想知道引起孩子挑食的原因是什么啊，该怎么预防呢",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-2194",
+      "category": "common-development",
+      "question": "本人能怀孕但只有泡泡在长是检查过的怎样才能怀孕并能正常发育生长",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-2202",
+      "category": "pregnancy-birth",
+      "question": "孕妇中度贫血对生孩子有什么影响吗？对小孩跟母体都有什么危险没有对小孩跟母体都有什么危险和影响？（）",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-2203",
+      "category": "parenting-0-1",
+      "question": "宝宝脸上有块黑色的胎记，那块胎记从出生就在宝宝右脸颊上，现在胎记有增长的迹象，最近观察胎记的周围皮肤有红血丝。",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-2205",
+      "category": "pregnancy-mid",
+      "question": "我现在怀孕36周了，检查的时候葡萄糖高6。5，医生让我去做糖尿病筛查，是不是就是葡萄糖筛查呀",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-2212",
+      "category": "parenting-1-3",
+      "question": "3岁宝宝上幼儿园大哭后眼睛及脖子上出小红点密密麻麻",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-2216",
+      "category": "parenting-0-1",
+      "question": "宝宝连续吃了两个糖丸（脊髓灰质炎强化）会有副作用吗？怎样预防小儿麻痹？",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-2220",
+      "category": "pregnancy-mid",
+      "question": "怀孕六个月多月的胎动情况胎儿越来越大，胎动是不是会减少",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-2222",
+      "category": "parenting-0-1",
+      "question": "我刚生完宝宝第五天，第三天夜里奶水就下来了，可是现在又没有了，怎么办",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-2224",
+      "category": "pregnancy-mid",
+      "question": "房子装修完五个月，一般人闻不到油漆味，但孕妇却闻到了，这样孕妇能住吗？怀孕7个月了。",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-2225",
+      "category": "parenting-0-1",
+      "question": "岁小孩头上突然长了几根白发几个月前原因不明暂时没有治疗想知道病因和治疗方法（）",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-2229",
+      "category": "pregnancy-prep",
+      "question": "没怀孕打算要宝宝没怀孕现在打算要宝宝的人可以提前吃叶酸吗？",
+      "suggestedSourceIds": [
+        "nhc-rkjt",
+        "govcn-muying",
+        "govcn-jiedu-muying",
+        "ncwch-maternal-child-health",
+        "mchscn-monitoring"
+      ]
+    },
+    {
+      "id": "qa-20260316-2236",
+      "category": "pregnancy-birth",
+      "question": "我想问一下我怀孕七个月零27天了最近宝宝活越的很多，我最近感觉肚皮有时候痒痒的，还想问一下什么时候去查能查出顺不顺产",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-2254",
+      "category": "pregnancy-mid",
+      "question": "怀孕三十六周了这几天不知为什么坐着时胎动的历害，请问是怎么回事？请速回答，谢谢",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "acog",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-2255",
+      "category": "parenting-newborn",
+      "question": "宝宝黄疸高胆红素240蛋蛋下面皮肤溃烂医院照蓝光一直反复",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-2261",
+      "category": "parenting-1-3",
+      "question": "3岁宝宝手被拉了手背肿起来喊痛是怎么回事",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-2262",
+      "category": "parenting-0-1",
+      "question": "我家小宝最近不知道怎么回事，老是喊着肚子痛，不知道怎么回事我就给他吃了一些止疼的药，可是不知道怎么回事感觉孩子吃了疗效不是很大，就来到旁边的小诊所，医生说是消化不好。",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "acog",
+        "nhs"
+      ]
+    },
+    {
+      "id": "qa-20260316-2279",
+      "category": "parenting-0-1",
+      "question": "两个月宝宝正在吃消炎药脖子上有好多疙瘩",
+      "suggestedSourceIds": [
+        "who",
+        "cdc",
+        "aap",
+        "nhs",
+        "mayo-clinic-zh"
+      ]
+    },
+    {
+      "id": "qa-20260316-2283",
+      "category": "parenting-1-3",
+      "question": "幼儿急疹与打疫苗有关系吗我们小孩上周打的麻风疫苗，这几天出了疹子。疹子和疫苗有关系吗？发烧去医院看过，医生给开的退烧药急疹和疫苗有没有关系？",
+      "suggestedSourceIds": [
+        "nhc-rkjt",
+        "govcn-muying",
+        "govcn-jiedu-muying",
+        "ncwch-maternal-child-health",
+        "mchscn-monitoring"
       ]
     }
   ]

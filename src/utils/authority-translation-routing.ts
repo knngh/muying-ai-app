@@ -24,7 +24,8 @@ export function isAuthorityTranslationPaidFallbackAllowed(
 export function resolveAuthorityTranslationTaskRoles(
   env: NodeJS.ProcessEnv = process.env,
 ): AITaskModelRole[] {
-  const configured = (env.AUTHORITY_TRANSLATION_TASK_ROLES || FREE_TRANSLATION_TASK_ROLE)
+  const explicitTaskRoles = (env.AUTHORITY_TRANSLATION_TASK_ROLES || '').trim();
+  const configured = (explicitTaskRoles || FREE_TRANSLATION_TASK_ROLE)
     .split(',')
     .map((item) => item.trim())
     .filter(Boolean);
@@ -39,6 +40,10 @@ export function resolveAuthorityTranslationTaskRoles(
     : [FREE_TRANSLATION_TASK_ROLE, ...uniqueRoles];
 
   if (isAuthorityTranslationPaidFallbackAllowed(env)) {
+    return freeFirstRoles;
+  }
+
+  if (explicitTaskRoles) {
     return freeFirstRoles;
   }
 

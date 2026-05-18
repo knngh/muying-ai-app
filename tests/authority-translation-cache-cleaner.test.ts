@@ -31,12 +31,20 @@ describe('authority translation cache cleaner', () => {
         translationNotice: '辅助翻译',
         updatedAt: '2026-05-07T00:00:00.000Z',
       },
+      analysisLeak: {
+        slug: 'analysisLeak',
+        translatedTitle: '情感发展',
+        translatedSummary: '摘要',
+        translatedContent: '让我仔细分析这篇AAP的文章并准确翻译。\n原文标题：Emotional Development: 1 Year Olds\n孩子在第二年会在独立和依恋之间摇摆。',
+        translationNotice: '辅助翻译',
+        updatedAt: '2026-05-07T00:00:00.000Z',
+      },
     });
 
     expect(result).toMatchObject({
-      total: 3,
+      total: 4,
       kept: 1,
-      removed: 2,
+      removed: 3,
       cleanedCache: {
         valid: expect.objectContaining({ translatedTitle: '儿童发热' }),
       },
@@ -44,6 +52,7 @@ describe('authority translation cache cleaner', () => {
     expect(result.removedEntries).toEqual([
       { slug: 'promptLeak', reason: 'prompt_leak' },
       { slug: 'placeholder', reason: 'empty_or_invalid_content' },
+      { slug: 'analysisLeak', reason: 'prompt_leak' },
     ]);
   });
 
@@ -77,24 +86,52 @@ describe('authority translation cache cleaner', () => {
       translationNotice: '辅助翻译',
       updatedAt: '2026-05-07T00:00:00.000Z',
     })).toBeNull();
+
+    expect(normalizeAuthorityTranslationRecord({
+      slug: 'analysis-leak',
+      translatedTitle: '情感发展',
+      translatedSummary: '摘要',
+      translatedContent: '让我仔细分析这篇AAP的文章并准确翻译。\n原文正文：Your child...\n孩子在第二年会在独立和依恋之间摇摆。',
+      translationNotice: '辅助翻译',
+      updatedAt: '2026-05-07T00:00:00.000Z',
+    })).toBeNull();
   });
 
-  it('uses GLM first for translation while keeping fallback task roles', () => {
-    expect(__authorityTranslationTestUtils.resolveAuthorityTranslationTaskRoles()).toEqual([
-      'glm_classify',
-      'minimax_render',
-      'kimi_reason',
-    ]);
-  });
-
-  it('keeps fallback task roles after configured translation role', () => {
+  it('defaults to GLM only without explicit paid fallback roles', () => {
     const originalRoles = process.env.AUTHORITY_TRANSLATION_TASK_ROLES;
+    const originalAllowPaidFallback = process.env.AUTHORITY_TRANSLATION_ALLOW_PAID_FALLBACK;
     try {
-      process.env.AUTHORITY_TRANSLATION_TASK_ROLES = 'minimax_render';
+      delete process.env.AUTHORITY_TRANSLATION_TASK_ROLES;
+      delete process.env.AUTHORITY_TRANSLATION_ALLOW_PAID_FALLBACK;
 
       expect(__authorityTranslationTestUtils.resolveAuthorityTranslationTaskRoles()).toEqual([
-        'minimax_render',
         'glm_classify',
+      ]);
+    } finally {
+      if (originalRoles === undefined) {
+        delete process.env.AUTHORITY_TRANSLATION_TASK_ROLES;
+      } else {
+        process.env.AUTHORITY_TRANSLATION_TASK_ROLES = originalRoles;
+      }
+
+      if (originalAllowPaidFallback === undefined) {
+        delete process.env.AUTHORITY_TRANSLATION_ALLOW_PAID_FALLBACK;
+      } else {
+        process.env.AUTHORITY_TRANSLATION_ALLOW_PAID_FALLBACK = originalAllowPaidFallback;
+      }
+    }
+  });
+
+  it('keeps explicitly configured fallback task roles after GLM', () => {
+    const originalRoles = process.env.AUTHORITY_TRANSLATION_TASK_ROLES;
+    const originalAllowPaidFallback = process.env.AUTHORITY_TRANSLATION_ALLOW_PAID_FALLBACK;
+    try {
+      process.env.AUTHORITY_TRANSLATION_TASK_ROLES = 'minimax_render,kimi_reason';
+      delete process.env.AUTHORITY_TRANSLATION_ALLOW_PAID_FALLBACK;
+
+      expect(__authorityTranslationTestUtils.resolveAuthorityTranslationTaskRoles()).toEqual([
+        'glm_classify',
+        'minimax_render',
         'kimi_reason',
       ]);
     } finally {
@@ -102,6 +139,12 @@ describe('authority translation cache cleaner', () => {
         delete process.env.AUTHORITY_TRANSLATION_TASK_ROLES;
       } else {
         process.env.AUTHORITY_TRANSLATION_TASK_ROLES = originalRoles;
+      }
+
+      if (originalAllowPaidFallback === undefined) {
+        delete process.env.AUTHORITY_TRANSLATION_ALLOW_PAID_FALLBACK;
+      } else {
+        process.env.AUTHORITY_TRANSLATION_ALLOW_PAID_FALLBACK = originalAllowPaidFallback;
       }
     }
   });

@@ -432,7 +432,7 @@ export const useKnowledgeStore = defineStore('knowledge', {
         }
 
         if (isLikelySlowTranslationError(error)) {
-          throw buildTranslationPendingError(5000, 'MiniMax 正在生成中文阅读版，请稍后自动刷新')
+          throw buildTranslationPendingError(5000, '中文阅读版正在生成，请稍后自动刷新')
         }
 
         if (!isTranslationPendingError(error)) {

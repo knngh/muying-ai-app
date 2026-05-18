@@ -31,6 +31,18 @@ describe('article translation sanitization', () => {
     expect(hasTranslationPromptLeak(input)).toBe(true);
   });
 
+  test('returns empty string for Chinese analysis preambles mixed into content', () => {
+    const input = [
+      '让我仔细分析这篇AAP的文章并准确翻译。',
+      '原文标题：Emotional Development: 1 Year Olds',
+      '现在翻译正文：',
+      '孩子在第二年会在独立和依恋之间摇摆。',
+    ].join('\n');
+
+    expect(sanitizeTranslationText(input, 'content')).toBe('');
+    expect(hasTranslationPromptLeak(input)).toBe(true);
+  });
+
   test('returns empty string for placeholder translation output', () => {
     expect(sanitizeTranslationText('...', 'content')).toBe('');
     expect(sanitizeTranslationText('…', 'summary')).toBe('');
