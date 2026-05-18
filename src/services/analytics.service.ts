@@ -255,6 +255,7 @@ const ACQUISITION_PAYMENT_EVENT_NAMES = [
 const ACQUISITION_ACTIVATION_EVENT_SET = new Set<string>(ACQUISITION_ACTIVATION_EVENT_NAMES);
 const ACQUISITION_ORDER_CREATED_EVENT_NAME = 'app_order_created';
 const ACQUISITION_PAYMENT_SUCCESS_EVENT_NAME = 'app_payment_success';
+const ACQUISITION_ATTRIBUTION_DIMENSIONS = ['channel', 'campaign', 'scene', 'entrySource'] as const;
 
 function toRecord(value: Prisma.JsonValue | null | undefined): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -378,6 +379,40 @@ function getAcquisitionEntrySource(properties: Record<string, unknown>): string 
     'entrySource',
     'source',
   ]);
+}
+
+type AcquisitionAttributionDimensionName = typeof ACQUISITION_ATTRIBUTION_DIMENSIONS[number];
+
+type AcquisitionAttributionDimensionCoverage = {
+  dimension: AcquisitionAttributionDimensionName;
+  attributedEventCount: number;
+  missingEventCount: number;
+  eventCoverageRate: number | null;
+  attributedUniqueCount: number;
+  uniqueCoverageRate: number | null;
+};
+
+type AcquisitionAttributionQuality = {
+  acquisitionEventCount: number;
+  acquisitionUniqueCount: number;
+  requiredDimensions: AcquisitionAttributionDimensionName[];
+  dimensions: AcquisitionAttributionDimensionCoverage[];
+};
+
+function getAcquisitionAttributionDimensionValue(
+  dimension: AcquisitionAttributionDimensionName,
+  properties: Record<string, unknown>,
+): string | undefined {
+  switch (dimension) {
+    case 'channel':
+      return getAcquisitionChannel(properties);
+    case 'campaign':
+      return getAcquisitionCampaign(properties);
+    case 'scene':
+      return getAcquisitionScene(properties);
+    case 'entrySource':
+      return getAcquisitionEntrySource(properties);
+  }
 }
 
 type AcquisitionSegmentStats = {
@@ -793,6 +828,18 @@ export async function getAcquisitionOverview(rangeDays: number) {
   const byCampaign = new Map<string, AcquisitionSegmentStats>();
   const byScene = new Map<string, AcquisitionSegmentStats>();
   const byEntrySource = new Map<string, AcquisitionSegmentStats>();
+  const attributionStatsByDimension = new Map<AcquisitionAttributionDimensionName, {
+    attributedEventCount: number;
+    attributedIdentities: Set<string>;
+  }>(
+    ACQUISITION_ATTRIBUTION_DIMENSIONS.map((dimension) => ([
+      dimension,
+      {
+        attributedEventCount: 0,
+        attributedIdentities: new Set<string>(),
+      },
+    ])),
+  );
   const topSegmentsByKey = new Map<string, {
     dimension: AcquisitionSegmentDimension;
     stats: AcquisitionSegmentStats;
@@ -826,6 +873,20 @@ export async function getAcquisitionOverview(rangeDays: number) {
       acquisitionEventCount += 1;
       if (identity) {
         acquisitionIdentities.add(identity);
+      }
+      for (const dimension of ACQUISITION_ATTRIBUTION_DIMENSIONS) {
+        const value = getAcquisitionAttributionDimensionValue(dimension, properties);
+        if (!value) {
+          continue;
+        }
+        const stats = attributionStatsByDimension.get(dimension);
+        if (!stats) {
+          continue;
+        }
+        stats.attributedEventCount += 1;
+        if (identity) {
+          stats.attributedIdentities.add(identity);
+        }
       }
     }
     if (identity && ACQUISITION_ACTIVATION_EVENT_SET.has(row.eventName)) {
@@ -902,6 +963,26 @@ export async function getAcquisitionOverview(rangeDays: number) {
     .filter((identity) => ANALYTICS_RETENTION_BEHAVIOR_EVENT_NAMES.some((eventName) => eventNamesByIdentity.get(identity)?.has(eventName))).length;
   const measuredEventCount = totalIdentifiedEvents + totalUnidentifiedEvents;
   const acquisitionUniqueCount = acquisitionIdentities.size;
+  const attributionQuality: AcquisitionAttributionQuality = {
+    acquisitionEventCount,
+    acquisitionUniqueCount,
+    requiredDimensions: [...ACQUISITION_ATTRIBUTION_DIMENSIONS],
+    dimensions: ACQUISITION_ATTRIBUTION_DIMENSIONS.map((dimension) => {
+      const stats = attributionStatsByDimension.get(dimension) || {
+        attributedEventCount: 0,
+        attributedIdentities: new Set<string>(),
+      };
+
+      return {
+        dimension,
+        attributedEventCount: stats.attributedEventCount,
+        missingEventCount: acquisitionEventCount - stats.attributedEventCount,
+        eventCoverageRate: toAcquisitionRate(stats.attributedEventCount, acquisitionEventCount),
+        attributedUniqueCount: stats.attributedIdentities.size,
+        uniqueCoverageRate: toAcquisitionRate(stats.attributedIdentities.size, acquisitionUniqueCount),
+      };
+    }),
+  };
 
   const topAcquisitionSegments: AcquisitionTopSegment[] = Array.from(topSegmentsByKey.values())
     .map(({ dimension, stats }) => {
@@ -970,6 +1051,7 @@ export async function getAcquisitionOverview(rangeDays: number) {
       byScene: toAcquisitionBreakdown(byScene).slice(0, 20),
       byEntrySource: toAcquisitionBreakdown(byEntrySource).slice(0, 20),
     },
+    attributionQuality,
     topAcquisitionSegments,
   };
 }

@@ -9,6 +9,7 @@ P7 承接 P6 工程闭环后的真实运营观察项，目标是把“有没有�
 P7 当前工程范围：
 
 - 按渠道、活动、场景、入口拆分获客归因
+- 监控获客归因字段覆盖率，避免真实流量丢失 `channel`、`campaign`、`scene` 或 `entrySource`
 - 将 P6 当前日报和 P6 JSONL 历史汇总为 P7 增长观察报告
 - 明确区分工程关闭和真实运营关闭
 
@@ -38,6 +39,13 @@ P7 当前工程范围：
 - `scene`
 - `entrySource`
 
+归因质量：
+
+- 只统计真实 `mini_program_app_download_click` 获客事件，不把激活、支付、留存事件混入口径
+- 每个维度输出事件覆盖率和去重用户覆盖率
+- 默认 `P7_ATTRIBUTION_COVERAGE_THRESHOLD=0.9`
+- 任一维度事件覆盖率低于阈值时，P7 报告进入 `observe`，并提示检查小程序获客链接和分享参数
+
 ## 3. 新增生产报告
 
 命令：
@@ -59,6 +67,7 @@ npm run ops:growth:p7
 - `P7_HISTORY_FILE`
 - `P6_HISTORY_FILE`
 - `P7_RANGE_DAYS`
+- `P7_ATTRIBUTION_COVERAGE_THRESHOLD`
 
 报告会读取：
 
@@ -82,6 +91,7 @@ npm run ops:growth:p7
 - 真实 acquisition 样本非 0
 - acquisition 到 activation 有样本
 - acquisition 到 payment success 有样本
+- 获客事件 `channel`、`campaign`、`scene`、`entrySource` 归因覆盖率达到阈值
 - AI degraded rate 回到阈值内，或已明确接受 fallback 口径
 - 无 blocker
 

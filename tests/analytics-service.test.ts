@@ -677,6 +677,45 @@ describe('analytics.service 单元测试', () => {
       acquisitionToPaymentRate: 0.5,
       identityCoverageRate: 0.875,
     });
+    expect(result.attributionQuality).toMatchObject({
+      acquisitionEventCount: 3,
+      acquisitionUniqueCount: 2,
+      requiredDimensions: ['channel', 'campaign', 'scene', 'entrySource'],
+      dimensions: [
+        {
+          dimension: 'channel',
+          attributedEventCount: 3,
+          missingEventCount: 0,
+          eventCoverageRate: 1,
+          attributedUniqueCount: 2,
+          uniqueCoverageRate: 1,
+        },
+        {
+          dimension: 'campaign',
+          attributedEventCount: 3,
+          missingEventCount: 0,
+          eventCoverageRate: 1,
+          attributedUniqueCount: 2,
+          uniqueCoverageRate: 1,
+        },
+        {
+          dimension: 'scene',
+          attributedEventCount: 3,
+          missingEventCount: 0,
+          eventCoverageRate: 1,
+          attributedUniqueCount: 2,
+          uniqueCoverageRate: 1,
+        },
+        {
+          dimension: 'entrySource',
+          attributedEventCount: 1,
+          missingEventCount: 2,
+          eventCoverageRate: 0.3333,
+          attributedUniqueCount: 1,
+          uniqueCoverageRate: 0.5,
+        },
+      ],
+    });
     expect(result.breakdown.byChannel).toEqual([
       {
         key: 'xiaohongshu',

@@ -24,6 +24,7 @@ const MIN_ACTIVATED_UNIQUE_COUNT = Number(process.env.P7_MIN_ACTIVATED_UNIQUE_CO
 const MIN_PAYMENT_SUCCESS_UNIQUE_COUNT = Number(process.env.P7_MIN_PAYMENT_SUCCESS_UNIQUE_COUNT || 1);
 const AI_DEGRADED_RATE_THRESHOLD = Number(process.env.P7_AI_DEGRADED_RATE_THRESHOLD || 0.25);
 const IDENTITY_COVERAGE_THRESHOLD = Number(process.env.P7_IDENTITY_COVERAGE_THRESHOLD || 0.8);
+const P7_ATTRIBUTION_COVERAGE_THRESHOLD = Number(process.env.P7_ATTRIBUTION_COVERAGE_THRESHOLD || 0.9);
 
 function toRecord(value) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
@@ -49,6 +50,10 @@ function toNumber(value, fallback = 0) {
 
 function toNullableNumber(value) {
   return value === null || value === undefined ? null : toNumber(value, null);
+}
+
+function isAcquisitionAttributionDimension(value) {
+  return typeof value === 'string' && ['channel', 'campaign', 'scene', 'entrySource'].includes(value);
 }
 
 function formatMetric(value) {
@@ -118,6 +123,30 @@ function normalizeAcquisitionOverview(value) {
   const overview = unwrapData(value);
   const summary = toRecord(overview.summary);
   const breakdown = toRecord(overview.breakdown);
+  const attributionQuality = toRecord(overview.attributionQuality);
+  const attributionDimensions = Array.isArray(attributionQuality.dimensions)
+    ? attributionQuality.dimensions
+      .map((item) => {
+        const dimension = toRecord(item);
+        const name = isAcquisitionAttributionDimension(dimension.dimension) ? dimension.dimension : null;
+        if (!name) {
+          return null;
+        }
+
+        return {
+          dimension: name,
+          attributedEventCount: toNumber(dimension.attributedEventCount),
+          missingEventCount: toNumber(dimension.missingEventCount),
+          eventCoverageRate: toNullableNumber(dimension.eventCoverageRate),
+          attributedUniqueCount: toNumber(dimension.attributedUniqueCount),
+          uniqueCoverageRate: toNullableNumber(dimension.uniqueCoverageRate),
+        };
+      })
+      .filter(Boolean)
+    : [];
+  const attributionRequiredDimensions = Array.isArray(attributionQuality.requiredDimensions)
+    ? attributionQuality.requiredDimensions.filter(isAcquisitionAttributionDimension)
+    : [];
 
   return {
     rangeDays: toNumber(overview.rangeDays, RANGE_DAYS),
@@ -143,6 +172,16 @@ function normalizeAcquisitionOverview(value) {
       byScene: Array.isArray(breakdown.byScene) ? breakdown.byScene : [],
       byEntrySource: Array.isArray(breakdown.byEntrySource) ? breakdown.byEntrySource : [],
     },
+    attributionQuality: Object.keys(attributionQuality).length > 0
+      ? {
+        acquisitionEventCount: toNumber(attributionQuality.acquisitionEventCount),
+        acquisitionUniqueCount: toNumber(attributionQuality.acquisitionUniqueCount),
+        requiredDimensions: attributionRequiredDimensions.length > 0
+          ? attributionRequiredDimensions
+          : ['channel', 'campaign', 'scene', 'entrySource'],
+        dimensions: attributionDimensions,
+      }
+      : null,
     topAcquisitionSegments: Array.isArray(overview.topAcquisitionSegments) ? overview.topAcquisitionSegments : [],
   };
 }
@@ -196,6 +235,20 @@ function buildP7GrowthReport(input) {
   ) {
     attention.push(`P7 acquisition identity coverage is below ${IDENTITY_COVERAGE_THRESHOLD}: ${acquisitionSummary.identityCoverageRate.toFixed(4)}`);
     nextActions.push('Audit channel/campaign analytics payloads to ensure clientId or userId survives from acquisition to activation.');
+  }
+
+  const attributionQuality = acquisition.attributionQuality;
+  const lowCoverageDimensions = Array.isArray(attributionQuality?.dimensions)
+    ? attributionQuality.dimensions.filter((item) => (
+      typeof item.eventCoverageRate === 'number'
+      && item.eventCoverageRate < P7_ATTRIBUTION_COVERAGE_THRESHOLD
+    ))
+    : [];
+  for (const dimension of lowCoverageDimensions) {
+    attention.push(`P7 attribution coverage for ${dimension.dimension} is below threshold: ${dimension.eventCoverageRate.toFixed(4)}`);
+  }
+  if (lowCoverageDimensions.length > 0) {
+    nextActions.push('Audit the mini-program acquisition query builders and share payloads to keep channel, campaign, scene and entrySource on the same link.');
   }
 
   const p6Ai = toRecord(p6Report.ai);
@@ -325,6 +378,11 @@ function buildP7GrowthMarkdown(report) {
       .map((item) => `- ${formatSegment(item)}: acquisition=${item.acquisitionUniqueCount}, activated=${item.activatedUniqueCount}, payment=${item.paymentSuccessUniqueCount}`)
       .join('\n')
     : '- None';
+  const attributionQualityLines = Array.isArray(report.acquisition?.attributionQuality?.dimensions) && report.acquisition.attributionQuality.dimensions.length > 0
+    ? report.acquisition.attributionQuality.dimensions
+      .map((item) => `- ${item.dimension}: eventCoverage=${formatMetric(item.eventCoverageRate)}, uniqueCoverage=${formatMetric(item.uniqueCoverageRate)}, attributedEvents=${item.attributedEventCount}, missingEvents=${item.missingEventCount}`)
+      .join('\n')
+    : '- None';
 
   return [
     '# P7 Growth Operations Summary',
@@ -344,6 +402,10 @@ function buildP7GrowthMarkdown(report) {
       ['Acquisition to payment rate', report.acquisition?.summary?.acquisitionToPaymentRate],
       ['Identity coverage', report.acquisition?.summary?.identityCoverageRate],
     ]),
+    '',
+    '## Attribution Quality',
+    '',
+    attributionQualityLines,
     '',
     renderMetricRows('P6 Baseline', [
       ['P6 status', report.p6?.status],

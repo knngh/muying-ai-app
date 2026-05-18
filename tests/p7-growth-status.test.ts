@@ -44,6 +44,49 @@ function baseP6Report(overrides = {}) {
   };
 }
 
+function baseAttributionQuality(overrides = {}) {
+  return {
+    acquisitionEventCount: 3,
+    acquisitionUniqueCount: 2,
+    requiredDimensions: ['channel', 'campaign', 'scene', 'entrySource'],
+    dimensions: [
+      {
+        dimension: 'channel',
+        attributedEventCount: 3,
+        missingEventCount: 0,
+        eventCoverageRate: 1,
+        attributedUniqueCount: 2,
+        uniqueCoverageRate: 1,
+      },
+      {
+        dimension: 'campaign',
+        attributedEventCount: 3,
+        missingEventCount: 0,
+        eventCoverageRate: 1,
+        attributedUniqueCount: 2,
+        uniqueCoverageRate: 1,
+      },
+      {
+        dimension: 'scene',
+        attributedEventCount: 3,
+        missingEventCount: 0,
+        eventCoverageRate: 1,
+        attributedUniqueCount: 2,
+        uniqueCoverageRate: 1,
+      },
+      {
+        dimension: 'entrySource',
+        attributedEventCount: 3,
+        missingEventCount: 0,
+        eventCoverageRate: 1,
+        attributedUniqueCount: 2,
+        uniqueCoverageRate: 1,
+      },
+    ],
+    ...overrides,
+  };
+}
+
 function baseAcquisitionOverview(overrides = {}) {
   return {
     data: {
@@ -74,6 +117,7 @@ function baseAcquisitionOverview(overrides = {}) {
           },
         ],
       },
+      attributionQuality: baseAttributionQuality(),
       topAcquisitionSegments: [
         {
           channel: 'xiaohongshu',
@@ -240,6 +284,105 @@ describe('P7 growth status report', () => {
     expect(report.canCloseP7).toBe(true);
     expect(report.attention).toEqual([]);
     expect(report.nextActions).toContain('P7 growth observation can move from engineering closure to routine operations.');
+  });
+
+  it('keeps P7 in observe when entrySource attribution coverage falls below threshold', () => {
+    const report = buildP7GrowthReport({
+      generatedAt: '2026-05-15T12:00:00.000Z',
+      rangeDays: 7,
+      p6Report: baseP6Report({
+        status: 'pass',
+        canCloseP6: true,
+        attention: [],
+        funnel: {
+          uniqueFirstStepCount: 10,
+          uniquePaymentSuccessCount: 2,
+          identityCoverageRate: 0.95,
+        },
+        ai: {
+          requestsStarted: 40,
+          degradedRate: 0.1,
+          productEntrypointEvents: 18,
+          coveredProductEntrypoints: ['native', 'knowledge_detail'],
+        },
+      }),
+      acquisitionOverview: baseAcquisitionOverview({
+        data: {
+          ...baseAcquisitionOverview().data,
+          summary: {
+            acquisitionEventCount: 12,
+            acquisitionUniqueCount: 10,
+            activatedUniqueCount: 5,
+            orderCreatedUniqueCount: 3,
+            paymentSuccessUniqueCount: 2,
+            retentionBehaviorUniqueCount: 3,
+            identityCoverageRate: 0.95,
+            ignoredOpsEventCount: 1,
+            acquisitionToActivationRate: 0.5,
+            acquisitionToOrderRate: 0.3,
+            acquisitionToPaymentRate: 0.2,
+            acquisitionToRetentionBehaviorRate: 0.3,
+          },
+          attributionQuality: baseAttributionQuality({
+            acquisitionEventCount: 12,
+            acquisitionUniqueCount: 10,
+            dimensions: [
+              {
+                dimension: 'channel',
+                attributedEventCount: 12,
+                missingEventCount: 0,
+                eventCoverageRate: 1,
+                attributedUniqueCount: 10,
+                uniqueCoverageRate: 1,
+              },
+              {
+                dimension: 'campaign',
+                attributedEventCount: 12,
+                missingEventCount: 0,
+                eventCoverageRate: 1,
+                attributedUniqueCount: 10,
+                uniqueCoverageRate: 1,
+              },
+              {
+                dimension: 'scene',
+                attributedEventCount: 12,
+                missingEventCount: 0,
+                eventCoverageRate: 1,
+                attributedUniqueCount: 10,
+                uniqueCoverageRate: 1,
+              },
+              {
+                dimension: 'entrySource',
+                attributedEventCount: 10,
+                missingEventCount: 2,
+                eventCoverageRate: 0.8333,
+                attributedUniqueCount: 8,
+                uniqueCoverageRate: 0.8,
+              },
+            ],
+          }),
+        },
+      }),
+      p6HistoryRecords: [
+        historyRecord({ funnel: { uniqueFirstStepCount: 5, uniquePaymentSuccessCount: 1, identityCoverageRate: 0.95 }, ai: { requestsStarted: 30, degradedRate: 0.2, productEntrypointEvents: 12 } }),
+        historyRecord({ generatedAt: '2026-05-15T00:00:00.000Z', funnel: { uniqueFirstStepCount: 10, uniquePaymentSuccessCount: 2, identityCoverageRate: 0.95 }, ai: { requestsStarted: 40, degradedRate: 0.1, productEntrypointEvents: 18 } }),
+      ],
+    });
+
+    expect(report.status).toBe('observe');
+    expect(report.canCloseP7Engineering).toBe(true);
+    expect(report.canCloseP7).toBe(false);
+    expect(report.attention).toEqual(expect.arrayContaining([
+      'P7 attribution coverage for entrySource is below threshold: 0.8333',
+    ]));
+    expect(report.nextActions).toContain('Audit the mini-program acquisition query builders and share payloads to keep channel, campaign, scene and entrySource on the same link.');
+    expect(report.acquisition.attributionQuality.dimensions).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        dimension: 'entrySource',
+        eventCoverageRate: 0.8333,
+        missingEventCount: 2,
+      }),
+    ]));
   });
 
   it('blocks when P6 report is unusable or acquisition overview is missing', () => {
