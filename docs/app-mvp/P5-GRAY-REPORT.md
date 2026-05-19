@@ -179,7 +179,7 @@ P5 已启动。
 
 ## 10. 2026-05-15 P5 收尾更新
 
-- 权威翻译默认改为只走免费 Modal Direct `zai-org/GLM-5.1-FP8` 任务通道；`AUTHORITY_TRANSLATION_TASK_ROLES` 默认/示例均为 `glm_classify`。
+- 权威翻译默认优先走免费 Modal Direct `zai-org/GLM-5.1-FP8` 任务通道；`AUTHORITY_TRANSLATION_TASK_ROLES` 默认/示例已更新为 `glm_classify,kimi_reason`，其中 `kimi_reason` 使用 OpenRouter `openrouter/free` 免费路由自动选择可用模型。
 - 付费翻译兜底改为显式开关：只有 `AUTHORITY_TRANSLATION_ALLOW_PAID_FALLBACK=true` 时才允许 `kimi_reason` / `minimax_render` 参与权威翻译。
 - API 与 authority worker 启动时会显式加载 authority cache、translation cache 和 failure cache，worker 启动阶段仍保持只读扫描，避免重启即打模型。
 - P5 gate 现在会把真实产品入口 coverage 的 click/message/server events 纳入 `productEntrypointEvents`，避免 `realEntrySourceEventCount` 偏保守时误报真实入口为 0。
