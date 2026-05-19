@@ -275,7 +275,7 @@
 
       <view class="diary-empty" v-if="!currentDiary">
         <text class="empty-emoji">📝</text>
-        <text class="empty-text">{{ canUseTodoActions ? '这周还没有记录哦，写下你的孕期感受吧！' : '当前还没有保存记录，登录后可以把本周感受与医生建议留下来。' }}</text>
+        <text class="empty-text">{{ canUseTodoActions ? '这周还没有记录哦，写下你的孕期感受吧！' : '当前还没有保存记录，登录后可以把本周感受与线下提醒留下来。' }}</text>
         <button class="add-diary-btn" @tap="openDiaryModal">{{ canUseTodoActions ? '添加本周记录' : '登录后记录' }}</button>
       </view>
 
@@ -538,7 +538,7 @@ const weekCommandDescription = computed(() => (
     ? '先扫一眼本周发育与注意事项，再决定要不要补待办或记录。'
     : activeTab.value === 'todo'
       ? (canUseTodoActions.value ? '把这一周要做的事集中处理，完成进度会实时保存。' : '先看本周待办结构，登录后再保存完成状态。')
-      : (canUseTodoActions.value ? '把这一周的变化和提醒记下来，后面回看更省力。' : '登录后可以把这周感受、医生建议和提醒留下来。')
+      : (canUseTodoActions.value ? '把这一周的变化和提醒记下来，后面回看更省力。' : '登录后可以把这周感受、线下提醒和待办留下来。')
 ))
 const weekCommandBadge = computed(() => (
   activeTab.value === 'guide'
@@ -564,7 +564,7 @@ const tabQuickActions = computed(() => [
     key: 'diary',
     label: '我的记录',
     value: currentDiary.value ? '本周已写记录' : '还没写记录',
-    meta: currentDiary.value ? '可继续补充这周变化和提醒' : '适合记下感受、医生建议和异常变化',
+    meta: currentDiary.value ? '可继续补充这周变化和提醒' : '适合记下感受、线下提醒和异常变化',
   },
 ])
 

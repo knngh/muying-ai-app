@@ -1,15 +1,15 @@
 <template>
   <view class="knowledge-page">
     <view class="knowledge-header">
-      <text class="knowledge-title">权威知识库</text>
-      <text class="knowledge-subtitle">中文权威源优先，直接搜索孕产、喂养、发热、黄疸、疫苗等问题。</text>
+      <text class="knowledge-title">孕育资料库</text>
+      <text class="knowledge-subtitle">优先展示中国公开机构资料，适合按主题查阅来源、更新时间和基础说明。</text>
     </view>
 
     <view class="search-bar">
       <input
         v-model="searchText"
         class="search-input"
-        placeholder="搜索孕产、喂养、发热、黄疸、疫苗..."
+        placeholder="搜索孕周、喂养、疫苗、产检记录..."
         confirm-type="search"
         @confirm="handleSearch"
       />
@@ -59,11 +59,11 @@
 
     <view class="article-list">
       <view v-if="loading && displayedArticleGroups.length === 0" class="state-box">
-        <text class="state-text">权威内容加载中...</text>
+        <text class="state-text">资料加载中...</text>
       </view>
 
       <view v-else-if="!loading && displayedArticleGroups.length === 0" class="state-box">
-        <text class="state-text">当前筛选条件下暂无权威文章</text>
+          <text class="state-text">当前筛选条件下暂无资料</text>
         <view class="state-btn" @tap="resetFilters">
           <text class="state-btn-text">恢复默认筛选</text>
         </view>
@@ -77,7 +77,7 @@
       >
         <view class="article-header">
           <view class="badge-row">
-            <text class="source-badge">{{ formatSourceLabel(group.article.sourceOrg || group.article.source || '权威来源') }}</text>
+            <text class="source-badge">{{ formatSourceLabel(group.article.sourceOrg || group.article.source || '公开来源') }}</text>
             <text :class="['tier-badge', `tier-badge--${getAuthorityRegionTag(group.article)}`]">{{ getAuthorityRegionLabel(group.article) }}</text>
             <text v-if="group.article.topic" class="topic-badge">{{ group.article.topic }}</text>
           </view>
@@ -198,7 +198,7 @@
         </view>
 
         <view class="article-footer">
-          <text class="verified-text">已校验来源 · 同步 {{ formatDate(group.article.lastSyncedAt || group.article.updatedAt || group.article.createdAt) }}</text>
+          <text class="verified-text">已记录来源 · 同步 {{ formatDate(group.article.lastSyncedAt || group.article.updatedAt || group.article.createdAt) }}</text>
           <text class="read-more">查看详情</text>
         </view>
       </view>
@@ -271,10 +271,8 @@ const sourceOptions = [
   { label: '中国疾控', value: '中国疾病预防控制中心' },
   { label: '国家疾控局', value: '国家疾病预防控制局' },
   { label: '中华医学会', value: '中华医学会' },
-  { label: '有来医生', value: '有来医生' },
   { label: '医药信息查询平台', value: '中国医药信息查询平台' },
   { label: '科普中国', value: '科普中国' },
-  { label: '好大夫在线', value: '好大夫在线' },
   { label: 'WHO', value: 'who' },
   { label: 'CDC', value: 'cdc' },
   { label: '美国儿科学会', value: 'aap' },
@@ -320,7 +318,7 @@ const activeFilterText = computed(() => {
 const resultPillText = computed(() => (
   mergedArticleCount.value > 0
     ? `当前展示 ${displayedArticleGroups.value.length} 篇 · 已合并 ${mergedArticleCount.value} 篇重复来源`
-    : `当前展示 ${displayedArticleGroups.value.length || total.value} 篇 · 中文源优先`
+    : `当前展示 ${displayedArticleGroups.value.length || total.value} 篇 · 中国公开源优先`
 ))
 
 watch(displayedArticleGroups, (groups) => {
@@ -425,10 +423,10 @@ function goToDetail(article: Article) {
 
 function getReadingHint(article: Article): string {
   if (isChineseKnowledgeArticle(article)) {
-    return '优先读中文原文与同步时间，适合直接核对政策和指南表述。'
+    return '优先读中文原文与同步时间，适合核对公开资料表述。'
   }
 
-  return '进入详情后会自动准备中文辅助阅读，适合先看摘要再决定是否打开机构原文。'
+  return '进入详情后会准备中文辅助阅读，适合先看摘要再核对来源信息。'
 }
 
 function getReadingMeta(article: Article) {
@@ -531,8 +529,8 @@ function getVariantDifference(representative: Article, variant: Article) {
 function buildSharePayload() {
   const keyword = searchText.value.trim()
   const title = keyword
-    ? `贝护妈妈权威知识库：${keyword}`
-    : '贝护妈妈权威知识库：孕产与婴幼儿权威资料'
+    ? `贝护妈妈孕育资料库：${keyword}`
+    : '贝护妈妈孕育资料库：孕产与婴幼儿公开资料'
   const query = buildAcquisitionQuery(keyword ? { keyword } : undefined)
 
   return {

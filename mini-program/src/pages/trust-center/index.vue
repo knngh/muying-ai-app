@@ -2,19 +2,19 @@
   <view class="trust-page">
     <view class="hero-card">
       <text class="hero-kicker">上线版本说明</text>
-      <text class="hero-title">我们如何处理权威内容</text>
+      <text class="hero-title">我们如何处理公开资料</text>
       <text class="hero-desc">
-        贝护妈妈当前小程序优先提供权威知识库、孕周日历和基础档案。内容用于帮助理解公开资料，不替代医生诊断、处方或治疗建议。
+        贝护妈妈当前小程序优先提供孕育资料库、孕周日历和基础档案。内容用于帮助理解公开资料，不替代医生诊断、处方或治疗建议。
       </text>
     </view>
 
     <view class="section-card">
       <text class="section-title">内容来源</text>
       <text class="section-text">
-        知识库优先收录中国政府网、国家卫健委、中国疾控、国家疾控局等中国公开资料，同时补充 WHO、CDC、AAP、ACOG、NHS 等国际权威机构内容。
+        资料库优先收录中国政府网、国家卫健委、中国疾控、国家疾控局等中国公开资料，同时补充 WHO、CDC、AAP、ACOG、NHS 等公开机构内容。
       </text>
       <text class="section-text">
-        每篇详情页会展示来源机构、来源更新时间、同步时间和可用的机构原文链接，方便你回到原始资料核对。
+        每篇详情页会展示来源机构、来源更新时间、同步时间和可复制的来源链接，方便你回到原始资料核对。
       </text>
     </view>
 

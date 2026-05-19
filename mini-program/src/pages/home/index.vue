@@ -112,28 +112,28 @@ const pregnancyStageLabel = computed(() => {
 
 const loginStateLabel = computed(() => (isLoggedIn.value ? '已守护' : '探索模式'))
 const heroEyebrow = computed(() => (currentWeek.value ? `第 ${currentWeek.value} 周贴心指南` : '贝护妈妈孕育助手'))
-const heroTitle = computed(() => (currentWeek.value ? '科学护航，安心陪伴每一天' : '您和宝宝的专属孕育管家'))
+const heroTitle = computed(() => (currentWeek.value ? '按周整理，安心记录每一天' : '您的孕育记录与资料工具'))
 const heroSubtitle = computed(() => (
   isLoggedIn.value
-    ? '专属孕期知识、里程碑日历与时光档案，记录您与宝宝的每一个美好瞬间。'
-    : '提供专业、贴心的孕期指导，登录后即可开启您的专属孕育之旅。'
+    ? '查看公开资料、孕周提醒与时光档案，记录您与宝宝的重要变化。'
+    : '先浏览公开资料和孕周日历，登录后可保存个人记录与提醒。'
 ))
 
 const primaryEntries = computed(() => [
   {
-    title: '专业孕育百科',
-    kicker: '科学指导',
-    desc: '海量权威孕产知识，解答您的每一个孕期疑惑，让孕育之路更从容。',
-    action: '去探索',
+    title: '孕育资料库',
+    kicker: '公开资料',
+    desc: '整理公开机构资料与同步时间，帮助您按主题查阅孕产和育儿信息。',
+    action: '去查看',
     icon: '阅',
     tone: 'knowledge',
     url: '/pages/knowledge/index',
     primary: true,
   },
   {
-    title: '孕周里程碑',
+    title: '孕周记录',
     kicker: pregnancyStageLabel.value,
-    desc: currentWeek.value ? `宝宝发育、妈妈变化、本周待办一目了然，不错过每个重要时刻。` : '了解孕期每周变化，登录后即可定制您的专属孕期日历。',
+    desc: currentWeek.value ? `按周查看常见变化和记录提醒，方便整理下一次产检要点。` : '了解每周常见变化，登录后可保存您的孕期日历。',
     action: '查看',
     icon: '期',
     tone: 'calendar',
@@ -142,9 +142,9 @@ const primaryEntries = computed(() => [
     footValue: currentWeek.value ? `W${currentWeek.value}` : '日历',
   },
   {
-    title: '时光档案本',
+    title: '时光档案',
     kicker: isLoggedIn.value ? '云端同步' : '守护回忆',
-    desc: '珍藏孕检记录、心路历程与宝宝发育点滴，建立专属的母婴档案。',
+    desc: '保存孕周、提醒和阶段记录，形成只属于您的孕育档案。',
     action: '打开',
     icon: '档',
     tone: 'archive',
@@ -188,7 +188,7 @@ function buildSharePayload() {
   const query = buildAcquisitionQuery()
 
   return {
-    title: '贝护妈妈：科学护航，安心陪伴每一天',
+    title: '贝护妈妈：孕周资料与记录工具',
     path: buildAcquisitionPath('/pages/home/index'),
     query,
   }

@@ -2,7 +2,7 @@
   <view class="login-page">
     <view class="login-header">
       <text class="login-logo">贝护妈妈</text>
-      <text class="login-subtitle">先浏览权威内容，需要保存进度时再进入登录</text>
+      <text class="login-subtitle">先浏览公开资料，需要保存进度时再进入登录</text>
     </view>
 
     <view class="login-form">
@@ -10,7 +10,7 @@
         <text class="visitor-title">不登录也可以先看</text>
         <view class="visitor-actions">
           <view class="visitor-chip" @tap="navigateGuest('/pages/knowledge/index')">
-            <text class="visitor-chip-text">权威知识库</text>
+            <text class="visitor-chip-text">孕育资料库</text>
           </view>
           <view class="visitor-chip" @tap="navigateGuest('/pages/calendar/index')">
             <text class="visitor-chip-text">孕周日历</text>

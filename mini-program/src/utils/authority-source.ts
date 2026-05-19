@@ -79,7 +79,7 @@ export function getAuthorityRegionTag(source?: AuthoritySourceLike | null): 'cn'
 }
 
 export function getAuthorityRegionLabel(source?: AuthoritySourceLike | null): string {
-  return isChineseAuthoritySource(source) ? '中国权威源' : '国际权威源'
+  return isChineseAuthoritySource(source) ? '中国公开源' : '国际公开源'
 }
 
 export function getAuthorityRegionPriority(source?: AuthoritySourceLike | null): number {

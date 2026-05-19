@@ -19,7 +19,7 @@
           </text>
           <text class="badge" :class="`badge-tier--${authorityRegionTag}`">{{ authorityRegionLabel }}</text>
           <text v-if="article.topic" class="badge badge-topic">{{ article.topic }}</text>
-          <text v-if="article.isVerified" class="badge badge-verified">权威来源</text>
+          <text v-if="article.isVerified" class="badge badge-verified">来源已记录</text>
         </view>
 
         <text class="article-title">{{ displayedTitle }}</text>
@@ -65,13 +65,13 @@
       <view v-if="displayedSourceUrl" class="source-box">
         <text class="source-label">原始来源</text>
         <text class="source-url">{{ displayedSourceUrl }}</text>
-        <view class="source-btn" @tap="openSource(displayedSourceUrl)">
-          <text class="source-btn-text">查看机构原文</text>
+        <view class="source-btn" @tap="copySourceLink(displayedSourceUrl)">
+          <text class="source-btn-text">复制来源链接</text>
         </view>
       </view>
       <view v-else class="source-box source-box--muted">
         <text class="source-label">原始来源</text>
-        <text class="source-url">当前未提供可直接打开的机构原文链接，请优先参考本页摘要、同步时间和机构标签。</text>
+        <text class="source-url">当前未提供可复制的机构来源链接，请优先参考本页摘要、同步时间和机构标签。</text>
       </view>
 
       <view v-if="contentOutline.length" class="outline-box">
@@ -141,12 +141,6 @@
         <view class="detail-link-btn" @tap="goBackToKnowledge">
           <text class="detail-link-btn-text">返回知识库</text>
         </view>
-      </view>
-
-      <view class="share-bar">
-        <button class="share-btn" open-type="share">
-          <text class="share-btn-text">分享给家人</text>
-        </button>
       </view>
 
       <view class="floating-reading-tools">
@@ -342,10 +336,10 @@ const authorityRegionLabel = computed(() => getAuthorityRegionLabel(article.valu
 const authorityRegionTag = computed(() => getAuthorityRegionTag(article.value))
 const authorityCalloutText = computed(() => {
   if (isChineseAuthoritySource(article.value)) {
-    return '这篇内容来自中国权威机构公开资料，默认展示中文原文与同步时间。'
+    return '这篇内容来自中国公开机构资料，默认展示中文原文与同步时间。'
   }
 
-  return '这篇内容来自国际权威机构公开资料，可切换中文辅助阅读并查看原文链接。'
+  return '这篇内容来自国际公开机构资料，可切换中文辅助阅读并核对来源链接。'
 })
 
 const riskAlert = computed(() => {
@@ -376,14 +370,14 @@ const riskAlert = computed(() => {
   if (/黄疸|吃奶差|嗜睡|反应差/u.test(plainText)) {
     return {
       title: '新生儿异常表现应优先线下评估',
-      desc: '如果涉及黄疸加重、吃奶明显变差、嗜睡或反应异常，应优先到医院评估，再结合权威资料理解原因和处理方式。',
+      desc: '如果涉及黄疸加重、吃奶明显变差、嗜睡或反应异常，应优先线下评估，再结合公开资料理解原因和处理方式。',
     }
   }
 
   if (/用药|药物|剂量|处方|治疗方案/u.test(plainText)) {
     return {
       title: '用药与治疗方案请以医生判断为准',
-      desc: '权威资料和中文辅助阅读只用于帮助理解背景信息；涉及药物选择、剂量调整或治疗方案时，请优先咨询医生。',
+      desc: '公开资料和中文辅助阅读只用于帮助理解背景信息；涉及药物选择、剂量调整或治疗方案时，请优先线下确认。',
     }
   }
 
@@ -469,12 +463,20 @@ function retryLoad() {
   }
 }
 
-function openSource(url?: string) {
+function copySourceLink(url?: string) {
   if (!url) {
     uni.showToast({ title: '来源链接不可用', icon: 'none' })
     return
   }
-  uni.navigateTo({ url: `/pages/webview/index?url=${encodeURIComponent(url)}` })
+  uni.setClipboardData({
+    data: url,
+    success: () => {
+      uni.showToast({ title: '来源链接已复制', icon: 'success' })
+    },
+    fail: () => {
+      uni.showToast({ title: '复制失败，请手动复制', icon: 'none' })
+    },
+  })
 }
 
 function jumpToSection(sectionId: string) {
@@ -773,7 +775,7 @@ function persistRecentKnowledge() {
   const currentItem = {
     slug: article.value.slug,
     title: displayedTitle.value || article.value.title,
-    sourceLabel: formatSourceLabel(article.value.sourceOrg || article.value.source || '权威来源'),
+    sourceLabel: formatSourceLabel(article.value.sourceOrg || article.value.source || '公开来源'),
     updatedAtLabel: formatDate(article.value.sourceUpdatedAt || article.value.publishedAt || article.value.createdAt) || '最近同步',
   }
 
@@ -847,7 +849,7 @@ function syncContinueReading() {
       slug: item.slug,
       title: getArticleCardTitle(item),
       meta: buildContinueReadingMeta({
-        sourceLabel: formatSourceLabel(item.sourceOrg || item.source || '权威来源'),
+        sourceLabel: formatSourceLabel(item.sourceOrg || item.source || '公开来源'),
         updatedAtLabel: formatDate(item.sourceUpdatedAt || item.publishedAt || item.createdAt) || '最近同步',
         topic: item.topic,
         audience: item.audience,
@@ -898,7 +900,7 @@ function goBackToKnowledge() {
 }
 
 function buildSharePayload() {
-  const title = displayedTitle.value || article.value?.title || '贝护妈妈权威知识库'
+  const title = displayedTitle.value || article.value?.title || '贝护妈妈孕育资料库'
   const extra = currentSlug ? { slug: currentSlug } : undefined
   const path = currentSlug
     ? buildAcquisitionPath('/pages/knowledge-detail/index', extra)
@@ -1423,32 +1425,6 @@ watch(
   font-size: 24rpx;
   line-height: 1.6;
   color: #326ac8;
-}
-
-.share-bar {
-  padding: 16rpx 0 40rpx;
-}
-
-.share-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  padding: 24rpx 0;
-  border-radius: 28rpx;
-  background: #f36f45;
-  border: none;
-  line-height: 1;
-}
-
-.share-btn::after {
-  border: none;
-}
-
-.share-btn-text {
-  font-size: 28rpx;
-  color: #fff;
-  font-weight: 600;
 }
 
 .floating-reading-tools {

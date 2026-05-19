@@ -251,7 +251,6 @@ export function inferAcquisitionEntrySource(path?: string | null): string | null
   if (normalized.includes('/pages/knowledge-detail/')) return 'knowledge_detail'
   if (normalized.includes('/pages/knowledge/')) return 'knowledge'
   if (normalized.includes('/pages/calendar/')) return 'calendar'
-  if (normalized.includes('/pages/chat/')) return 'chat'
   if (normalized.includes('/pages/home/')) return 'home'
   if (normalized.includes('/pages/profile/')) return 'profile'
   return null
