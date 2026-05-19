@@ -52,7 +52,7 @@ const TRANSLATION_NAVIGATION_PATTERNS = [
   /家庭生活/u,
   /健康问题/u,
   /提示与工具/u,
-  /查找儿科医生/u,
+  /查找儿科/u,
   /关于\s*(?:AAP|美国儿科学会)/iu,
 ]
 
@@ -95,7 +95,7 @@ function isLikelyNavigationCachedTranslation(translation: AuthorityArticleTransl
     return true
   }
 
-  const chineseNavHitCount = (text.match(/(年龄与阶段|健康生活|安全与预防|家庭生活|健康问题|提示与工具|新闻|查找儿科医生)/gu) || []).length
+  const chineseNavHitCount = (text.match(/(年龄与阶段|健康生活|安全与预防|家庭生活|健康问题|提示与工具|新闻|查找儿科)/gu) || []).length
   return chineseNavHitCount >= 5 && text.length < 2200
 }
 

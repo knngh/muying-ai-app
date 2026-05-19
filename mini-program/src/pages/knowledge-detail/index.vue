@@ -295,7 +295,7 @@ const contentOutline = computed(() => {
 })
 
 const translationNoticeText = computed(() => (
-  translation.value?.translationNotice || '以下内容由系统基于权威机构原文辅助翻译，仅用于阅读理解，不替代医疗建议。请以原始来源和线下医生意见为准。'
+  translation.value?.translationNotice || '以下内容由系统基于公开机构原文辅助翻译，仅用于阅读理解，不作为个人健康决策依据。请以原始来源和线下专业意见为准。'
 ))
 
 const sourceLanguageSample = computed(() => stripHtmlTags([
@@ -356,7 +356,7 @@ const riskAlert = computed(() => {
   if (/出血|腹痛|规律宫缩|破水|胎动(明显)?减少|胎动异常/u.test(plainText)) {
     return {
       title: '出现孕期急性信号时优先线下就医',
-      desc: '如果当前内容涉及出血、腹痛、规律宫缩、破水或胎动明显变化，请不要只依赖页面信息，优先联系医生或尽快线下就医。',
+      desc: '如果当前内容涉及出血、腹痛、规律宫缩、破水或胎动明显变化，请不要只依赖页面信息，优先联系线下机构或尽快线下就医。',
     }
   }
 
@@ -374,10 +374,10 @@ const riskAlert = computed(() => {
     }
   }
 
-  if (/用药|药物|剂量|处方|治疗方案/u.test(plainText)) {
+  if (/用药|药物|药品|剂量|处置安排/u.test(plainText)) {
     return {
-      title: '用药与治疗方案请以医生判断为准',
-      desc: '公开资料和中文辅助阅读只用于帮助理解背景信息；涉及药物选择、剂量调整或治疗方案时，请优先线下确认。',
+      title: '涉及药物和处置安排请线下确认',
+      desc: '公开资料和中文辅助阅读只用于帮助理解背景信息；涉及个人用药、剂量或处置安排时，请优先线下确认。',
     }
   }
 

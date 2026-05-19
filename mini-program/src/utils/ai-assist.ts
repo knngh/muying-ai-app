@@ -67,20 +67,20 @@ const stageLabelMap: Record<string, string> = {
 }
 
 const termDictionary: Array<{ pattern: RegExp; term: string; explanation: string }> = [
-  { pattern: /叶酸/u, term: '叶酸', explanation: '常用于孕前和孕早期营养补充，重点是按医生或指南建议稳定补充。' },
+  { pattern: /叶酸/u, term: '叶酸', explanation: '常用于孕前和孕早期营养补充，重点是按公开指南或线下专业意见稳定补充。' },
   { pattern: /HCG|绒毛膜促性腺激素/iu, term: 'HCG', explanation: '早孕期常见检查指标，变化趋势通常比单次数值更有参考意义。' },
-  { pattern: /孕酮|黄体酮/u, term: '孕酮', explanation: '与早孕支持相关，是否需要处理应结合症状、孕周和医生判断。' },
-  { pattern: /胎动/u, term: '胎动', explanation: '孕中晚期重要观察点，明显减少、异常频繁或和平时差异大时应及时咨询医生。' },
+  { pattern: /孕酮|黄体酮/u, term: '孕酮', explanation: '与早孕支持相关，是否需要处理应结合症状、孕周和线下专业意见。' },
+  { pattern: /胎动/u, term: '胎动', explanation: '孕中晚期重要观察点，明显减少、异常频繁或和平时差异大时应及时线下确认。' },
   { pattern: /宫缩/u, term: '宫缩', explanation: '需要结合频率、疼痛、出血和孕周判断，规律增强或伴随异常时不建议自行处理。' },
   { pattern: /黄疸/u, term: '黄疸', explanation: '新生儿常见观察项，需关注出现时间、持续时间、精神和吃奶情况。' },
   { pattern: /母乳|哺乳|喂养/u, term: '喂养', explanation: '重点观察吃奶频率、尿便、体重增长和妈妈乳房状态。' },
   { pattern: /疫苗|接种/u, term: '疫苗接种', explanation: '按当地免疫规划和接种门诊安排执行，延迟或特殊情况要单独确认。' },
   { pattern: /发热|体温|高热/u, term: '发热', explanation: '婴幼儿或孕期发热都不建议只靠经验判断，需结合体温、精神状态和伴随症状。' },
-  { pattern: /产检|建档|B超|超声/u, term: '产检节点', explanation: '产检更适合提前预约并记录结果，异常指标要带着原始报告咨询医生。' },
+  { pattern: /产检|建档|B超|超声/u, term: '产检节点', explanation: '产检更适合提前预约并记录结果，异常指标要带着原始报告线下确认。' },
 ]
 
 const diaryTagRules: Array<{ tag: string; pattern: RegExp }> = [
-  { tag: '产检', pattern: /产检|B超|超声|唐筛|NT|糖耐|血压|尿检|报告|医生/u },
+  { tag: '产检', pattern: /产检|B超|超声|唐筛|NT|糖耐|血压|尿检|报告|复诊/u },
   { tag: '胎动', pattern: /胎动|动得|动了|踢|宫缩/u },
   { tag: '不适症状', pattern: /腹痛|出血|疼|痛|头晕|恶心|呕吐|水肿|腰酸|发热|发烧|咳嗽/u },
   { tag: '情绪', pattern: /焦虑|担心|害怕|开心|难过|烦|压力|心情|情绪/u },
@@ -219,7 +219,7 @@ export function buildKnowledgeAiAssist(article: Article | null | undefined): Kno
     focusLabel,
     points,
     terms,
-    safetyNote: '阅读整理只做参考，不替代医生判断；涉及症状加重、用药或治疗方案时请线下确认。',
+    safetyNote: '阅读整理只做参考，不作为个人健康决策依据；涉及症状加重、用药或处置安排时请线下确认。',
   }
 }
 
@@ -271,7 +271,7 @@ export function buildWeekPriorityPlan(params: {
   const rawItemsSource = rankedTodos.length ? rankedTodos : fallbackTips
   const itemsSource = rawItemsSource.length ? rawItemsSource : [{
     title: '先补一条本周记录',
-    desc: params.summary || '当前周内容较少时，可以先记录身体变化、医生提醒或下一步待办。',
+    desc: params.summary || '当前周内容较少时，可以先记录身体变化、线下提醒或下一步待办。',
     completed: false,
   }]
   const items = itemsSource.map((todo, index) => ({
@@ -299,7 +299,7 @@ export function analyzeDiaryEntry(content?: string | null): DiaryAiAnalysis {
       tags: [],
       summary: '还没有可整理的记录。',
       highlights: [],
-      prompt: '建议记录：身体变化、产检结果、医生提醒和下一步待办。',
+      prompt: '建议记录：身体变化、产检结果、线下提醒和下一步待办。',
     }
   }
 
@@ -317,6 +317,6 @@ export function analyzeDiaryEntry(content?: string | null): DiaryAiAnalysis {
     tags: normalizedTags,
     summary: `${normalizedTags.join('、')}是这条记录里的主要信息，适合后续复盘时优先回看。`,
     highlights,
-    prompt: '下次补充时可以写清楚时间、持续多久、是否已咨询医生。',
+    prompt: '下次补充时可以写清楚时间、持续多久、是否已线下确认。',
   }
 }

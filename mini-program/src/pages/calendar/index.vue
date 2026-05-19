@@ -326,7 +326,7 @@
         <textarea
           class="diary-textarea"
           v-model="customTodoInput"
-          placeholder="请输入本周待办，例如：预约产检、购买营养品..."
+          placeholder="请输入本周待办，例如：预约产检、准备营养品..."
           :maxlength="200"
         />
         <button class="save-btn" @tap="saveCustomTodo">{{ customTodoSubmitText }}</button>

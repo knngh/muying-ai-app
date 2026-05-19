@@ -4,7 +4,7 @@
       <text class="hero-kicker">上线版本说明</text>
       <text class="hero-title">我们如何处理公开资料</text>
       <text class="hero-desc">
-        贝护妈妈当前小程序优先提供孕育资料库、孕周日历和基础档案。内容用于帮助理解公开资料，不替代医生诊断、处方或治疗建议。
+        贝护妈妈当前小程序优先提供孕育资料库、孕周日历和基础档案。内容用于帮助理解公开资料，不作为个人健康决策依据。
       </text>
     </view>
 
@@ -21,7 +21,7 @@
     <view class="section-card">
       <text class="section-title">中文辅助阅读</text>
       <text class="section-text">
-        国际来源内容会保留原文，并提供中文辅助阅读。译文只用于降低阅读门槛，涉及用药、治疗、检查结果或个体风险时，请以机构原文和线下医生意见为准。
+        国际来源内容会保留原文，并提供中文辅助阅读。译文只用于降低阅读门槛，涉及检查结果、个人情况或线下安排时，请以机构原文和线下专业意见为准。
       </text>
       <text class="section-text">
         如果译文正在生成或质量不足，页面会优先展示原文摘要、来源信息和中文导读，不会把未通过清洗的模板内容直接展示给用户。
@@ -33,7 +33,7 @@
       <text class="warning-text">孕期出血、持续腹痛、规律宫缩、破水、胎动明显减少。</text>
       <text class="warning-text">孕期或婴幼儿高热、精神差、呼吸困难、抽搐、严重呕吐或脱水。</text>
       <text class="warning-text">新生儿黄疸加重、吃奶明显变差、嗜睡或反应异常。</text>
-      <text class="warning-text">任何药物、检查异常、治疗方案和个体化风险判断，都应咨询医生。</text>
+      <text class="warning-text">任何检查异常、持续不适和个体化风险判断，都应优先线下确认。</text>
     </view>
 
     <view class="section-card">
