@@ -10,7 +10,7 @@ import {
 const DEFAULT_TASK_ROLE: AITaskModelRole = 'glm_classify';
 export const DEFAULT_AI_PROVIDER_HEALTH_TIMEOUT_MS = 12000;
 const DEFAULT_MAX_TOKENS = 80;
-const DEFAULT_PROMPT = '只回答数字：strawberry 里有几个字母 r？';
+const DEFAULT_PROMPT = '只输出数字 3，不要输出其它内容。';
 const DEFAULT_EXPECTED_ANSWER = '3';
 const SUPPORTED_TASK_ROLES = new Set<AITaskModelRole>(['glm_classify', 'kimi_reason', 'minimax_render']);
 
@@ -48,6 +48,17 @@ export interface AIProviderHealthOptions {
   now?: string;
   callTaskModel?: typeof callTaskModelDetailed;
   getBindings?: typeof getTaskModelBindings;
+}
+
+export interface AIProviderHealthSuiteOptions extends Omit<AIProviderHealthOptions, 'taskRole'> {
+  taskRoles?: string[];
+}
+
+export interface AIProviderHealthSuiteReport {
+  generatedAt: string;
+  status: AIProviderHealthReport['status'];
+  taskRoles: string[];
+  checks: AIProviderHealthReport[];
 }
 
 function normalizePositiveInteger(value: unknown, fallback: number): number {
@@ -192,4 +203,39 @@ export async function buildAIProviderHealthReport(
       },
     };
   }
+}
+
+function aggregateHealthStatus(checks: AIProviderHealthReport[]): AIProviderHealthReport['status'] {
+  if (checks.some((check) => check.status === 'failed')) {
+    return 'failed';
+  }
+
+  if (checks.some((check) => check.status === 'degraded')) {
+    return 'degraded';
+  }
+
+  return 'ok';
+}
+
+export async function buildAIProviderHealthSuiteReport(
+  options: AIProviderHealthSuiteOptions = {},
+): Promise<AIProviderHealthSuiteReport> {
+  const taskRoles = options.taskRoles?.length ? options.taskRoles : [DEFAULT_TASK_ROLE];
+  const generatedAt = options.now || new Date().toISOString();
+  const checks: AIProviderHealthReport[] = [];
+
+  for (const taskRole of taskRoles) {
+    checks.push(await buildAIProviderHealthReport({
+      ...options,
+      taskRole,
+      now: generatedAt,
+    }));
+  }
+
+  return {
+    generatedAt,
+    status: aggregateHealthStatus(checks),
+    taskRoles,
+    checks,
+  };
 }

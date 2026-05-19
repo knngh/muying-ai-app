@@ -363,6 +363,8 @@ DRY_RUN=false npm run retry:authority-translation-failures
 
 2026-05-14 P3-43 完成批处理：最后一轮按生产缺口收紧 `parenting-0-1` 等分类中的急症 / 误食 / 外伤个案、儿童泌尿生殖 / 眼耳鼻牙个人诊断追问、儿童行为发育诊断个案和低信息模板噪声。普通吐奶、发育里程碑、偏食、便秘护理等一般科普入口继续保留。生产快照审计达到 `80.63%`（`1428/1771`），使用生产 authority cache 重新增强后达到 `81.99%`（`1452/1771`），P3 权威覆盖 `80%+` 目标完成。
 
+2026-05-19 P3-44 切片：`ops:ai:health` 支持 `AI_HEALTH_TASK_ROLES=glm_classify,kimi_reason` 多任务健康套件，能一次输出主翻译通道和 OpenRouter `openrouter/free` 免费备选通道的绑定、路由和结果。默认健康题改为确定性回显 `只输出数字 3`，避免模型在 `strawberry` 字母计数题上出现推理差异导致误报；本地外网实测 `glm_classify / siliconflow / tencent/Hunyuan-MT-7B` 与 `kimi_reason / openrouter / openrouter/free` 均返回 `ok`。
+
 ## 7.1 P3：知识运营与推广联动
 
 目标：在 P2 已完成的基础上，把权威覆盖继续推进到 `80%+`，并让知识库成果直接服务安全推广。
@@ -415,6 +417,7 @@ DRY_RUN=false npm run retry:authority-translation-failures
 44. P3-41 已完成当前队列第一轮批量收口：疫苗费用 / 个人用药暴露 / 成人产后错类 / 个人分娩决策 / 急症误食或外伤 / 胎儿问题错分育儿分类不再进入自动覆盖目标；普通健康教育问题继续保留。
 45. P3-42 已完成当前队列第二轮批量收口：先兆流产 / 异常检查结果随访、溶血 / 地中海贫血 / 肾积水等确诊个案、误服和高热等急症、具体用药 / 外用偏方 / 洗护产品选择、医院检查能力咨询，以及胎儿测量解释和个人顺产判断不再进入自动覆盖目标；胎动计数、产后心理健康、吐奶和湿疹护理等一般科普继续保留。
 46. P3-43 已完成 P3 目标收口：急症 / 外伤 / 误食、儿童泌尿生殖、眼耳鼻牙、行为发育诊断个案和低信息噪声不再进入自动覆盖目标；生产快照覆盖率 `80.63%`，生产 cache 重新增强覆盖率 `81.99%`，P3 `80%+` 完成。
+47. P3-44 已完成 AI provider 多通道健康套件：可通过 `AI_HEALTH_TASK_ROLES=glm_classify,kimi_reason` 同时验证翻译主通道和 OpenRouter 免费备选通道，给 P7 放量前的 fallback 接受标准提供直接证据。
 
 默认读取 `tmp/knowledge-ops-report.json` 中 `sourceCoverage.watchedSources` 的 `missing` / `low` 源，先 dry-run 打印将刷新列表；显式 `DRY_RUN=false` 后按源调用现有 `sync:authority` 能力刷新。可用 `AUTHORITY_SOURCE_IDS=mayo-clinic-zh,chinacdc-nutrition` 限定源。
 

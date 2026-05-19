@@ -103,7 +103,7 @@ npm run ops:growth:p7
 - 每天运行 `npm run ops:growth:p7`
 - 观察 top acquisition segments 是否出现激活和支付
 - 支付成功出现后再判断 monetization conversion
-- AI provider 健康恢复或 fallback 策略明确前，不扩大投放
+- AI provider 健康恢复或 fallback 策略明确前，不扩大投放；可用 `AI_HEALTH_TASK_ROLES=glm_classify,kimi_reason AI_HEALTH_STRICT=false npm run ops:ai:health` 同时验证主翻译通道和 OpenRouter 免费备选通道。
 
 ## 6. 验证
 

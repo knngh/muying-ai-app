@@ -1,4 +1,7 @@
-import { buildAIProviderHealthReport } from '../src/utils/ai-provider-health';
+import {
+  buildAIProviderHealthReport,
+  buildAIProviderHealthSuiteReport,
+} from '../src/utils/ai-provider-health';
 
 describe('AI provider health report', () => {
   it('uses a short operational timeout by default', async () => {
@@ -181,5 +184,83 @@ describe('AI provider health report', () => {
       },
     });
     expect(callTaskModel).not.toHaveBeenCalled();
+  });
+
+  it('builds an aggregate health suite for primary and fallback translation routes', async () => {
+    const callTaskModel = jest.fn()
+      .mockResolvedValueOnce({
+        answer: '3',
+        route: {
+          provider: 'modal-direct',
+          model: 'zai-org/GLM-5.1-FP8',
+          route: 'task',
+          label: 'task-glm',
+        },
+      })
+      .mockResolvedValueOnce({
+        answer: '3',
+        route: {
+          provider: 'openrouter',
+          model: 'openrouter/free',
+          route: 'task',
+          label: 'task-kimi',
+        },
+      });
+
+    const report = await buildAIProviderHealthSuiteReport({
+      now: '2026-05-19T00:00:00.000Z',
+      taskRoles: ['glm_classify', 'kimi_reason'],
+      callTaskModel,
+      getBindings: jest.fn().mockReturnValue([
+        {
+          role: 'glm_classify',
+          model: 'zai-org/GLM-5.1-FP8',
+          provider: 'modal-direct',
+          configured: true,
+        },
+        {
+          role: 'kimi_reason',
+          model: 'openrouter/free',
+          provider: 'openrouter',
+          configured: true,
+        },
+      ]),
+    });
+
+    expect(report).toMatchObject({
+      generatedAt: '2026-05-19T00:00:00.000Z',
+      status: 'ok',
+      taskRoles: ['glm_classify', 'kimi_reason'],
+      checks: [
+        {
+          status: 'ok',
+          taskRole: 'glm_classify',
+          binding: {
+            provider: 'modal-direct',
+            model: 'zai-org/GLM-5.1-FP8',
+          },
+        },
+        {
+          status: 'ok',
+          taskRole: 'kimi_reason',
+          binding: {
+            provider: 'openrouter',
+            model: 'openrouter/free',
+          },
+          call: {
+            route: {
+              provider: 'openrouter',
+              model: 'openrouter/free',
+            },
+          },
+        },
+      ],
+    });
+    expect(callTaskModel).toHaveBeenNthCalledWith(1, 'glm_classify', expect.any(Array), expect.objectContaining({
+      stopOnProviderFailure: ['modal-direct'],
+    }));
+    expect(callTaskModel).toHaveBeenNthCalledWith(2, 'kimi_reason', expect.any(Array), expect.objectContaining({
+      stopOnProviderFailure: ['openrouter'],
+    }));
   });
 });
