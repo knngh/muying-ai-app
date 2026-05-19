@@ -8,6 +8,10 @@ describe('AI gateway Modal Direct provider', () => {
     AI_MODAL_DIRECT_MIN_COMPLETION_TOKENS: process.env.AI_MODAL_DIRECT_MIN_COMPLETION_TOKENS,
     AI_GATEWAY_KEY: process.env.AI_GATEWAY_KEY,
     AI_OPENROUTER_KEY: process.env.AI_OPENROUTER_KEY,
+    AI_KIMI_KEY: process.env.AI_KIMI_KEY,
+    AI_KIMI_URL: process.env.AI_KIMI_URL,
+    AI_KIMI_MODEL: process.env.AI_KIMI_MODEL,
+    AI_KIMI_PROVIDER: process.env.AI_KIMI_PROVIDER,
   };
 
   function restoreEnv() {
@@ -44,6 +48,67 @@ describe('AI gateway Modal Direct provider', () => {
         configured: true,
       });
     });
+  });
+
+  it('uses OpenRouter free router for the Kimi task binding when configured', () => {
+    process.env.AI_KIMI_KEY = 'test-openrouter-key';
+    process.env.AI_KIMI_URL = 'https://openrouter.ai/api/v1';
+    process.env.AI_KIMI_MODEL = 'openrouter/free';
+    process.env.AI_KIMI_PROVIDER = 'openrouter';
+
+    jest.isolateModules(() => {
+      const { getTaskModelBindings } = require('../src/services/ai-gateway.service') as typeof import('../src/services/ai-gateway.service');
+      const kimiBinding = getTaskModelBindings().find((item) => item.role === 'kimi_reason');
+
+      expect(kimiBinding).toEqual({
+        role: 'kimi_reason',
+        model: 'openrouter/free',
+        provider: 'openrouter',
+        configured: true,
+      });
+    });
+  });
+
+  it('sends Kimi task calls to the OpenRouter free router model', async () => {
+    process.env.AI_KIMI_KEY = 'test-openrouter-key';
+    process.env.AI_KIMI_URL = 'https://openrouter.ai/api/v1';
+    process.env.AI_KIMI_MODEL = 'openrouter/free';
+    process.env.AI_KIMI_PROVIDER = 'openrouter';
+
+    const fetchMock = jest.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(
+      JSON.stringify({
+        choices: [{
+          message: {
+            role: 'assistant',
+            content: 'translated',
+          },
+          finish_reason: 'stop',
+        }],
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    ));
+
+    let callTaskModelDetailed: typeof import('../src/services/ai-gateway.service').callTaskModelDetailed;
+    jest.isolateModules(() => {
+      const aiGateway = require('../src/services/ai-gateway.service') as typeof import('../src/services/ai-gateway.service');
+      callTaskModelDetailed = aiGateway.callTaskModelDetailed;
+    });
+
+    await expect(callTaskModelDetailed('kimi_reason', [
+      { role: 'user', content: 'translate' },
+    ], {
+      primaryOnly: true,
+    })).resolves.toMatchObject({
+      answer: 'translated',
+      route: {
+        provider: 'openrouter',
+        model: 'openrouter/free',
+      },
+    });
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('https://openrouter.ai/api/v1/chat/completions');
+    const requestBody = JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string) as { model?: string };
+    expect(requestBody.model).toBe('openrouter/free');
   });
 
   it('does not fall back to legacy providers when Modal Direct is concurrency limited', async () => {
