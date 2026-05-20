@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native'
 import LinearGradient from 'react-native-linear-gradient'
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons'
@@ -22,6 +22,11 @@ import {
 import { useHomeData } from '../hooks/useHomeData'
 import { config } from '../config'
 import { trackAppEvent } from '../services/analytics'
+import {
+  consumePendingDailyQuestion,
+  getDailyQuestionReminderErrorMessage,
+  scheduleDailyQuestionReminder,
+} from '../services/dailyQuestionReminder'
 import { buildHomeChatContext } from '../utils/aiEntryContext'
 import { colors, fontSize, spacing, borderRadius } from '../theme'
 
@@ -100,6 +105,7 @@ export default function HomeScreen() {
     nextCheckInBonus,
     primaryTask,
     suggestedQuestion,
+    caregiverRole,
     hasUnreadWeeklyReport,
     handleQuickCheckIn,
     checkInSubmitting,
@@ -108,6 +114,7 @@ export default function HomeScreen() {
   } = useHomeData()
   const [snackMessage, setSnackMessage] = useState('')
   const [postCheckInVisible, setPostCheckInVisible] = useState(false)
+  const [dailyReminderLoading, setDailyReminderLoading] = useState(false)
 
   const openCalendar = () => {
     navigation.navigate('Main', { screen: 'CalendarTab' })
@@ -444,6 +451,7 @@ export default function HomeScreen() {
         status,
         question: suggestedQuestion,
         stage: stage.lifecycleKey,
+        entryVariant: 'daily_question',
       },
     })
 
@@ -462,6 +470,66 @@ export default function HomeScreen() {
       },
     })
   }
+
+  const handleDailyReminderPress = async () => {
+    if (dailyReminderLoading) {
+      return
+    }
+
+    setDailyReminderLoading(true)
+    try {
+      const scheduledCount = await scheduleDailyQuestionReminder(stage.lifecycleKey, {
+        caregiverRole,
+        days: 14,
+        hour: 8,
+        minute: 0,
+      })
+      setSnackMessage(`已开启未来 ${scheduledCount} 天 8:00 AI 小问题提醒`)
+      void trackAppEvent('app_home_daily_question_reminder_enable', {
+        page: 'HomeScreen',
+        properties: {
+          stage: stage.lifecycleKey,
+          scheduledCount,
+          caregiverRole,
+        },
+      })
+    } catch (err) {
+      setSnackMessage(getDailyQuestionReminderErrorMessage(err))
+    } finally {
+      setDailyReminderLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!config.enablePublicAiFeatures) {
+      return
+    }
+
+    let cancelled = false
+    void consumePendingDailyQuestion()
+      .then((question) => {
+        if (cancelled || !question) {
+          return
+        }
+
+        navigation.navigate('Main', {
+          screen: 'Chat',
+          params: {
+            prefillQuestion: question,
+            prefillContext: {
+              ...buildHomeChatContext(stage.lifecycleKey),
+              entrySource: 'daily_question_reminder',
+            },
+            autoSend: true,
+            source: 'home_suggested_question',
+          },
+        })
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [navigation, stage.lifecycleKey])
 
   const handlePostCheckInNextPress = () => {
     if (!postCheckInNextStep) {
@@ -911,18 +979,31 @@ export default function HomeScreen() {
                     <MaterialCommunityIcons name="message-question-outline" size={18} color={colors.techDark} />
                   </View>
                   <View style={styles.questionTextWrap}>
-                    <Text style={styles.questionEyebrow}>建议你现在问</Text>
+                    <Text style={styles.questionEyebrow}>今天可以问 AI 的一件小事</Text>
                     <Text style={styles.questionTitle}>{suggestedQuestion}</Text>
                   </View>
                 </View>
-                <Button
-                  mode="contained-tonal"
-                  onPress={handleSuggestedQuestionPress}
-                  style={styles.questionActionButton}
-                  textColor={colors.ink}
-                >
-                  直接问
-                </Button>
+                <View style={styles.questionActions}>
+                  <Button
+                    mode="contained-tonal"
+                    onPress={handleSuggestedQuestionPress}
+                    style={styles.questionActionButton}
+                    textColor={colors.ink}
+                  >
+                    问这一句
+                  </Button>
+                  <Button
+                    mode="text"
+                    icon="bell-outline"
+                    compact
+                    loading={dailyReminderLoading}
+                    disabled={dailyReminderLoading}
+                    onPress={() => void handleDailyReminderPress()}
+                    textColor={colors.techDark}
+                  >
+                    每日8点
+                  </Button>
+                </View>
               </View>
             </StandardCard>
           </ContentSection>
@@ -1437,6 +1518,10 @@ const styles = StyleSheet.create({
   questionActionButton: {
     borderRadius: borderRadius.pill,
     backgroundColor: 'rgba(248,227,214,0.9)',
+  },
+  questionActions: {
+    alignItems: 'flex-end',
+    gap: 2,
   },
   tagRow: {
     flexDirection: 'row',

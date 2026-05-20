@@ -27,6 +27,7 @@ import { useAppStore } from '../stores/appStore'
 import { useKnowledgeStore, type RecentAIHitArticle } from '../stores/knowledgeStore'
 import { buildKnowledgeDetailChatContext } from '../utils/aiEntryContext'
 import { buildKnowledgeDetailQuestion } from '../utils/aiEntryPrompts'
+import { buildKnowledgeHeaderCopy } from '../utils/fatherView'
 import { getStageSummary, type LifecycleStageKey } from '../utils/stage'
 import { KNOWLEDGE_STAGE_OPTIONS } from '../utils/knowledgeStage'
 import { colors, spacing, fontSize, categoryColors, borderRadius } from '../theme'
@@ -364,6 +365,10 @@ export default function KnowledgeScreen() {
   const suggestedKeywords = useMemo(
     () => (stageSummary.knowledgeKeywords || []).slice(0, 4),
     [stageSummary.knowledgeKeywords],
+  )
+  const knowledgeHeaderCopy = useMemo(
+    () => buildKnowledgeHeaderCopy(user?.caregiverRole, stageSummary.lifecycleLabel, isPreparationLifecycle),
+    [isPreparationLifecycle, stageSummary.lifecycleLabel, user?.caregiverRole],
   )
   const [stageDropdownOpen, setStageDropdownOpen] = useState(false)
   const [expandedVariantGroups, setExpandedVariantGroups] = useState<Record<string, boolean>>({})
@@ -1263,16 +1268,12 @@ export default function KnowledgeScreen() {
     <ScreenContainer style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.headerEyebrow}>知识库</Text>
-        <Text style={styles.headerTitle}>按阶段找到更贴近当前周期的权威内容</Text>
-        <Text style={styles.headerSubtitle}>
-          {isPreparationLifecycle
-            ? '备孕期权威内容仍在持续补齐，当前默认先展示全站可用文章，并优先提供备孕相关检索建议。'
-            : `默认优先展示更贴近 ${stageSummary.lifecycleLabel} 的内容，可继续按分类、标签与来源收窄。`}
-        </Text>
+        <Text style={styles.headerTitle}>{knowledgeHeaderCopy.title}</Text>
+        <Text style={styles.headerSubtitle}>{knowledgeHeaderCopy.subtitle}</Text>
       </View>
 
       <Searchbar
-        placeholder={isPreparationLifecycle ? '搜索备孕、孕期相关内容' : `搜索${stageSummary.lifecycleLabel}相关内容`}
+        placeholder={knowledgeHeaderCopy.searchPlaceholder}
         value={keyword}
         onChangeText={setKeyword}
         onSubmitEditing={handleSearch}

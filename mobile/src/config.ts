@@ -7,4 +7,5 @@ export const config = {
   enableMockPayments: false,
   enableDebugLogs: __DEV__,
   enablePublicAiFeatures: true,
+  enableVoiceInput: true,
 }

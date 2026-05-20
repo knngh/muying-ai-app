@@ -36,6 +36,7 @@ import { buildSafeArticleHtml, getSafeRemoteImageSource, shouldAllowWebViewNavig
 import { buildKnowledgeDetailChatContext } from '../utils/aiEntryContext'
 import { buildKnowledgeDetailQuestion } from '../utils/aiEntryPrompts'
 import { buildKnowledgeAiAssist } from '../utils/aiAssist'
+import { buildKnowledgeShareMessage, getKnowledgeShareActionLabel } from '../utils/fatherView'
 import { useAppStore } from '../stores/appStore'
 import { getStageSummary } from '../utils/stage'
 import {
@@ -270,6 +271,10 @@ export default function KnowledgeDetailScreen() {
     article?.sourceUrl,
     article?.sourceOrg || article?.source || '',
   ), [article?.source, article?.sourceOrg, article?.sourceUrl])
+  const shareActionLabel = useMemo(
+    () => getKnowledgeShareActionLabel(user?.caregiverRole),
+    [user?.caregiverRole],
+  )
   const displayTags = useMemo(() => getDisplayTags(article), [article])
   const displayTopic = useMemo(() => normalizeKnowledgeLabel(article?.topic), [article?.topic])
   const aiAssist = useMemo(() => buildKnowledgeAiAssist(article), [article])
@@ -385,10 +390,14 @@ export default function KnowledgeDetailScreen() {
   const handleShare = async () => {
     if (!article) return
     try {
-      const sourceLine = displayedSourceUrl ? `\n\n原文来源：${displayedSourceUrl}` : ''
       await Share.share({
         title: displayedTitle || article.title,
-        message: `${displayedTitle || article.title}\n\n${displayedSummaryText || ''}${sourceLine}`,
+        message: buildKnowledgeShareMessage({
+          caregiverRole: user?.caregiverRole,
+          title: displayedTitle || article.title,
+          summary: displayedSummaryText,
+          sourceUrl: displayedSourceUrl,
+        }),
       })
       void trackAppEvent('app_knowledge_detail_share', {
         page: 'KnowledgeDetailScreen',
@@ -969,7 +978,7 @@ export default function KnowledgeDetailScreen() {
             contentStyle={styles.quickActionContent}
             textColor={colors.primary}
           >
-            分享
+            {shareActionLabel}
           </Button>
         </View>
 
@@ -1213,7 +1222,7 @@ export default function KnowledgeDetailScreen() {
             contentStyle={styles.actionButtonContent}
             textColor={colors.primary}
           >
-            分享
+            {shareActionLabel}
           </Button>
         </View>
       </View>

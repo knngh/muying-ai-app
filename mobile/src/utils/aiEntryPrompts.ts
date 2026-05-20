@@ -1,5 +1,5 @@
 import type { LifecycleStageKey } from './stage'
-import { getSuggestedQuestion as getStageSuggestedQuestion } from './chatPrompts'
+import { getDailyQuestion } from './chatPrompts'
 
 type WeeklyReportPromptInput = {
   stageLabel: string
@@ -29,8 +29,14 @@ function quoteSnippet(value: string, maxLength: number): string {
   return normalized.length > maxLength ? `${normalized.slice(0, maxLength)}...` : normalized
 }
 
-export function buildHomeSuggestedQuestion(stageKey: LifecycleStageKey): string {
-  return getStageSuggestedQuestion(stageKey)
+export function buildHomeSuggestedQuestion(
+  stageKey: LifecycleStageKey,
+  options?: {
+    caregiverRole?: string | number | null
+    date?: Date | string
+  },
+): string {
+  return getDailyQuestion(stageKey, options)
 }
 
 export function buildWeeklyReportQuestion(report: WeeklyReportPromptInput, highlight: string): string {

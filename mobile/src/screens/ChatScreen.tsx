@@ -19,11 +19,13 @@ import { MessageBubble, EmptyState, ChatInput, TypingIndicator, ChatSkeleton } f
 import { ScreenContainer } from '../components/layout'
 import { useChatLogic } from '../hooks/useChatLogic'
 import { trackAppEvent } from '../services/analytics'
+import { getVoiceInputErrorMessage, transcribeVoiceQuestion } from '../services/voiceInput'
 import { useAppStore } from '../stores/appStore'
 import { useChatStore } from '../stores/chatStore'
+import { config } from '../config'
 import { v4 as uuidv4 } from '../utils'
 import { getStageSummary } from '../utils/stage'
-import { QUICK_QUESTION_MAP } from '../utils/chatPrompts'
+import { getQuickQuestions } from '../utils/chatPrompts'
 import { colors, spacing, borderRadius } from '../theme'
 import type { RootStackParamList, TabParamList } from '../navigation/AppNavigator'
 
@@ -131,8 +133,9 @@ export default function ChatScreen() {
   const [entrySource, setEntrySource] = useState<RoutedChatEntrySource | null>(null)
   const [pendingInputContext, setPendingInputContext] = useState<ChatEntryContext | undefined>(undefined)
   const [pendingResponseMeta, setPendingResponseMeta] = useState<PendingResponseMeta | null>(null)
+  const [voiceInputLoading, setVoiceInputLoading] = useState(false)
   const stage = getStageSummary(user)
-  const quickQuestions = QUICK_QUESTION_MAP[stage.lifecycleKey]
+  const quickQuestions = getQuickQuestions(stage.lifecycleKey, user?.caregiverRole)
 
   const {
     messages,
@@ -323,6 +326,42 @@ export default function ChatScreen() {
     sendTrackedQuestion(question, 'quick_question')
   }, [sendTrackedQuestion])
 
+  const handleVoicePress = useCallback(async () => {
+    if (voiceInputLoading || loading) {
+      return
+    }
+
+    setVoiceInputLoading(true)
+    try {
+      const transcript = await transcribeVoiceQuestion({ locale: 'zh-CN', timeoutMs: 18000 })
+      setInputText((current) => {
+        const prefix = current.trim()
+        return prefix ? `${prefix} ${transcript}` : transcript
+      })
+      setSnackText('已识别语音，可编辑后发送')
+      setSnackVisible(true)
+      void trackAppEvent('app_chat_voice_input_result', {
+        page: 'ChatScreen',
+        properties: {
+          stage: stage.lifecycleKey,
+          questionLength: transcript.length,
+        },
+      })
+    } catch (err) {
+      setSnackText(getVoiceInputErrorMessage(err))
+      setSnackVisible(true)
+      void trackAppEvent('app_chat_voice_input_error', {
+        page: 'ChatScreen',
+        properties: {
+          stage: stage.lifecycleKey,
+          code: typeof err === 'object' && err && 'code' in err ? String(err.code) : 'unknown',
+        },
+      })
+    } finally {
+      setVoiceInputLoading(false)
+    }
+  }, [loading, stage.lifecycleKey, voiceInputLoading])
+
   const handleCopied = useCallback(() => {
     setSnackText('已复制到剪贴板')
     setSnackVisible(true)
@@ -447,6 +486,9 @@ export default function ChatScreen() {
           onSend={handleSend}
           loading={loading}
           hint={getDisclaimer()}
+          voiceInputEnabled={config.enableVoiceInput}
+          voiceInputLoading={voiceInputLoading}
+          onVoicePress={handleVoicePress}
         />
       </KeyboardAvoidingView>
 

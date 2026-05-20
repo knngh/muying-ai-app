@@ -28,6 +28,7 @@
     "ops:knowledge:status": "bash scripts/prod-knowledge-status.sh",
     "ops:knowledge:daily": "node --import tsx src/scripts/run-knowledge-daily-ops.ts",
     "ops:knowledge:report": "node --import tsx src/scripts/generate-knowledge-ops-report.ts",
+    "ops:wechat:search:submit": "node --import tsx src/scripts/submit-wechat-search-pages.ts",
     "ops:ai:health": "node --import tsx src/scripts/check-ai-provider-health.ts",
     "ops:ai:report": "node --import tsx src/scripts/generate-ai-ops-report.ts",
     "ops:authority:refresh-low-coverage": "node --import tsx src/scripts/refresh-low-coverage-authority-sources.ts",

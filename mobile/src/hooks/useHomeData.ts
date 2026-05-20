@@ -321,7 +321,10 @@ export function useHomeData() {
       action: 'chat',
     }
   }, [hasCheckedInToday, hasUnreadWeeklyReport, pendingTodayEvent, todoStats.completed, todoStats.total, upcomingEvents])
-  const suggestedQuestion = useMemo(() => buildHomeSuggestedQuestion(stage.lifecycleKey), [stage.lifecycleKey])
+  const suggestedQuestion = useMemo(
+    () => buildHomeSuggestedQuestion(stage.lifecycleKey, { caregiverRole: user?.caregiverRole }),
+    [stage.lifecycleKey, user?.caregiverRole],
+  )
 
   const handleQuickCheckIn = useCallback(async () => {
     if (checkInSubmitting) {
@@ -419,6 +422,7 @@ export function useHomeData() {
     nextCheckInBonus,
     primaryTask,
     suggestedQuestion,
+    caregiverRole: user?.caregiverRole,
     hasUnreadWeeklyReport,
     handleQuickCheckIn,
     checkInSubmitting,

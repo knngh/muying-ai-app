@@ -9,6 +9,9 @@ interface ChatInputProps {
   onSend: () => void
   loading: boolean
   hint?: string
+  voiceInputEnabled?: boolean
+  voiceInputLoading?: boolean
+  onVoicePress?: () => void
 }
 
 export default function ChatInput({
@@ -17,8 +20,12 @@ export default function ChatInput({
   onSend,
   loading,
   hint,
+  voiceInputEnabled = false,
+  voiceInputLoading = false,
+  onVoicePress,
 }: ChatInputProps) {
   const disabled = !value.trim() || loading
+  const voiceDisabled = loading || voiceInputLoading || !onVoicePress
 
   return (
     <View style={styles.inputWrap}>
@@ -40,6 +47,17 @@ export default function ChatInput({
             onSubmitEditing={onSend}
             blurOnSubmit={false}
           />
+          {voiceInputEnabled ? (
+            <IconButton
+              accessibilityLabel="语音输入"
+              icon={voiceInputLoading ? 'microphone-outline' : 'microphone'}
+              size={20}
+              iconColor={voiceDisabled ? colors.textSecondary : colors.techDark}
+              style={[styles.voiceButton, voiceDisabled && styles.voiceButtonDisabled]}
+              onPress={onVoicePress}
+              disabled={voiceDisabled}
+            />
+          ) : null}
           <IconButton
             icon="send"
             size={20}
@@ -105,5 +123,18 @@ const styles = StyleSheet.create({
   },
   sendButtonDisabled: {
     backgroundColor: 'rgba(221, 226, 228, 0.9)',
+  },
+  voiceButton: {
+    margin: 0,
+    width: 42,
+    height: 42,
+    borderRadius: borderRadius.pill,
+    backgroundColor: 'rgba(232, 244, 246, 0.98)',
+    borderWidth: 1,
+    borderColor: 'rgba(164, 198, 205, 0.48)',
+  },
+  voiceButtonDisabled: {
+    backgroundColor: 'rgba(244, 246, 247, 0.94)',
+    borderColor: 'rgba(221, 226, 228, 0.85)',
   },
 })
