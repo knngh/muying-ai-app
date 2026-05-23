@@ -4,7 +4,7 @@
       <text class="hero-kicker">上线版本说明</text>
       <text class="hero-title">我们如何处理公开资料</text>
       <text class="hero-desc">
-        贝护妈妈当前小程序优先提供孕育资料库、孕周日历和基础档案。内容用于帮助理解公开资料，不作为个人健康决策依据。
+        贝护妈妈当前小程序优先提供孕育资料库、孕周日历和基础档案。内容用于帮助理解公开资料，不提供问诊、诊断、治疗、处方或个人化用药服务。
       </text>
     </view>
 
@@ -29,11 +29,11 @@
     </view>
 
     <view class="warning-card">
-      <text class="warning-title">这些情况请优先线下就医</text>
+      <text class="warning-title">这些情况请优先线下确认</text>
       <text class="warning-text">孕期出血、持续腹痛、规律宫缩、破水、胎动明显减少。</text>
       <text class="warning-text">孕期或婴幼儿高热、精神差、呼吸困难、抽搐、严重呕吐或脱水。</text>
       <text class="warning-text">新生儿黄疸加重、吃奶明显变差、嗜睡或反应异常。</text>
-      <text class="warning-text">任何检查异常、持续不适和个体化风险判断，都应优先线下确认。</text>
+      <text class="warning-text">任何检查异常、持续不适和个体化判断，都应优先联系线下医疗机构确认。</text>
     </view>
 
     <view class="section-card">
@@ -42,7 +42,7 @@
         小程序当前不要求上传身份证件、真实姓名或其他敏感身份材料。不登录也可以先浏览知识库和孕周日历；需要保存记录、待办或阶段信息时才会使用登录状态。
       </text>
       <text class="section-text">
-        当前版本以资料检索、译文阅读和个人记录为主，后续能力会在来源引用和风险提示更稳定后再开放。
+        当前版本以资料检索、译文阅读和个人记录为主，不开放社区发布、在线咨询、会员付费或外部网页跳转入口。
       </text>
     </view>
   </view>

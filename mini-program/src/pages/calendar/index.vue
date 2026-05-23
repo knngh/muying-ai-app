@@ -309,7 +309,7 @@
         <textarea 
           class="diary-textarea" 
           v-model="diaryInput" 
-          placeholder="今天宝宝动了吗？有没有觉得哪里不舒服？记下来吧..." 
+          placeholder="记录本周感受、线下提醒或下一步待办..." 
           :maxlength="500"
         />
         <button class="save-btn" @tap="saveDiary">保存记录</button>
@@ -344,7 +344,7 @@ import { useAppStore } from '@/stores/app'
 import { calendarApi, type PregnancyTodoProgress, type PregnancyDiary, type PregnancyCustomTodo } from '@/api/modules'
 import { calculatePregnancyWeekFromDueDate } from '@/utils'
 import { buildAcquisitionPath, buildAcquisitionQuery, recordAcquisitionContext } from '@/utils/acquisition'
-import { buildWeekPriorityPlan } from '@/utils/ai-assist'
+import { buildWeekPriorityPlan } from '@/utils/record-assist'
 
 const weeksList = ref(Array.from({ length: 40 }, (_, i) => ({ num: i + 1 })))
 const appStore = useAppStore()
@@ -558,7 +558,7 @@ const tabQuickActions = computed(() => [
     key: 'todo',
     label: '待办事项',
     value: todoList.value.length ? `${completedTodoCount.value}/${todoList.value.length} 已完成` : '本周待办待整理',
-    meta: canUseTodoActions.value ? '产检、补剂和自定义事项都在这里' : '登录后可勾选并保存待办进度',
+    meta: canUseTodoActions.value ? '产检、营养和自定义事项都在这里' : '登录后可勾选并保存待办进度',
   },
   {
     key: 'diary',

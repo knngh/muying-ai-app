@@ -12,6 +12,10 @@ describe('AI gateway Modal Direct provider', () => {
     AI_KIMI_URL: process.env.AI_KIMI_URL,
     AI_KIMI_MODEL: process.env.AI_KIMI_MODEL,
     AI_KIMI_PROVIDER: process.env.AI_KIMI_PROVIDER,
+    AI_DEEPSEEK_KEY: process.env.AI_DEEPSEEK_KEY,
+    AI_DEEPSEEK_URL: process.env.AI_DEEPSEEK_URL,
+    AI_DEEPSEEK_MODEL: process.env.AI_DEEPSEEK_MODEL,
+    AI_DEEPSEEK_PROVIDER: process.env.AI_DEEPSEEK_PROVIDER,
   };
 
   function restoreEnv() {
@@ -67,6 +71,72 @@ describe('AI gateway Modal Direct provider', () => {
         configured: true,
       });
     });
+  });
+
+  it('uses official DeepSeek V4 Flash for the translation task binding when configured', () => {
+    process.env.AI_DEEPSEEK_KEY = 'test-deepseek-key';
+    delete process.env.AI_DEEPSEEK_URL;
+    delete process.env.AI_DEEPSEEK_MODEL;
+    delete process.env.AI_DEEPSEEK_PROVIDER;
+
+    jest.isolateModules(() => {
+      const { getTaskModelBindings } = require('../src/services/ai-gateway.service') as typeof import('../src/services/ai-gateway.service');
+      const deepseekBinding = getTaskModelBindings().find((item) => item.role === 'deepseek_translate');
+
+      expect(deepseekBinding).toEqual({
+        role: 'deepseek_translate',
+        model: 'deepseek-v4-flash',
+        provider: 'deepseek',
+        configured: true,
+      });
+    });
+  });
+
+  it('sends DeepSeek translation task calls with JSON output and non-thinking mode', async () => {
+    process.env.AI_DEEPSEEK_KEY = 'test-deepseek-key';
+
+    const fetchMock = jest.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(
+      JSON.stringify({
+        choices: [{
+          message: {
+            role: 'assistant',
+            content: '{"translated_title":"母乳喂养","translated_summary":"摘要","translated_content":"正文"}',
+          },
+          finish_reason: 'stop',
+        }],
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    ));
+
+    let callTaskModelDetailed: typeof import('../src/services/ai-gateway.service').callTaskModelDetailed;
+    jest.isolateModules(() => {
+      const aiGateway = require('../src/services/ai-gateway.service') as typeof import('../src/services/ai-gateway.service');
+      callTaskModelDetailed = aiGateway.callTaskModelDetailed;
+    });
+
+    await expect(callTaskModelDetailed('deepseek_translate', [
+      { role: 'user', content: 'translate' },
+    ], {
+      primaryOnly: true,
+      responseFormat: 'json_object',
+      thinking: 'disabled',
+    })).resolves.toMatchObject({
+      answer: '{"translated_title":"母乳喂养","translated_summary":"摘要","translated_content":"正文"}',
+      route: {
+        provider: 'deepseek',
+        model: 'deepseek-v4-flash',
+      },
+    });
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('https://api.deepseek.com/chat/completions');
+    const requestBody = JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string) as {
+      model?: string;
+      response_format?: { type?: string };
+      thinking?: { type?: string };
+    };
+    expect(requestBody.model).toBe('deepseek-v4-flash');
+    expect(requestBody.response_format).toEqual({ type: 'json_object' });
+    expect(requestBody.thinking).toEqual({ type: 'disabled' });
   });
 
   it('sends Kimi task calls to the OpenRouter free router model', async () => {

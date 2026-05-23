@@ -271,7 +271,7 @@ const sourceOptions = [
   { label: '中国疾控', value: '中国疾病预防控制中心' },
   { label: '国家疾控局', value: '国家疾病预防控制局' },
   { label: '中华医学会', value: '中华医学会' },
-  { label: '医药信息查询平台', value: '中国医药信息查询平台' },
+  { label: '中国公开医药资料', value: '中国医药信息查询平台' },
   { label: '科普中国', value: '科普中国' },
   { label: 'WHO', value: 'who' },
   { label: 'CDC', value: 'cdc' },

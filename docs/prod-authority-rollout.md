@@ -31,7 +31,11 @@ AI_GLM_URL=https://api.us-west-2.modal.direct/v1
 AI_GLM_KEY=your-modal-direct-api-key
 AI_GLM_MODEL=zai-org/GLM-5.1-FP8
 AI_GLM_PROVIDER=modal-direct
-AUTHORITY_TRANSLATION_TASK_ROLES=glm_classify,kimi_reason
+AI_DEEPSEEK_URL=https://api.deepseek.com
+AI_DEEPSEEK_KEY=your-deepseek-api-key
+AI_DEEPSEEK_MODEL=deepseek-v4-flash
+AI_DEEPSEEK_PROVIDER=deepseek
+AUTHORITY_TRANSLATION_TASK_ROLES=deepseek_translate,glm_classify
 AUTHORITY_TRANSLATION_ALLOW_PAID_FALLBACK=false
 
 AI_KIMI_URL=https://openrouter.ai/api/v1
