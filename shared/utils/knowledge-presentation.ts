@@ -105,6 +105,12 @@ export type KnowledgeDisplayContent = {
   isTranslated: boolean;
 };
 
+export type KnowledgeOriginalContent = {
+  title: string;
+  summary: string;
+  content: string;
+};
+
 export type KnowledgeVariantReadingSuggestion = {
   label: string;
   description: string;
@@ -235,6 +241,21 @@ export function resolveKnowledgeDisplayContent(article: KnowledgeArticleLike | n
     translation,
     hasChineseTranslation,
     isTranslated: Boolean(displayTitle || displaySummary || displayContent || translatedTitle || translatedSummary || translatedContent),
+  };
+}
+
+export function resolveKnowledgeOriginalContent(article: KnowledgeArticleLike | null | undefined): KnowledgeOriginalContent {
+  const title = (article?.title || '').trim()
+    || getLocalizedFallbackTitle({
+      topic: article?.topic,
+      stage: article?.stage,
+      categoryName: article?.category?.name,
+    });
+
+  return {
+    title,
+    summary: article?.summary || '',
+    content: article?.content || '',
   };
 }
 
@@ -708,19 +729,42 @@ export function getKnowledgeDisplayTags<T extends KnowledgeTagLike>(article?: Kn
     });
 }
 
-export function sanitizeAuthoritySourceUrl(url?: string, sourceText = ''): string {
+export function normalizeAuthoritySourceUrl(url?: string): string {
   if (!url) {
+    return '';
+  }
+
+  const trimmedUrl = url.trim();
+  if (!trimmedUrl) {
+    return '';
+  }
+
+  try {
+    const parsed = new URL(trimmedUrl);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return '';
+    }
+  } catch {
+    return '';
+  }
+
+  return trimmedUrl;
+}
+
+export function sanitizeAuthoritySourceUrl(url?: string, sourceText = ''): string {
+  const normalizedUrl = normalizeAuthoritySourceUrl(url);
+  if (!normalizedUrl) {
     return '';
   }
 
   let pathname = '';
   try {
-    pathname = new URL(url).pathname.toLowerCase().replace(/\/+$/g, '') || '/';
+    pathname = new URL(normalizedUrl).pathname.toLowerCase().replace(/\/+$/g, '') || '/';
   } catch {
     return '';
   }
 
-  const normalizedSource = `${sourceText} ${url}`.toLowerCase();
+  const normalizedSource = `${sourceText} ${normalizedUrl}`.toLowerCase();
   const exactLandingPaths = new Set([
     '/',
     '/news-room',
@@ -767,18 +811,18 @@ export function sanitizeAuthoritySourceUrl(url?: string, sourceText = ''): strin
   }
 
   if (/chinacdc|中国疾病预防控制中心/u.test(normalizedSource)) {
-    if (pathname === '/' || pathname.endsWith('/list.html') || !/(?:\/t\d{8}_\d+\.(?:html?|shtml)|\.pdf(?:$|[?#]))/i.test(url)) {
+    if (pathname === '/' || pathname.endsWith('/list.html') || !/(?:\/t\d{8}_\d+\.(?:html?|shtml)|\.pdf(?:$|[?#]))/i.test(normalizedUrl)) {
       return '';
     }
   }
 
   if (/ndcpa|国家疾病预防控制局/u.test(normalizedSource)) {
-    if (pathname === '/' || pathname.endsWith('/list.html') || !/\/common\/content\/content_\d+\.html(?:$|[?#])/i.test(url)) {
+    if (pathname === '/' || pathname.endsWith('/list.html') || !/\/common\/content\/content_\d+\.html(?:$|[?#])/i.test(normalizedUrl)) {
       return '';
     }
   }
 
-  return url;
+  return normalizedUrl;
 }
 
 export function toReadableUrl(url: string): string {

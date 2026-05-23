@@ -15,7 +15,9 @@ import {
   getKnowledgeDisplayTitle,
   getKnowledgeSourceSignal,
   isChineseKnowledgeArticle,
+  normalizeAuthoritySourceUrl,
   resolveKnowledgeDisplayContent,
+  resolveKnowledgeOriginalContent,
   sanitizeAuthoritySourceUrl,
   toReadableUrl,
 } from '../shared/utils/knowledge-presentation';
@@ -53,6 +55,11 @@ describe('shared knowledge text helpers', () => {
   test('filters generic landing source urls and formats readable urls', () => {
     expect(sanitizeAuthoritySourceUrl('https://www.who.int/news-room', 'WHO')).toBe('');
     expect(toReadableUrl('https://www.cdc.gov/parents/infants/index.html')).toBe('www.cdc.gov/parents/infants/index.html');
+  });
+
+  test('normalizes detail source urls without hiding traceable original addresses', () => {
+    expect(normalizeAuthoritySourceUrl(' https://www.who.int/news-room ')).toBe('https://www.who.int/news-room');
+    expect(normalizeAuthoritySourceUrl('javascript:alert(1)')).toBe('');
   });
 
   test('builds a staged reading path from article summary, source and content', () => {
@@ -286,6 +293,22 @@ describe('shared knowledge text helpers', () => {
     expect(display.content).toContain('孕期流感中文正文');
     expect(display.hasChineseTranslation).toBe(true);
     expect(display.isTranslated).toBe(true);
+  });
+
+  test('keeps original article language separate from Chinese display fields', () => {
+    const original = resolveKnowledgeOriginalContent({
+      title: 'Pregnancy and flu',
+      summary: 'English summary',
+      content: '<p>English body</p>',
+      displayTitle: '孕期流感',
+      displaySummary: '孕期流感中文摘要。',
+      displayContent: '<p>孕期流感中文正文。</p>',
+      sourceLanguage: 'en',
+    });
+
+    expect(original.title).toBe('Pregnancy and flu');
+    expect(original.summary).toBe('English summary');
+    expect(original.content).toContain('English body');
   });
 
   test('falls back to sanitized translation cache fields', () => {

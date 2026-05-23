@@ -58,7 +58,7 @@
       </view>
 
       <view v-if="displayedSummaryText" class="summary-box">
-        <text class="summary-label">{{ showingTranslation ? '中文摘要' : '核心摘要' }}</text>
+        <text class="summary-label">{{ showingTranslation ? '中文摘要' : originalSummaryLabel }}</text>
         <text class="summary-text">{{ displayedSummaryText }}</text>
       </view>
 
@@ -186,8 +186,9 @@ import {
   isChineseKnowledgeArticle,
   isMostlyChineseText,
   normalizePlainText,
+  normalizeAuthoritySourceUrl,
   resolveKnowledgeDisplayContent,
-  sanitizeAuthoritySourceUrl,
+  resolveKnowledgeOriginalContent,
   sanitizeTranslationText,
   stripHtmlTags,
 } from '@/utils/knowledge-format'
@@ -234,12 +235,25 @@ const translatedTitleText = computed(() => sanitizeTranslationText(translation.v
 const translatedSummaryText = computed(() => sanitizeTranslationText(translation.value?.translatedSummary, 'summary'))
 const translatedContentText = computed(() => sanitizeTranslationText(translation.value?.translatedContent, 'content'))
 const articleDisplayContent = computed(() => resolveKnowledgeDisplayContent(article.value))
+const articleOriginalContent = computed(() => resolveKnowledgeOriginalContent(article.value))
+const translatedDisplayTitle = computed(() => (
+  translatedTitleText.value
+    || (articleDisplayContent.value.isTranslated ? articleDisplayContent.value.title : '')
+))
+const translatedDisplaySummary = computed(() => (
+  translatedSummaryText.value
+    || (articleDisplayContent.value.isTranslated ? articleDisplayContent.value.summary : '')
+))
+const translatedDisplayContent = computed(() => (
+  translatedContentText.value
+    || (articleDisplayContent.value.isTranslated ? articleDisplayContent.value.content : '')
+))
 
 const displayedTitle = computed(() => {
-  if (showingTranslation.value && translatedTitleText.value) {
-    return translatedTitleText.value
+  if (showingTranslation.value && translatedDisplayTitle.value) {
+    return translatedDisplayTitle.value
   }
-  return articleDisplayContent.value.title || getKnowledgeDisplayTitle({
+  return articleOriginalContent.value.title || getKnowledgeDisplayTitle({
     title: article.value?.title,
     topic: article.value?.topic,
     stage: normalizedStageValue.value,
@@ -248,32 +262,30 @@ const displayedTitle = computed(() => {
 })
 
 const displayedSummary = computed(() => {
-  if (showingTranslation.value && translatedSummaryText.value) {
-    return translatedSummaryText.value
+  if (showingTranslation.value && translatedDisplaySummary.value) {
+    return translatedDisplaySummary.value
   }
-  return articleDisplayContent.value.summary || article.value?.summary || ''
+  return articleOriginalContent.value.summary
 })
 
 const displayedSummaryText = computed(() => normalizePlainText(displayedSummary.value))
 
-const displayedSourceUrl = computed(() => sanitizeAuthoritySourceUrl(
-  article.value?.sourceUrl,
-  article.value?.sourceOrg || article.value?.source || '',
-))
+const displayedSourceUrl = computed(() => normalizeAuthoritySourceUrl(article.value?.sourceUrl))
+
+const displayedBodySource = computed(() => {
+  if (showingTranslation.value) {
+    return translatedDisplayContent.value
+  }
+
+  return articleOriginalContent.value.content
+})
 
 const isBodyFallback = computed(() => {
-  const body = showingTranslation.value && translatedContentText.value
-    ? translatedContentText.value
-    : (articleDisplayContent.value.content || article.value?.content || '')
-  return !stripHtmlTags(body).replace(/\s+/g, '').trim() && Boolean(article.value?.summary)
+  return !stripHtmlTags(displayedBodySource.value).replace(/\s+/g, '').trim() && Boolean(displayedSummary.value)
 })
 
 const displayedContent = computed(() => {
-  if (showingTranslation.value && translatedContentText.value) {
-    return addArticleHeadingAnchors(formatRichArticleContent(translatedContentText.value))
-  }
-
-  const body = articleDisplayContent.value.content || article.value?.content || ''
+  const body = displayedBodySource.value
   if (!body.trim() && displayedSummary.value) {
     return addArticleHeadingAnchors(formatRichArticleContent(displayedSummary.value))
   }
@@ -281,11 +293,7 @@ const displayedContent = computed(() => {
 })
 
 const contentOutline = computed(() => {
-  if (showingTranslation.value && translatedContentText.value) {
-    return extractArticleOutline(translatedContentText.value)
-  }
-
-  const body = articleDisplayContent.value.content || article.value?.content || ''
+  const body = displayedBodySource.value
   if (!body.trim() && displayedSummary.value) {
     return extractArticleOutline(displayedSummary.value)
   }
@@ -313,10 +321,26 @@ const showTranslationEntry = computed(() => !isLikelyChineseSource.value)
 
 const translationDisabled = computed(() => Boolean(isLikelyChineseSource.value && !showingTranslation.value))
 
+const originalLanguageLabel = computed(() => {
+  const language = article.value?.sourceLanguage
+  const locale = (article.value?.sourceLocale || '').toLowerCase()
+  if (language === 'zh' || locale.startsWith('zh') || isLikelyChineseSource.value) return '中文'
+  if (language === 'en' || locale.startsWith('en')) return '英文'
+  return ''
+})
+
+const originalSummaryLabel = computed(() => (
+  originalLanguageLabel.value ? `${originalLanguageLabel.value}摘要` : '原文摘要'
+))
+
+const originalViewButtonText = computed(() => (
+  originalLanguageLabel.value ? `查看${originalLanguageLabel.value}原文` : '查看原文'
+))
+
 const translationButtonText = computed(() => {
   if (translating.value) return '准备中...'
   if (translation.value?.isSourceChinese) return '原文已是中文'
-  return showingTranslation.value ? '查看原文' : '查看中文'
+  return showingTranslation.value ? originalViewButtonText.value : '查看中文'
 })
 
 const translationDescriptionText = computed(() => {
