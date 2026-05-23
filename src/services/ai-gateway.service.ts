@@ -42,6 +42,10 @@ const AI_GLM_URL = process.env.AI_GLM_URL || (AI_MODAL_DIRECT_KEY ? AI_MODAL_DIR
 const AI_GLM_KEY = process.env.AI_GLM_KEY || AI_MODAL_DIRECT_KEY || OPENROUTER_KEY;
 const AI_GLM_MODEL = process.env.AI_GLM_MODEL || (AI_MODAL_DIRECT_KEY ? AI_MODAL_DIRECT_MODEL : OPENROUTER_MODEL);
 const AI_GLM_PROVIDER = process.env.AI_GLM_PROVIDER || (AI_MODAL_DIRECT_KEY ? AI_MODAL_DIRECT_PROVIDER : OPENROUTER_PROVIDER);
+const AI_DEEPSEEK_URL = process.env.AI_DEEPSEEK_URL || 'https://api.deepseek.com';
+const AI_DEEPSEEK_KEY = process.env.AI_DEEPSEEK_KEY || process.env.DEEPSEEK_API_KEY || '';
+const AI_DEEPSEEK_MODEL = process.env.AI_DEEPSEEK_MODEL || 'deepseek-v4-flash';
+const AI_DEEPSEEK_PROVIDER = process.env.AI_DEEPSEEK_PROVIDER || 'deepseek';
 const AI_MEDICAL_PRIMARY_URL = process.env.AI_MEDICAL_PRIMARY_URL || OPENROUTER_BASE_URL;
 const AI_MEDICAL_PRIMARY_KEY = process.env.AI_MEDICAL_PRIMARY_KEY || OPENROUTER_KEY;
 const AI_MEDICAL_PRIMARY_MODEL = process.env.AI_MEDICAL_PRIMARY_MODEL || process.env.AI_DEFAULT_MODEL || OPENROUTER_MODEL;
@@ -54,8 +58,11 @@ const AI_MEDICAL_SECONDARY_PROVIDER = process.env.AI_MEDICAL_SECONDARY_PROVIDER 
 const MODEL_ALIASES: Record<string, string> = {
   'Baichuan-M3': OPENROUTER_MODEL,
   'baichuan-m3': OPENROUTER_MODEL,
-  'deepseek-ai/DeepSeek-V3': OPENROUTER_MODEL,
-  'deepseek-chat': OPENROUTER_MODEL,
+  'deepseek-ai/DeepSeek-V3': AI_DEEPSEEK_MODEL,
+  'deepseek-chat': AI_DEEPSEEK_MODEL,
+  'deepseek-reasoner': AI_DEEPSEEK_MODEL,
+  'deepseek-v4-flash': AI_DEEPSEEK_MODEL,
+  'DeepSeek-V4-Flash': AI_DEEPSEEK_MODEL,
   'kimi2.5': OPENROUTER_MODEL,
   'kimi-2.5': OPENROUTER_MODEL,
   'kimi-k2.5': OPENROUTER_MODEL,
@@ -92,6 +99,12 @@ interface ChatRequest {
   temperature?: number;
   max_tokens?: number;
   stream?: boolean;
+  response_format?: {
+    type: 'json_object';
+  };
+  thinking?: {
+    type: 'enabled' | 'disabled';
+  };
 }
 
 interface ChatResponse {
@@ -262,7 +275,7 @@ export function getAIGatewayProviderCircuitBreakerStatus(): AIGatewayProviderBlo
     .sort((left, right) => `${left.provider}/${left.model}`.localeCompare(`${right.provider}/${right.model}`));
 }
 
-export type AITaskModelRole = 'glm_classify' | 'kimi_reason' | 'minimax_render';
+export type AITaskModelRole = 'deepseek_translate' | 'glm_classify' | 'kimi_reason' | 'minimax_render';
 
 export interface AIGatewayRouteInfo {
   provider: string;
@@ -508,8 +521,23 @@ function buildGLMTaskProvider(): GatewayProvider | null {
   return buildTaskProvider('task-glm', 'task-glm', AI_GLM_URL, AI_GLM_KEY, AI_GLM_MODEL, AI_GLM_PROVIDER);
 }
 
+function buildDeepSeekTranslationTaskProvider(): GatewayProvider | null {
+  return buildTaskProvider(
+    'task-deepseek-translation',
+    'task-deepseek-translation',
+    AI_DEEPSEEK_URL,
+    AI_DEEPSEEK_KEY,
+    AI_DEEPSEEK_MODEL,
+    AI_DEEPSEEK_PROVIDER,
+  );
+}
+
 function hasConfiguredGLMTaskKey(): boolean {
   return Boolean(process.env.AI_GLM_KEY || process.env.AI_MODAL_DIRECT_KEY || process.env.MODAL_DIRECT_API_KEY);
+}
+
+function hasConfiguredDeepSeekTaskKey(): boolean {
+  return Boolean(process.env.AI_DEEPSEEK_KEY || process.env.DEEPSEEK_API_KEY);
 }
 
 function hasConfiguredKimiTaskKey(): boolean {
@@ -612,6 +640,16 @@ function resolveTaskProviderChain(
   options: { primaryOnly?: boolean } = {},
 ): GatewayProvider[] {
   switch (taskRole) {
+    case 'deepseek_translate':
+      return dedupeProviders(options.primaryOnly
+        ? [hasConfiguredDeepSeekTaskKey() ? buildDeepSeekTranslationTaskProvider() : null]
+        : [
+          buildDeepSeekTranslationTaskProvider(),
+          buildGLMTaskProvider(),
+          buildLegacyProvider('deepseek-v4-flash'),
+          buildGeneralProvider(),
+          buildLegacyProvider(),
+        ]);
     case 'glm_classify':
       return dedupeProviders(options.primaryOnly
         ? [hasConfiguredGLMTaskKey() ? buildGLMTaskProvider() : null]
@@ -721,6 +759,8 @@ async function requestProvider(
     maxTokens?: number;
     stream?: boolean;
     timeoutMs?: number;
+    responseFormat?: 'json_object';
+    thinking?: 'enabled' | 'disabled';
   } = {}
 ): Promise<Response> {
   const request: ChatRequest = {
@@ -730,6 +770,12 @@ async function requestProvider(
     max_tokens: resolveProviderMaxTokens(provider, options.maxTokens),
     stream: options.stream ?? false,
   };
+  if (options.responseFormat === 'json_object') {
+    request.response_format = { type: 'json_object' };
+  }
+  if (options.thinking) {
+    request.thinking = { type: options.thinking };
+  }
 
   const timeoutMs = options.timeoutMs && Number.isFinite(options.timeoutMs)
     ? Math.max(1000, options.timeoutMs)
@@ -758,6 +804,8 @@ async function callProvider(
     temperature?: number;
     maxTokens?: number;
     timeoutMs?: number;
+    responseFormat?: 'json_object';
+    thinking?: 'enabled' | 'disabled';
   } = {}
 ): Promise<string> {
   const activeBlock = getActiveProviderBlock(provider);
@@ -957,6 +1005,8 @@ export async function callTaskModelDetailed(
     timeoutMs?: number;
     stopOnProviderFailure?: string[];
     primaryOnly?: boolean;
+    responseFormat?: 'json_object';
+    thinking?: 'enabled' | 'disabled';
   } = {}
 ): Promise<AIGatewayTextResult> {
   const providers = resolveTaskProviderChain(taskRole, { primaryOnly: options.primaryOnly });
@@ -1116,6 +1166,7 @@ export function getAvailableModels(): Array<{ id: string; name: string; provider
 
 export function getTaskModelBindings(): AITaskModelBinding[] {
   const bindings: Array<{ role: AITaskModelRole; provider: GatewayProvider | null }> = [
+    { role: 'deepseek_translate', provider: buildDeepSeekTranslationTaskProvider() },
     { role: 'glm_classify', provider: buildGLMTaskProvider() },
     { role: 'kimi_reason', provider: buildKimiTaskProvider() },
     { role: 'minimax_render', provider: buildMiniMaxTaskProvider() },

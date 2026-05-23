@@ -1,6 +1,7 @@
 import type { AITaskModelRole } from '../services/ai-gateway.service';
 
 const SUPPORTED_TRANSLATION_TASK_ROLES = new Set<AITaskModelRole>([
+  'deepseek_translate',
   'glm_classify',
   'kimi_reason',
   'minimax_render',
@@ -9,7 +10,7 @@ const PAID_TRANSLATION_FALLBACK_ROLES = new Set<AITaskModelRole>([
   'kimi_reason',
   'minimax_render',
 ]);
-const FREE_TRANSLATION_TASK_ROLE: AITaskModelRole = 'glm_classify';
+const DEFAULT_TRANSLATION_TASK_ROLES: AITaskModelRole[] = ['deepseek_translate', 'glm_classify'];
 
 function envFlag(value: string | undefined): boolean {
   return /^(1|true|yes|on)$/i.test(value || '');
@@ -25,7 +26,7 @@ export function resolveAuthorityTranslationTaskRoles(
   env: NodeJS.ProcessEnv = process.env,
 ): AITaskModelRole[] {
   const explicitTaskRoles = (env.AUTHORITY_TRANSLATION_TASK_ROLES || '').trim();
-  const configured = (explicitTaskRoles || FREE_TRANSLATION_TASK_ROLE)
+  const configured = (explicitTaskRoles || DEFAULT_TRANSLATION_TASK_ROLES.join(','))
     .split(',')
     .map((item) => item.trim())
     .filter(Boolean);
@@ -33,27 +34,24 @@ export function resolveAuthorityTranslationTaskRoles(
     SUPPORTED_TRANSLATION_TASK_ROLES.has(item as AITaskModelRole)
   ));
   const uniqueRoles = Array.from(new Set<AITaskModelRole>(
-    roles.length > 0 ? roles : [FREE_TRANSLATION_TASK_ROLE],
+    roles.length > 0 ? roles : DEFAULT_TRANSLATION_TASK_ROLES,
   ));
-  const freeFirstRoles = uniqueRoles.includes(FREE_TRANSLATION_TASK_ROLE)
-    ? uniqueRoles
-    : [FREE_TRANSLATION_TASK_ROLE, ...uniqueRoles];
 
   if (isAuthorityTranslationPaidFallbackAllowed(env)) {
-    return freeFirstRoles;
+    return uniqueRoles;
   }
 
   if (explicitTaskRoles) {
-    return freeFirstRoles;
+    return uniqueRoles;
   }
 
-  return freeFirstRoles.filter((role) => !PAID_TRANSLATION_FALLBACK_ROLES.has(role));
+  return uniqueRoles.filter((role) => !PAID_TRANSLATION_FALLBACK_ROLES.has(role));
 }
 
 export function shouldUsePrimaryOnlyForAuthorityTranslation(
   taskRole: AITaskModelRole,
   env: NodeJS.ProcessEnv = process.env,
 ): boolean {
-  return taskRole === FREE_TRANSLATION_TASK_ROLE
+  return DEFAULT_TRANSLATION_TASK_ROLES.includes(taskRole)
     && !isAuthorityTranslationPaidFallbackAllowed(env);
 }

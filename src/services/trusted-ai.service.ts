@@ -490,6 +490,11 @@ function buildTaskModelMessages(params: {
   currentDraft: TrustedStructuredAnswer;
 }): Array<{ role: 'system' | 'user'; content: string }> {
   const taskInstructionMap: Record<AITaskModelRole, string[]> = {
+    deepseek_translate: [
+      '你负责权威资料翻译/压缩层。',
+      '只根据输入资料转写，不要扩展成诊断建议。',
+      '如果输入资料不足，必须保留“不足以判断”的边界。',
+    ],
     glm_classify: [
       '你负责低成本分类/澄清层。',
       '如果信息不足或来源弱，请优先输出需要补充的信息，而不是自由发挥。',

@@ -114,6 +114,13 @@
           <text class="body-fallback-notice-text">当前正文暂未同步，以下为摘要内容。</text>
         </view>
         <rich-text :nodes="displayedContent" class="content-text" />
+        <view v-if="displayedSourceUrl" class="content-source-reference">
+          <text class="content-source-label">文章来源链接</text>
+          <text class="content-source-url">{{ displayedSourceUrl }}</text>
+          <view class="content-source-btn" @tap="copySourceLink(displayedSourceUrl)">
+            <text class="content-source-btn-text">复制链接</text>
+          </view>
+        </view>
       </view>
 
       <view v-if="article.disclaimer" class="disclaimer-box">
@@ -221,15 +228,7 @@ const viewportHeightPx = ref(uni.getSystemInfoSync().windowHeight || 1)
 let translationRetryTimer: ReturnType<typeof setTimeout> | null = null
 let translationRetryCount = 0
 const MAX_TRANSLATION_RETRY_COUNT = 12
-let openSourceType: '' | 'chat_hit' = ''
 let detailOpenTrackedKey = ''
-let openAiHitContext: {
-  qaId?: string
-  trigger?: string
-  matchReason?: string
-  originEntrySource?: string
-  originReportId?: string
-} | null = null
 
 const translatedTitleText = computed(() => sanitizeTranslationText(translation.value?.translatedTitle, 'title'))
 const translatedSummaryText = computed(() => sanitizeTranslationText(translation.value?.translatedSummary, 'summary'))
@@ -433,16 +432,6 @@ onLoad((options) => {
     currentSlug = options.slug
     shouldWarmTranslation.value = options?.translation === '1'
     autoShowTranslation.value = options?.translation === '1'
-    openSourceType = options?.source === 'chat_hit' ? 'chat_hit' : ''
-    openAiHitContext = openSourceType === 'chat_hit'
-      ? {
-          qaId: typeof options?.qaId === 'string' ? options.qaId : undefined,
-          trigger: typeof options?.trigger === 'string' ? options.trigger : undefined,
-          matchReason: typeof options?.matchReason === 'string' ? options.matchReason : undefined,
-          originEntrySource: typeof options?.originEntrySource === 'string' ? options.originEntrySource : undefined,
-          originReportId: typeof options?.originReportId === 'string' ? options.originReportId : undefined,
-        }
-      : null
     void loadArticleDetail(options.slug)
   }
 })
@@ -603,28 +592,12 @@ async function loadArticleDetail(slug: string) {
         slug,
         articleSlug: loadedArticle.slug || slug,
         articleId: loadedArticle.id,
-        originSource: openSourceType || null,
         sourceOrg: loadedArticle.sourceOrg || loadedArticle.source || null,
         topic: loadedArticle.topic || null,
         contentType: loadedArticle.contentType || null,
         isVerified: Boolean(loadedArticle.isVerified),
       },
     })
-  }
-
-  if (openSourceType === 'chat_hit' && article.value?.slug === slug) {
-    trackMiniEvent('app_knowledge_detail_ai_hit_open', {
-      page: 'KnowledgeDetailPage',
-      properties: {
-        entrySource: openAiHitContext?.originEntrySource || null,
-        articleSlug: article.value.slug,
-        reportId: openAiHitContext?.originReportId || null,
-        qaId: openAiHitContext?.qaId || null,
-        trigger: openAiHitContext?.trigger || null,
-        matchReason: openAiHitContext?.matchReason || null,
-      },
-    })
-    openSourceType = ''
   }
 
   if (!translation.value && !isLikelyChineseSource.value) {
@@ -638,14 +611,6 @@ function removeStoredKnowledgeArticle(slug: string) {
     uni.setStorageSync(
       RECENT_KNOWLEDGE_STORAGE_KEY,
       storedRecent.filter(item => item.slug !== slug),
-    )
-  }
-
-  const storedAiHits = uni.getStorageSync('knowledgeRecentAiHitArticles') as Array<{ slug?: string }> | null
-  if (Array.isArray(storedAiHits)) {
-    uni.setStorageSync(
-      'knowledgeRecentAiHitArticles',
-      storedAiHits.filter(item => item.slug !== slug),
     )
   }
 }
@@ -1280,6 +1245,42 @@ watch(
   color: #444;
   text-align: justify;
   text-align-last: left;
+}
+
+.content-source-reference {
+  margin-top: 28rpx;
+  padding-top: 24rpx;
+  border-top: 1rpx solid rgba(82, 96, 114, 0.16);
+}
+
+.content-source-label {
+  display: block;
+  font-size: 24rpx;
+  font-weight: 700;
+  color: #526072;
+  margin-bottom: 12rpx;
+}
+
+.content-source-url {
+  display: block;
+  font-size: 25rpx;
+  line-height: 1.7;
+  color: #1f6f8f;
+  word-break: break-all;
+}
+
+.content-source-btn {
+  display: inline-flex;
+  margin-top: 16rpx;
+  padding: 12rpx 22rpx;
+  border-radius: 999rpx;
+  background: rgba(31, 143, 116, 0.12);
+}
+
+.content-source-btn-text {
+  font-size: 24rpx;
+  font-weight: 700;
+  color: #18755f;
 }
 
 .translation-head {

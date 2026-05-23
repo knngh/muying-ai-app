@@ -7,12 +7,17 @@ import {
   type AITaskModelRole,
 } from '../services/ai-gateway.service';
 
-const DEFAULT_TASK_ROLE: AITaskModelRole = 'glm_classify';
+const DEFAULT_TASK_ROLE: AITaskModelRole = 'deepseek_translate';
 export const DEFAULT_AI_PROVIDER_HEALTH_TIMEOUT_MS = 12000;
 const DEFAULT_MAX_TOKENS = 80;
 const DEFAULT_PROMPT = '只输出数字 3，不要输出其它内容。';
 const DEFAULT_EXPECTED_ANSWER = '3';
-const SUPPORTED_TASK_ROLES = new Set<AITaskModelRole>(['glm_classify', 'kimi_reason', 'minimax_render']);
+const SUPPORTED_TASK_ROLES = new Set<AITaskModelRole>([
+  'deepseek_translate',
+  'glm_classify',
+  'kimi_reason',
+  'minimax_render',
+]);
 
 export interface AIProviderHealthReport {
   generatedAt: string;

@@ -6,7 +6,7 @@ import {
   normalizePlainText,
   stripHtmlTags,
 } from './knowledge-text';
-import { sanitizeTranslationText } from './article-translation';
+import { compactTranslationSummary, sanitizeTranslationText } from './article-translation';
 import type { KnowledgeVariantSortMode } from './knowledge-dedupe';
 import { isChineseKnowledgeSource } from './knowledge-source';
 
@@ -275,15 +275,15 @@ export function getKnowledgeFallbackSummary(article: KnowledgeArticleLike): stri
 export function getKnowledgeDisplaySummary(article: KnowledgeArticleLike, fallback?: string): string {
   const displaySummary = sanitizeTranslationText(article.displaySummary, 'summary');
   if (displaySummary) {
-    return normalizePlainText(displaySummary);
+    return compactTranslationSummary(displaySummary);
   }
 
   const translation = normalizeKnowledgeArticleTranslation(article.translation);
   if (translation?.translatedSummary) {
-    return normalizePlainText(translation.translatedSummary);
+    return compactTranslationSummary(translation.translatedSummary);
   }
 
-  return normalizePlainText(article.summary) || fallback || '围绕当前阶段整理出的权威知识要点，可进入详情继续阅读来源与正文。';
+  return compactTranslationSummary(article.summary, fallback) || fallback || '围绕当前阶段整理出的权威知识要点，可进入详情继续阅读来源与正文。';
 }
 
 function firstReadableSentence(input?: string, maxLength = 88): string {
@@ -644,7 +644,7 @@ export function buildKnowledgeReadingPath(article?: KnowledgeArticleLike | null)
     title: '最后判断行动',
     description: /用药|剂量|治疗|急|出血|发热|呼吸困难|抽搐/u.test(normalizePlainText(`${article?.title || ''} ${article?.summary || ''} ${article?.content || ''}`))
       ? '涉及急性症状、用药或治疗方案时，应优先联系医生或线下就医。'
-      : '如果与你的阶段或症状不完全匹配，先收藏或追问，不要直接替代医生判断。',
+      : '如果与你的阶段或症状不完全匹配，先收藏并核对原始来源，不要直接替代线下专业判断。',
   });
 
   return {

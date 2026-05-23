@@ -16,7 +16,7 @@
 
       <view v-else-if="!isPregnancyReady" class="empty-card">
         <text class="empty-title">先完善预产期，开启专属时光档案</text>
-        <text class="empty-subtitle">时光档案会根据您的孕周，智能串联关键产检节点与成长记录。</text>
+        <text class="empty-subtitle">时光档案会根据您的孕周，按阶段串联关键产检节点与成长记录。</text>
         <view class="empty-action" hover-class="empty-action--hover" @tap="openProfile">
           <text class="empty-action-text">去完善资料</text>
         </view>

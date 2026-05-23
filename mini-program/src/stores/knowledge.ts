@@ -2,14 +2,8 @@ import { defineStore } from 'pinia'
 import { articleApi } from '@/api/modules'
 import { isTranslationPendingError } from '@/api/modules'
 import type { Article, AuthorityArticleTranslation, PaginatedResponse } from '@/api/modules'
-import type { RecentAIHitArticle } from '../../../shared/types'
 import { buildTranslationPendingError } from '../../../shared/utils/translation-request'
-import { sanitizeTranslationText } from '../../../shared/utils/article-translation'
-import {
-  buildRecentAIHitArticle,
-  mergeRecentAIHitArticles,
-  sanitizeRecentAIHitArticles,
-} from '../../../shared/utils/recent-ai-hit'
+import { compactTranslationSummary, sanitizeTranslationText } from '../../../shared/utils/article-translation'
 import {
   dedupeKnowledgeArticles,
   getKnowledgeArticlePathname,
@@ -27,7 +21,6 @@ import {
 import { getAuthorityRegionPriority } from '@/utils/authority-source'
 
 const TRANSLATION_CACHE_STORAGE_KEY = 'knowledgeTranslationCache'
-const RECENT_AI_HIT_ARTICLES_KEY = 'knowledgeRecentAiHitArticles'
 const MAX_PERSISTED_TRANSLATIONS = 12
 let knowledgeListRequestId = 0
 const translationInFlight = new Map<string, Promise<AuthorityArticleTranslation>>()
@@ -107,7 +100,7 @@ function normalizeCachedTranslation(translation: AuthorityArticleTranslation | n
   const normalized: AuthorityArticleTranslation = {
     ...translation,
     translatedTitle: sanitizeTranslationText(translation.translatedTitle, 'title'),
-    translatedSummary: sanitizeTranslationText(translation.translatedSummary, 'summary'),
+    translatedSummary: compactTranslationSummary(translation.translatedSummary),
     translatedContent: sanitizeTranslationText(translation.translatedContent, 'content'),
   }
 
@@ -184,9 +177,7 @@ function loadPersistedTranslations() {
 
 const persistedTranslations = loadPersistedTranslations()
 
-export type { RecentAIHitArticle } from '../../../shared/types'
-
-function isBlockedKnowledgeArticle(article: Partial<Article | RecentAIHitArticle> | null | undefined): boolean {
+function isBlockedKnowledgeArticle(article: Partial<Article> | null | undefined): boolean {
   if (!article) {
     return false
   }
@@ -203,7 +194,7 @@ function isBlockedKnowledgeArticle(article: Partial<Article | RecentAIHitArticle
   }))
 }
 
-function filterBlockedKnowledgeArticles<T extends Partial<Article | RecentAIHitArticle>>(articles: T[]): T[] {
+function filterBlockedKnowledgeArticles<T extends Partial<Article>>(articles: T[]): T[] {
   return articles.filter((article) => !isBlockedKnowledgeArticle(article))
 }
 
@@ -278,8 +269,6 @@ export const useKnowledgeStore = defineStore('knowledge', {
     translationCache: persistedTranslations.cache,
     translationCacheOrder: persistedTranslations.order,
     translationFailed: {} as Record<string, boolean>,
-    recentAiHitArticles: [] as RecentAIHitArticle[],
-    recentAiHitArticlesLoaded: false,
     total: 0,
     page: 1,
     pageSize: 10,
@@ -544,61 +533,6 @@ export const useKnowledgeStore = defineStore('knowledge', {
       this.translationFailed = {
         ...this.translationFailed,
         [slug]: true,
-      }
-    },
-
-    hydrateRecentAiHitArticles() {
-      if (this.recentAiHitArticlesLoaded) {
-        return
-      }
-
-      try {
-        const stored = uni.getStorageSync(RECENT_AI_HIT_ARTICLES_KEY) as RecentAIHitArticle[] | null
-        const nextList = filterBlockedKnowledgeArticles(sanitizeRecentAIHitArticles(Array.isArray(stored) ? stored : []))
-        this.recentAiHitArticles = nextList
-        this.recentAiHitArticlesLoaded = true
-        uni.setStorageSync(RECENT_AI_HIT_ARTICLES_KEY, nextList)
-      } catch {
-        this.recentAiHitArticles = []
-        this.recentAiHitArticlesLoaded = true
-      }
-    },
-
-    recordAiHitArticle(article: Article | RecentAIHitArticle, input?: {
-      qaId?: string
-      trigger?: 'hit_card' | 'knowledge_action'
-      matchReason?: 'entry_meta' | 'source_url' | 'source_title' | 'source_keyword'
-      originEntrySource?: string
-      originReportId?: string
-    }) {
-      if (isBlockedKnowledgeArticle(article)) {
-        return
-      }
-
-      const nextHit = buildRecentAIHitArticle({
-        slug: article.slug,
-        articleId: 'articleId' in article ? article.articleId : article.id,
-        title: article.title,
-        summary: article.summary,
-        source: article.source,
-        sourceOrg: article.sourceOrg,
-        sourceLanguage: article.sourceLanguage,
-        sourceLocale: article.sourceLocale,
-        topic: article.topic,
-        stage: article.stage,
-        publishedAt: article.publishedAt,
-        sourceUpdatedAt: article.sourceUpdatedAt,
-        createdAt: article.createdAt,
-      }, input)
-      const nextList = mergeRecentAIHitArticles(this.recentAiHitArticles, nextHit)
-
-      this.recentAiHitArticles = nextList
-      this.recentAiHitArticlesLoaded = true
-
-      try {
-        uni.setStorageSync(RECENT_AI_HIT_ARTICLES_KEY, nextList)
-      } catch {
-        // 本地缓存失败不影响主流程。
       }
     },
 

@@ -1,5 +1,6 @@
 import {
   extractJsonObject,
+  compactTranslationSummary,
   hasTranslationPromptLeak,
   isPlaceholderTranslationText,
   sanitizeTranslationText,
@@ -61,5 +62,11 @@ describe('article translation sanitization', () => {
       translated_summary: '中文摘要',
       translated_content: '第一段。第二段。',
     });
+  });
+
+  test('compacts long translated summaries to one or two readable sentences', () => {
+    const input = '母乳喂养是保障儿童健康和生存最有效的方法之一。世界卫生组织建议出生后尽早开始母乳喂养，并在生命最初六个月进行纯母乳喂养，同时根据家庭情况获得持续支持。后续还可以在添加辅食的同时继续母乳喂养。';
+
+    expect(compactTranslationSummary(input)).toBe('母乳喂养是保障儿童健康和生存最有效的方法之一。世界卫生组织建议出生后尽早开始母乳喂养，并在生命最初六个月进行纯母乳喂养，同时根据家庭情况获得持续支持。');
   });
 });

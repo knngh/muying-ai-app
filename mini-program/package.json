@@ -1,7 +1,7 @@
 {
   "name": "muying-mini-program",
   "version": "1.0.0",
-  "description": "母婴AI助手小程序",
+  "description": "孕周资料与记录小程序",
   "scripts": {
     "dev:app": "uni -p app",
     "dev:mp-weixin": "uni -p mp-weixin",

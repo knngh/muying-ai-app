@@ -45,6 +45,7 @@ describe('authority translation cache cleaner', () => {
       total: 4,
       kept: 1,
       removed: 3,
+      normalizedEntries: [],
       cleanedCache: {
         valid: expect.objectContaining({ translatedTitle: '儿童发热' }),
       },
@@ -54,6 +55,24 @@ describe('authority translation cache cleaner', () => {
       { slug: 'placeholder', reason: 'empty_or_invalid_content' },
       { slug: 'analysisLeak', reason: 'prompt_leak' },
     ]);
+  });
+
+  it('compacts long cached translated summaries without dropping the entry', () => {
+    const result = cleanAuthorityTranslationCache({
+      longSummary: {
+        slug: 'longSummary',
+        translatedTitle: '母乳喂养',
+        translatedSummary: '母乳喂养是保障儿童健康和生存最有效的方法之一。世界卫生组织建议出生后尽早开始母乳喂养，并在生命最初六个月进行纯母乳喂养，同时根据家庭情况获得持续支持。后续还可以在添加辅食的同时继续母乳喂养。',
+        translatedContent: '母乳喂养是保障儿童健康和生存最有效的方法之一。世界卫生组织建议出生后尽早开始母乳喂养，并在生命最初六个月进行纯母乳喂养，同时根据家庭情况获得持续支持。后续还可以在添加辅食的同时继续母乳喂养。',
+        translationNotice: '辅助翻译',
+        updatedAt: '2026-05-07T00:00:00.000Z',
+      },
+    });
+
+    expect(result.kept).toBe(1);
+    expect(result.removed).toBe(0);
+    expect(result.normalizedEntries).toEqual([{ slug: 'longSummary', field: 'translatedSummary' }]);
+    expect(result.cleanedCache.longSummary.translatedSummary).toBe('母乳喂养是保障儿童健康和生存最有效的方法之一。世界卫生组织建议出生后尽早开始母乳喂养，并在生命最初六个月进行纯母乳喂养，同时根据家庭情况获得持续支持。');
   });
 
   it('normalizes cached records with the same guards used before writes', () => {
@@ -97,7 +116,7 @@ describe('authority translation cache cleaner', () => {
     })).toBeNull();
   });
 
-  it('defaults to GLM only without explicit paid fallback roles', () => {
+  it('defaults to DeepSeek official API and GLM fallback without explicit paid fallback roles', () => {
     const originalRoles = process.env.AUTHORITY_TRANSLATION_TASK_ROLES;
     const originalAllowPaidFallback = process.env.AUTHORITY_TRANSLATION_ALLOW_PAID_FALLBACK;
     try {
@@ -105,6 +124,7 @@ describe('authority translation cache cleaner', () => {
       delete process.env.AUTHORITY_TRANSLATION_ALLOW_PAID_FALLBACK;
 
       expect(__authorityTranslationTestUtils.resolveAuthorityTranslationTaskRoles()).toEqual([
+        'deepseek_translate',
         'glm_classify',
       ]);
     } finally {
@@ -122,7 +142,7 @@ describe('authority translation cache cleaner', () => {
     }
   });
 
-  it('keeps explicitly configured fallback task roles after GLM', () => {
+  it('keeps explicitly configured task roles in order', () => {
     const originalRoles = process.env.AUTHORITY_TRANSLATION_TASK_ROLES;
     const originalAllowPaidFallback = process.env.AUTHORITY_TRANSLATION_ALLOW_PAID_FALLBACK;
     try {
@@ -130,7 +150,6 @@ describe('authority translation cache cleaner', () => {
       delete process.env.AUTHORITY_TRANSLATION_ALLOW_PAID_FALLBACK;
 
       expect(__authorityTranslationTestUtils.resolveAuthorityTranslationTaskRoles()).toEqual([
-        'glm_classify',
         'minimax_render',
         'kimi_reason',
       ]);

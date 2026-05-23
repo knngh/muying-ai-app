@@ -77,8 +77,6 @@ const storedWeek = ref<number | null>(null)
 const recentKnowledge = ref<RecentKnowledgeItem[]>([])
 
 const syncHomeState = () => {
-  uni.removeStorageSync('pendingChatDraft')
-  uni.removeStorageSync('recentChatQuestions')
   sessionLoggedIn.value = Boolean(uni.getStorageSync('token'))
   const rawWeek = Number.parseInt(String(uni.getStorageSync('userPregnancyWeek') || ''), 10)
   storedWeek.value = !Number.isNaN(rawWeek) && rawWeek >= 1 && rawWeek <= 40 ? rawWeek : null

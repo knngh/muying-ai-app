@@ -35,7 +35,7 @@ describe('authority translation warmup', () => {
     restoreEnv();
   });
 
-  it('defaults translation warmup to free GLM without paid fallback roles', () => {
+  it('defaults translation warmup to DeepSeek official API with free GLM fallback', () => {
     delete process.env.AUTHORITY_TRANSLATION_TASK_ROLES;
 
     let resolveAuthorityTranslationTaskRoles: typeof import('../src/services/authority-translation.service').__authorityTranslationTestUtils.resolveAuthorityTranslationTaskRoles | null = null;
@@ -45,10 +45,10 @@ describe('authority translation warmup', () => {
     });
 
     expect(resolveAuthorityTranslationTaskRoles).not.toBeNull();
-    expect(resolveAuthorityTranslationTaskRoles!()).toEqual(['glm_classify']);
+    expect(resolveAuthorityTranslationTaskRoles!()).toEqual(['deepseek_translate', 'glm_classify']);
 
     process.env.AUTHORITY_TRANSLATION_TASK_ROLES = 'unknown_role';
-    expect(resolveAuthorityTranslationTaskRoles!()).toEqual(['glm_classify']);
+    expect(resolveAuthorityTranslationTaskRoles!()).toEqual(['deepseek_translate', 'glm_classify']);
   });
 
   it('honors explicitly configured paid translation fallback roles', () => {
@@ -602,9 +602,11 @@ describe('authority translation warmup', () => {
     expect(cache['authority-who-9'].translatedContent).toContain('根据世界卫生组织的建议');
     expect(cache['authority-who-9'].translatedContent).not.toContain('原文正文');
     expect(moduleApi.callTaskModelSpy).toHaveBeenCalledWith(
-      'glm_classify',
+      'deepseek_translate',
       expect.any(Array),
       expect.objectContaining({
+        responseFormat: 'json_object',
+        thinking: 'disabled',
         timeoutMs: 90000,
       }),
     );

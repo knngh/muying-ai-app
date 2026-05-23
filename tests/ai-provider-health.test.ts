@@ -8,25 +8,26 @@ describe('AI provider health report', () => {
     const callTaskModel = jest.fn().mockResolvedValue({
       answer: '3',
       route: {
-        provider: 'modal-direct',
-        model: 'zai-org/GLM-5.1-FP8',
+        provider: 'deepseek',
+        model: 'deepseek-v4-flash',
         route: 'task',
-        label: 'task-glm',
+        label: 'task-deepseek-translation',
       },
     });
 
     const report = await buildAIProviderHealthReport({
       callTaskModel,
       getBindings: jest.fn().mockReturnValue([{
-        role: 'glm_classify',
-        model: 'zai-org/GLM-5.1-FP8',
-        provider: 'modal-direct',
+        role: 'deepseek_translate',
+        model: 'deepseek-v4-flash',
+        provider: 'deepseek',
         configured: true,
       }]),
     });
 
     expect(report.timeoutMs).toBe(12000);
-    expect(callTaskModel).toHaveBeenCalledWith('glm_classify', expect.any(Array), expect.objectContaining({
+    expect(report.taskRole).toBe('deepseek_translate');
+    expect(callTaskModel).toHaveBeenCalledWith('deepseek_translate', expect.any(Array), expect.objectContaining({
       timeoutMs: 12000,
       maxTokens: 80,
     }));
@@ -34,6 +35,7 @@ describe('AI provider health report', () => {
 
   it('reports ok when the task model returns the expected answer on the configured route', async () => {
     const report = await buildAIProviderHealthReport({
+      taskRole: 'glm_classify',
       now: '2026-05-10T00:00:00.000Z',
       callTaskModel: jest.fn().mockResolvedValue({
         answer: '3',
@@ -85,6 +87,7 @@ describe('AI provider health report', () => {
     error.gatewayModel = 'zai-org/GLM-5.1-FP8';
 
     const report = await buildAIProviderHealthReport({
+      taskRole: 'glm_classify',
       callTaskModel: jest.fn().mockRejectedValue(error),
       getBindings: jest.fn().mockReturnValue([{
         role: 'glm_classify',
@@ -117,6 +120,7 @@ describe('AI provider health report', () => {
     error.gatewayModel = 'zai-org/GLM-5.1-FP8';
 
     const report = await buildAIProviderHealthReport({
+      taskRole: 'glm_classify',
       now: '2026-05-11T00:00:00.000Z',
       callTaskModel: jest.fn().mockRejectedValue(error),
       getBindings: jest.fn().mockReturnValue([{
@@ -143,6 +147,7 @@ describe('AI provider health report', () => {
 
   it('marks configured provider health timeouts as degraded with binding metadata', async () => {
     const report = await buildAIProviderHealthReport({
+      taskRole: 'glm_classify',
       now: '2026-05-11T00:00:00.000Z',
       callTaskModel: jest.fn().mockRejectedValue(new Error('AI Gateway timeout after 45000ms')),
       getBindings: jest.fn().mockReturnValue([{

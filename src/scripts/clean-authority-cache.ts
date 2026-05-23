@@ -11,6 +11,7 @@ import {
   sanitizeAuthorityTitle,
 } from '../services/authority-adapters/base.adapter';
 import { buildAuthorityDisplayTags } from '../utils/authority-metadata';
+import { compactTranslationSummary } from '../utils/article-translation';
 import { inferAuthorityStages } from '../utils/authority-stage';
 import { getAuthorityKnowledgeDropReason } from '../utils/knowledge-content-guard';
 import { shouldFilterAuthoritySourceUrl } from '../utils/authority-source-url';
@@ -345,6 +346,7 @@ function normalizeRecord(record: AuthorityCacheRecord, index: number): WorkingRe
   if (answer && summary && (countAuthorityChromeMatches(summary) >= 4 || isLikelyEnglishNavigationShell(summary))) {
     summary = answer.slice(0, 300);
   }
+  summary = compactTranslationSummary(summary, answer);
 
   const normalized = normalizeAuthorityMetadata({
     ...record,

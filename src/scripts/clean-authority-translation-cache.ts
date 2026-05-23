@@ -45,14 +45,21 @@ async function main() {
       total: item.result.total,
       kept: item.result.kept,
       removed: item.result.removed,
+      normalized: item.result.normalizedEntries.length,
       removedEntries: item.result.removedEntries,
+      normalizedEntries: item.result.normalizedEntries,
     })),
     reportFile: REPORT_FILE,
     dryRun: DRY_RUN,
     total: primary.result.total,
     kept: primary.result.kept,
     removed: fileResults.reduce((total, item) => total + item.result.removed, 0),
+    normalized: fileResults.reduce((total, item) => total + item.result.normalizedEntries.length, 0),
     removedEntries: fileResults.flatMap((item) => item.result.removedEntries.map((entry) => ({
+      ...entry,
+      inputFile: item.filePath,
+    }))),
+    normalizedEntries: fileResults.flatMap((item) => item.result.normalizedEntries.map((entry) => ({
       ...entry,
       inputFile: item.filePath,
     }))),
@@ -63,7 +70,7 @@ async function main() {
 
   if (!DRY_RUN) {
     for (const item of fileResults) {
-      if (item.result.removed <= 0) {
+      if (item.result.removed <= 0 && item.result.normalizedEntries.length <= 0) {
         continue;
       }
       fs.mkdirSync(path.dirname(item.filePath), { recursive: true });

@@ -20,14 +20,8 @@ function getClientId(): string {
 export function trackMiniEvent(
   eventName:
     | 'mini_program_app_download_click'
-    | 'app_knowledge_detail_ask_ai_click'
-    | 'app_knowledge_detail_ai_hit_open'
     | 'app_knowledge_detail_open'
-    | 'app_knowledge_detail_share'
-    | 'app_knowledge_recent_ai_hit_click'
-    | 'app_knowledge_recent_ai_topic_click'
-    | 'app_knowledge_recent_ai_source_click'
-    | 'app_knowledge_recent_ai_ask_click',
+    | 'app_knowledge_detail_share',
   input: {
     page: string
     properties?: Record<string, unknown>

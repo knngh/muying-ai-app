@@ -11,6 +11,7 @@ import { isLikelyEnglishNavigationShell, sanitizeAuthorityTitle } from './author
 import { shouldFilterAuthoritySourceUrl } from '../utils/authority-source-url';
 import {
   extractJsonObject,
+  compactTranslationSummary,
   hasTranslationPromptLeak,
   normalizeWhitespace,
   sanitizeTranslationText,
@@ -506,7 +507,7 @@ export function normalizeAuthorityTranslationRecord(
   const normalized: AuthorityTranslationCacheRecord = {
     ...translation,
     translatedTitle: sanitizeTranslationText(translation.translatedTitle || '', 'title'),
-    translatedSummary: sanitizeTranslationText(translation.translatedSummary || '', 'summary'),
+    translatedSummary: compactTranslationSummary(translation.translatedSummary || ''),
     translatedContent: sanitizeTranslationText(translation.translatedContent || '', 'content'),
   };
 
@@ -1131,7 +1132,7 @@ export async function translateAuthorityRecord(
       sourceUpdatedAt,
       sourceFingerprint,
       translatedTitle: sourceTitle,
-      translatedSummary: sourceSummary,
+      translatedSummary: compactTranslationSummary(sourceSummary, sourceContent),
       translatedContent: sourceContent,
       translationNotice: '当前文章原文已是中文，无需额外生成中文辅助阅读内容。',
       updatedAt: new Date().toISOString(),
@@ -1145,44 +1146,58 @@ export async function translateAuthorityRecord(
     return payload;
   }
 
-  const translationMessages = [
-    {
-      role: 'system' as const,
-      content: [
-        '你是母婴权威知识库的专业翻译助手。',
-        '请把英文医学健康文章准确翻译成简体中文，保持谨慎、克制、忠实原文。',
-        '不要补充原文没有的建议，不要改写成诊断结论，不要省略重要风险提示。',
-        '如果正文是节选，只翻译已提供内容，不要自行补全未提供段落。',
-        '标签内必须填写真实完整译文，禁止使用省略号、占位符或“待翻译”等空内容。',
-        '输出必须严格使用以下标签，不要输出任何额外说明：',
-        '<translated_title>译后的标题</translated_title>',
-        '<translated_summary>译后的摘要</translated_summary>',
-        '<translated_content>译后的正文</translated_content>',
-      ].join('\n'),
-    },
-    {
-      role: 'user' as const,
-      content: [
-        `来源机构：${record.source_org || record.source || '权威机构'}`,
-        `原文标题：${sourceTitle}`,
-        `原文摘要：${sourceSummary}`,
-        sourceContentTruncated ? '原文正文（较长，以下为前段节选）：' : '原文正文：',
-        sourceContent,
-      ].join('\n\n'),
-    },
-  ];
-
   let lastError: unknown;
   let result: Awaited<ReturnType<typeof callTaskModelDetailed>> | null = null;
   let parsedTranslation: ReturnType<typeof extractTranslationPayload> | null = null;
 
   for (const taskRole of AUTHORITY_TRANSLATION_TASK_ROLES) {
+    const translationMessages = [
+      {
+        role: 'system' as const,
+        content: taskRole === 'deepseek_translate'
+          ? [
+            '你是母婴权威知识库的专业翻译助手。',
+            '请把英文医学健康文章准确翻译成简体中文，保持谨慎、克制、忠实原文。',
+            '不要补充原文没有的建议，不要改写成诊断结论，不要省略重要风险提示。',
+            '如果正文是节选，只翻译已提供内容，不要自行补全未提供段落。',
+            'JSON 必须严格包含 translated_title, translated_summary, translated_content 三个字符串字段。',
+            'translated_summary 只能写 1 到 2 句中文导读，控制在 80 到 100 个汉字内，必须明显短于正文。',
+            '字段内必须填写真实完整译文，禁止使用省略号、占位符或“待翻译”等空内容。',
+            '不要输出 Markdown、代码块或任何 JSON 外的说明。',
+          ].join('\n')
+          : [
+            '你是母婴权威知识库的专业翻译助手。',
+            '请把英文医学健康文章准确翻译成简体中文，保持谨慎、克制、忠实原文。',
+            '不要补充原文没有的建议，不要改写成诊断结论，不要省略重要风险提示。',
+            '如果正文是节选，只翻译已提供内容，不要自行补全未提供段落。',
+            'translated_summary 只能写 1 到 2 句中文导读，控制在 80 到 100 个汉字内，必须明显短于正文。',
+            '标签内必须填写真实完整译文，禁止使用省略号、占位符或“待翻译”等空内容。',
+            '输出必须严格使用以下标签，不要输出任何额外说明：',
+            '<translated_title>译后的标题</translated_title>',
+            '<translated_summary>译后的摘要</translated_summary>',
+            '<translated_content>译后的正文</translated_content>',
+          ].join('\n'),
+      },
+      {
+        role: 'user' as const,
+        content: [
+          `来源机构：${record.source_org || record.source || '权威机构'}`,
+          `原文标题：${sourceTitle}`,
+          `原文摘要：${sourceSummary}`,
+          sourceContentTruncated ? '原文正文（较长，以下为前段节选）：' : '原文正文：',
+          sourceContent,
+        ].join('\n\n'),
+      },
+    ];
+
     try {
       result = await callTaskModelDetailed(taskRole, translationMessages, {
         temperature: 0.2,
         maxTokens: AUTHORITY_TRANSLATION_MAX_TOKENS,
         timeoutMs: options.providerTimeoutMs ?? AUTHORITY_TRANSLATION_PROVIDER_TIMEOUT_MS,
         primaryOnly: true,
+        responseFormat: taskRole === 'deepseek_translate' ? 'json_object' : undefined,
+        thinking: taskRole === 'deepseek_translate' ? 'disabled' : undefined,
         stopOnProviderFailure: taskRole === 'glm_classify' && isModalDirectGlmFirstForTranslation()
           ? ['modal-direct']
           : undefined,
@@ -1198,7 +1213,7 @@ export async function translateAuthorityRecord(
 
     const parsed = extractTranslationPayload(result.answer, sourceTitle, sourceSummary);
     const title = sanitizeTranslationText(parsed.translatedTitle || sourceTitle, 'title');
-    const summary = sanitizeTranslationText(parsed.translatedSummary || sourceSummary, 'summary');
+    const summary = compactTranslationSummary(parsed.translatedSummary, sourceSummary);
     const content = sanitizeTranslationText(parsed.translatedContent, 'content');
 
     if (!content) {
@@ -1226,7 +1241,7 @@ export async function translateAuthorityRecord(
   }
 
   const translatedTitle = sanitizeTranslationText(parsedTranslation.translatedTitle || sourceTitle, 'title') || sourceTitle;
-  const translatedSummary = sanitizeTranslationText(parsedTranslation.translatedSummary || sourceSummary, 'summary') || sourceSummary;
+  const translatedSummary = compactTranslationSummary(parsedTranslation.translatedSummary, sourceSummary) || compactTranslationSummary(sourceSummary, sourceContent);
   const translatedContent = sanitizeTranslationText(parsedTranslation.translatedContent, 'content');
 
   const payload: AuthorityTranslationCacheRecord = {

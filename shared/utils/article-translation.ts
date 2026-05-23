@@ -62,6 +62,48 @@ export function sanitizeTranslationText(
   return normalized;
 }
 
+export function compactTranslationSummary(
+  input: string | null | undefined,
+  fallback: string | null | undefined = '',
+  maxChars = 96,
+): string {
+  const source = sanitizeTranslationText(input, 'summary') || sanitizeTranslationText(fallback, 'summary');
+  const normalized = normalizeWhitespace(source)
+    .replace(/[\t ]+/g, ' ')
+    .replace(/\n+/g, ' ')
+    .trim();
+
+  if (!normalized) {
+    return '';
+  }
+
+  const sentences = normalized.match(/[^。！？!?；;]+[。！？!?；;]?/gu) || [normalized];
+  let compacted = '';
+  for (const sentence of sentences) {
+    const value = sentence.trim();
+    if (!value) {
+      continue;
+    }
+
+    const next = compacted ? `${compacted}${value}` : value;
+    if (next.length > maxChars) {
+      break;
+    }
+
+    compacted = next;
+    if (compacted.length >= 42) {
+      break;
+    }
+  }
+
+  const result = compacted || normalized;
+  if (result.length <= maxChars) {
+    return result;
+  }
+
+  return `${result.slice(0, maxChars).replace(/[，、；：,.!?。！？;:]*$/u, '').trim()}...`;
+}
+
 export function extractJsonObject(input: string): Record<string, unknown> | null {
   const normalized = stripCodeFence(input);
   const candidates = [

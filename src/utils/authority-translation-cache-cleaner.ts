@@ -1,4 +1,5 @@
 import {
+  compactTranslationSummary,
   hasTranslationPromptLeak,
   isPlaceholderTranslationText,
   sanitizeTranslationText,
@@ -23,6 +24,7 @@ export interface CleanAuthorityTranslationCacheResult {
   kept: number;
   removed: number;
   removedEntries: Array<{ slug: string; reason: string }>;
+  normalizedEntries: Array<{ slug: string; field: 'translatedSummary' }>;
   cleanedCache: Record<string, AuthorityTranslationCacheEntry>;
 }
 
@@ -51,6 +53,7 @@ export function cleanAuthorityTranslationCache(
 ): CleanAuthorityTranslationCacheResult {
   const cleanedCache: Record<string, AuthorityTranslationCacheEntry> = {};
   const removedEntries: Array<{ slug: string; reason: string }> = [];
+  const normalizedEntries: Array<{ slug: string; field: 'translatedSummary' }> = [];
 
   for (const [slug, entry] of Object.entries(cache || {})) {
     const reason = detectBadTranslationReason(entry);
@@ -59,7 +62,17 @@ export function cleanAuthorityTranslationCache(
       continue;
     }
 
-    cleanedCache[slug] = entry;
+    const compactedSummary = compactTranslationSummary(entry.translatedSummary || '', entry.translatedContent || '');
+    const normalizedEntry = {
+      ...entry,
+      translatedSummary: compactedSummary || entry.translatedSummary,
+    };
+
+    if (normalizedEntry.translatedSummary !== entry.translatedSummary) {
+      normalizedEntries.push({ slug, field: 'translatedSummary' });
+    }
+
+    cleanedCache[slug] = normalizedEntry;
   }
 
   return {
@@ -67,6 +80,7 @@ export function cleanAuthorityTranslationCache(
     kept: Object.keys(cleanedCache).length,
     removed: removedEntries.length,
     removedEntries,
+    normalizedEntries,
     cleanedCache,
   };
 }
