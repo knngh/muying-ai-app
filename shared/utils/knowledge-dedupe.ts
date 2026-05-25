@@ -373,8 +373,8 @@ export function buildKnowledgeVariantFilterFeedback(
     return {
       label: '仅中文源',
       description: visibleCount > 0
-        ? `当前保留 ${visibleCount} / ${totalCount} 个中文源版本。`
-        : `当前没有中文源版本，可切回全部版本继续查看。`,
+        ? `保留 ${visibleCount} / ${totalCount} 个中文源版本。`
+        : `没有中文源版本，可切回全部版本继续查看。`,
       visibleCount,
       totalCount,
       isFiltered: true,
@@ -384,7 +384,7 @@ export function buildKnowledgeVariantFilterFeedback(
   if (mode === 'latest') {
     return {
       label: '最近版本',
-      description: `当前保留 ${visibleCount} / ${totalCount} 个最近版本结果。`,
+      description: `保留 ${visibleCount} / ${totalCount} 个最近版本结果。`,
       visibleCount,
       totalCount,
       isFiltered: true,
@@ -393,7 +393,7 @@ export function buildKnowledgeVariantFilterFeedback(
 
   return {
     label: '全部版本',
-    description: `当前展示 ${visibleCount} / ${totalCount} 个同源版本。`,
+    description: `${visibleCount} / ${totalCount} 个同源版本。`,
     visibleCount,
     totalCount,
     isFiltered: false,

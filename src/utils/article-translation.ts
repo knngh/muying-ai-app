@@ -104,6 +104,171 @@ export function compactTranslationSummary(
   return `${result.slice(0, maxChars).replace(/[，、；：,.!?。！？;:]*$/u, '').trim()}...`;
 }
 
+export interface ChineseTranslationDisplayFieldInput {
+  sourceTitle?: string | null;
+  sourceSummary?: string | null;
+  translatedTitle?: string | null;
+  translatedSummary?: string | null;
+  translatedContent?: string | null;
+}
+
+export interface ChineseTranslationDisplayFields {
+  displayTitle: string;
+  displaySummary: string;
+  displayContentText: string;
+}
+
+function stripHtmlTagsForDisplay(input: string): string {
+  return input
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(?:p|li|h[1-6]|section|article|div)>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, '\'');
+}
+
+function normalizeDisplayPlainText(input?: string | null): string {
+  return normalizeWhitespace(stripHtmlTagsForDisplay(input || ''))
+    .replace(/[ \t]+/g, ' ')
+    .trim();
+}
+
+function countPatternMatches(input: string, pattern: RegExp): number {
+  const matched = input.match(pattern);
+  return matched ? matched.length : 0;
+}
+
+function hasChineseText(input?: string | null): boolean {
+  return /[\u3400-\u4dbf\u4e00-\u9fff]/u.test(input || '');
+}
+
+function isMostlyChineseTranslationText(input?: string | null): boolean {
+  const text = normalizeDisplayPlainText(input).replace(/\s+/g, '');
+  if (!text) {
+    return false;
+  }
+
+  const chineseChars = countPatternMatches(text, /[\u3400-\u4dbf\u4e00-\u9fff]/gu);
+  const latinChars = countPatternMatches(text, /[A-Za-z]/g);
+  return chineseChars >= 8 && (chineseChars >= latinChars * 0.6 || chineseChars / text.length >= 0.2);
+}
+
+function isLikelyForeignDisplayText(input?: string | null): boolean {
+  const text = normalizeDisplayPlainText(input);
+  if (!text || hasChineseText(text)) {
+    return false;
+  }
+
+  return countPatternMatches(text, /[A-Za-z]/g) >= 4;
+}
+
+function cleanTranslatedContentForDisplay(input?: string | null): string {
+  const sanitized = sanitizeTranslationText(input, 'content');
+  if (!sanitized) {
+    return '';
+  }
+
+  return stripHtmlTagsForDisplay(sanitized)
+    .replace(/(?:译后|翻译后)?(?:的)?(?:标题|摘要|正文)[:：]/gu, '\n')
+    .replace(/<\/?(?:translated_)?(?:title|summary|content)>/giu, '\n')
+    .replace(/\s*\n\s*/g, '\n')
+    .replace(/[ \t]+/g, ' ')
+    .trim();
+}
+
+function isMetadataOrBylineLine(input: string): boolean {
+  const line = normalizeDisplayPlainText(input);
+  if (!line) {
+    return true;
+  }
+
+  return /^(?:作者|关于作者|来源|参考来源|更多信息|更新日期|最后更新|责任编辑|Article Body|Last Updated|More Information|About the authors?|By\s*[:：])/iu.test(line)
+    || (/(?:医学博士|博士|作者|FAAP|MD|M\.D\.|PhD|OTR|CEIM|IBCLC)/iu.test(line) && /^.{0,8}(?:作者|By|关于)/iu.test(line));
+}
+
+function normalizeChineseTitleCandidate(input?: string | null): string {
+  const text = normalizeDisplayPlainText(input)
+    .replace(/^(?:译后|翻译后)?(?:的)?(?:标题|摘要|正文)[:：]\s*/u, '')
+    .replace(/^[-*•·]\s*/u, '')
+    .trim();
+
+  if (!hasChineseText(text)) {
+    return '';
+  }
+
+  const sentence = text.match(/[^。！？!?；;\n]+[。！？!?；;]?/u)?.[0]?.trim() || text;
+  return sentence.length > 34 ? `${sentence.slice(0, 34).trim()}...` : sentence;
+}
+
+function deriveChineseTitleFromTranslatedContent(content?: string | null): string {
+  const text = cleanTranslatedContentForDisplay(content);
+  if (!text || !isMostlyChineseTranslationText(text)) {
+    return '';
+  }
+
+  const lines = text
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const titleLine = lines.find((line) => {
+    const normalized = normalizeDisplayPlainText(line);
+    return hasChineseText(normalized)
+      && normalized.length >= 4
+      && normalized.length <= 48
+      && !/[。！？!?；;]$/u.test(normalized)
+      && !isMetadataOrBylineLine(normalized);
+  });
+
+  return normalizeChineseTitleCandidate(titleLine || lines.find((line) => hasChineseText(line) && !isMetadataOrBylineLine(line)) || '');
+}
+
+function deriveChineseSummaryFromTranslatedContent(content?: string | null, title?: string): string {
+  const text = cleanTranslatedContentForDisplay(content);
+  if (!text || !isMostlyChineseTranslationText(text)) {
+    return '';
+  }
+
+  const titleText = normalizeDisplayPlainText(title);
+  const lines = text
+    .split(/\n+/)
+    .map((line) => normalizeDisplayPlainText(line))
+    .filter((line) => line && hasChineseText(line))
+    .filter((line) => !isMetadataOrBylineLine(line))
+    .filter((line) => !titleText || line !== titleText);
+  const source = lines.find((line) => /[。！？!?；;]/u.test(line) || line.length >= 24)
+    || lines[0]
+    || '';
+
+  return compactTranslationSummary(source, '', 96);
+}
+
+function shouldUseChineseContentFallback(candidate: string, translatedContent: string): boolean {
+  return Boolean(translatedContent && isLikelyForeignDisplayText(candidate));
+}
+
+export function resolveChineseTranslationDisplayFields(
+  input: ChineseTranslationDisplayFieldInput,
+): ChineseTranslationDisplayFields {
+  const displayContentText = sanitizeTranslationText(input.translatedContent, 'content');
+  const chineseContent = isMostlyChineseTranslationText(displayContentText) ? displayContentText : '';
+  const derivedTitle = deriveChineseTitleFromTranslatedContent(chineseContent);
+  const derivedSummary = deriveChineseSummaryFromTranslatedContent(chineseContent, derivedTitle);
+  const translatedTitle = sanitizeTranslationText(input.translatedTitle, 'title');
+  const translatedSummary = compactTranslationSummary(input.translatedSummary, '');
+  const safeTranslatedTitle = shouldUseChineseContentFallback(translatedTitle, chineseContent) ? '' : translatedTitle;
+  const safeTranslatedSummary = shouldUseChineseContentFallback(translatedSummary, chineseContent) ? '' : translatedSummary;
+
+  return {
+    displayTitle: safeTranslatedTitle || derivedTitle || sanitizeTranslationText(input.sourceTitle, 'title'),
+    displaySummary: safeTranslatedSummary || derivedSummary || compactTranslationSummary(input.sourceSummary, ''),
+    displayContentText,
+  };
+}
+
 export function extractJsonObject(input: string): Record<string, unknown> | null {
   const normalized = stripCodeFence(input);
   const candidates = [

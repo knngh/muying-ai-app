@@ -43,10 +43,6 @@
           <text class="picker-arrow">▼</text>
         </view>
       </picker>
-
-      <view class="result-pill">
-        <text class="result-pill-text">{{ resultPillText }}</text>
-      </view>
     </view>
 
     <view v-if="activeFilterText" class="active-filter-card">
@@ -298,7 +294,6 @@ const stageOptions = [
 
 const articles = computed(() => knowledgeStore.articles)
 const displayedArticleGroups = computed(() => groupKnowledgeArticles(articles.value))
-const mergedArticleCount = computed(() => displayedArticleGroups.value.reduce((count, group) => count + group.mergedCount, 0))
 const loading = computed(() => knowledgeStore.loading)
 const total = computed(() => knowledgeStore.total)
 const selectedSource = computed(() => knowledgeStore.selectedSource)
@@ -315,11 +310,6 @@ const activeFilterText = computed(() => {
 
   return parts.join(' · ')
 })
-const resultPillText = computed(() => (
-  mergedArticleCount.value > 0
-    ? `当前展示 ${displayedArticleGroups.value.length} 篇 · 已合并 ${mergedArticleCount.value} 篇重复来源`
-    : `当前展示 ${displayedArticleGroups.value.length || total.value} 篇 · 中国公开源优先`
-))
 
 watch(displayedArticleGroups, (groups) => {
   const validSlugs = new Set(groups.map(group => group.article.slug))
@@ -703,16 +693,9 @@ onShareTimeline(() => {
 }
 
 .filter-picker-text,
-.picker-arrow,
-.result-pill-text {
+.picker-arrow {
   font-size: 24rpx;
   color: #4c5a69;
-}
-
-.result-pill {
-  padding: 14rpx 20rpx;
-  border-radius: 26rpx;
-  background: rgba(31, 143, 116, 0.12);
 }
 
 .article-list {

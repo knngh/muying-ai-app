@@ -12,10 +12,12 @@ import {
   buildKnowledgeReadingPath,
   buildKnowledgeVariantPreview,
   formatKnowledgeDisplayDate,
+  getKnowledgeDisplaySummary,
   getKnowledgeDisplayTitle,
   getKnowledgeSourceSignal,
   isChineseKnowledgeArticle,
   normalizeAuthoritySourceUrl,
+  resolveKnowledgeSourceUrl,
   resolveKnowledgeDisplayContent,
   resolveKnowledgeOriginalContent,
   sanitizeAuthoritySourceUrl,
@@ -60,6 +62,34 @@ describe('shared knowledge text helpers', () => {
   test('normalizes detail source urls without hiding traceable original addresses', () => {
     expect(normalizeAuthoritySourceUrl(' https://www.who.int/news-room ')).toBe('https://www.who.int/news-room');
     expect(normalizeAuthoritySourceUrl('javascript:alert(1)')).toBe('');
+  });
+
+  test('normalizes source urls when the runtime lacks the URL constructor', () => {
+    const globalWithUrl = globalThis as unknown as { URL?: typeof URL };
+    const originalUrl = globalWithUrl.URL;
+
+    try {
+      globalWithUrl.URL = undefined;
+
+      expect(normalizeAuthoritySourceUrl(' https://www.healthychildren.org/English/ages-stages/toddler/Pages/Hand-and-Finger-Skills-1-Year-Olds.aspx '))
+        .toBe('https://www.healthychildren.org/English/ages-stages/toddler/Pages/Hand-and-Finger-Skills-1-Year-Olds.aspx');
+      expect(toReadableUrl('https://www.cdc.gov/parents/infants/index.html')).toBe('www.cdc.gov/parents/infants/index.html');
+      expect(sanitizeAuthoritySourceUrl('https://www.who.int/news-room', 'WHO')).toBe('');
+    } finally {
+      globalWithUrl.URL = originalUrl;
+    }
+  });
+
+  test('resolves source urls from detail response fallback fields', () => {
+    expect(resolveKnowledgeSourceUrl({
+      source: 'AAP',
+      references: [{ url: 'https://www.healthychildren.org/example' }],
+    })).toBe('https://www.healthychildren.org/example');
+
+    expect(resolveKnowledgeSourceUrl({
+      source_url: 'https://www.chinacdc.cn/jkkp/mygh/article.html',
+      source: '中国疾控中心',
+    })).toBe('https://www.chinacdc.cn/jkkp/mygh/article.html');
   });
 
   test('builds a staged reading path from article summary, source and content', () => {
@@ -327,6 +357,94 @@ describe('shared knowledge text helpers', () => {
     expect(display.summary).toBe('中文摘要');
     expect(display.content).toBe('中文正文');
     expect(display.hasChineseTranslation).toBe(true);
+  });
+
+  test('uses Chinese translated body when translated title and summary are still English', () => {
+    const article = {
+      title: 'Skin-to-Skin Contact: How Kangaroo Care Benefits Your Baby',
+      summary: 'The American Academy of Pediatrics discusses the benefits of skin-to-skin care.',
+      content: 'English source body',
+      displayTitle: 'Skin-to-Skin Contact: How Kangaroo Care Benefits Your Baby',
+      displaySummary: 'The American Academy of Pediatrics discusses the benefits of skin-to-skin care.',
+      displayContent: [
+        '肌肤接触：袋鼠式护理如何惠及您的宝宝',
+        '美国儿科学会（AAP）探讨了肌肤接触对早产儿的积极益处。',
+        '一旦您能够抱起新生儿，尤其是早产宝宝，可以尝试袋鼠式护理。',
+      ].join('\n'),
+      sourceLanguage: 'en' as const,
+    };
+
+    expect(getKnowledgeDisplayTitle(article)).toBe('肌肤接触：袋鼠式护理如何惠及您的宝宝');
+    expect(getKnowledgeDisplaySummary(article)).toBe('美国儿科学会（AAP）探讨了肌肤接触对早产儿的积极益处。');
+
+    const display = resolveKnowledgeDisplayContent(article);
+    expect(display.title).toBe('肌肤接触：袋鼠式护理如何惠及您的宝宝');
+    expect(display.summary).toBe('美国儿科学会（AAP）探讨了肌肤接触对早产儿的积极益处。');
+    expect(display.content).toContain('袋鼠式护理');
+  });
+
+  test('skips translated author bylines when deriving a Chinese display title', () => {
+    const article = {
+      title: 'Breast Milk Storage Tips',
+      summary: 'English summary.',
+      displayTitle: 'Breast Milk Storage Tips',
+      displaySummary: 'English summary.',
+      displayContent: [
+        '作者：Dina DiMaggio，医学博士，FAAP',
+        '母乳冷冻与冷藏小贴士',
+        '美国儿科学会（AAP）提供了关于如何安全储存和准备母乳的指南。',
+      ].join('\n'),
+      sourceLanguage: 'en' as const,
+    };
+
+    expect(getKnowledgeDisplayTitle(article)).toBe('母乳冷冻与冷藏小贴士');
+    expect(getKnowledgeDisplaySummary(article)).toBe('美国儿科学会（AAP）提供了关于如何安全储存和准备母乳的指南。');
+  });
+
+  test('derives a Chinese display title from a Chinese paragraph when no title line exists', () => {
+    const article = {
+      title: 'How Can I Find Support Caring for My Baby at Home After Leaving the NICU?',
+      summary: 'English summary',
+      content: 'English source body',
+      translation: {
+        translatedTitle: 'How Can I Find Support Caring for My Baby at Home After Leaving the NICU?',
+        translatedSummary: 'English summary',
+        translatedContent: '准备将早产儿从医院带回家时，您可能会感受到兴奋和欣慰的情绪，但同时也可能会担心如何照顾宝宝。在宝宝出院之前，找到一个能够提供家庭支持的团队非常重要。',
+      },
+      sourceLanguage: 'en' as const,
+    };
+
+    const title = getKnowledgeDisplayTitle(article);
+    expect(title).toContain('准备将早产儿从医院带回家时');
+    expect(title).toContain('...');
+    expect(title).not.toContain('NICU');
+    expect(getKnowledgeDisplaySummary(article)).toContain('准备将早产儿从医院带回家时');
+
+    const display = resolveKnowledgeDisplayContent(article);
+    expect(display.title).toBe(title);
+    expect(display.summary).toContain('准备将早产儿从医院带回家时');
+  });
+
+  test('uses Chinese article body when title and summary are English but content is already translated', () => {
+    const article = {
+      title: '5 Ways to Reduce Arsenic in Your Child’s Diet',
+      summary: 'The American Academy of Pediatrics describes how to reduce your baby’s arsenic exposure.',
+      content: [
+        '减少孩子饮食中砷含量的5种方法',
+        '美国儿科学会（AAP）介绍了如何减少宝宝接触砷的风险。',
+        '无机砷具有毒性，孕期、婴儿期和儿童早期尤其需要尽量减少暴露。',
+      ].join('\n'),
+      hasChineseTranslation: true,
+      sourceLanguage: 'en' as const,
+    };
+
+    expect(getKnowledgeDisplayTitle(article)).toBe('减少孩子饮食中砷含量的5种方法');
+    expect(getKnowledgeDisplaySummary(article)).toBe('美国儿科学会（AAP）介绍了如何减少宝宝接触砷的风险。');
+
+    const display = resolveKnowledgeDisplayContent(article);
+    expect(display.title).toBe('减少孩子饮食中砷含量的5种方法');
+    expect(display.summary).toBe('美国儿科学会（AAP）介绍了如何减少宝宝接触砷的风险。');
+    expect(display.content).toContain('无机砷具有毒性');
   });
 
   test('keeps original content when translation is invalid', () => {

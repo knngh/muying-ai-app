@@ -3,6 +3,7 @@ import {
   formatSourceLabel,
   getLocalizedFallbackTitle,
   isGenericForeignTitle,
+  isMostlyChineseText,
   normalizePlainText,
   stripHtmlTags,
 } from './knowledge-text';
@@ -47,6 +48,8 @@ export type KnowledgeArticleLike = {
   source?: string;
   region?: string;
   sourceUrl?: string;
+  source_url?: string;
+  url?: string;
   sourceUpdatedAt?: string;
   publishedAt?: string;
   createdAt?: string;
@@ -57,6 +60,23 @@ export type KnowledgeArticleLike = {
   stage?: string;
   category?: KnowledgeCategoryLike;
   tags?: KnowledgeTagLike[];
+  originalId?: string;
+  original_id?: string;
+  references?: KnowledgeSourceReferenceLike[];
+};
+
+export type KnowledgeSourceReferenceLike = {
+  sourceUrl?: unknown;
+  source_url?: unknown;
+  url?: unknown;
+  link?: unknown;
+};
+
+type ParsedSourceUrl = {
+  normalizedUrl: string;
+  hostname: string;
+  pathname: string;
+  readablePath: string;
 };
 
 export type KnowledgeReadingPathItem = {
@@ -205,14 +225,143 @@ export function normalizeKnowledgeArticleTranslation(
   return normalized;
 }
 
+function hasChineseText(input?: string): boolean {
+  return /[\u3400-\u4dbf\u4e00-\u9fff]/u.test(input || '');
+}
+
+function isLikelyForeignDisplayText(input?: string): boolean {
+  const text = normalizePlainText(input);
+  if (!text || hasChineseText(text)) {
+    return false;
+  }
+
+  return (text.match(/[A-Za-z]/g) || []).length >= 4;
+}
+
+function cleanTranslatedContentText(input?: string): string {
+  return stripHtmlTags(input || '')
+    .replace(/(?:译后|翻译后)?(?:的)?(?:标题|摘要|正文)[:：]/gu, '\n')
+    .replace(/<\/?(?:title|summary|content)>/giu, '\n')
+    .replace(/\s*\n\s*/g, '\n')
+    .replace(/[ \t]+/g, ' ')
+    .trim();
+}
+
+function getChineseTranslatedContent(article?: KnowledgeArticleLike | null): string {
+  const displayContent = sanitizeTranslationText(article?.displayContent, 'content');
+  if (displayContent && isMostlyChineseText(displayContent)) {
+    return displayContent;
+  }
+
+  const translation = normalizeKnowledgeArticleTranslation(article?.translation);
+  const translatedContent = translation?.translatedContent || '';
+  if (translatedContent && isMostlyChineseText(translatedContent)) {
+    return translatedContent;
+  }
+
+  const articleContent = sanitizeTranslationText(article?.content, 'content');
+  if (
+    articleContent
+    && isMostlyChineseText(articleContent)
+    && (
+      article?.hasChineseTranslation
+      || isLikelyForeignDisplayText(article?.title)
+      || isLikelyForeignDisplayText(article?.summary)
+    )
+  ) {
+    return articleContent;
+  }
+
+  return '';
+}
+
+function normalizeChineseTitleCandidate(input?: string): string {
+  const text = normalizePlainText(input)
+    .replace(/^(?:译后|翻译后)?(?:的)?(?:标题|摘要|正文)[:：]\s*/u, '')
+    .replace(/^[-*•·]\s*/u, '')
+    .trim();
+
+  if (!hasChineseText(text)) {
+    return '';
+  }
+
+  const sentence = text.match(/[^。！？!?；;\n]+[。！？!?；;]?/u)?.[0]?.trim() || text;
+  return sentence.length > 34 ? `${sentence.slice(0, 34).trim()}...` : sentence;
+}
+
+function isMetadataOrBylineLine(input: string): boolean {
+  const line = normalizePlainText(input);
+  if (!line) {
+    return true;
+  }
+
+  return /^(?:作者|关于作者|来源|参考来源|更多信息|更新日期|最后更新|责任编辑|Article Body|Last Updated|More Information|About the authors?|By\s*[:：])/iu.test(line)
+    || (/(?:医学博士|博士|作者|FAAP|MD|M\.D\.|PhD|OTR|CEIM|IBCLC)/iu.test(line) && /^.{0,8}(?:作者|By|关于)/iu.test(line));
+}
+
+function getTranslatedContentLines(content?: string): string[] {
+  return cleanTranslatedContentText(content)
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function deriveChineseTitleFromTranslatedContent(content?: string): string {
+  const lines = getTranslatedContentLines(content);
+  if (lines.length === 0) {
+    return '';
+  }
+
+  const titleLine = lines.find((line) => {
+    const normalized = normalizePlainText(line);
+    return hasChineseText(normalized)
+      && normalized.length >= 4
+      && normalized.length <= 48
+      && !/[。！？!?；;]$/u.test(normalized)
+      && !isMetadataOrBylineLine(normalized);
+  });
+
+  return normalizeChineseTitleCandidate(titleLine || lines.find((line) => hasChineseText(line) && !isMetadataOrBylineLine(line)) || '');
+}
+
+function deriveChineseSummaryFromTranslatedContent(content?: string, title?: string): string {
+  const lines = getTranslatedContentLines(content);
+  if (lines.length === 0) {
+    return '';
+  }
+
+  const titleText = normalizePlainText(title);
+  const candidates = lines
+    .map((line) => normalizePlainText(line))
+    .filter((line) => line && hasChineseText(line))
+    .filter((line) => !isMetadataOrBylineLine(line))
+    .filter((line) => !titleText || line !== titleText);
+  const source = candidates.find((line) => /[。！？!?；;]/u.test(line) || line.length >= 24)
+    || candidates[0]
+    || '';
+
+  return compactTranslationSummary(source, '', 96);
+}
+
+function shouldUseChineseContentFallback(candidate: string, translatedContent: string): boolean {
+  return Boolean(translatedContent && isLikelyForeignDisplayText(candidate));
+}
+
 export function resolveKnowledgeDisplayContent(article: KnowledgeArticleLike | null | undefined): KnowledgeDisplayContent {
   const translation = normalizeKnowledgeArticleTranslation(article?.translation);
+  const displayContent = sanitizeTranslationText(article?.displayContent, 'content');
+  const translatedContent = translation?.translatedContent || '';
+  const chineseTranslatedContent = getChineseTranslatedContent(article);
+  const derivedChineseTitle = deriveChineseTitleFromTranslatedContent(chineseTranslatedContent);
   const displayTitle = sanitizeTranslationText(article?.displayTitle, 'title');
   const displaySummary = sanitizeTranslationText(article?.displaySummary, 'summary');
-  const displayContent = sanitizeTranslationText(article?.displayContent, 'content');
   const translatedTitle = translation?.translatedTitle || '';
   const translatedSummary = translation?.translatedSummary || '';
-  const translatedContent = translation?.translatedContent || '';
+  const safeDisplayTitle = shouldUseChineseContentFallback(displayTitle, chineseTranslatedContent) ? '' : displayTitle;
+  const safeTranslatedTitle = shouldUseChineseContentFallback(translatedTitle, chineseTranslatedContent) ? '' : translatedTitle;
+  const safeDisplaySummary = shouldUseChineseContentFallback(displaySummary, chineseTranslatedContent) ? '' : displaySummary;
+  const safeTranslatedSummary = shouldUseChineseContentFallback(translatedSummary, chineseTranslatedContent) ? '' : translatedSummary;
+  const derivedChineseSummary = deriveChineseSummaryFromTranslatedContent(chineseTranslatedContent, derivedChineseTitle);
   const hasChineseTranslation = Boolean(
     article?.hasChineseTranslation
       || displayTitle
@@ -223,11 +372,13 @@ export function resolveKnowledgeDisplayContent(article: KnowledgeArticleLike | n
       || translatedContent,
   );
 
-  const title = displayTitle
-    || translatedTitle
+  const title = safeDisplayTitle
+    || safeTranslatedTitle
+    || derivedChineseTitle
     || getKnowledgeDisplayTitle(article || {});
-  const summary = displaySummary
-    || translatedSummary
+  const summary = safeDisplaySummary
+    || safeTranslatedSummary
+    || derivedChineseSummary
     || getKnowledgeDisplaySummary(article || {}, '');
   const content = displayContent
     || translatedContent
@@ -260,14 +411,34 @@ export function resolveKnowledgeOriginalContent(article: KnowledgeArticleLike | 
 }
 
 export function getKnowledgeDisplayTitle(article: KnowledgeArticleLike): string {
+  const chineseTranslatedContent = getChineseTranslatedContent(article);
+  const derivedChineseTitle = deriveChineseTitleFromTranslatedContent(chineseTranslatedContent);
   const displayTitle = sanitizeTranslationText(article.displayTitle, 'title');
   if (displayTitle) {
+    if (shouldUseChineseContentFallback(displayTitle, chineseTranslatedContent)) {
+      return derivedChineseTitle || getLocalizedFallbackTitle({
+        topic: article.topic,
+        stage: article.stage,
+        categoryName: article.category?.name,
+      });
+    }
     return displayTitle;
   }
 
   const translation = normalizeKnowledgeArticleTranslation(article.translation);
   if (translation?.translatedTitle) {
+    if (shouldUseChineseContentFallback(translation.translatedTitle, chineseTranslatedContent)) {
+      return derivedChineseTitle || getLocalizedFallbackTitle({
+        topic: article.topic,
+        stage: article.stage,
+        categoryName: article.category?.name,
+      });
+    }
     return translation.translatedTitle;
+  }
+
+  if (derivedChineseTitle) {
+    return derivedChineseTitle;
   }
 
   const rawTitle = article.title || '';
@@ -294,14 +465,29 @@ export function getKnowledgeFallbackSummary(article: KnowledgeArticleLike): stri
 }
 
 export function getKnowledgeDisplaySummary(article: KnowledgeArticleLike, fallback?: string): string {
+  const chineseTranslatedContent = getChineseTranslatedContent(article);
+  const derivedChineseSummary = deriveChineseSummaryFromTranslatedContent(
+    chineseTranslatedContent,
+    deriveChineseTitleFromTranslatedContent(chineseTranslatedContent),
+  );
   const displaySummary = sanitizeTranslationText(article.displaySummary, 'summary');
   if (displaySummary) {
+    if (shouldUseChineseContentFallback(displaySummary, chineseTranslatedContent)) {
+      return derivedChineseSummary || fallback || '围绕当前阶段整理出的权威知识要点，可进入详情继续阅读来源与正文。';
+    }
     return compactTranslationSummary(displaySummary);
   }
 
   const translation = normalizeKnowledgeArticleTranslation(article.translation);
   if (translation?.translatedSummary) {
+    if (shouldUseChineseContentFallback(translation.translatedSummary, chineseTranslatedContent)) {
+      return derivedChineseSummary || fallback || '围绕当前阶段整理出的权威知识要点，可进入详情继续阅读来源与正文。';
+    }
     return compactTranslationSummary(translation.translatedSummary);
+  }
+
+  if (derivedChineseSummary) {
+    return derivedChineseSummary;
   }
 
   return compactTranslationSummary(article.summary, fallback) || fallback || '围绕当前阶段整理出的权威知识要点，可进入详情继续阅读来源与正文。';
@@ -729,26 +915,77 @@ export function getKnowledgeDisplayTags<T extends KnowledgeTagLike>(article?: Kn
     });
 }
 
+function parseSourceHttpUrl(url?: string): ParsedSourceUrl | null {
+  const trimmedUrl = (url || '').trim();
+  if (!trimmedUrl || /[\s<>"'`]/u.test(trimmedUrl)) {
+    return null;
+  }
+
+  const match = trimmedUrl.match(/^(https?):\/\/([^/?#]+)([^?#]*)(\?[^#]*)?(#.*)?$/iu);
+  const hostname = match?.[2]?.trim() || '';
+  if (!match || !hostname || hostname.includes('@')) {
+    return null;
+  }
+
+  const pathname = match[3] || '/';
+  const readablePath = [
+    pathname === '/' ? '' : pathname.replace(/\/+$/g, ''),
+    match[4] || '',
+    match[5] || '',
+  ].join('');
+
+  return {
+    normalizedUrl: trimmedUrl,
+    hostname: hostname.toLowerCase(),
+    pathname,
+    readablePath,
+  };
+}
+
 export function normalizeAuthoritySourceUrl(url?: string): string {
-  if (!url) {
-    return '';
+  return parseSourceHttpUrl(url)?.normalizedUrl || '';
+}
+
+function getKnowledgeReferenceUrlCandidates(references: unknown): unknown[] {
+  if (!Array.isArray(references)) {
+    return [];
   }
 
-  const trimmedUrl = url.trim();
-  if (!trimmedUrl) {
-    return '';
-  }
-
-  try {
-    const parsed = new URL(trimmedUrl);
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-      return '';
+  return references.flatMap((reference) => {
+    if (!reference || typeof reference !== 'object') {
+      return [];
     }
-  } catch {
+
+    const item = reference as KnowledgeSourceReferenceLike;
+    return [item.sourceUrl, item.source_url, item.url, item.link];
+  });
+}
+
+export function resolveKnowledgeSourceUrl(article?: KnowledgeArticleLike | null): string {
+  if (!article) {
     return '';
   }
 
-  return trimmedUrl;
+  const candidates: unknown[] = [
+    article.sourceUrl,
+    article.source_url,
+    article.url,
+    article.originalId,
+    article.original_id,
+    article.source,
+    ...getKnowledgeReferenceUrlCandidates(article.references),
+  ];
+
+  for (const candidate of candidates) {
+    const sourceUrl = typeof candidate === 'string'
+      ? normalizeAuthoritySourceUrl(candidate)
+      : '';
+    if (sourceUrl) {
+      return sourceUrl;
+    }
+  }
+
+  return '';
 }
 
 export function sanitizeAuthoritySourceUrl(url?: string, sourceText = ''): string {
@@ -757,12 +994,11 @@ export function sanitizeAuthoritySourceUrl(url?: string, sourceText = ''): strin
     return '';
   }
 
-  let pathname = '';
-  try {
-    pathname = new URL(normalizedUrl).pathname.toLowerCase().replace(/\/+$/g, '') || '/';
-  } catch {
+  const parsedUrl = parseSourceHttpUrl(normalizedUrl);
+  if (!parsedUrl) {
     return '';
   }
+  const pathname = parsedUrl.pathname.toLowerCase().replace(/\/+$/g, '') || '/';
 
   const normalizedSource = `${sourceText} ${normalizedUrl}`.toLowerCase();
   const exactLandingPaths = new Set([
@@ -826,11 +1062,10 @@ export function sanitizeAuthoritySourceUrl(url?: string, sourceText = ''): strin
 }
 
 export function toReadableUrl(url: string): string {
-  try {
-    const parsed = new URL(url);
-    const pathname = parsed.pathname === '/' ? '' : parsed.pathname.replace(/\/+$/g, '');
-    return `${parsed.hostname}${pathname}`.slice(0, 88);
-  } catch {
+  const parsedUrl = parseSourceHttpUrl(url);
+  if (!parsedUrl) {
     return url;
   }
+
+  return `${parsedUrl.hostname}${parsedUrl.readablePath}`.slice(0, 88);
 }

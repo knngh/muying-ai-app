@@ -25,6 +25,7 @@ export {
   isChineseKnowledgeArticle,
   normalizeKnowledgeLabel,
   normalizeAuthoritySourceUrl,
+  resolveKnowledgeSourceUrl,
   resolveKnowledgeDisplayContent,
   resolveKnowledgeOriginalContent,
   sanitizeAuthoritySourceUrl,

@@ -25,6 +25,7 @@
         <text class="article-title">{{ displayedTitle }}</text>
 
         <view class="meta-row">
+          <text class="meta-item">当前显示 {{ currentBodyLanguageLabel }}</text>
           <text v-if="article.audience" class="meta-item">{{ article.audience }}</text>
           <text v-if="article.region" class="meta-item">{{ article.region }}</text>
           <text class="meta-item">来源更新 {{ formatDate(article.sourceUpdatedAt || article.publishedAt || article.createdAt) }}</text>
@@ -57,11 +58,6 @@
         </view>
       </view>
 
-      <view v-if="displayedSummaryText" class="summary-box">
-        <text class="summary-label">{{ showingTranslation ? '中文摘要' : originalSummaryLabel }}</text>
-        <text class="summary-text">{{ displayedSummaryText }}</text>
-      </view>
-
       <view v-if="displayedSourceUrl" class="source-box">
         <text class="source-label">原始来源</text>
         <text class="source-url">{{ displayedSourceUrl }}</text>
@@ -72,6 +68,11 @@
       <view v-else class="source-box source-box--muted">
         <text class="source-label">原始来源</text>
         <text class="source-url">当前未提供可复制的机构来源链接，请优先参考本页摘要、同步时间和机构标签。</text>
+      </view>
+
+      <view v-if="displayedSummaryText" class="summary-box">
+        <text class="summary-label">{{ showingTranslation ? '中文摘要' : originalSummaryLabel }}</text>
+        <text class="summary-text">{{ displayedSummaryText }}</text>
       </view>
 
       <view v-if="contentOutline.length" class="outline-box">
@@ -110,17 +111,21 @@
 
       <view class="article-content">
         <text v-if="translationError" class="translation-error">{{ translationError }}</text>
-        <view v-if="isBodyFallback" class="body-fallback-notice">
-          <text class="body-fallback-notice-text">当前正文暂未同步，以下为摘要内容。</text>
+        <view class="body-language-banner" :class="{ 'body-language-banner--translated': showingTranslation }">
+          <text class="body-language-label">{{ currentBodyLanguageLabel }}</text>
+          <text class="body-language-text">{{ currentBodyLanguageDescription }}</text>
         </view>
-        <rich-text :nodes="displayedContent" class="content-text" />
-        <view v-if="displayedSourceUrl" class="content-source-reference">
-          <text class="content-source-label">文章来源链接</text>
+        <view v-if="displayedSourceUrl" class="content-source-reference content-source-reference--top">
+          <text class="content-source-label">原文链接</text>
           <text class="content-source-url">{{ displayedSourceUrl }}</text>
           <view class="content-source-btn" @tap="copySourceLink(displayedSourceUrl)">
             <text class="content-source-btn-text">复制链接</text>
           </view>
         </view>
+        <view v-if="isBodyFallback" class="body-fallback-notice">
+          <text class="body-fallback-notice-text">当前正文暂未同步，以下为摘要内容。</text>
+        </view>
+        <rich-text :nodes="displayedContent" class="content-text" />
       </view>
 
       <view v-if="article.disclaimer" class="disclaimer-box">
@@ -187,6 +192,7 @@ import {
   isMostlyChineseText,
   normalizePlainText,
   normalizeAuthoritySourceUrl,
+  resolveKnowledgeSourceUrl,
   resolveKnowledgeDisplayContent,
   resolveKnowledgeOriginalContent,
   sanitizeTranslationText,
@@ -211,6 +217,36 @@ interface RecentKnowledgeItem {
   updatedAtLabel: string
 }
 
+type RuntimeArticle = Article & {
+  source_url?: string
+  url?: string
+  original_id?: string
+  source_language?: string
+  source_locale?: string
+  references?: Array<{
+    sourceUrl?: string
+    source_url?: string
+    url?: string
+    link?: string
+  }>
+}
+
+function toRuntimeArticle(articleItem?: Article | null): RuntimeArticle | null {
+  return articleItem ? articleItem as RuntimeArticle : null
+}
+
+function getArticleSourceUrl(articleItem?: Article | null): string {
+  return resolveKnowledgeSourceUrl(toRuntimeArticle(articleItem))
+}
+
+function getArticleSourceLanguageMeta(articleItem?: Article | null) {
+  const runtimeArticle = toRuntimeArticle(articleItem)
+  return {
+    language: runtimeArticle?.sourceLanguage || runtimeArticle?.source_language || '',
+    locale: runtimeArticle?.sourceLocale || runtimeArticle?.source_locale || '',
+  }
+}
+
 const article = computed(() => knowledgeStore.currentArticle)
 const loading = computed(() => knowledgeStore.loading)
 const error = computed(() => knowledgeStore.error)
@@ -225,11 +261,17 @@ const relatedArticles = ref<Article[]>([])
 const readingProgress = ref(0)
 const showBackToTop = ref(false)
 const contentHeightPx = ref(1)
-const viewportHeightPx = ref(uni.getSystemInfoSync().windowHeight || 1)
 let translationRetryTimer: ReturnType<typeof setTimeout> | null = null
 let translationRetryCount = 0
 const MAX_TRANSLATION_RETRY_COUNT = 12
 let detailOpenTrackedKey = ''
+
+function getViewportHeight(): number {
+  const windowInfo = uni.getWindowInfo()
+  return windowInfo.windowHeight || 1
+}
+
+const viewportHeightPx = ref(getViewportHeight())
 
 const translatedTitleText = computed(() => sanitizeTranslationText(translation.value?.translatedTitle, 'title'))
 const translatedSummaryText = computed(() => sanitizeTranslationText(translation.value?.translatedSummary, 'summary'))
@@ -270,7 +312,30 @@ const displayedSummary = computed(() => {
 
 const displayedSummaryText = computed(() => normalizePlainText(displayedSummary.value))
 
-const displayedSourceUrl = computed(() => normalizeAuthoritySourceUrl(article.value?.sourceUrl))
+const displayedSourceUrl = computed(() => normalizeAuthoritySourceUrl(getArticleSourceUrl(article.value)))
+
+function escapeRichText(input: string): string {
+  return input
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+const sourceUrlRichText = computed(() => {
+  if (!displayedSourceUrl.value) {
+    return ''
+  }
+
+  const url = escapeRichText(displayedSourceUrl.value)
+  return [
+    '<p style="margin:0 0 1.1em;padding:0 0 1em;border-bottom:1px solid rgba(82,96,114,0.16);line-height:1.8;text-align:left;word-break:break-all;overflow-wrap:anywhere;">',
+    '<strong style="display:block;margin:0 0 0.35em;color:#526072;font-weight:700;">原文链接：</strong>',
+    `<span style="color:#1f6f8f;">${url}</span>`,
+    '</p>',
+  ].join('')
+})
 
 const displayedBodySource = computed(() => {
   if (showingTranslation.value) {
@@ -286,10 +351,11 @@ const isBodyFallback = computed(() => {
 
 const displayedContent = computed(() => {
   const body = displayedBodySource.value
+  const sourcePrefix = sourceUrlRichText.value
   if (!body.trim() && displayedSummary.value) {
-    return addArticleHeadingAnchors(formatRichArticleContent(displayedSummary.value))
+    return addArticleHeadingAnchors(`${sourcePrefix}${formatRichArticleContent(displayedSummary.value)}`)
   }
-  return addArticleHeadingAnchors(formatRichArticleContent(body))
+  return addArticleHeadingAnchors(`${sourcePrefix}${formatRichArticleContent(body)}`)
 })
 
 const contentOutline = computed(() => {
@@ -322,10 +388,12 @@ const showTranslationEntry = computed(() => !isLikelyChineseSource.value)
 const translationDisabled = computed(() => Boolean(isLikelyChineseSource.value && !showingTranslation.value))
 
 const originalLanguageLabel = computed(() => {
-  const language = article.value?.sourceLanguage
-  const locale = (article.value?.sourceLocale || '').toLowerCase()
-  if (language === 'zh' || locale.startsWith('zh') || isLikelyChineseSource.value) return '中文'
-  if (language === 'en' || locale.startsWith('en')) return '英文'
+  const { language, locale } = getArticleSourceLanguageMeta(article.value)
+  const normalizedLanguage = language.toLowerCase()
+  const normalizedLocale = locale.toLowerCase()
+  if (normalizedLanguage === 'zh' || normalizedLocale.startsWith('zh') || isLikelyChineseSource.value) return '中文'
+  if (normalizedLanguage === 'en' || normalizedLocale.startsWith('en')) return '英文'
+  if (/[A-Za-z]{3,}/.test(sourceLanguageSample.value) && !isMostlyChineseText(sourceLanguageSample.value)) return '英文'
   return ''
 })
 
@@ -341,6 +409,26 @@ const translationButtonText = computed(() => {
   if (translating.value) return '准备中...'
   if (translation.value?.isSourceChinese) return '原文已是中文'
   return showingTranslation.value ? originalViewButtonText.value : '查看中文'
+})
+
+const currentBodyLanguageLabel = computed(() => {
+  if (showingTranslation.value) {
+    return '中文辅助阅读'
+  }
+
+  return originalLanguageLabel.value ? `${originalLanguageLabel.value}原文` : '机构原文'
+})
+
+const currentBodyLanguageDescription = computed(() => {
+  if (showingTranslation.value) {
+    return displayedSourceUrl.value
+      ? '当前正文为系统生成的中文辅助阅读版，原文链接保留在正文上方用于核对。'
+      : '当前正文为系统生成的中文辅助阅读版，可切换回机构原文核对。'
+  }
+
+  return originalLanguageLabel.value
+    ? `当前正文为${originalLanguageLabel.value}机构原文。`
+    : '当前正文为机构原文。'
 })
 
 const translationDescriptionText = computed(() => {
@@ -449,7 +537,7 @@ const translationReadyText = computed(() => {
 
 onLoad((options) => {
   recordAcquisitionContext(options)
-  viewportHeightPx.value = uni.getSystemInfoSync().windowHeight || 1
+  viewportHeightPx.value = getViewportHeight()
   readingProgress.value = 0
   showBackToTop.value = false
   if (typeof options?.slug === 'string') {
@@ -1188,6 +1276,7 @@ watch(
 }
 
 .source-url {
+  display: block;
   font-size: 28rpx;
   line-height: 1.7;
   color: #3a4653;
@@ -1204,6 +1293,8 @@ watch(
 .source-btn {
   display: inline-flex;
   margin-top: 20rpx;
+  align-items: center;
+  justify-content: center;
   padding: 16rpx 28rpx;
   border-radius: 999rpx;
   background: #1f8f74;
@@ -1263,6 +1354,38 @@ watch(
   color: #2c3f4d;
 }
 
+.body-language-banner {
+  margin-bottom: 24rpx;
+  padding: 20rpx 22rpx;
+  border-radius: 22rpx;
+  background: rgba(31, 143, 116, 0.08);
+  border: 1rpx solid rgba(31, 143, 116, 0.14);
+}
+
+.body-language-banner--translated {
+  background: rgba(243, 111, 69, 0.08);
+  border-color: rgba(243, 111, 69, 0.16);
+}
+
+.body-language-label {
+  display: block;
+  font-size: 24rpx;
+  font-weight: 800;
+  color: #275b50;
+}
+
+.body-language-banner--translated .body-language-label {
+  color: #b75a36;
+}
+
+.body-language-text {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 24rpx;
+  line-height: 1.65;
+  color: #526072;
+}
+
 .content-text {
   font-size: 30rpx;
   line-height: 1.85;
@@ -1275,6 +1398,15 @@ watch(
   margin-top: 28rpx;
   padding-top: 24rpx;
   border-top: 1rpx solid rgba(82, 96, 114, 0.16);
+}
+
+.content-source-reference--top {
+  margin-top: 0;
+  margin-bottom: 26rpx;
+  padding-top: 0;
+  padding-bottom: 22rpx;
+  border-top: 0;
+  border-bottom: 1rpx solid rgba(82, 96, 114, 0.16);
 }
 
 .content-source-label {
@@ -1296,6 +1428,8 @@ watch(
 .content-source-btn {
   display: inline-flex;
   margin-top: 16rpx;
+  align-items: center;
+  justify-content: center;
   padding: 12rpx 22rpx;
   border-radius: 999rpx;
   background: rgba(31, 143, 116, 0.12);

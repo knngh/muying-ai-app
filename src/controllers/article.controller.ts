@@ -34,11 +34,13 @@ import { getAuthorityKnowledgeDropReason, isOutOfScopeKnowledgeQuery } from '../
 import { matchesExpandedSearch } from '../utils/search-query-expansion';
 import { rewriteSearchQueries } from '../services/knowledge.service';
 import { recordServerRetentionBehaviorEvent } from '../services/analytics.service';
+import { resolveArticleSourceUrl } from '../utils/article-source-url';
 import {
   extractJsonObject,
   compactTranslationSummary,
   hasTranslationPromptLeak,
   normalizeWhitespace,
+  resolveChineseTranslationDisplayFields,
   sanitizeTranslationText,
   stripCodeFence,
 } from '../utils/article-translation';
@@ -812,17 +814,22 @@ function withAuthorityDisplayTranslation(
     return article;
   }
 
-  const displayTitle = sanitizeTranslationText(translation.translatedTitle, 'title');
-  const displaySummary = compactTranslationSummary(translation.translatedSummary, article.summary);
+  const displayFields = resolveChineseTranslationDisplayFields({
+    sourceTitle: article.title,
+    sourceSummary: article.summary,
+    translatedTitle: translation.translatedTitle,
+    translatedSummary: translation.translatedSummary,
+    translatedContent: translation.translatedContent,
+  });
   const displayContentText = options.includeContent
-    ? sanitizeTranslationText(translation.translatedContent, 'content')
+    ? displayFields.displayContentText
     : '';
   const displayContent = displayContentText ? textToRichParagraphHtml(displayContentText) : '';
 
   return {
     ...article,
-    displayTitle: displayTitle || article.title,
-    displaySummary: displaySummary || article.summary,
+    displayTitle: displayFields.displayTitle || article.title,
+    displaySummary: displayFields.displaySummary || article.summary,
     ...(options.includeContent ? { displayContent: displayContent || article.content } : {}),
     ...(options.includeTranslation ? { translation } : {}),
     hasChineseTranslation: true,
@@ -2195,6 +2202,8 @@ export const getArticles = async (req: Request, res: Response, next: NextFunctio
           difficulty: true,
           targetStage: true,
           readingTime: true,
+          source: true,
+          references: true,
           viewCount: true,
           likeCount: true,
           isRecommended: true,
@@ -2217,10 +2226,16 @@ export const getArticles = async (req: Request, res: Response, next: NextFunctio
     ]);
 
     // 格式化返回数据
-    const list = articles.map(article => ({
-      ...article,
-      tags: article.tags.map(t => t.tag)
-    }));
+    const list = articles.map((article) => {
+      const sourceUrl = resolveArticleSourceUrl(article) || undefined;
+      const { references: _references, ...articlePayload } = article;
+      return {
+        ...articlePayload,
+        tags: article.tags.map(t => t.tag),
+        sourceUrl,
+        originalId: sourceUrl,
+      };
+    });
 
     const response = paginatedResponse(list, Number(page), Number(pageSize), total);
 
@@ -2337,9 +2352,12 @@ export const getArticleBySlug = async (req: Request, res: Response, next: NextFu
       isFavorited = !!favorite;
     }
 
+    const sourceUrl = resolveArticleSourceUrl(article) || undefined;
     res.json(successResponse({
       ...article,
       tags: article.tags.map((tagRelation: ArticleTagRelation) => tagRelation.tag),
+      sourceUrl,
+      originalId: sourceUrl,
       isLiked,
       isFavorited
     }));

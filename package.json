@@ -49,6 +49,7 @@
     "clean:authority-cache": "node --import tsx src/scripts/clean-authority-cache.ts",
     "clean:authority-translation-cache": "node --import tsx src/scripts/clean-authority-translation-cache.ts",
     "repair:authority-translation-cache": "node --import tsx src/scripts/repair-authority-translation-cache.ts",
+    "repair:authority-source-links": "node --import tsx src/scripts/repair-authority-source-links.ts",
     "retry:authority-translation-failures": "node --import tsx src/scripts/retry-authority-translation-failures.ts",
     "clean:knowledge-base": "node --import tsx src/scripts/clean-knowledge-base.ts",
     "plan:knowledge-growth": "tsx src/scripts/generate-knowledge-growth-seeds.ts",

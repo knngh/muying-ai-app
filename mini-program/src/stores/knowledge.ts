@@ -348,15 +348,6 @@ export const useKnowledgeStore = defineStore('knowledge', {
     },
 
     async fetchArticleDetail(slug: string): Promise<Article | null> {
-      if (this.currentArticle?.slug === slug && (this.currentArticle.content || this.currentArticle.summary)) {
-        if (isBlockedKnowledgeArticle(this.currentArticle)) {
-          this.currentArticle = null
-          this.error = '内容已更新或下线'
-          return null
-        }
-        return this.currentArticle
-      }
-
       this.loading = true
       this.error = null
       if (this.currentArticle?.slug !== slug) {
