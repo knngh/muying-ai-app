@@ -333,6 +333,7 @@ model UserPregnancyDiary {
   userId    BigInt
   week      Int
   content   String   @db.Text
+  imageUrls Json?    @map("image_urls")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

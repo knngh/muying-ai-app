@@ -8,6 +8,7 @@ import {
   getPregnancyDiaries,
   savePregnancyDiary,
   deletePregnancyDiary,
+  uploadPregnancyDiaryImage,
   getCustomTodos,
   getTimelineContext,
   getStandardSchedule,
@@ -25,6 +26,7 @@ import {
   getEventTypes
 } from '../controllers/calendar.controller';
 import { authMiddleware } from '../middlewares/auth.middleware';
+import { uploadImage } from '../middlewares/upload.middleware';
 import { validate } from '../middlewares/validate.middleware';
 import { queryRateLimiter, writeRateLimiter } from '../middlewares/rateLimiter.middleware';
 import {
@@ -58,6 +60,7 @@ router.put('/todo-progress', writeRateLimiter, validate({ body: updateTodoProgre
 // 孕周记录
 router.get('/diaries', queryRateLimiter, validate({ query: weekQuery }), getPregnancyDiaries);
 router.put('/diaries', writeRateLimiter, validate({ body: saveDiaryBody }), savePregnancyDiary);
+router.post('/diaries/images', writeRateLimiter, uploadImage, uploadPregnancyDiaryImage);
 router.delete('/diaries', writeRateLimiter, validate({ query: weekQuery }), deletePregnancyDiary);
 router.delete('/diaries/:week', writeRateLimiter, validate({ params: diaryWeekParam }), deletePregnancyDiary);
 

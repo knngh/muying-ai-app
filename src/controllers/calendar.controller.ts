@@ -151,13 +151,17 @@ const parseTodoKey = (value: unknown): string => {
   return todoKey;
 };
 
-const parseDiaryContent = (value: unknown): string => {
+const parseDiaryContent = (value: unknown, hasImages = false): string => {
+  if ((value === undefined || value === null) && hasImages) {
+    return '';
+  }
+
   if (typeof value !== 'string') {
     throw new AppError('记录内容不能为空', ErrorCodes.PARAM_ERROR, 400);
   }
 
   const content = value.trim();
-  if (!content) {
+  if (!content && !hasImages) {
     throw new AppError('记录内容不能为空', ErrorCodes.PARAM_ERROR, 400);
   }
 
@@ -166,6 +170,42 @@ const parseDiaryContent = (value: unknown): string => {
   }
 
   return content;
+};
+
+const DIARY_IMAGE_URL_PATTERN = /^\/uploads\/[A-Za-z0-9][A-Za-z0-9._-]*\.(jpg|jpeg|png|gif|webp)$/i;
+
+const parseDiaryImageUrls = (value: unknown): string[] => {
+  if (value === undefined || value === null) {
+    return [];
+  }
+
+  if (!Array.isArray(value)) {
+    throw new AppError('照片列表格式无效', ErrorCodes.PARAM_ERROR, 400);
+  }
+
+  if (value.length > 3) {
+    throw new AppError('最多添加3张照片', ErrorCodes.PARAM_ERROR, 400);
+  }
+
+  return value.map((item) => {
+    if (typeof item !== 'string') {
+      throw new AppError('照片地址无效', ErrorCodes.PARAM_ERROR, 400);
+    }
+
+    const url = item.trim();
+    if (!DIARY_IMAGE_URL_PATTERN.test(url)) {
+      throw new AppError('照片地址无效', ErrorCodes.PARAM_ERROR, 400);
+    }
+    return url;
+  });
+};
+
+const serializeDiaryImageUrls = (value: Prisma.JsonValue | null | undefined): string[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter((item): item is string => typeof item === 'string' && DIARY_IMAGE_URL_PATTERN.test(item));
 };
 
 const parseCustomTodoContent = (value: unknown): string => {
@@ -467,6 +507,7 @@ export const getPregnancyDiaries = async (req: Request, res: Response, next: Nex
       list: diaries.map((item) => ({
         ...serializeTimelineMetaFromStorageWeek(item.week),
         content: item.content,
+        imageUrls: serializeDiaryImageUrls(item.imageUrls),
         date: formatDate(item.updatedAt),
         createdAt: item.createdAt.toISOString(),
         updatedAt: item.updatedAt.toISOString()
@@ -483,7 +524,8 @@ export const savePregnancyDiary = async (req: Request, res: Response, next: Next
     const userId = req.userId!;
     const period = parseTimelinePeriod(req.body);
     const week = period.storageWeek;
-    const content = parseDiaryContent(req.body.content);
+    const imageUrls = parseDiaryImageUrls(req.body.imageUrls);
+    const content = parseDiaryContent(req.body.content, imageUrls.length > 0);
 
     const diary = await prisma.userPregnancyDiary.upsert({
       where: {
@@ -495,20 +537,41 @@ export const savePregnancyDiary = async (req: Request, res: Response, next: Next
       create: {
         userId: BigInt(userId),
         week,
-        content
+        content,
+        imageUrls
       },
       update: {
-        content
+        content,
+        imageUrls
       }
     });
 
     res.json(successResponse({
       ...serializeTimelineMetaFromStorageWeek(diary.week),
       content: diary.content,
+      imageUrls: serializeDiaryImageUrls(diary.imageUrls),
       date: formatDate(diary.updatedAt),
       createdAt: diary.createdAt.toISOString(),
       updatedAt: diary.updatedAt.toISOString()
     }, '保存成功'));
+  } catch (error) {
+    next(error);
+  }
+};
+
+// 上传孕育记录照片
+export const uploadPregnancyDiaryImage = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const file = req.file;
+    if (!file) {
+      throw new AppError('请选择图片', ErrorCodes.PARAM_ERROR, 400);
+    }
+
+    const url = `/uploads/${file.filename}`;
+    res.json(successResponse({
+      url,
+      filename: file.filename,
+    }, '上传成功'));
   } catch (error) {
     next(error);
   }

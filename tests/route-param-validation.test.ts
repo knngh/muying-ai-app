@@ -52,6 +52,7 @@ const calendarControllerNames = [
   'getPregnancyDiaries',
   'savePregnancyDiary',
   'deletePregnancyDiary',
+  'uploadPregnancyDiaryImage',
   'getCustomTodos',
   'getTimelineContext',
   'getStandardSchedule',
@@ -223,6 +224,7 @@ describe('route parameter validation', () => {
   it('validates calendar route params before controller parsing', () => {
     expect(routeHandleIds(calendarRoutes, '/timeline/context', 'get')).toEqual(['query', 'getTimelineContext']);
     expect(routeHandleIds(calendarRoutes, '/day/:date', 'get')).toEqual(['query', 'validate:params', 'getDayEvents']);
+    expect(routeHandleIds(calendarRoutes, '/diaries/images', 'post')).toEqual(['write', 'uploadImage', 'uploadPregnancyDiaryImage']);
     expect(routeHandleIds(calendarRoutes, '/diaries', 'delete')).toEqual(['write', 'validate:query', 'deletePregnancyDiary']);
     expect(routeHandleIds(calendarRoutes, '/diaries/:week', 'delete')).toEqual(['write', 'validate:params', 'deletePregnancyDiary']);
     expect(routeHandleIds(calendarRoutes, '/custom-todos/:id', 'put')).toEqual(['write', 'validate:body+params', 'updateCustomTodo']);

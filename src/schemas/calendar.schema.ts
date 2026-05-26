@@ -31,6 +31,11 @@ const timeString = z.string().regex(TIME_PATTERN, '时间格式无效，请使�
 const optionalTimeString = z.union([timeString, z.literal('')]);
 const nullableTimeString = z.union([timeString, z.literal(''), z.null()]);
 const weekQueryValue = z.coerce.number().int().min(1, '时间线周数最小为1').max(POSTPARTUM_STORAGE_WEEK_MAX, '时间线周数超出范围');
+const diaryImageUrl = z.string()
+  .trim()
+  .min(1, '图片地址不能为空')
+  .max(300, '图片地址过长')
+  .regex(/^\/uploads\/[A-Za-z0-9][A-Za-z0-9._-]*\.(jpg|jpeg|png|gif|webp)$/i, '图片地址无效');
 const timelineKeyValue = z.string()
   .trim()
   .min(1, '时间线标识不能为空')
@@ -143,8 +148,17 @@ export const updateTodoProgressBody = z.object({
 export const saveDiaryBody = z.object({
   week: weekQueryValue.optional(),
   timelineKey: timelineKeyValue.optional(),
-  content: z.string().min(1, '记录内容不能为空').max(500, '记录内容不能超过500字'),
-}).superRefine(refineTimelinePeriodInput);
+  content: z.string().max(500, '记录内容不能超过500字').optional().default(''),
+  imageUrls: z.array(diaryImageUrl).max(3, '最多添加3张照片').optional().default([]),
+}).superRefine(refineTimelinePeriodInput).superRefine((data, ctx) => {
+  if (!data.content.trim() && data.imageUrls.length === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: '记录内容或照片不能为空',
+      path: ['content'],
+    });
+  }
+});
 
 // 自定义待办
 export const createCustomTodoBody = z.object({

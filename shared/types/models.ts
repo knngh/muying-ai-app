@@ -194,6 +194,7 @@ export interface PregnancyTodoProgress extends TimelinePeriodMeta {
 
 export interface PregnancyDiary extends TimelinePeriodMeta {
   content: string
+  imageUrls?: string[]
   date: string
   createdAt?: string
   updatedAt?: string

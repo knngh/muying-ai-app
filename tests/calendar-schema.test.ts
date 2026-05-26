@@ -80,8 +80,19 @@ describe('calendar schemas', () => {
     expect(saveDiaryBody.parse({
       timelineKey: 'postpartum:w26',
       content: '今天开始记录辅食和睡眠。',
+      imageUrls: ['/uploads/1710000000000-aabbccddeeff0011.jpg'],
     })).toMatchObject({
       timelineKey: 'postpartum:w26',
+      imageUrls: ['/uploads/1710000000000-aabbccddeeff0011.jpg'],
+    });
+
+    expect(saveDiaryBody.parse({
+      timelineKey: 'postpartum:w27',
+      content: '',
+      imageUrls: ['/uploads/1710000000000-aabbccddeeff0012.webp'],
+    })).toMatchObject({
+      timelineKey: 'postpartum:w27',
+      content: '',
     });
 
     expect(createCustomTodoBody.parse({
@@ -101,6 +112,26 @@ describe('calendar schemas', () => {
     expect(saveDiaryBody.safeParse({
       timelineKey: 'pregnancy:w41',
       content: '越界',
+    }).success).toBe(false);
+    expect(saveDiaryBody.safeParse({
+      timelineKey: 'postpartum:w02',
+      content: '',
+      imageUrls: [],
+    }).success).toBe(false);
+    expect(saveDiaryBody.safeParse({
+      timelineKey: 'postpartum:w02',
+      content: '照片地址不应该接受外链',
+      imageUrls: ['https://example.com/image.jpg'],
+    }).success).toBe(false);
+    expect(saveDiaryBody.safeParse({
+      timelineKey: 'postpartum:w02',
+      content: '照片数量过多',
+      imageUrls: [
+        '/uploads/1710000000000-aabbccddeeff0001.jpg',
+        '/uploads/1710000000000-aabbccddeeff0002.jpg',
+        '/uploads/1710000000000-aabbccddeeff0003.jpg',
+        '/uploads/1710000000000-aabbccddeeff0004.jpg',
+      ],
     }).success).toBe(false);
     expect(createCustomTodoBody.safeParse({
       timelineKey: 'postpartum:week1',

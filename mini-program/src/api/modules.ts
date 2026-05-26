@@ -129,6 +129,8 @@ export const calendarApi = {
       .then(res => (res as { list: PregnancyDiary[] }).list),
   saveDiary: (data: PregnancyDiaryPayload) =>
     api.put<PregnancyDiary>('/calendar/diaries', data),
+  uploadDiaryImage: (filePath: string) =>
+    api.upload<{ url: string; filename: string }>('/calendar/diaries/images', filePath),
   deleteDiary: (period: number | PregnancyWeekParams) => (
     typeof period === 'number'
       ? api.delete<{ week: number }>(`/calendar/diaries/${period}`)

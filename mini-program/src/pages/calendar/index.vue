@@ -288,8 +288,18 @@
             <text class="delete-btn" @tap="removeDiary">删除</text>
           </view>
         </view>
-        <view class="diary-content">
+        <view class="diary-content" v-if="currentDiary.content">
           <text>{{ currentDiary.content }}</text>
+        </view>
+        <view class="diary-image-grid" v-if="currentDiaryImages.length">
+          <image
+            v-for="(url, index) in currentDiaryImages"
+            :key="url"
+            class="diary-image"
+            :src="resolveDiaryImageSrc(url)"
+            mode="aspectFill"
+            @tap="previewDiaryImages(index, currentDiaryImages)"
+          />
         </view>
       </view>
     </view>
@@ -312,6 +322,34 @@
           placeholder="记录本周感受、线下提醒或下一步待办..." 
           :maxlength="500"
         />
+        <view class="diary-photo-section">
+          <view class="diary-photo-head">
+            <text class="diary-photo-title">照片</text>
+            <text class="diary-photo-count">{{ diaryImageUrls.length }}/{{ MAX_DIARY_IMAGES }}</text>
+          </view>
+          <view class="diary-photo-grid">
+            <view
+              v-for="(url, index) in diaryImageUrls"
+              :key="url"
+              class="diary-photo-thumb"
+              @tap="previewDiaryImages(index, diaryImageUrls)"
+            >
+              <image class="diary-photo-image" :src="resolveDiaryImageSrc(url)" mode="aspectFill" />
+              <view class="diary-photo-remove" @tap.stop="removeDiaryImage(index)">
+                <text class="diary-photo-remove-text">×</text>
+              </view>
+            </view>
+            <view
+              v-if="diaryImageUrls.length < MAX_DIARY_IMAGES"
+              class="diary-photo-add"
+              :class="{ 'diary-photo-add--loading': isUploadingDiaryImage }"
+              @tap="chooseDiaryImages"
+            >
+              <text class="diary-photo-add-icon">{{ isUploadingDiaryImage ? '...' : '+' }}</text>
+              <text class="diary-photo-add-text">{{ isUploadingDiaryImage ? '上传中' : '拍照' }}</text>
+            </view>
+          </view>
+        </view>
         <button class="save-btn" @tap="saveDiary">保存记录</button>
       </view>
     </view>
@@ -342,12 +380,14 @@ import { onLoad, onShareAppMessage, onShareTimeline, onShow } from '@dcloudio/un
 import mockDataArray from './mockData.json'
 import { useAppStore } from '@/stores/app'
 import { calendarApi, type PregnancyTodoProgress, type PregnancyDiary, type PregnancyCustomTodo } from '@/api/modules'
+import { resolveUploadUrl } from '@/api/request'
 import { calculatePregnancyWeekFromDueDate } from '@/utils'
 import { buildAcquisitionPath, buildAcquisitionQuery, recordAcquisitionContext } from '@/utils/acquisition'
 import { buildWeekPriorityPlan } from '@/utils/record-assist'
 
 const weeksList = ref(Array.from({ length: 40 }, (_, i) => ({ num: i + 1 })))
 const appStore = useAppStore()
+const MAX_DIARY_IMAGES = 3
 
 const resolveInitialWeek = () => {
   const storedWeek = Number(uni.getStorageSync('userPregnancyWeek'))
@@ -378,6 +418,8 @@ const todoState = ref<Record<string, boolean>>({})
 // 日记弹窗状态
 const showDiaryModal = ref(false)
 const diaryInput = ref('')
+const diaryImageUrls = ref<string[]>([])
+const isUploadingDiaryImage = ref(false)
 const showCustomTodoModal = ref(false)
 const customTodoInput = ref('')
 const editingCustomTodoId = ref('')
@@ -493,6 +535,7 @@ const syncCustomTodoContext = async () => {
 
 const parsedContent = computed(() => currentWeekData.value.content)
 const currentDiary = computed(() => userDiaries.value[currentSelectedWeek.value])
+const currentDiaryImages = computed(() => currentDiary.value?.imageUrls || [])
 const canUseTodoActions = computed(() => !!loginUserId.value)
 const customTodoModalTitle = computed(() => editingCustomTodoId.value ? '编辑待办' : '添加待办')
 const customTodoSubmitText = computed(() => editingCustomTodoId.value ? '保存修改' : '添加待办')
@@ -624,11 +667,72 @@ const openDiaryModal = () => {
   if (!checkLogin()) return
   const existing = userDiaries.value[currentSelectedWeek.value]
   diaryInput.value = existing ? existing.content : ''
+  diaryImageUrls.value = existing?.imageUrls ? [...existing.imageUrls] : []
   showDiaryModal.value = true
 }
 
 const closeDiaryModal = () => {
   showDiaryModal.value = false
+  isUploadingDiaryImage.value = false
+}
+
+const resolveDiaryImageSrc = (url: string) => resolveUploadUrl(url)
+
+const previewDiaryImages = (index: number, urls: string[]) => {
+  const images = urls.map(resolveDiaryImageSrc).filter(Boolean)
+  if (!images.length) return
+  uni.previewImage({
+    urls: images,
+    current: images[index] || images[0],
+  })
+}
+
+const uploadDiaryImages = async (filePaths: string[]) => {
+  if (!filePaths.length) return
+  isUploadingDiaryImage.value = true
+
+  try {
+    const nextUrls = [...diaryImageUrls.value]
+    for (const filePath of filePaths) {
+      if (nextUrls.length >= MAX_DIARY_IMAGES) break
+      const result = await calendarApi.uploadDiaryImage(filePath)
+      nextUrls.push(result.url)
+      diaryImageUrls.value = [...nextUrls]
+    }
+  } catch (err: any) {
+    console.error('[Calendar] 上传记录照片失败:', err)
+    uni.showToast({ title: err?.message || '照片上传失败', icon: 'none' })
+  } finally {
+    isUploadingDiaryImage.value = false
+  }
+}
+
+const chooseDiaryImages = () => {
+  if (!checkLogin('请先登录后上传照片', false)) return
+  if (isUploadingDiaryImage.value) return
+
+  const remaining = MAX_DIARY_IMAGES - diaryImageUrls.value.length
+  if (remaining <= 0) {
+    uni.showToast({ title: `最多添加${MAX_DIARY_IMAGES}张照片`, icon: 'none' })
+    return
+  }
+
+  uni.chooseImage({
+    count: remaining,
+    sizeType: ['compressed'],
+    sourceType: ['camera', 'album'],
+    success: (res) => {
+      const rawFilePaths = Array.isArray(res.tempFilePaths)
+        ? res.tempFilePaths
+        : [res.tempFilePaths].filter(Boolean)
+      const filePaths = rawFilePaths.map((item: string) => String(item)).filter(Boolean)
+      void uploadDiaryImages(filePaths)
+    },
+  })
+}
+
+const removeDiaryImage = (index: number) => {
+  diaryImageUrls.value = diaryImageUrls.value.filter((_, currentIndex) => currentIndex !== index)
 }
 
 const openCustomTodoModal = () => {
@@ -655,8 +759,8 @@ const saveDiary = () => {
   if (!checkLogin()) return
 
   const trimmedContent = diaryInput.value.trim()
-  if (!trimmedContent) {
-    uni.showToast({ title: '内容不能为空', icon: 'none' })
+  if (!trimmedContent && diaryImageUrls.value.length === 0) {
+    uni.showToast({ title: '内容或照片不能为空', icon: 'none' })
     return
   }
 
@@ -670,6 +774,7 @@ const saveDiary = () => {
       const savedDiary = await calendarApi.saveDiary({
         week: currentSelectedWeek.value,
         content: trimmedContent,
+        imageUrls: diaryImageUrls.value,
       })
 
       userDiaries.value = {
@@ -710,6 +815,7 @@ const removeDiary = () => {
           userDiaries.value = nextDiaries
 
           diaryInput.value = ''
+          diaryImageUrls.value = []
           uni.showToast({ title: '记录已删除', icon: 'success' })
         } catch (err: any) {
           console.error('[Calendar] 删除孕周记录失败:', err)
@@ -1333,6 +1439,18 @@ onShareTimeline(() => {
 .diary-header-divider { font-size: 22rpx; color: #c2c8d0; }
 .delete-btn { font-size: 24rpx; color: #ff7875; }
 .diary-content { font-size: 30rpx; color: #444; line-height: 1.8; }
+.diary-image-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14rpx;
+  margin-top: 24rpx;
+}
+.diary-image {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 16rpx;
+  background: #f2f4f7;
+}
 
 .fab-button {
   position: fixed; bottom: 60rpx; right: 40rpx; width: 100rpx; height: 100rpx;
@@ -1347,5 +1465,80 @@ onShareTimeline(() => {
 .modal-title { font-size: 34rpx; font-weight: bold; }
 .close-icon { font-size: 44rpx; color: #999; padding: 10rpx; }
 .diary-textarea { width: 100%; height: 300rpx; background-color: #f7f9fa; border-radius: 16rpx; padding: 20rpx; font-size: 28rpx; box-sizing: border-box; margin-bottom: 30rpx; }
+.diary-photo-section {
+  margin-bottom: 30rpx;
+}
+.diary-photo-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16rpx;
+}
+.diary-photo-title {
+  font-size: 26rpx;
+  font-weight: 700;
+  color: #313b47;
+}
+.diary-photo-count {
+  font-size: 22rpx;
+  color: #8a96a3;
+}
+.diary-photo-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14rpx;
+}
+.diary-photo-thumb,
+.diary-photo-add {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 18rpx;
+  overflow: hidden;
+  background: #f7f9fa;
+}
+.diary-photo-image {
+  width: 100%;
+  height: 100%;
+}
+.diary-photo-remove {
+  position: absolute;
+  top: 8rpx;
+  right: 8rpx;
+  width: 36rpx;
+  height: 36rpx;
+  border-radius: 18rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(31, 42, 55, 0.72);
+}
+.diary-photo-remove-text {
+  color: #ffffff;
+  font-size: 30rpx;
+  line-height: 1;
+}
+.diary-photo-add {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8rpx;
+  border: 2rpx dashed #cbd5e1;
+  box-sizing: border-box;
+}
+.diary-photo-add--loading {
+  opacity: 0.72;
+}
+.diary-photo-add-icon {
+  font-size: 38rpx;
+  line-height: 1;
+  color: #16806a;
+}
+.diary-photo-add-text {
+  font-size: 22rpx;
+  font-weight: 700;
+  color: #59697c;
+}
 .save-btn { background: linear-gradient(135deg, #16806a 0%, #2f7cf6 100%); color: white; border-radius: 40rpx; height: 80rpx; line-height: 80rpx; font-size: 32rpx; }
 </style>

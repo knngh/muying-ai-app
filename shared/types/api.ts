@@ -54,7 +54,8 @@ export interface PregnancyTodoProgressUpdatePayload extends TimelinePeriodPayloa
 }
 
 export interface PregnancyDiaryPayload extends TimelinePeriodPayload {
-  content: string
+  content?: string
+  imageUrls?: string[]
 }
 
 export interface PregnancyCustomTodoCreatePayload extends TimelinePeriodPayload {
