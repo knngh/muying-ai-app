@@ -81,6 +81,12 @@ export interface CheckinResult {
   nextBonusPoints: number | null
 }
 
+export interface DiaryImageUploadFile {
+  uri: string
+  name?: string
+  type?: string
+}
+
 export { isTranslationPendingError } from '../../../shared/utils/translation-request'
 
 function normalizeCalendarEvent(event: CalendarEvent | Record<string, unknown>) {
@@ -194,6 +200,19 @@ export const calendarApi = {
       .then(res => (res as { list: PregnancyDiary[] }).list),
   saveDiary: (data: PregnancyDiaryPayload) =>
     api.put<PregnancyDiary>('/calendar/diaries', data),
+  uploadDiaryImage: (file: DiaryImageUploadFile) => {
+    const formData = new FormData()
+    formData.append('file', {
+      uri: file.uri,
+      name: file.name || `diary-${Date.now()}.jpg`,
+      type: file.type || 'image/jpeg',
+    })
+
+    return api.post<{ url: string; filename: string }>('/calendar/diaries/images', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 30000,
+    })
+  },
   deleteDiary: (period: number | PregnancyWeekParams) => (
     typeof period === 'number'
       ? api.delete<{ week: number }>(`/calendar/diaries/${period}`)

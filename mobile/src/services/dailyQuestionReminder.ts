@@ -35,7 +35,7 @@ async function requestNotificationPermission() {
     return true
   }
 
-  const permission = (PermissionsAndroid.PERMISSIONS as Record<string, string>).POST_NOTIFICATIONS
+  const permission = PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS
   if (!permission) {
     return true
   }

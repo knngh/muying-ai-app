@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Alert,
   Animated,
+  Image,
   PanResponder,
   ScrollView,
   StyleSheet,
@@ -12,12 +13,14 @@ import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/nativ
 import type { RouteProp } from '@react-navigation/native'
 import type { StackNavigationProp } from '@react-navigation/stack'
 import { Calendar, type DateData } from 'react-native-calendars'
+import { launchCamera, launchImageLibrary, type Asset } from 'react-native-image-picker'
 import dayjs from 'dayjs'
 import { Button, Card, Chip, Modal, Portal, Snackbar, Switch, Text, TextInput } from 'react-native-paper'
 import LinearGradient from 'react-native-linear-gradient'
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons'
 import { calendarApi, checkinApi } from '../api/modules'
-import type { CheckinStatus, StandardSchedulePlan } from '../api/modules'
+import type { CheckinStatus, StandardSchedulePlan, TimelineContext } from '../api/modules'
+import { resolveUploadUrl } from '../api'
 import { useCalendarStore } from '../stores/calendarStore'
 import { useAppStore } from '../stores/appStore'
 import { useMembershipStore } from '../stores/membershipStore'
@@ -43,6 +46,8 @@ const EVENT_TYPES: EventType[] = ['checkup', 'vaccine', 'reminder', 'exercise', 
 const DEFAULT_EVENT_TIME = '08:00'
 const DEFAULT_REMINDER_MINUTES = 12 * 60
 const DEFAULT_REMINDER_LABEL = '默认提醒：前一晚 20:00'
+const MAX_DIARY_IMAGES = 3
+const MAX_DIARY_IMAGE_BYTES = 8 * 1024 * 1024
 const TAB_SCROLL_BOTTOM_GAP = spacing.xxxl * 4 + spacing.lg
 
 function formatEventSchedule(event: CalendarEventView) {
@@ -385,6 +390,8 @@ export default function CalendarScreen() {
     setCurrentMonth,
     fetchEvents,
     fetchTodoContext,
+    saveDiary,
+    deleteDiary,
     createEvent,
     updateEvent,
     deleteEvent,
@@ -406,6 +413,13 @@ export default function CalendarScreen() {
   const [checkinStatus, setCheckinStatus] = useState<CheckinStatus | null>(null)
   const [standardSchedule, setStandardSchedule] = useState<StandardSchedulePlan | null>(null)
   const [standardScheduleSubmitting, setStandardScheduleSubmitting] = useState(false)
+  const [timelineContext, setTimelineContext] = useState<TimelineContext | null>(null)
+  const [diaryModalVisible, setDiaryModalVisible] = useState(false)
+  const [diaryDraft, setDiaryDraft] = useState('')
+  const [diaryImageUrls, setDiaryImageUrls] = useState<string[]>([])
+  const [diarySaving, setDiarySaving] = useState(false)
+  const [diaryUploading, setDiaryUploading] = useState(false)
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null)
   const dateCellNodesRef = useRef<Record<string, View | null>>({})
   const dateCellRectsRef = useRef<Record<string, Rect>>({})
   const todayString = dayjs().format('YYYY-MM-DD')
@@ -413,6 +427,10 @@ export default function CalendarScreen() {
     () => (user?.dueDate ? calculatePregnancyWeekFromDueDate(user.dueDate) : null),
     [user?.dueDate],
   )
+  const activeTimelineWeek = timelineContext?.currentPeriod?.week || currentPregnancyWeek
+  const activeTimelineDisplayWeek = timelineContext?.currentPeriod?.displayWeek || currentPregnancyWeek
+  const activeTimelineLabel = timelineContext?.currentPeriod?.timelineShortTitle || (currentPregnancyWeek ? `孕 ${currentPregnancyWeek} 周` : '本阶段')
+  const isPostpartumTimeline = timelineContext?.currentPeriod?.stage === 'postpartum' || timelineContext?.lifecycleStage === 'postpartum'
 
   const loadCheckinStatus = useCallback(async () => {
     try {
@@ -432,18 +450,31 @@ export default function CalendarScreen() {
     }
   }, [])
 
+  const loadTimelineContext = useCallback(async () => {
+    try {
+      const nextContext = await calendarApi.getTimelineContext()
+      setTimelineContext(nextContext)
+    } catch (_error) {
+      setTimelineContext(null)
+    }
+  }, [])
+
   useFocusEffect(
     useCallback(() => {
       const { start, end } = getCalendarFetchRange(currentMonth, todayString)
       fetchEvents(start, end)
-      if (currentPregnancyWeek) {
-        void fetchTodoContext(currentPregnancyWeek)
-      }
       ensureFreshQuota()
       void loadCheckinStatus()
       void loadStandardSchedule()
-    }, [currentMonth, currentPregnancyWeek, ensureFreshQuota, fetchEvents, fetchTodoContext, loadCheckinStatus, loadStandardSchedule, todayString]),
+      void loadTimelineContext()
+    }, [currentMonth, ensureFreshQuota, fetchEvents, loadCheckinStatus, loadStandardSchedule, loadTimelineContext, todayString]),
   )
+
+  useEffect(() => {
+    if (activeTimelineWeek) {
+      void fetchTodoContext(activeTimelineWeek)
+    }
+  }, [activeTimelineWeek, fetchTodoContext])
 
   const calendarEvents = events as unknown as CalendarEventView[]
 
@@ -556,8 +587,8 @@ export default function CalendarScreen() {
     [standardSchedule],
   )
   const currentWeekDiary = useMemo(
-    () => (currentPregnancyWeek ? diaries.find((item) => item.week === currentPregnancyWeek) || null : null),
-    [currentPregnancyWeek, diaries],
+    () => (activeTimelineWeek ? diaries.find((item) => item.week === activeTimelineWeek) || null : null),
+    [activeTimelineWeek, diaries],
   )
   const aiTodoCandidates = useMemo(() => {
     const eventStates = new Map<string, boolean>()
@@ -574,9 +605,9 @@ export default function CalendarScreen() {
       completed: Boolean(eventStates.get(`${suggestion.eventType}:${suggestion.title}`.toLowerCase())),
     }))
 
-    const weeklyCustomTodos = currentPregnancyWeek
+    const weeklyCustomTodos = activeTimelineWeek
       ? customTodos
-        .filter((item) => item.week === currentPregnancyWeek)
+        .filter((item) => item.week === activeTimelineWeek)
         .map((item) => ({
           type: 'custom',
           title: '我的待办',
@@ -586,15 +617,15 @@ export default function CalendarScreen() {
       : []
 
     return [...weeklyCustomTodos, ...suggestionTodos]
-  }, [calendarEvents, calendarSuggestions, currentPregnancyWeek, customTodos, todoProgress])
+  }, [activeTimelineWeek, calendarEvents, calendarSuggestions, customTodos, todoProgress])
   const aiWeekPriority = useMemo(() => buildWeekPriorityPlan({
-    week: currentPregnancyWeek,
+    week: activeTimelineDisplayWeek,
     summary: stage.reminder,
     tips: calendarSuggestions.map(item => item.description),
     todos: aiTodoCandidates,
     completedCount: aiTodoCandidates.filter(item => item.completed).length,
     hasDiary: Boolean(currentWeekDiary),
-  }), [aiTodoCandidates, calendarSuggestions, currentPregnancyWeek, currentWeekDiary, stage.reminder])
+  }), [activeTimelineDisplayWeek, aiTodoCandidates, calendarSuggestions, currentWeekDiary, stage.reminder])
 
   const measureDateCell = useCallback((dateString: string) => {
     requestAnimationFrame(() => {
@@ -804,6 +835,161 @@ export default function CalendarScreen() {
     todayPendingEvents,
     todayString,
   ])
+
+  const openDiaryModal = useCallback(() => {
+    if (!activeTimelineWeek) {
+      setSnackMessage(isPostpartumTimeline ? '先补充宝宝出生日期后再记录' : '先完善预产期后再记录')
+      return
+    }
+
+    setDiaryDraft(currentWeekDiary?.content || '')
+    setDiaryImageUrls([...(currentWeekDiary?.imageUrls || [])])
+    setDiaryModalVisible(true)
+  }, [activeTimelineWeek, currentWeekDiary, isPostpartumTimeline])
+
+  const uploadDiaryAssets = useCallback(async (assets: Asset[]) => {
+    const uploadableAssets = assets.filter((asset) => Boolean(asset.uri))
+    if (!uploadableAssets.length) return
+
+    const remaining = MAX_DIARY_IMAGES - diaryImageUrls.length
+    if (remaining <= 0) {
+      setSnackMessage(`最多添加 ${MAX_DIARY_IMAGES} 张照片`)
+      return
+    }
+
+    setDiaryUploading(true)
+    try {
+      const nextUrls = [...diaryImageUrls]
+      for (const [index, asset] of uploadableAssets.slice(0, remaining).entries()) {
+        if (!asset.uri) continue
+        if (asset.fileSize && asset.fileSize > MAX_DIARY_IMAGE_BYTES) {
+          setSnackMessage('单张照片不能超过 8MB')
+          continue
+        }
+
+        const result = await calendarApi.uploadDiaryImage({
+          uri: asset.uri,
+          name: asset.fileName || `diary-${Date.now()}-${index}.jpg`,
+          type: asset.type || 'image/jpeg',
+        })
+        nextUrls.push(result.url)
+        setDiaryImageUrls([...nextUrls])
+      }
+    } catch (error) {
+      setSnackMessage(error instanceof Error ? error.message : '照片上传失败，请稍后重试')
+    } finally {
+      setDiaryUploading(false)
+    }
+  }, [diaryImageUrls])
+
+  const chooseDiaryImages = useCallback(async () => {
+    if (diaryUploading) return
+    const remaining = MAX_DIARY_IMAGES - diaryImageUrls.length
+    if (remaining <= 0) {
+      setSnackMessage(`最多添加 ${MAX_DIARY_IMAGES} 张照片`)
+      return
+    }
+
+    const result = await launchImageLibrary({
+      mediaType: 'photo',
+      selectionLimit: remaining,
+      quality: 0.8,
+      maxWidth: 1600,
+      maxHeight: 1600,
+      includeBase64: false,
+    })
+
+    if (result.didCancel) return
+    if (result.errorCode) {
+      setSnackMessage(result.errorMessage || '无法打开相册')
+      return
+    }
+
+    await uploadDiaryAssets(result.assets || [])
+  }, [diaryImageUrls.length, diaryUploading, uploadDiaryAssets])
+
+  const captureDiaryImage = useCallback(async () => {
+    if (diaryUploading) return
+    if (diaryImageUrls.length >= MAX_DIARY_IMAGES) {
+      setSnackMessage(`最多添加 ${MAX_DIARY_IMAGES} 张照片`)
+      return
+    }
+
+    const result = await launchCamera({
+      mediaType: 'photo',
+      cameraType: 'back',
+      quality: 0.8,
+      maxWidth: 1600,
+      maxHeight: 1600,
+      includeBase64: false,
+      saveToPhotos: false,
+    })
+
+    if (result.didCancel) return
+    if (result.errorCode) {
+      setSnackMessage(result.errorMessage || '无法打开相机')
+      return
+    }
+
+    await uploadDiaryAssets(result.assets || [])
+  }, [diaryImageUrls.length, diaryUploading, uploadDiaryAssets])
+
+  const removeDiaryImage = useCallback((index: number) => {
+    setDiaryImageUrls((current) => current.filter((_, currentIndex) => currentIndex !== index))
+  }, [])
+
+  const handleSaveDiary = useCallback(async () => {
+    if (!activeTimelineWeek || diarySaving) return
+
+    const content = diaryDraft.trim()
+    if (!content && diaryImageUrls.length === 0) {
+      setSnackMessage('内容或照片不能为空')
+      return
+    }
+    if (content.length > 500) {
+      setSnackMessage('记录内容不能超过 500 字')
+      return
+    }
+
+    setDiarySaving(true)
+    try {
+      await saveDiary(activeTimelineWeek, content, diaryImageUrls)
+      setDiaryModalVisible(false)
+      setSnackMessage('记录已保存')
+    } catch (error) {
+      setSnackMessage(error instanceof Error ? error.message : '保存失败，请稍后重试')
+    } finally {
+      setDiarySaving(false)
+    }
+  }, [activeTimelineWeek, diaryDraft, diaryImageUrls, diarySaving, saveDiary])
+
+  const handleDeleteDiary = useCallback(() => {
+    if (!activeTimelineWeek || !currentWeekDiary || diarySaving) return
+
+    Alert.alert('删除记录', '确认删除这条记录吗？照片也会从记录中移除。', [
+      { text: '取消', style: 'cancel' },
+      {
+        text: '删除',
+        style: 'destructive',
+        onPress: () => {
+          void (async () => {
+            setDiarySaving(true)
+            try {
+              await deleteDiary(activeTimelineWeek)
+              setDiaryModalVisible(false)
+              setDiaryImageUrls([])
+              setDiaryDraft('')
+              setSnackMessage('记录已删除')
+            } catch (error) {
+              setSnackMessage(error instanceof Error ? error.message : '删除失败，请稍后重试')
+            } finally {
+              setDiarySaving(false)
+            }
+          })()
+        },
+      },
+    ])
+  }, [activeTimelineWeek, currentWeekDiary, deleteDiary, diarySaving])
 
   const syncCalendarDate = useCallback((dateString: string) => {
     setSelectedDate(dateString)
@@ -1143,6 +1329,71 @@ export default function CalendarScreen() {
             <Text style={styles.aiPriorityReminder}>{aiWeekPriority.reminder}</Text>
           </LinearGradient>
         </Card>
+
+        {activeTimelineWeek ? (
+          <Card style={styles.diaryCard}>
+            <LinearGradient
+              colors={isPostpartumTimeline ? ['#EEF5F2', '#F8FCFB', '#FFF9F4'] : ['#FFF8F2', '#F6E7DC', '#FDFBF8']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.diaryGradient}
+            >
+              <View style={styles.diaryHeader}>
+                <View style={styles.diaryHeaderLead}>
+                  <View style={styles.diaryIconShell}>
+                    <MaterialCommunityIcons name="image-edit-outline" size={18} color={isPostpartumTimeline ? colors.techDark : colors.primaryDark} />
+                  </View>
+                  <View style={styles.diaryHeaderText}>
+                    <Text style={styles.diaryEyebrow}>{isPostpartumTimeline ? '成长记录' : '我的记录'}</Text>
+                    <Text style={styles.diaryTitle}>
+                      {currentWeekDiary ? '继续补充这一阶段的变化' : '留下文字或照片，后面更好回看'}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.diaryStageBadge}>
+                  <Text style={styles.diaryStageBadgeText}>{activeTimelineLabel}</Text>
+                </View>
+              </View>
+
+              <View style={styles.diaryBody}>
+                {currentWeekDiary?.content ? (
+                  <Text numberOfLines={3} style={styles.diaryContentPreview}>{currentWeekDiary.content}</Text>
+                ) : (
+                  <Text style={styles.diaryEmptyText}>
+                    {isPostpartumTimeline ? '可以记录吃奶、睡眠、体温、黄疸、妈妈恢复等变化。' : '可以记录身体感受、产检结果、医生提醒或下一步待办。'}
+                  </Text>
+                )}
+
+                {currentWeekDiary?.imageUrls?.length ? (
+                  <View style={styles.diaryImageStrip}>
+                    {currentWeekDiary.imageUrls.map((url, index) => (
+                      <TouchableOpacity key={`${url}-${index}`} activeOpacity={0.88} onPress={() => setPreviewImageUrl(url)}>
+                        <Image source={{ uri: resolveUploadUrl(url) }} style={styles.diaryPreviewImage} />
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                ) : null}
+              </View>
+
+              <View style={styles.diaryFooter}>
+                <View style={styles.diaryMetaRow}>
+                  <MaterialCommunityIcons name="image-multiple-outline" size={14} color={colors.textSecondary} />
+                  <Text style={styles.diaryMetaText}>{currentWeekDiary?.imageUrls?.length || 0}/{MAX_DIARY_IMAGES} 张照片</Text>
+                </View>
+                <Button
+                  compact
+                  mode="contained"
+                  icon={currentWeekDiary ? 'pencil-outline' : 'plus'}
+                  onPress={openDiaryModal}
+                  buttonColor={colors.ink}
+                  style={styles.diaryEditButton}
+                >
+                  {currentWeekDiary ? '编辑记录' : '添加记录'}
+                </Button>
+              </View>
+            </LinearGradient>
+          </Card>
+        ) : null}
 
         {standardSchedule?.available ? (
           <Card style={styles.standardScheduleCard}>
@@ -1526,6 +1777,81 @@ export default function CalendarScreen() {
               取消
             </Button>
           </ScrollView>
+        </Modal>
+
+        <Modal visible={diaryModalVisible} onDismiss={() => setDiaryModalVisible(false)} contentContainerStyle={styles.modalContainer}>
+          <ScrollView>
+            <Text style={styles.modalTitle}>{currentWeekDiary ? '编辑记录' : '添加记录'}</Text>
+            <Text style={styles.diaryModalMeta}>{activeTimelineLabel} · 最多 500 字，最多 {MAX_DIARY_IMAGES} 张照片</Text>
+
+            <TextInput
+              label={isPostpartumTimeline ? '记录宝宝和妈妈的变化' : '记录本周感受和提醒'}
+              value={diaryDraft}
+              onChangeText={setDiaryDraft}
+              mode="outlined"
+              multiline
+              numberOfLines={5}
+              maxLength={500}
+              style={styles.diaryInput}
+              activeOutlineColor={colors.primary}
+            />
+            <Text style={styles.diaryCounter}>{diaryDraft.trim().length}/500</Text>
+
+            <View style={styles.diaryPickerHeader}>
+              <Text style={styles.fieldLabel}>照片</Text>
+              <Text style={styles.diaryPickerMeta}>{diaryImageUrls.length}/{MAX_DIARY_IMAGES}</Text>
+            </View>
+            <View style={styles.diaryModalImageGrid}>
+              {diaryImageUrls.map((url, index) => (
+                <TouchableOpacity key={`${url}-${index}`} activeOpacity={0.9} onPress={() => setPreviewImageUrl(url)} style={styles.diaryModalImageWrap}>
+                  <Image source={{ uri: resolveUploadUrl(url) }} style={styles.diaryModalImage} />
+                  <TouchableOpacity activeOpacity={0.86} onPress={() => removeDiaryImage(index)} style={styles.diaryRemoveImageButton}>
+                    <MaterialCommunityIcons name="close" size={15} color={colors.white} />
+                  </TouchableOpacity>
+                </TouchableOpacity>
+              ))}
+              {diaryImageUrls.length < MAX_DIARY_IMAGES ? (
+                <View style={styles.diaryAddTileGroup}>
+                  <TouchableOpacity activeOpacity={0.88} onPress={() => void captureDiaryImage()} disabled={diaryUploading} style={styles.diaryAddTile}>
+                    <MaterialCommunityIcons name="camera-outline" size={20} color={colors.primaryDark} />
+                    <Text style={styles.diaryAddTileText}>拍照</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity activeOpacity={0.88} onPress={() => void chooseDiaryImages()} disabled={diaryUploading} style={styles.diaryAddTile}>
+                    <MaterialCommunityIcons name="image-multiple-outline" size={20} color={colors.techDark} />
+                    <Text style={styles.diaryAddTileText}>相册</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+            </View>
+            {diaryUploading ? <Text style={styles.diaryUploadingText}>正在上传照片...</Text> : null}
+
+            <Button
+              mode="contained"
+              onPress={() => void handleSaveDiary()}
+              loading={diarySaving}
+              disabled={diarySaving || diaryUploading}
+              style={styles.saveButton}
+              buttonColor={colors.ink}
+            >
+              保存记录
+            </Button>
+            {currentWeekDiary ? (
+              <Button mode="text" textColor={colors.red} disabled={diarySaving || diaryUploading} onPress={handleDeleteDiary}>
+                删除记录
+              </Button>
+            ) : null}
+            <Button mode="text" disabled={diarySaving || diaryUploading} onPress={() => setDiaryModalVisible(false)}>
+              取消
+            </Button>
+          </ScrollView>
+        </Modal>
+
+        <Modal visible={Boolean(previewImageUrl)} onDismiss={() => setPreviewImageUrl(null)} contentContainerStyle={styles.imagePreviewModal}>
+          <TouchableOpacity activeOpacity={1} onPress={() => setPreviewImageUrl(null)} style={styles.imagePreviewTapArea}>
+            {previewImageUrl ? (
+              <Image source={{ uri: resolveUploadUrl(previewImageUrl) }} style={styles.imagePreview} resizeMode="contain" />
+            ) : null}
+          </TouchableOpacity>
         </Modal>
       </Portal>
 
@@ -1923,6 +2249,113 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     color: colors.textSecondary,
     lineHeight: 20,
+  },
+  diaryCard: {
+    marginTop: spacing.md,
+    borderRadius: borderRadius.xl,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(197,108,71,0.14)',
+    backgroundColor: 'transparent',
+  },
+  diaryGradient: {
+    padding: spacing.md,
+  },
+  diaryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+  },
+  diaryHeaderLead: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+  },
+  diaryIconShell: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.78)',
+  },
+  diaryHeaderText: {
+    flex: 1,
+  },
+  diaryEyebrow: {
+    fontSize: fontSize.xs,
+    color: colors.primaryDark,
+    fontWeight: '700',
+    letterSpacing: 1,
+  },
+  diaryTitle: {
+    marginTop: 2,
+    color: colors.text,
+    fontSize: fontSize.md,
+    fontWeight: '700',
+    lineHeight: 20,
+  },
+  diaryStageBadge: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    borderRadius: borderRadius.pill,
+    backgroundColor: 'rgba(255,255,255,0.82)',
+    borderWidth: 1,
+    borderColor: 'rgba(94,126,134,0.12)',
+  },
+  diaryStageBadgeText: {
+    color: colors.techDark,
+    fontSize: fontSize.xs,
+    fontWeight: '700',
+  },
+  diaryBody: {
+    marginTop: spacing.sm,
+    padding: spacing.sm,
+    borderRadius: borderRadius.lg,
+    backgroundColor: 'rgba(255,255,255,0.68)',
+    borderWidth: 1,
+    borderColor: 'rgba(184,138,72,0.10)',
+  },
+  diaryContentPreview: {
+    color: colors.inkSoft,
+    lineHeight: 20,
+  },
+  diaryEmptyText: {
+    color: colors.textSecondary,
+    lineHeight: 20,
+  },
+  diaryImageStrip: {
+    marginTop: spacing.sm,
+    flexDirection: 'row',
+    gap: spacing.xs,
+  },
+  diaryPreviewImage: {
+    width: 72,
+    height: 72,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.surface,
+  },
+  diaryFooter: {
+    marginTop: spacing.sm,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  diaryMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  diaryMetaText: {
+    color: colors.textSecondary,
+    fontSize: fontSize.xs,
+    fontWeight: '600',
+  },
+  diaryEditButton: {
+    borderRadius: borderRadius.pill,
   },
   standardScheduleCard: {
     marginTop: spacing.md,
@@ -2671,9 +3104,107 @@ const styles = StyleSheet.create({
     color: colors.text,
     marginBottom: spacing.md,
   },
+  diaryModalMeta: {
+    marginTop: -spacing.sm,
+    marginBottom: spacing.md,
+    color: colors.textSecondary,
+    fontSize: fontSize.sm,
+  },
   input: {
     marginBottom: spacing.md,
     backgroundColor: colors.white,
+  },
+  diaryInput: {
+    minHeight: 128,
+    backgroundColor: colors.white,
+  },
+  diaryCounter: {
+    marginTop: spacing.xs,
+    marginBottom: spacing.md,
+    textAlign: 'right',
+    color: colors.textLight,
+    fontSize: fontSize.xs,
+  },
+  diaryPickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  diaryPickerMeta: {
+    color: colors.textSecondary,
+    fontSize: fontSize.xs,
+    fontWeight: '700',
+  },
+  diaryModalImageGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  diaryModalImageWrap: {
+    width: 86,
+    height: 86,
+    borderRadius: borderRadius.md,
+    overflow: 'hidden',
+    backgroundColor: colors.surface,
+  },
+  diaryModalImage: {
+    width: '100%',
+    height: '100%',
+  },
+  diaryRemoveImageButton: {
+    position: 'absolute',
+    top: 5,
+    right: 5,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(21,29,38,0.72)',
+  },
+  diaryAddTileGroup: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  diaryAddTile: {
+    width: 86,
+    height: 86,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(94,126,134,0.34)',
+    backgroundColor: 'rgba(255,255,255,0.72)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  diaryAddTileText: {
+    color: colors.textSecondary,
+    fontSize: fontSize.xs,
+    fontWeight: '700',
+  },
+  diaryUploadingText: {
+    marginTop: -spacing.sm,
+    marginBottom: spacing.md,
+    color: colors.techDark,
+    fontSize: fontSize.xs,
+    fontWeight: '700',
+  },
+  imagePreviewModal: {
+    margin: spacing.md,
+    borderRadius: borderRadius.xl,
+    backgroundColor: 'rgba(21,29,38,0.92)',
+    overflow: 'hidden',
+  },
+  imagePreviewTapArea: {
+    height: 420,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  imagePreview: {
+    width: '100%',
+    height: '100%',
   },
   fieldLabel: {
     marginBottom: spacing.sm,

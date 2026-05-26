@@ -4,6 +4,11 @@ import prisma from '../config/database';
 import { successResponse, AppError, ErrorCodes } from '../middlewares/error.middleware';
 import { awardBehaviorPoints } from '../services/checkin.service';
 import {
+  cleanupUnusedDiaryImages,
+  DIARY_IMAGE_URL_PATTERN,
+  getRemovedDiaryImageUrls,
+} from '../services/diary-image-cleanup.service';
+import {
   buildStandardScheduleEventPayload,
   buildStandardSchedulePlan,
   getMissingStandardScheduleDefinitions,
@@ -171,8 +176,6 @@ const parseDiaryContent = (value: unknown, hasImages = false): string => {
 
   return content;
 };
-
-const DIARY_IMAGE_URL_PATTERN = /^\/uploads\/[A-Za-z0-9][A-Za-z0-9._-]*\.(jpg|jpeg|png|gif|webp)$/i;
 
 const parseDiaryImageUrls = (value: unknown): string[] => {
   if (value === undefined || value === null) {
@@ -526,6 +529,15 @@ export const savePregnancyDiary = async (req: Request, res: Response, next: Next
     const week = period.storageWeek;
     const imageUrls = parseDiaryImageUrls(req.body.imageUrls);
     const content = parseDiaryContent(req.body.content, imageUrls.length > 0);
+    const existingDiary = await prisma.userPregnancyDiary.findUnique({
+      where: {
+        userId_week: {
+          userId: BigInt(userId),
+          week
+        }
+      }
+    });
+    const previousImageUrls = serializeDiaryImageUrls(existingDiary?.imageUrls);
 
     const diary = await prisma.userPregnancyDiary.upsert({
       where: {
@@ -545,6 +557,7 @@ export const savePregnancyDiary = async (req: Request, res: Response, next: Next
         imageUrls
       }
     });
+    void cleanupUnusedDiaryImages(getRemovedDiaryImageUrls(previousImageUrls, imageUrls));
 
     res.json(successResponse({
       ...serializeTimelineMetaFromStorageWeek(diary.week),
@@ -605,6 +618,7 @@ export const deletePregnancyDiary = async (req: Request, res: Response, next: Ne
         }
       }
     });
+    void cleanupUnusedDiaryImages(serializeDiaryImageUrls(existingDiary.imageUrls));
 
     res.json(successResponse(serializeTimelineMetaFromStorageWeek(week), '删除成功'));
   } catch (error) {

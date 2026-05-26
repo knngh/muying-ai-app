@@ -1,0 +1,58 @@
+import fs from 'fs';
+import path from 'path';
+import prisma from '../config/database';
+
+export const DIARY_IMAGE_URL_PATTERN = /^\/uploads\/[A-Za-z0-9][A-Za-z0-9._-]*\.(jpg|jpeg|png|gif|webp)$/i;
+
+const UPLOAD_DIR = path.resolve(process.cwd(), 'uploads');
+
+export function getRemovedDiaryImageUrls(previousUrls: string[], nextUrls: string[]): string[] {
+  const nextSet = new Set(nextUrls);
+  return [...new Set(previousUrls.filter((url) => !nextSet.has(url) && DIARY_IMAGE_URL_PATTERN.test(url)))];
+}
+
+export function resolveDiaryUploadFilePath(url: string): string | null {
+  if (!DIARY_IMAGE_URL_PATTERN.test(url)) {
+    return null;
+  }
+
+  const filePath = path.resolve(UPLOAD_DIR, path.basename(url));
+  if (filePath !== UPLOAD_DIR && filePath.startsWith(`${UPLOAD_DIR}${path.sep}`)) {
+    return filePath;
+  }
+
+  return null;
+}
+
+async function countDiaryImageReferences(url: string): Promise<number> {
+  const rows = await prisma.$queryRaw<Array<{ referenceCount: bigint | number }>>`
+    SELECT COUNT(*) AS referenceCount
+    FROM user_pregnancy_diaries
+    WHERE image_urls IS NOT NULL
+      AND JSON_CONTAINS(image_urls, JSON_QUOTE(${url}))
+  `;
+
+  return Number(rows[0]?.referenceCount || 0);
+}
+
+export async function cleanupUnusedDiaryImages(urls: string[]): Promise<void> {
+  const candidates = [...new Set(urls)].filter((url) => DIARY_IMAGE_URL_PATTERN.test(url));
+
+  for (const url of candidates) {
+    try {
+      const referenceCount = await countDiaryImageReferences(url);
+      if (referenceCount > 0) {
+        continue;
+      }
+
+      const filePath = resolveDiaryUploadFilePath(url);
+      if (!filePath) {
+        continue;
+      }
+
+      await fs.promises.unlink(filePath);
+    } catch {
+      // Best-effort cleanup: record updates should not fail because an old upload is missing.
+    }
+  }
+}

@@ -21,7 +21,7 @@ interface CalendarState {
   deleteEvent: (id: number) => Promise<void>
   completeEvent: (id: number) => Promise<CalendarEvent>
   toggleTodoProgress: (week: number, todoKey: string, completed: boolean) => Promise<void>
-  saveDiary: (week: number, content: string) => Promise<void>
+  saveDiary: (week: number, content: string, imageUrls?: string[]) => Promise<void>
   deleteDiary: (week: number) => Promise<void>
   createCustomTodo: (week: number, content: string) => Promise<void>
   updateCustomTodo: (id: string, content: string) => Promise<void>
@@ -149,9 +149,9 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
     }
   },
 
-  saveDiary: async (week, content) => {
+  saveDiary: async (week, content, imageUrls = []) => {
     try {
-      const diary = await calendarApi.saveDiary({ week, content }) as PregnancyDiary
+      const diary = await calendarApi.saveDiary({ week, content, imageUrls }) as PregnancyDiary
       set((state) => ({
         diaries: [...state.diaries.filter((item) => item.week !== week), diary],
       }))

@@ -55,6 +55,14 @@ export function setNavigationReset(fn: () => void) {
   navigationReset = fn
 }
 
+export function resolveUploadUrl(url: string): string {
+  if (!url) return ''
+  if (/^https?:\/\//i.test(url)) return url
+
+  const apiOrigin = BASE_URL.replace(/\/api\/v\d+\/?$/, '').replace(/\/$/, '')
+  return `${apiOrigin}${url.startsWith('/') ? url : `/${url}`}`
+}
+
 async function clearSessionAndReset() {
   await sessionStorage.clear()
   cachedToken = null
