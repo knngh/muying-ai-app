@@ -77,6 +77,8 @@ export const weekQuery = z.object({
   timelineKey: timelineKeyValue.optional(),
 });
 
+export const timelinePeriodQuery = weekQuery.superRefine(refineTimelinePeriodInput);
+
 export const createEventBody = z.object({
   title: z.string().min(1, '标题不能为空').max(100, '标题最多100个字符'),
   description: z.string().max(500).optional(),

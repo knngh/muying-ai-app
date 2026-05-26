@@ -15,7 +15,7 @@ import type {
   FavoriteCreatePayload,
   PaginationParams,
   ParentCategoryParams,
-  PregnancyTodoProgress, PregnancyDiary, PregnancyCustomTodo, PregnancyProfile,
+  PregnancyTodoProgress, PregnancyDiary, PregnancyCustomTodo, PregnancyProfile, TimelineDefaultTodo,
   TimelineContext,
   PregnancyCustomTodoCreatePayload,
   PregnancyCustomTodoUpdatePayload,
@@ -46,6 +46,7 @@ export type {
 export type {
   PregnancyTodoProgress,
   PregnancyDiary,
+  TimelineDefaultTodo,
   PregnancyCustomTodo,
   PregnancyProfile,
   TimelineContext,
@@ -180,6 +181,9 @@ export const calendarApi = {
   getDay: (date: string) => api.get(`/calendar/day/${date}`),
   getEventTypes: () => api.get('/calendar/event-types'),
   getTimelineContext: () => api.get<TimelineContext>('/calendar/timeline/context'),
+  getTimelineTodos: (params: PregnancyWeekParams) =>
+    api.get<{ list: TimelineDefaultTodo[] }>('/calendar/timeline/todos', { params })
+      .then(res => (res as { list: TimelineDefaultTodo[] }).list),
   getTodoProgress: (params?: PregnancyWeekParams) =>
     api.get<{ list: PregnancyTodoProgress[] }>('/calendar/todo-progress', { params })
       .then(res => (res as { list: PregnancyTodoProgress[] }).list),

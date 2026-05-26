@@ -733,6 +733,22 @@ export const getTimelineContext = async (req: Request, res: Response, next: Next
   }
 };
 
+export const getTimelineTodos = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const period = parseTimelinePeriod(req.query);
+
+    res.json(successResponse({
+      list: getPostpartumTimelineTodos(period).map((todo) => ({
+        ...todo,
+        ...serializeTimelinePeriodWithStorageWeek(period),
+        completed: false,
+      })),
+    }));
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const getStandardSchedule = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.userId!;

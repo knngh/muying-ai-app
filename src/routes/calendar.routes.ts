@@ -11,6 +11,7 @@ import {
   uploadPregnancyDiaryImage,
   getCustomTodos,
   getTimelineContext,
+  getTimelineTodos,
   getStandardSchedule,
   generateStandardSchedule,
   createCustomTodo,
@@ -33,7 +34,7 @@ import {
   createEventBody, getEventsQuery,
   updateEventBody, dragEventBody, batchUpdateEventsBody, batchDeleteEventsBody,
   updateTodoProgressBody, saveDiaryBody, createCustomTodoBody, updateCustomTodoBody,
-  calendarEventIdParam, customTodoIdParam, diaryWeekParam, dayParam, weekDateQuery, weekQuery,
+  calendarEventIdParam, customTodoIdParam, diaryWeekParam, dayParam, weekDateQuery, weekQuery, timelinePeriodQuery,
 } from '../schemas/calendar.schema';
 
 const router = Router();
@@ -43,6 +44,7 @@ router.use(authMiddleware);
 
 // 孕育时间线上下文
 router.get('/timeline/context', queryRateLimiter, getTimelineContext);
+router.get('/timeline/todos', queryRateLimiter, validate({ query: timelinePeriodQuery }), getTimelineTodos);
 
 // 事件类型
 router.get('/event-types', queryRateLimiter, getEventTypes);

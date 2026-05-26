@@ -4,6 +4,7 @@ import {
   dragEventBody,
   getEventsQuery,
   saveDiaryBody,
+  timelinePeriodQuery,
   updateEventBody,
   updateTodoProgressBody,
   weekDateQuery,
@@ -67,6 +68,7 @@ describe('calendar schemas', () => {
   it('accepts timeline keys for pregnancy and postpartum record inputs', () => {
     expect(weekQuery.parse({ timelineKey: 'pregnancy:w12' })).toEqual({ timelineKey: 'pregnancy:w12' });
     expect(weekQuery.parse({ timelineKey: 'postpartum:w156' })).toEqual({ timelineKey: 'postpartum:w156' });
+    expect(timelinePeriodQuery.parse({ timelineKey: 'postpartum:w26' })).toEqual({ timelineKey: 'postpartum:w26' });
 
     expect(updateTodoProgressBody.parse({
       timelineKey: 'postpartum:w01',
@@ -105,6 +107,7 @@ describe('calendar schemas', () => {
 
   it('rejects missing or invalid timeline period inputs', () => {
     expect(weekQuery.safeParse({ timelineKey: 'postpartum:w157' }).success).toBe(false);
+    expect(timelinePeriodQuery.safeParse({}).success).toBe(false);
     expect(updateTodoProgressBody.safeParse({
       todoKey: 'feeding-output-log',
       completed: true,

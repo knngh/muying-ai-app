@@ -1,7 +1,9 @@
 import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
+import sharp from 'sharp';
 import {
+  compressUploadedImage,
   getExtensionForMimeType,
   hasValidImageSignature,
   normalizeUploadError,
@@ -24,6 +26,22 @@ describe('upload image validation', () => {
     const filePath = path.join(tmpDir, name);
     await fs.writeFile(filePath, typeof bytes === 'string' ? bytes : Buffer.from(bytes));
     return filePath;
+  }
+
+  async function buildMulterFile(name: string, mimetype: string): Promise<Express.Multer.File> {
+    const filePath = path.join(tmpDir, name);
+    const stats = await fs.stat(filePath);
+
+    return {
+      fieldname: 'image',
+      originalname: name,
+      encoding: '7bit',
+      mimetype,
+      destination: tmpDir,
+      filename: name,
+      path: filePath,
+      size: stats.size,
+    } as Express.Multer.File;
   }
 
   it('uses server-controlled extensions from MIME type', () => {
@@ -59,5 +77,52 @@ describe('upload image validation', () => {
     expect(error).toBeInstanceOf(AppError);
     expect((error as AppError).code).toBe(ErrorCodes.PARAM_ERROR);
     expect((error as AppError).statusCode).toBe(413);
+    expect((error as AppError).message).toBe('图片大小不能超过 8MB');
+  });
+
+  it('resizes uploaded images and normalizes non-alpha images to jpeg', async () => {
+    const sourcePath = path.join(tmpDir, 'diary.webp');
+    await sharp({
+      create: {
+        width: 2200,
+        height: 1200,
+        channels: 3,
+        background: '#8ac8ff',
+      },
+    }).webp({ quality: 95 }).toFile(sourcePath);
+    const file = await buildMulterFile('diary.webp', 'image/webp');
+
+    await compressUploadedImage(file);
+
+    expect(file.filename).toBe('diary.jpg');
+    expect(file.mimetype).toBe('image/jpeg');
+    await expect(fs.access(sourcePath)).rejects.toThrow();
+    await expect(fs.access(file.path)).resolves.toBeUndefined();
+
+    const metadata = await sharp(file.path).metadata();
+    expect(metadata.format).toBe('jpeg');
+    expect(Math.max(metadata.width || 0, metadata.height || 0)).toBeLessThanOrEqual(1600);
+    expect(file.size).toBeGreaterThan(0);
+  });
+
+  it('keeps transparent png uploads as png', async () => {
+    const sourcePath = path.join(tmpDir, 'transparent.png');
+    await sharp({
+      create: {
+        width: 64,
+        height: 64,
+        channels: 4,
+        background: { r: 255, g: 0, b: 0, alpha: 0.35 },
+      },
+    }).png().toFile(sourcePath);
+    const file = await buildMulterFile('transparent.png', 'image/png');
+
+    await compressUploadedImage(file);
+
+    expect(file.filename).toBe('transparent.png');
+    expect(file.mimetype).toBe('image/png');
+    const metadata = await sharp(file.path).metadata();
+    expect(metadata.format).toBe('png');
+    expect(metadata.hasAlpha).toBe(true);
   });
 });

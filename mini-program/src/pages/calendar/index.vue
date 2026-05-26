@@ -15,8 +15,8 @@
           <text class="baby-emoji">{{ currentWeekData.babySizeEmoji || '🌱' }}</text>
         </view>
         <view class="baby-size-info">
-          <text class="size-text">相当于: {{ currentWeekData.babySizeText || '未知大小' }}</text>
-          <text class="size-desc" v-if="currentWeekData.babyWeight">体重约: {{ currentWeekData.babyWeight }}</text>
+          <text class="size-text">{{ heroMetricLabel }}: {{ currentWeekData.babySizeText || '未知阶段' }}</text>
+          <text class="size-desc" v-if="currentWeekData.babyWeight">{{ heroMetricDescLabel }}: {{ currentWeekData.babyWeight }}</text>
         </view>
       </view>
 
@@ -30,15 +30,15 @@
         <view class="timeline-container">
           <view 
             v-for="week in weeksList" 
-            :key="week.num" 
-            :id="'week-' + week.num"
+            :key="week.timelineKey"
+            :id="'week-' + week.storageWeek"
             class="timeline-item"
-            :class="{ 'active': currentSelectedWeek === week.num }"
-            :data-week="week.num"
+            :class="{ 'active': currentSelectedWeek === week.storageWeek }"
+            :data-week="week.storageWeek"
             @tap="handleSelectWeek"
           >
-            <view class="week-circle">{{ week.num }}</view>
-            <text class="week-label">周</text>
+            <view class="week-circle">{{ week.circleLabel }}</view>
+            <text class="week-label">{{ week.weekLabel }}</text>
           </view>
         </view>
       </scroll-view>
@@ -47,8 +47,8 @@
     <view class="week-command-card">
       <view class="week-command-head">
         <view class="week-command-copy">
-          <text class="week-command-kicker">当前周总览</text>
-          <text class="week-command-title">第 {{ currentSelectedWeek }} 周先看这里</text>
+          <text class="week-command-kicker">{{ timelineKicker }}</text>
+          <text class="week-command-title">{{ selectedPeriodTitle }}先看这里</text>
           <text class="week-command-desc">{{ weekCommandDescription }}</text>
         </view>
         <view class="week-command-badge">
@@ -78,7 +78,7 @@
         :class="{ 'active': activeTab === 'guide' }" 
         @tap="activeTab = 'guide'"
       >
-        <text class="tab-text">孕周日历</text>
+        <text class="tab-text">{{ guideTabLabel }}</text>
         <view class="tab-line" v-if="activeTab === 'guide'"></view>
       </view>
       <view 
@@ -99,7 +99,7 @@
       </view>
     </view>
 
-    <!-- 孕周日历 内容 -->
+    <!-- 时间线内容 -->
     <view class="content-section" v-if="activeTab === 'guide'">
       <!-- 总体总结 -->
       <view class="summary-card">
@@ -113,7 +113,7 @@
         <view class="card-header">
           <view class="header-left">
             <text class="card-icon">👶</text>
-            <text class="card-title">宝宝发育</text>
+            <text class="card-title">{{ babySectionTitle }}</text>
           </view>
         </view>
         <view class="card-body">
@@ -126,7 +126,7 @@
         <view class="card-header">
           <view class="header-left">
             <text class="card-icon">👩</text>
-            <text class="card-title">妈妈变化</text>
+            <text class="card-title">{{ momSectionTitle }}</text>
           </view>
         </view>
         <view class="card-body">
@@ -139,7 +139,7 @@
         <view class="card-header">
           <view class="header-left">
             <text class="card-icon">💡</text>
-            <text class="card-title">本周建议</text>
+            <text class="card-title">{{ tipsSectionTitle }}</text>
           </view>
         </view>
         <view class="card-body">
@@ -156,7 +156,7 @@
     <view class="content-section" v-if="activeTab === 'todo'">
       <view class="week-overview-card">
         <view class="week-overview-copy">
-          <text class="week-overview-title">第 {{ currentSelectedWeek }} 周执行面板</text>
+          <text class="week-overview-title">{{ selectedPeriodTitle }}执行面板</text>
           <text class="week-overview-desc">
             {{ canUseTodoActions ? `已完成 ${completedTodoCount} / ${todoList.length} 项，本周事项会实时保存。` : '未登录也可先看本周重点；登录后再保存待办和完成状态。' }}
           </text>
@@ -173,7 +173,7 @@
       <view class="week-priority-card">
         <view class="week-priority-head">
           <view class="week-priority-copy">
-            <text class="week-priority-kicker">本周重点待办</text>
+            <text class="week-priority-kicker">{{ priorityKicker }}</text>
             <text class="week-priority-title">{{ weekPriority.title }}</text>
             <text class="week-priority-subtitle">{{ weekPriority.subtitle }}</text>
           </view>
@@ -217,7 +217,8 @@
             </view>
           </view>
         </view>
-        <text v-if="!canUseTodoActions" class="todo-login-hint">登录后可勾选并保存待办进度</text>
+        <text v-if="timelineTodoLoading" class="todo-login-hint">正在同步{{ guideTabLabel }}待办...</text>
+        <text v-else-if="!canUseTodoActions" class="todo-login-hint">登录后可勾选并保存待办进度</text>
         <view class="card-body">
           <view
             class="todo-item"
@@ -236,7 +237,7 @@
             <view class="todo-content">
               <view class="todo-meta">
                 <view class="todo-type" :class="'type-' + todo.type">
-                  {{ todo.type === 'checkup' ? '产检' : todo.type === 'custom' ? '自定义' : '事项' }}
+                  {{ getTodoTypeLabel(todo.type) }}
                 </view>
                 <text v-if="todoPendingKey === todo.stateKey" class="todo-state todo-state--muted">同步中</text>
                 <text v-if="todo.completed" class="todo-state">已完成</text>
@@ -262,12 +263,12 @@
     <view class="content-section" v-if="activeTab === 'diary'">
       <view v-if="!canUseTodoActions" class="week-overview-card week-overview-card--soft">
         <view class="week-overview-copy">
-          <text class="week-overview-title">登录后可保存本周记录</text>
-          <text class="week-overview-desc">未登录时可以先浏览孕周日历，确认有需要再保存你这周的感受和重点事项。</text>
+          <text class="week-overview-title">{{ recordLoginTitle }}</text>
+          <text class="week-overview-desc">{{ recordLoginDesc }}</text>
         </view>
         <view
           class="week-overview-btn"
-          @tap="goLoginForTimeline('登录后可保存本周记录')"
+          @tap="goLoginForTimeline(recordLoginTitle)"
         >
           <text class="week-overview-btn-text">去登录</text>
         </view>
@@ -275,8 +276,8 @@
 
       <view class="diary-empty" v-if="!currentDiary">
         <text class="empty-emoji">📝</text>
-        <text class="empty-text">{{ canUseTodoActions ? '这周还没有记录哦，写下你的孕期感受吧！' : '当前还没有保存记录，登录后可以把本周感受与线下提醒留下来。' }}</text>
-        <button class="add-diary-btn" @tap="openDiaryModal">{{ canUseTodoActions ? '添加本周记录' : '登录后记录' }}</button>
+        <text class="empty-text">{{ diaryEmptyText }}</text>
+        <button class="add-diary-btn" @tap="openDiaryModal">{{ canUseTodoActions ? recordActionText : '登录后记录' }}</button>
       </view>
 
       <view class="diary-card" v-else>
@@ -304,7 +305,7 @@
       </view>
     </view>
 
-    <!-- 浮动操作按钮 (仅在孕周日历下显示快捷记录) -->
+    <!-- 浮动操作按钮 -->
     <view class="fab-button" v-if="activeTab === 'guide'" @tap="openDiaryModal">
       <text class="fab-icon">✏️</text>
     </view>
@@ -319,7 +320,7 @@
         <textarea 
           class="diary-textarea" 
           v-model="diaryInput" 
-          placeholder="记录本周感受、线下提醒或下一步待办..." 
+          :placeholder="diaryPlaceholder"
           :maxlength="500"
         />
         <view class="diary-photo-section">
@@ -364,7 +365,7 @@
         <textarea
           class="diary-textarea"
           v-model="customTodoInput"
-          placeholder="请输入本周待办，例如：预约产检、准备营养品..."
+          :placeholder="customTodoPlaceholder"
           :maxlength="200"
         />
         <button class="save-btn" @tap="saveCustomTodo">{{ customTodoSubmitText }}</button>
@@ -379,15 +380,71 @@ import { ref, computed, nextTick } from 'vue'
 import { onLoad, onShareAppMessage, onShareTimeline, onShow } from '@dcloudio/uni-app'
 import mockDataArray from './mockData.json'
 import { useAppStore } from '@/stores/app'
-import { calendarApi, type PregnancyTodoProgress, type PregnancyDiary, type PregnancyCustomTodo } from '@/api/modules'
+import { calendarApi, type PregnancyTodoProgress, type PregnancyDiary, type PregnancyCustomTodo, type TimelineContext, type TimelineDefaultTodo } from '@/api/modules'
 import { resolveUploadUrl } from '@/api/request'
 import { calculatePregnancyWeekFromDueDate } from '@/utils'
 import { buildAcquisitionPath, buildAcquisitionQuery, recordAcquisitionContext } from '@/utils/acquisition'
 import { buildWeekPriorityPlan } from '@/utils/record-assist'
 
-const weeksList = ref(Array.from({ length: 40 }, (_, i) => ({ num: i + 1 })))
+type TimelineStage = 'pregnancy' | 'postpartum'
+
+interface TimelineListItem {
+  storageWeek: number
+  displayWeek: number
+  timelineKey: string
+  stage: TimelineStage
+  circleLabel: string
+  weekLabel: string
+  title: string
+  shortTitle: string
+}
+
+const PREGNANCY_WEEK_MAX = 40
+const POSTPARTUM_WEEK_MAX = 156
+const POSTPARTUM_STORAGE_WEEK_OFFSET = 40
+const TIMELINE_KEY_PATTERN = /^(pregnancy|postpartum):w(\d{1,3})$/i
+
 const appStore = useAppStore()
 const MAX_DIARY_IMAGES = 3
+
+const padWeek = (week: number) => String(week).padStart(2, '0')
+
+const buildTimelineKey = (stage: TimelineStage, week: number) => `${stage}:w${padWeek(week)}`
+
+const buildPregnancyTimelineItems = (): TimelineListItem[] => (
+  Array.from({ length: PREGNANCY_WEEK_MAX }, (_, index) => {
+    const week = index + 1
+    return {
+      storageWeek: week,
+      displayWeek: week,
+      timelineKey: buildTimelineKey('pregnancy', week),
+      stage: 'pregnancy',
+      circleLabel: String(week),
+      weekLabel: '周',
+      title: `孕第 ${week} 周`,
+      shortTitle: `孕 ${week} 周`,
+    }
+  })
+)
+
+const buildPostpartumTimelineItems = (): TimelineListItem[] => (
+  Array.from({ length: POSTPARTUM_WEEK_MAX }, (_, index) => {
+    const week = index + 1
+    return {
+      storageWeek: POSTPARTUM_STORAGE_WEEK_OFFSET + week,
+      displayWeek: week,
+      timelineKey: buildTimelineKey('postpartum', week),
+      stage: 'postpartum',
+      circleLabel: String(week),
+      weekLabel: week <= 52 ? '周龄' : '周',
+      title: `出生后第 ${week} 周`,
+      shortTitle: `第 ${week} 周`,
+    }
+  })
+)
+
+const pregnancyTimelineItems = buildPregnancyTimelineItems()
+const postpartumTimelineItems = buildPostpartumTimelineItems()
 
 const resolveInitialWeek = () => {
   const storedWeek = Number(uni.getStorageSync('userPregnancyWeek'))
@@ -408,6 +465,9 @@ const currentSelectedWeek = ref(resolveInitialWeek())
 const timelineScrollTarget = ref(`week-${currentSelectedWeek.value}`)
 const activeTab = ref('guide') // 'guide' | 'todo' | 'diary'
 const initialSharedWeek = ref<number | null>(null)
+const timelineContext = ref<TimelineContext | null>(null)
+const timelineTodos = ref<TimelineDefaultTodo[]>([])
+const timelineTodoLoading = ref(false)
 
 // 模拟日记数据库
 const userDiaries = ref<Record<number, PregnancyDiary>>({})
@@ -434,8 +494,124 @@ const fallbackData = {
   content: { baby: '暂无数据', mom: '暂无数据', tips: [], todo: [] }
 }
 
+const formatPostpartumAge = (week: number) => {
+  if (week <= 4) return `${week} 周龄`
+  const months = Math.max(1, Math.round(week / 4.345))
+  if (months < 12) return `${months} 月龄左右`
+  const years = Math.floor(months / 12)
+  const extraMonths = months % 12
+  return extraMonths ? `${years} 岁 ${extraMonths} 个月左右` : `${years} 岁左右`
+}
+
+const buildPostpartumWeekData = (
+  week: number,
+  todos: TimelineDefaultTodo[],
+  context: TimelineContext | null,
+) => {
+  const ageText = formatPostpartumAge(week)
+  const checkupCount = todos.filter(item => item.type === 'checkup' || item.type === 'vaccine').length
+  const hasBirthday = Boolean(context?.babyBirthday)
+
+  return {
+    title: `出生后第 ${week} 周`,
+    summary: todos.length
+      ? `本周进入${ageText}，重点是${todos.slice(0, 2).map(item => item.title).join('、')}。`
+      : `本周进入${ageText}，可以继续记录喂养、睡眠、发育和家庭照护变化。`,
+    babySizeEmoji: week <= 4 ? '👶' : week < 52 ? '🧸' : '🌟',
+    babySizeText: ageText,
+    babyWeight: hasBirthday ? `出生日期 ${context?.babyBirthday}` : '补充宝宝出生日期后自动定位',
+    content: {
+      baby: week <= 4
+        ? '重点观察吃奶、大小便、黄疸、体温、脐带和精神状态，异常情况优先线下咨询。'
+        : week < 52
+          ? '重点记录身高体重、喂养、睡眠、运动发育、互动反应和疫苗/儿保节点。'
+          : '重点记录语言、运动、社交、睡眠、饮食、如厕训练和年度体检节点。',
+      mom: week <= 6
+        ? '继续记录恶露、伤口、乳房胀痛、睡眠和情绪变化，产后复查前集中回看。'
+        : '可以把妈妈恢复、照护压力、睡眠和家庭分工一起记录，方便后续复盘。',
+      tips: [
+        hasBirthday ? `当前按宝宝出生日期定位到${ageText}` : '先在个人资料补充宝宝出生日期，系统会自动定位产后周数。',
+        checkupCount ? `本周有 ${checkupCount} 个检查或疫苗相关提醒，建议提前确认线下安排。` : '没有固定检查节点时，也建议保留每周观察记录。',
+        '如出现发热、精神反应差、喂养明显减少、呼吸异常等情况，优先线下就医或咨询专业人员。',
+      ],
+      todo: todos.map(item => ({
+        type: item.type,
+        title: item.title,
+        desc: item.desc,
+      })),
+    },
+  }
+}
+
+const parseTimelineKeyToStorageWeek = (value: unknown): number | null => {
+  if (typeof value !== 'string') return null
+  const match = TIMELINE_KEY_PATTERN.exec(value.trim())
+  if (!match) return null
+
+  const stage = match[1].toLowerCase() as TimelineStage
+  const week = Number(match[2])
+  if (!Number.isInteger(week)) return null
+
+  if (stage === 'pregnancy' && week >= 1 && week <= PREGNANCY_WEEK_MAX) return week
+  if (stage === 'postpartum' && week >= 1 && week <= POSTPARTUM_WEEK_MAX) {
+    return POSTPARTUM_STORAGE_WEEK_OFFSET + week
+  }
+
+  return null
+}
+
+const getTimelineItemFromStorageWeek = (storageWeek: number): TimelineListItem => {
+  const found = [...pregnancyTimelineItems, ...postpartumTimelineItems]
+    .find(item => item.storageWeek === storageWeek)
+  if (found) return found
+
+  return pregnancyTimelineItems[Math.min(Math.max(storageWeek, 1), PREGNANCY_WEEK_MAX) - 1]
+}
+
+const selectedTimelineItem = computed(() => getTimelineItemFromStorageWeek(currentSelectedWeek.value))
+const isPostpartumTimeline = computed(() => (
+  timelineContext.value?.lifecycleStage === 'postpartum' || selectedTimelineItem.value.stage === 'postpartum'
+))
+const weeksList = computed(() => (isPostpartumTimeline.value ? postpartumTimelineItems : pregnancyTimelineItems))
+const selectedPeriodTitle = computed(() => `${selectedTimelineItem.value.title}`)
+const selectedTimelineParams = computed(() => ({ timelineKey: selectedTimelineItem.value.timelineKey }))
+const heroMetricLabel = computed(() => selectedTimelineItem.value.stage === 'postpartum' ? '宝宝阶段' : '相当于')
+const heroMetricDescLabel = computed(() => selectedTimelineItem.value.stage === 'postpartum' ? '定位依据' : '体重约')
+const guideTabLabel = computed(() => selectedTimelineItem.value.stage === 'postpartum' ? '成长时间线' : '孕周日历')
+const timelineKicker = computed(() => selectedTimelineItem.value.stage === 'postpartum' ? '成长周总览' : '当前周总览')
+const babySectionTitle = computed(() => selectedTimelineItem.value.stage === 'postpartum' ? '宝宝成长' : '宝宝发育')
+const momSectionTitle = computed(() => selectedTimelineItem.value.stage === 'postpartum' ? '妈妈恢复' : '妈妈变化')
+const tipsSectionTitle = computed(() => selectedTimelineItem.value.stage === 'postpartum' ? '本周照护建议' : '本周建议')
+const priorityKicker = computed(() => selectedTimelineItem.value.stage === 'postpartum' ? '本周照护重点' : '本周重点待办')
+const recordLoginTitle = computed(() => selectedTimelineItem.value.stage === 'postpartum' ? '登录后可保存成长记录' : '登录后可保存本周记录')
+const recordActionText = computed(() => selectedTimelineItem.value.stage === 'postpartum' ? '添加成长记录' : '添加本周记录')
+const recordLoginDesc = computed(() => (
+  selectedTimelineItem.value.stage === 'postpartum'
+    ? '未登录时可以先浏览成长时间线，登录后保存宝宝和妈妈这周的变化。'
+    : '未登录时可以先浏览孕周日历，确认有需要再保存你这周的感受和重点事项。'
+))
+const diaryPlaceholder = computed(() => (
+  selectedTimelineItem.value.stage === 'postpartum'
+    ? '记录宝宝喂养、睡眠、发育、疫苗或妈妈恢复情况...'
+    : '记录本周感受、线下提醒或下一步待办...'
+))
+const customTodoPlaceholder = computed(() => (
+  selectedTimelineItem.value.stage === 'postpartum'
+    ? '请输入本周待办，例如：预约儿保、记录疫苗、整理喂养问题...'
+    : '请输入本周待办，例如：预约产检、准备营养品...'
+))
+const diaryEmptyText = computed(() => (
+  canUseTodoActions.value
+    ? (selectedTimelineItem.value.stage === 'postpartum' ? '这周还没有记录，可以留下宝宝和妈妈的变化。' : '这周还没有记录哦，写下你的孕期感受吧！')
+    : '当前还没有保存记录，登录后可以把本周感受与线下提醒留下来。'
+))
+
 const currentWeekData = computed(() => {
-  const found = mockDataArray.find((item: any) => item.week === currentSelectedWeek.value)
+  if (selectedTimelineItem.value.stage === 'postpartum') {
+    return buildPostpartumWeekData(selectedTimelineItem.value.displayWeek, timelineTodos.value, timelineContext.value)
+  }
+
+  const found = mockDataArray.find((item: any) => item.week === selectedTimelineItem.value.displayWeek)
   return found || fallbackData
 })
 
@@ -487,6 +663,49 @@ const mapCustomTodosToState = (todoList: PregnancyCustomTodo[]) => {
   return nextState
 }
 
+const syncTimelineTodos = async () => {
+  if (selectedTimelineItem.value.stage !== 'postpartum' || !loginUserId.value) {
+    timelineTodos.value = []
+    return
+  }
+
+  timelineTodoLoading.value = true
+  try {
+    timelineTodos.value = await calendarApi.getTimelineTodos(selectedTimelineParams.value)
+  } catch (err) {
+    console.error('[Calendar] 获取产后时间线待办失败:', err)
+    timelineTodos.value = []
+  } finally {
+    timelineTodoLoading.value = false
+  }
+}
+
+const syncTimelineContext = async (options: { preserveSelected?: boolean } = {}) => {
+  if (!loginUserId.value) {
+    timelineContext.value = null
+    timelineTodos.value = []
+    return
+  }
+
+  try {
+    const context = await calendarApi.getTimelineContext()
+    timelineContext.value = context
+
+    if (!options.preserveSelected) {
+      if (context.currentPeriod?.week) {
+        await selectStorageWeek(context.currentPeriod.week)
+      } else if (context.lifecycleStage === 'postpartum') {
+        await selectStorageWeek(POSTPARTUM_STORAGE_WEEK_OFFSET + 1)
+      } else if (selectedTimelineItem.value.stage !== 'pregnancy') {
+        await syncSelectedWeekFromSession()
+      }
+    }
+  } catch (err) {
+    console.error('[Calendar] 获取孕育时间线状态失败:', err)
+    timelineContext.value = null
+  }
+}
+
 const syncTodoContext = async () => {
   loginUserId.value = resolveLoginUserId()
   if (!loginUserId.value) {
@@ -513,7 +732,7 @@ const syncDiaryContext = async () => {
     const diaries = await calendarApi.getDiaries()
     userDiaries.value = mapDiariesToState(diaries)
   } catch (err) {
-    console.error('[Calendar] 获取孕周记录失败:', err)
+    console.error('[Calendar] 获取时间线记录失败:', err)
     userDiaries.value = {}
   }
 }
@@ -556,7 +775,9 @@ const customTodoList = computed(() =>
 )
 const defaultTodoList = computed(() =>
   (parsedContent.value.todo || []).map((todo: any, index: number) => {
-    const todoKey = buildTodoKey(index)
+    const todoKey = selectedTimelineItem.value.stage === 'postpartum'
+      ? (timelineTodos.value[index]?.todoKey || `${selectedTimelineItem.value.timelineKey}:todo-${index}`)
+      : buildTodoKey(index)
     const stateKey = buildTodoStateKey(currentSelectedWeek.value, todoKey)
     return {
       ...todo,
@@ -567,9 +788,23 @@ const defaultTodoList = computed(() =>
   }),
 )
 const todoList = computed(() => [...customTodoList.value, ...defaultTodoList.value])
+const getTodoTypeLabel = (type: string) => {
+  const labels: Record<string, string> = {
+    checkup: '检查',
+    vaccine: '疫苗',
+    feeding: '喂养',
+    development: '发育',
+    safety: '安全',
+    care: '照护',
+    custom: '自定义',
+    action: '事项',
+  }
+
+  return labels[type] || '事项'
+}
 const completedTodoCount = computed(() => todoList.value.filter(todo => todo.completed).length)
 const weekPriority = computed(() => buildWeekPriorityPlan({
-  week: currentSelectedWeek.value,
+  week: selectedTimelineItem.value.displayWeek,
   summary: currentWeekData.value.summary,
   tips: parsedContent.value.tips || [],
   todos: todoList.value,
@@ -578,7 +813,7 @@ const weekPriority = computed(() => buildWeekPriorityPlan({
 }))
 const weekCommandDescription = computed(() => (
   activeTab.value === 'guide'
-    ? '先扫一眼本周发育与注意事项，再决定要不要补待办或记录。'
+    ? (selectedTimelineItem.value.stage === 'postpartum' ? '先扫一眼本周成长与照护重点，再决定要不要补待办或记录。' : '先扫一眼本周发育与注意事项，再决定要不要补待办或记录。')
     : activeTab.value === 'todo'
       ? (canUseTodoActions.value ? '把这一周要做的事集中处理，完成进度会实时保存。' : '先看本周待办结构，登录后再保存完成状态。')
       : (canUseTodoActions.value ? '把这一周的变化和提醒记下来，后面回看更省力。' : '登录后可以把这周感受、线下提醒和待办留下来。')
@@ -593,15 +828,19 @@ const weekCommandBadge = computed(() => (
 const tabQuickActions = computed(() => [
   {
     key: 'guide',
-    label: '孕周日历',
+    label: guideTabLabel.value,
     value: currentWeekData.value.babySizeText || '查看重点',
-    meta: parsedContent.value.tips?.length ? `${parsedContent.value.tips.length} 条本周建议` : '先看宝宝发育和妈妈变化',
+    meta: parsedContent.value.tips?.length
+      ? `${parsedContent.value.tips.length} 条${tipsSectionTitle.value}`
+      : (selectedTimelineItem.value.stage === 'postpartum' ? '先看宝宝成长和照护重点' : '先看宝宝发育和妈妈变化'),
   },
   {
     key: 'todo',
     label: '待办事项',
     value: todoList.value.length ? `${completedTodoCount.value}/${todoList.value.length} 已完成` : '本周待办待整理',
-    meta: canUseTodoActions.value ? '产检、营养和自定义事项都在这里' : '登录后可勾选并保存待办进度',
+    meta: canUseTodoActions.value
+      ? (selectedTimelineItem.value.stage === 'postpartum' ? '儿保、疫苗和自定义事项都在这里' : '产检、营养和自定义事项都在这里')
+      : '登录后可勾选并保存待办进度',
   },
   {
     key: 'diary',
@@ -617,24 +856,33 @@ const scrollToWeek = async (week: number) => {
   timelineScrollTarget.value = `week-${week}`
 }
 
+const selectStorageWeek = async (week: number) => {
+  currentSelectedWeek.value = week
+  await scrollToWeek(week)
+}
+
 const syncSelectedWeekFromSession = async () => {
   const resolvedWeek = resolveInitialWeek()
-  currentSelectedWeek.value = resolvedWeek
-  await scrollToWeek(resolvedWeek)
+  await selectStorageWeek(resolvedWeek)
 }
 
 function readWeekFromQuery(options?: Record<string, unknown> | null): number | null {
+  const timelineKeyWeek = parseTimelineKeyToStorageWeek(options?.timelineKey)
+  if (timelineKeyWeek) return timelineKeyWeek
+
   const value = options?.week
   const week = Number.parseInt(String(value || ''), 10)
-  return week >= 1 && week <= 40 ? week : null
+  return week >= 1 && week <= POSTPARTUM_STORAGE_WEEK_OFFSET + POSTPARTUM_WEEK_MAX ? week : null
 }
 
 const handleSelectWeek = (e: any) => {
   const weekNum = e.currentTarget.dataset.week
   if (weekNum) {
     const selectedWeek = Number(weekNum)
-    currentSelectedWeek.value = selectedWeek
-    void scrollToWeek(selectedWeek)
+    void (async () => {
+      await selectStorageWeek(selectedWeek)
+      await syncTimelineTodos()
+    })()
   }
 }
 
@@ -772,7 +1020,7 @@ const saveDiary = () => {
   void (async () => {
     try {
       const savedDiary = await calendarApi.saveDiary({
-        week: currentSelectedWeek.value,
+        ...selectedTimelineParams.value,
         content: trimmedContent,
         imageUrls: diaryImageUrls.value,
       })
@@ -785,7 +1033,7 @@ const saveDiary = () => {
       activeTab.value = 'diary'
       uni.showToast({ title: '记录已保存', icon: 'success' })
     } catch (err: any) {
-      console.error('[Calendar] 保存孕周记录失败:', err)
+      console.error('[Calendar] 保存时间线记录失败:', err)
       uni.showToast({ title: err?.message || '保存失败，请稍后重试', icon: 'none' })
     }
   })()
@@ -802,13 +1050,13 @@ const removeDiary = () => {
 
   uni.showModal({
     title: '删除记录',
-    content: `确认删除第 ${week} 周的记录吗？`,
+    content: `确认删除${selectedPeriodTitle.value}的记录吗？`,
     success: (res) => {
       if (!res.confirm) return
 
       void (async () => {
         try {
-          await calendarApi.deleteDiary(week)
+          await calendarApi.deleteDiary(selectedTimelineParams.value)
 
           const nextDiaries = { ...userDiaries.value }
           delete nextDiaries[week]
@@ -818,7 +1066,7 @@ const removeDiary = () => {
           diaryImageUrls.value = []
           uni.showToast({ title: '记录已删除', icon: 'success' })
         } catch (err: any) {
-          console.error('[Calendar] 删除孕周记录失败:', err)
+          console.error('[Calendar] 删除时间线记录失败:', err)
           uni.showToast({ title: err?.message || '删除失败，请稍后重试', icon: 'none' })
         }
       })()
@@ -857,7 +1105,7 @@ const saveCustomTodo = () => {
         }
       } else {
         const savedTodo = await calendarApi.createCustomTodo({
-          week: currentSelectedWeek.value,
+          ...selectedTimelineParams.value,
           content: trimmedContent,
         })
 
@@ -924,7 +1172,7 @@ const toggleTodo = async (todo: { todoKey: string; stateKey: string; completed: 
 
   try {
     await calendarApi.updateTodoProgress({
-      week: currentSelectedWeek.value,
+      ...selectedTimelineParams.value,
       todoKey: todo.todoKey,
       completed: nextCompleted,
     })
@@ -946,28 +1194,46 @@ onLoad((options) => {
   const sharedWeek = readWeekFromQuery(options)
   if (sharedWeek) {
     initialSharedWeek.value = sharedWeek
-    currentSelectedWeek.value = sharedWeek
-    void scrollToWeek(sharedWeek)
+    void selectStorageWeek(sharedWeek)
   }
 })
 
 onShow(() => {
-  if (initialSharedWeek.value) {
-    void scrollToWeek(initialSharedWeek.value)
-    initialSharedWeek.value = null
-  } else {
-    void syncSelectedWeekFromSession()
-  }
-  loginUserId.value = resolveLoginUserId()
-  void Promise.all([syncTodoContext(), syncDiaryContext(), syncCustomTodoContext()])
+  void (async () => {
+    const sharedWeek = initialSharedWeek.value
+    const hasSharedWeek = sharedWeek !== null
+
+    loginUserId.value = resolveLoginUserId()
+
+    if (hasSharedWeek && sharedWeek) {
+      await selectStorageWeek(sharedWeek)
+      initialSharedWeek.value = null
+    } else if (!loginUserId.value) {
+      await syncSelectedWeekFromSession()
+    }
+
+    await syncTimelineContext({ preserveSelected: hasSharedWeek })
+    await Promise.all([
+      syncTodoContext(),
+      syncDiaryContext(),
+      syncCustomTodoContext(),
+      syncTimelineTodos(),
+    ])
+  })()
 })
 
 function buildSharePayload() {
-  const query = buildAcquisitionQuery({ week: currentSelectedWeek.value })
+  const period = selectedTimelineItem.value
+  const params = {
+    week: period.storageWeek,
+    timelineKey: period.timelineKey,
+  }
+  const query = buildAcquisitionQuery(params)
+  const titlePrefix = period.stage === 'postpartum' ? '贝护妈妈成长时间线' : '贝护妈妈孕周日历'
 
   return {
-    title: `贝护妈妈孕周日历：第 ${currentSelectedWeek.value} 周重点与记录`,
-    path: buildAcquisitionPath('/pages/calendar/index', { week: currentSelectedWeek.value }),
+    title: `${titlePrefix}：${period.title}重点与记录`,
+    path: buildAcquisitionPath('/pages/calendar/index', params),
     query,
   }
 }
@@ -1410,6 +1676,11 @@ onShareTimeline(() => {
 .type-checkup { background-color: #e8f5e9; color: #4caf50; }
 .type-action { background-color: #fff3e0; color: #ff9800; }
 .type-custom { background-color: #eef1ff; color: #6274ff; }
+.type-vaccine { background-color: #eef5ff; color: #2f7cf6; }
+.type-feeding { background-color: #fff7e6; color: #c47a1c; }
+.type-development { background-color: #f1f7ff; color: #5167d8; }
+.type-safety { background-color: #fff1f0; color: #d95c5c; }
+.type-care { background-color: #edf8f4; color: #16806a; }
 .todo-state { font-size: 22rpx; color: #5dbb7f; }
 .todo-state--muted { color: #8b96a3; }
 .todo-title { display: block; font-size: 28rpx; font-weight: bold; color: #444; margin-bottom: 8rpx; }

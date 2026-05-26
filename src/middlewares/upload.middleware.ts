@@ -3,9 +3,14 @@ import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 import multer, { FileFilterCallback } from 'multer';
+import sharp from 'sharp';
 import { AppError, ErrorCodes } from './error.middleware';
 
 const UPLOAD_DIR = path.join(process.cwd(), 'uploads');
+const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
+const MAX_IMAGE_DIMENSION = 1600;
+const JPEG_QUALITY = 80;
+const PNG_QUALITY = 80;
 
 // 确保上传目录存在
 if (!fs.existsSync(UPLOAD_DIR)) {
@@ -33,6 +38,7 @@ export const uploadImage = (req: Request, res: Response, next: NextFunction) => 
         return;
       }
 
+      await compressUploadedImage(file);
       next();
     } catch (err) {
       await removeUploadedFile(file.path);
@@ -44,7 +50,7 @@ export const uploadImage = (req: Request, res: Response, next: NextFunction) => 
 export function normalizeUploadError(error: unknown): unknown {
   if (error instanceof multer.MulterError) {
     if (error.code === 'LIMIT_FILE_SIZE') {
-      return new AppError('图片大小不能超过 2MB', ErrorCodes.PARAM_ERROR, 413);
+      return new AppError('图片大小不能超过 8MB', ErrorCodes.PARAM_ERROR, 413);
     }
 
     return new AppError('图片上传失败', ErrorCodes.PARAM_ERROR, 400);
@@ -117,9 +123,59 @@ export async function hasValidImageSignature(filePath: string, mimeType: string)
   }
 }
 
+export async function compressUploadedImage(file: Express.Multer.File): Promise<void> {
+  if (file.mimetype === 'image/gif') {
+    return;
+  }
+
+  const metadata = await sharp(file.path, { limitInputPixels: 40_000_000 }).metadata();
+  const shouldKeepPng = file.mimetype === 'image/png' && metadata.hasAlpha;
+  const targetExt = shouldKeepPng ? '.png' : '.jpg';
+  const targetMimeType = shouldKeepPng ? 'image/png' : 'image/jpeg';
+  const parsed = path.parse(file.filename);
+  const targetFilename = `${parsed.name}${targetExt}`;
+  const targetPath = path.join(path.dirname(file.path), targetFilename);
+  const tempPath = `${file.path}.compressed${targetExt}`;
+
+  let transformer = sharp(file.path, { limitInputPixels: 40_000_000 })
+    .rotate()
+    .resize({
+      width: MAX_IMAGE_DIMENSION,
+      height: MAX_IMAGE_DIMENSION,
+      fit: 'inside',
+      withoutEnlargement: true,
+    });
+
+  if (shouldKeepPng) {
+    transformer = transformer.png({
+      compressionLevel: 9,
+      effort: 8,
+      palette: true,
+      quality: PNG_QUALITY,
+    });
+  } else {
+    transformer = transformer
+      .flatten({ background: '#ffffff' })
+      .jpeg({
+        quality: JPEG_QUALITY,
+        mozjpeg: true,
+      });
+  }
+
+  await transformer.toFile(tempPath);
+  await fs.promises.unlink(file.path);
+  await fs.promises.rename(tempPath, targetPath);
+
+  const stats = await fs.promises.stat(targetPath);
+  file.filename = targetFilename;
+  file.path = targetPath;
+  file.mimetype = targetMimeType;
+  file.size = stats.size;
+}
+
 const uploadSingleImage = multer({
   storage,
-  limits: { fileSize: 2 * 1024 * 1024 },
+  limits: { fileSize: MAX_UPLOAD_BYTES },
   fileFilter: (_req: Request, file: Express.Multer.File, cb: FileFilterCallback) => {
     if (allowedImageMimeTypes.has(file.mimetype)) {
       cb(null, true);

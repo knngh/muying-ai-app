@@ -16,7 +16,7 @@ import type {
   FavoriteCreatePayload,
   PaginationParams,
   ParentCategoryParams,
-  PregnancyTodoProgress, PregnancyDiary, PregnancyCustomTodo, PregnancyProfile,
+  PregnancyTodoProgress, PregnancyDiary, PregnancyCustomTodo, PregnancyProfile, TimelineDefaultTodo,
   TimelineContext,
   PregnancyCustomTodoCreatePayload,
   PregnancyCustomTodoUpdatePayload,
@@ -35,7 +35,7 @@ import {
 export type {
   AuthorityArticleTranslation, AuthorityArticleTranslationResponse, TranslationPendingError,
   Category, Tag, Article, CalendarEvent, User, PaginatedResponse,
-  PregnancyTodoProgress, PregnancyDiary, PregnancyCustomTodo, PregnancyProfile, TimelineContext,
+  PregnancyTodoProgress, PregnancyDiary, PregnancyCustomTodo, PregnancyProfile, TimelineContext, TimelineDefaultTodo,
 }
 export { isTranslationPendingError } from '../../../shared/utils/translation-request'
 
@@ -119,6 +119,9 @@ export const calendarApi = {
   getDay: (date: string) => api.get(`/calendar/day/${date}`),
   getEventTypes: () => api.get('/calendar/event-types'),
   getTimelineContext: () => api.get<TimelineContext>('/calendar/timeline/context'),
+  getTimelineTodos: (params: PregnancyWeekParams) =>
+    api.get<{ list: TimelineDefaultTodo[] }>('/calendar/timeline/todos', params as Record<string, unknown>)
+      .then(res => (res as { list: TimelineDefaultTodo[] }).list),
   getTodoProgress: (params?: PregnancyWeekParams) =>
     api.get<{ list: PregnancyTodoProgress[] }>('/calendar/todo-progress', params as Record<string, unknown>)
       .then(res => (res as { list: PregnancyTodoProgress[] }).list),
