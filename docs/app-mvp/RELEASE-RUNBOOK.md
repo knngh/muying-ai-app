@@ -1,6 +1,6 @@
 # Release Runbook
 
-更新时间：2026-04-06
+更新时间：2026-05-26
 
 ## 1. 目标
 
@@ -98,6 +98,71 @@ npm run ops:smoke:prod
 - analytics 事件写入
 - analytics 漏斗查询
 
+### 4.1 上传图片专项冒烟
+
+上传图片涉及 App / 小程序渲染层跨源加载、Nginx 反代缓存、后端静态文件响应头、日记保存与删除清理。发布图片上传、孕育记录、静态资源响应头或 Nginx 配置后，额外执行：
+
+```bash
+npm run ops:smoke:uploads
+```
+
+默认覆盖：
+
+- `demo_postpartum_user` 登录
+- 使用 multipart 字段名 `file` 上传图片
+- 校验新图片响应头包含 `Cross-Origin-Resource-Policy: cross-origin`
+- 校验新图片响应头包含 `Cache-Control: no-store, max-age=0` 且不含 `immutable`
+- 保存产后记录并读回 `imageUrls`
+- 删除记录并确认对应 `/uploads/...` 文件返回 404
+
+### 4.2 Nginx `/uploads/` 反代要求
+
+生产域名 `beihu.me` 的 `/uploads/` 必须单独关闭 Nginx proxy cache。用户上传图片可能被删除，且微信小程序渲染层会按 `Cross-Origin-Resource-Policy` 判断跨源图片；如果 `/uploads/` 命中旧 proxy cache，可能继续返回旧的 `same-origin` 或 `immutable` 响应头，导致小程序报 `net::ERR_BLOCKED_BY_RESPONSE`。
+
+当前生产配置文件：
+
+```bash
+/www/server/panel/vhost/nginx/muying-api.conf
+```
+
+`server_name beihu.me` 的 HTTPS server 内需要保留：
+
+```nginx
+location /uploads/ {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection 'upgrade';
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_cache off;
+    proxy_no_cache 1;
+    proxy_cache_bypass 1;
+}
+```
+
+修改后执行：
+
+```bash
+sudo /www/server/nginx/sbin/nginx -t
+sudo /www/server/nginx/sbin/nginx -s reload
+```
+
+验证任意存在的上传图片：
+
+```bash
+curl -sS -o /dev/null -D - https://beihu.me/uploads/<filename>.jpg
+```
+
+应看到：
+
+```text
+cross-origin-resource-policy: cross-origin
+cache-control: no-store, max-age=0
+```
+
 ## 5. 演示数据重置
 
 需要重置演示状态时，在生产目录执行：
@@ -166,6 +231,7 @@ SSH_PASSWORD='你的密码' npm run ops:release:prod
 - `ops:deploy:prod` 与 `ops:rollback:prod` 均支持 `SSH_PASSWORD`
 - 当前 smoke 中支付只验证到建单，不执行真实支付回调
 - 当前仓库已支持支付回调签名框架；若生产未配置回调密钥，回调仍会走登录态 fallback
+- `/uploads/` 的 Nginx 反代配置属于服务器运行时配置，不随 `ops:sync:prod` 自动同步；重建服务器或重置宝塔站点配置后必须按 4.2 恢复
 
 ## 9. 相关文件
 

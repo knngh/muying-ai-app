@@ -18,6 +18,7 @@
     "ops:release:prod": "bash scripts/prod-release-backend.sh",
     "ops:rollback:prod": "bash scripts/prod-rollback-backend.sh",
     "ops:smoke:prod": "bash scripts/prod-smoke-backend.sh",
+    "ops:smoke:uploads": "bash scripts/prod-smoke-uploads.sh",
     "ops:smoke:ai": "bash scripts/prod-ai-smoke.sh",
     "ops:smoke:ai:ws": "node scripts/prod-ai-ws-smoke.js",
     "ops:smoke:ai:entrypoints": "node scripts/prod-ai-entrypoint-smoke.js",
