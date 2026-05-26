@@ -19,7 +19,7 @@ import { Button, Card, Chip, Modal, Portal, Snackbar, Switch, Text, TextInput } 
 import LinearGradient from 'react-native-linear-gradient'
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons'
 import { calendarApi, checkinApi } from '../api/modules'
-import type { CheckinStatus, StandardSchedulePlan, TimelineContext } from '../api/modules'
+import type { CheckinStatus, StandardSchedulePlan, TimelineContext, TimelineDefaultTodo } from '../api/modules'
 import { resolveUploadUrl } from '../api'
 import { useCalendarStore } from '../stores/calendarStore'
 import { useAppStore } from '../stores/appStore'
@@ -32,6 +32,8 @@ import { borderRadius, colors, fontSize, spacing } from '../theme'
 import type { RootStackParamList } from '../navigation/AppNavigator'
 
 type EventType = 'checkup' | 'vaccine' | 'reminder' | 'exercise' | 'diet' | 'other'
+type TimelineTodoType = TimelineDefaultTodo['type']
+type TimelineTodoWithProgress = TimelineDefaultTodo & { completed: boolean }
 
 const EVENT_TYPE_CONFIG: Record<EventType, { label: string; color: string; icon: string }> = {
   checkup: { label: '检查', color: colors.orange, icon: 'hospital-box-outline' },
@@ -40,6 +42,15 @@ const EVENT_TYPE_CONFIG: Record<EventType, { label: string; color: string; icon:
   exercise: { label: '运动', color: colors.gold, icon: 'run-fast' },
   diet: { label: '饮食', color: colors.pink, icon: 'food-apple-outline' },
   other: { label: '其他', color: colors.textSecondary, icon: 'shape-outline' },
+}
+
+const TIMELINE_TODO_TYPE_CONFIG: Record<TimelineTodoType, { label: string; color: string; icon: string }> = {
+  checkup: { label: '儿保', color: colors.orange, icon: 'hospital-box-outline' },
+  vaccine: { label: '疫苗', color: colors.green, icon: 'needle' },
+  feeding: { label: '喂养', color: colors.primary, icon: 'baby-bottle-outline' },
+  development: { label: '发育', color: colors.techDark, icon: 'human-child' },
+  safety: { label: '安全', color: colors.red, icon: 'shield-check-outline' },
+  care: { label: '照护', color: colors.gold, icon: 'heart-pulse' },
 }
 
 const EVENT_TYPES: EventType[] = ['checkup', 'vaccine', 'reminder', 'exercise', 'diet', 'other']
@@ -392,6 +403,7 @@ export default function CalendarScreen() {
     fetchTodoContext,
     saveDiary,
     deleteDiary,
+    toggleTodoProgress,
     createEvent,
     updateEvent,
     deleteEvent,
@@ -419,6 +431,7 @@ export default function CalendarScreen() {
   const [diaryImageUrls, setDiaryImageUrls] = useState<string[]>([])
   const [diarySaving, setDiarySaving] = useState(false)
   const [diaryUploading, setDiaryUploading] = useState(false)
+  const [timelineTodoUpdating, setTimelineTodoUpdating] = useState<string | null>(null)
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null)
   const dateCellNodesRef = useRef<Record<string, View | null>>({})
   const dateCellRectsRef = useRef<Record<string, Rect>>({})
@@ -586,6 +599,31 @@ export default function CalendarScreen() {
       .slice(0, 3),
     [standardSchedule],
   )
+  const timelineTodosWithProgress = useMemo(() => {
+    if (!activeTimelineWeek) return []
+
+    return (timelineContext?.defaultTodos || []).map((todo) => {
+      const todoWeek = todo.week || activeTimelineWeek
+      const completed = todoProgress.some(progress => (
+        progress.week === todoWeek
+        && progress.todoKey === todo.todoKey
+        && progress.completed
+      ))
+
+      return {
+        ...todo,
+        week: todoWeek,
+        completed,
+      }
+    })
+  }, [activeTimelineWeek, timelineContext?.defaultTodos, todoProgress])
+  const activeTimelineTodoCompletedCount = useMemo(
+    () => timelineTodosWithProgress.filter(item => item.completed).length,
+    [timelineTodosWithProgress],
+  )
+  const activeTimelineTodoProgressPercent = timelineTodosWithProgress.length
+    ? Math.round((activeTimelineTodoCompletedCount / timelineTodosWithProgress.length) * 100)
+    : 0
   const currentWeekDiary = useMemo(
     () => (activeTimelineWeek ? diaries.find((item) => item.week === activeTimelineWeek) || null : null),
     [activeTimelineWeek, diaries],
@@ -605,6 +643,13 @@ export default function CalendarScreen() {
       completed: Boolean(eventStates.get(`${suggestion.eventType}:${suggestion.title}`.toLowerCase())),
     }))
 
+    const timelineDefaultTodos = timelineTodosWithProgress.map((item) => ({
+      type: item.type,
+      title: item.title,
+      desc: item.desc,
+      completed: item.completed,
+    }))
+
     const weeklyCustomTodos = activeTimelineWeek
       ? customTodos
         .filter((item) => item.week === activeTimelineWeek)
@@ -616,8 +661,8 @@ export default function CalendarScreen() {
         }))
       : []
 
-    return [...weeklyCustomTodos, ...suggestionTodos]
-  }, [activeTimelineWeek, calendarEvents, calendarSuggestions, customTodos, todoProgress])
+    return [...timelineDefaultTodos, ...weeklyCustomTodos, ...suggestionTodos]
+  }, [activeTimelineWeek, calendarEvents, calendarSuggestions, customTodos, timelineTodosWithProgress, todoProgress])
   const aiWeekPriority = useMemo(() => buildWeekPriorityPlan({
     week: activeTimelineDisplayWeek,
     summary: stage.reminder,
@@ -835,6 +880,22 @@ export default function CalendarScreen() {
     todayPendingEvents,
     todayString,
   ])
+
+  const handleToggleTimelineTodo = useCallback(async (todo: TimelineTodoWithProgress) => {
+    if (!activeTimelineWeek || timelineTodoUpdating) return
+
+    const nextCompleted = !todo.completed
+    const targetWeek = todo.week || activeTimelineWeek
+    setTimelineTodoUpdating(todo.todoKey)
+    try {
+      await toggleTodoProgress(targetWeek, todo.todoKey, nextCompleted)
+      setSnackMessage(nextCompleted ? '阶段待办已完成' : '已撤销完成')
+    } catch (error) {
+      setSnackMessage(error instanceof Error ? error.message : '待办状态更新失败，请稍后重试')
+    } finally {
+      setTimelineTodoUpdating(null)
+    }
+  }, [activeTimelineWeek, timelineTodoUpdating, toggleTodoProgress])
 
   const openDiaryModal = useCallback(() => {
     if (!activeTimelineWeek) {
@@ -1329,6 +1390,89 @@ export default function CalendarScreen() {
             <Text style={styles.aiPriorityReminder}>{aiWeekPriority.reminder}</Text>
           </LinearGradient>
         </Card>
+
+        {timelineTodosWithProgress.length > 0 ? (
+          <Card style={styles.timelineTodoCard}>
+            <LinearGradient
+              colors={isPostpartumTimeline ? ['#EEF6F4', '#F8FCFB', '#FFF9F4'] : ['#FFF8F2', '#F3E3D8', '#FDFBF8']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.timelineTodoGradient}
+            >
+              <View style={styles.timelineTodoHeader}>
+                <View style={styles.timelineTodoLead}>
+                  <View style={styles.timelineTodoIconShell}>
+                    <MaterialCommunityIcons name="clipboard-check-outline" size={18} color={isPostpartumTimeline ? colors.techDark : colors.primaryDark} />
+                  </View>
+                  <View style={styles.timelineTodoHeaderText}>
+                    <Text style={styles.timelineTodoEyebrow}>{isPostpartumTimeline ? '成长时间线' : '孕育时间线'}</Text>
+                    <Text style={styles.timelineTodoTitle}>{activeTimelineLabel} 待办</Text>
+                    <Text style={styles.timelineTodoSubtitle}>
+                      {isPostpartumTimeline ? '儿保、疫苗、喂养和妈妈恢复同步跟进。' : '本阶段检查、营养和记录事项集中跟进。'}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.timelineTodoProgressBadge}>
+                  <Text style={styles.timelineTodoProgressValue}>{activeTimelineTodoProgressPercent}%</Text>
+                  <Text style={styles.timelineTodoProgressLabel}>
+                    {activeTimelineTodoCompletedCount}/{timelineTodosWithProgress.length}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.timelineTodoProgressTrack}>
+                <View style={[styles.timelineTodoProgressFill, { width: `${activeTimelineTodoProgressPercent}%` }]} />
+              </View>
+
+              <View style={styles.timelineTodoList}>
+                {timelineTodosWithProgress.map((todo) => {
+                  const typeConfig = TIMELINE_TODO_TYPE_CONFIG[todo.type]
+                  const isUpdating = timelineTodoUpdating === todo.todoKey
+                  const todoIconStyle = [styles.timelineTodoItemIcon, { backgroundColor: `${typeConfig.color}18` }]
+                  const todoChipStyle = [styles.timelineTodoTypeChip, { backgroundColor: `${typeConfig.color}16` }]
+                  const todoChipTextStyle = [styles.timelineTodoTypeChipText, { color: typeConfig.color }]
+
+                  return (
+                    <View key={todo.todoKey} style={[styles.timelineTodoItem, todo.completed && styles.timelineTodoItemDone]}>
+                      <View style={styles.timelineTodoItemMain}>
+                        <View style={todoIconStyle}>
+                          <MaterialCommunityIcons name={typeConfig.icon} size={16} color={typeConfig.color} />
+                        </View>
+                        <View style={styles.timelineTodoItemText}>
+                          <View style={styles.timelineTodoItemTop}>
+                            <Text style={[styles.timelineTodoItemTitle, todo.completed && styles.timelineTodoItemTitleDone]}>
+                              {todo.title}
+                            </Text>
+                            <Chip compact style={todoChipStyle} textStyle={todoChipTextStyle}>
+                              {typeConfig.label}
+                            </Chip>
+                          </View>
+                          <Text style={styles.timelineTodoItemDesc}>{todo.desc}</Text>
+                          <Text style={styles.timelineTodoSource}>{todo.sourceLabel}</Text>
+                        </View>
+                      </View>
+                      <TouchableOpacity
+                        activeOpacity={0.88}
+                        disabled={isUpdating}
+                        onPress={() => void handleToggleTimelineTodo(todo)}
+                        style={[styles.timelineTodoAction, todo.completed && styles.timelineTodoActionDone]}
+                      >
+                        <MaterialCommunityIcons
+                          name={todo.completed ? 'check-circle' : 'check-circle-outline'}
+                          size={17}
+                          color={todo.completed ? colors.green : colors.white}
+                        />
+                        <Text style={[styles.timelineTodoActionText, todo.completed && styles.timelineTodoActionTextDone]}>
+                          {isUpdating ? '同步中' : todo.completed ? '已完成' : '完成'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  )
+                })}
+              </View>
+            </LinearGradient>
+          </Card>
+        ) : null}
 
         {activeTimelineWeek ? (
           <Card style={styles.diaryCard}>
@@ -2249,6 +2393,178 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     color: colors.textSecondary,
     lineHeight: 20,
+  },
+  timelineTodoCard: {
+    marginTop: spacing.md,
+    borderRadius: borderRadius.xl,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(94,126,134,0.16)',
+    backgroundColor: 'transparent',
+  },
+  timelineTodoGradient: {
+    padding: spacing.md,
+  },
+  timelineTodoHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+  },
+  timelineTodoLead: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+  },
+  timelineTodoIconShell: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.78)',
+  },
+  timelineTodoHeaderText: {
+    flex: 1,
+  },
+  timelineTodoEyebrow: {
+    fontSize: fontSize.xs,
+    color: colors.techDark,
+    fontWeight: '700',
+    letterSpacing: 1,
+  },
+  timelineTodoTitle: {
+    marginTop: 2,
+    color: colors.text,
+    fontSize: fontSize.md,
+    fontWeight: '700',
+    lineHeight: 20,
+  },
+  timelineTodoSubtitle: {
+    marginTop: 4,
+    color: colors.textSecondary,
+    lineHeight: 18,
+  },
+  timelineTodoProgressBadge: {
+    minWidth: 64,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.lg,
+    backgroundColor: 'rgba(255,255,255,0.82)',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(94,126,134,0.12)',
+  },
+  timelineTodoProgressValue: {
+    color: colors.techDark,
+    fontSize: fontSize.lg,
+    fontWeight: '800',
+  },
+  timelineTodoProgressLabel: {
+    color: colors.textSecondary,
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  timelineTodoProgressTrack: {
+    marginTop: spacing.sm,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(94,126,134,0.12)',
+    overflow: 'hidden',
+  },
+  timelineTodoProgressFill: {
+    height: '100%',
+    borderRadius: 3,
+    backgroundColor: colors.techDark,
+  },
+  timelineTodoList: {
+    marginTop: spacing.md,
+    gap: spacing.sm,
+  },
+  timelineTodoItem: {
+    padding: spacing.sm,
+    borderRadius: borderRadius.lg,
+    backgroundColor: 'rgba(255,255,255,0.74)',
+    borderWidth: 1,
+    borderColor: 'rgba(94,126,134,0.10)',
+    gap: spacing.sm,
+  },
+  timelineTodoItemDone: {
+    backgroundColor: 'rgba(234,240,226,0.88)',
+    borderColor: 'rgba(158,171,132,0.20)',
+  },
+  timelineTodoItemMain: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+  },
+  timelineTodoItemIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  timelineTodoItemText: {
+    flex: 1,
+  },
+  timelineTodoItemTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  timelineTodoItemTitle: {
+    flex: 1,
+    color: colors.ink,
+    fontWeight: '700',
+    lineHeight: 20,
+  },
+  timelineTodoItemTitleDone: {
+    color: colors.textSecondary,
+    textDecorationLine: 'line-through',
+  },
+  timelineTodoTypeChip: {
+    alignSelf: 'flex-start',
+  },
+  timelineTodoTypeChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  timelineTodoItemDesc: {
+    marginTop: spacing.xs,
+    color: colors.inkSoft,
+    lineHeight: 19,
+  },
+  timelineTodoSource: {
+    marginTop: 4,
+    color: colors.textLight,
+    fontSize: fontSize.xs,
+    lineHeight: 16,
+  },
+  timelineTodoAction: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: borderRadius.pill,
+    backgroundColor: colors.techDark,
+  },
+  timelineTodoActionDone: {
+    backgroundColor: 'rgba(158,171,132,0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(158,171,132,0.22)',
+  },
+  timelineTodoActionText: {
+    color: colors.white,
+    fontSize: fontSize.sm,
+    fontWeight: '700',
+  },
+  timelineTodoActionTextDone: {
+    color: colors.green,
   },
   diaryCard: {
     marginTop: spacing.md,
