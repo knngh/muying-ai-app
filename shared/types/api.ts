@@ -40,21 +40,24 @@ export interface CalendarEventDragPayload {
 
 export interface PregnancyWeekParams {
   week?: number
+  timelineKey?: string
 }
 
-export interface PregnancyTodoProgressUpdatePayload {
-  week: number
+export interface TimelinePeriodPayload {
+  week?: number
+  timelineKey?: string
+}
+
+export interface PregnancyTodoProgressUpdatePayload extends TimelinePeriodPayload {
   todoKey: string
   completed: boolean
 }
 
-export interface PregnancyDiaryPayload {
-  week: number
+export interface PregnancyDiaryPayload extends TimelinePeriodPayload {
   content: string
 }
 
-export interface PregnancyCustomTodoCreatePayload {
-  week: number
+export interface PregnancyCustomTodoCreatePayload extends TimelinePeriodPayload {
   content: string
 }
 

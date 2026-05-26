@@ -8,6 +8,20 @@ import {
   buildStandardSchedulePlan,
   getMissingStandardScheduleDefinitions,
 } from '../utils/calendar-standard-plan';
+import { calculatePregnancyWeekFromDueDate } from '../utils/pregnancy';
+import { getPostpartumTimelineTodos } from '../utils/postpartum-timeline';
+import {
+  calculatePostpartumWeek,
+  getPostpartumStorageWeek,
+  parseTimelinePeriodInput,
+  PREGNANCY_WEEK_MAX,
+  PREGNANCY_WEEK_MIN,
+  POSTPARTUM_WEEK_MAX,
+  POSTPARTUM_WEEK_MIN,
+  resolveTimelineBabyBirthday,
+  toTimelinePeriodFromStorageWeek,
+  type TimelinePeriod,
+} from '../utils/timeline';
 
 const TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
@@ -85,12 +99,43 @@ const formatDate = (date: Date): string => {
 };
 
 
-const parseTodoWeek = (value: unknown): number => {
-  const week = Number.parseInt(String(value ?? ''), 10);
-  if (!Number.isInteger(week) || week < 1 || week > 40) {
-    throw new AppError('孕周参数无效', ErrorCodes.PARAM_ERROR, 400);
+const serializeTimelinePeriod = (period: TimelinePeriod) => ({
+  timelineKey: period.timelineKey,
+  stage: period.stage,
+  displayWeek: period.week,
+  timelineTitle: period.title,
+  timelineShortTitle: period.shortTitle,
+});
+
+const serializeTimelineMetaFromStorageWeek = (storageWeek: number) => {
+  const period = toTimelinePeriodFromStorageWeek(storageWeek);
+  return {
+    week: period.storageWeek,
+    ...serializeTimelinePeriod(period),
+  };
+};
+
+const serializeTimelinePeriodWithStorageWeek = (period: TimelinePeriod) => ({
+  week: period.storageWeek,
+  ...serializeTimelinePeriod(period),
+});
+
+const parseTimelinePeriod = (input: { week?: unknown; timelineKey?: unknown }): TimelinePeriod => {
+  const period = parseTimelinePeriodInput(input);
+  if (!period) {
+    throw new AppError('时间线参数无效', ErrorCodes.PARAM_ERROR, 400);
   }
-  return week;
+  return period;
+};
+
+const parseOptionalTimelinePeriod = (input: { week?: unknown; timelineKey?: unknown }): TimelinePeriod | null => {
+  const hasTimelineInput = input.week !== undefined
+    || (typeof input.timelineKey === 'string' && input.timelineKey.trim() !== '');
+  const period = parseTimelinePeriodInput(input);
+  if (!period && hasTimelineInput) {
+    throw new AppError('时间线参数无效', ErrorCodes.PARAM_ERROR, 400);
+  }
+  return period;
 };
 
 const parseTodoKey = (value: unknown): string => {
@@ -308,14 +353,14 @@ export const getEvents = async (req: Request, res: Response, next: NextFunction)
 export const getTodoProgress = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.userId!;
-    const { week } = req.query;
+    const period = parseOptionalTimelinePeriod(req.query);
 
     const where: { userId: bigint; week?: number } = {
       userId: BigInt(userId)
     };
 
-    if (week !== undefined) {
-      where.week = parseTodoWeek(week);
+    if (period) {
+      where.week = period.storageWeek;
     }
 
     const progressList = await prisma.userPregnancyTodoProgress.findMany({
@@ -328,7 +373,7 @@ export const getTodoProgress = async (req: Request, res: Response, next: NextFun
 
     res.json(successResponse({
       list: progressList.map((item) => ({
-        week: item.week,
+        ...serializeTimelineMetaFromStorageWeek(item.week),
         todoKey: item.todoKey,
         completed: true,
         completedAt: item.completedAt.toISOString()
@@ -343,7 +388,8 @@ export const getTodoProgress = async (req: Request, res: Response, next: NextFun
 export const updateTodoProgress = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.userId!;
-    const week = parseTodoWeek(req.body.week);
+    const period = parseTimelinePeriod(req.body);
+    const week = period.storageWeek;
     const todoKey = parseTodoKey(req.body.todoKey);
     const { completed } = req.body;
 
@@ -372,7 +418,7 @@ export const updateTodoProgress = async (req: Request, res: Response, next: Next
       });
 
       res.json(successResponse({
-        week: progress.week,
+        ...serializeTimelineMetaFromStorageWeek(progress.week),
         todoKey: progress.todoKey,
         completed: true,
         completedAt: progress.completedAt.toISOString()
@@ -389,7 +435,7 @@ export const updateTodoProgress = async (req: Request, res: Response, next: Next
     });
 
     res.json(successResponse({
-      week,
+      ...serializeTimelineMetaFromStorageWeek(week),
       todoKey,
       completed: false
     }, '已取消完成'));
@@ -402,14 +448,14 @@ export const updateTodoProgress = async (req: Request, res: Response, next: Next
 export const getPregnancyDiaries = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.userId!;
-    const { week } = req.query;
+    const period = parseOptionalTimelinePeriod(req.query);
 
     const where: { userId: bigint; week?: number } = {
       userId: BigInt(userId)
     };
 
-    if (week !== undefined) {
-      where.week = parseTodoWeek(week);
+    if (period) {
+      where.week = period.storageWeek;
     }
 
     const diaries = await prisma.userPregnancyDiary.findMany({
@@ -419,7 +465,7 @@ export const getPregnancyDiaries = async (req: Request, res: Response, next: Nex
 
     res.json(successResponse({
       list: diaries.map((item) => ({
-        week: item.week,
+        ...serializeTimelineMetaFromStorageWeek(item.week),
         content: item.content,
         date: formatDate(item.updatedAt),
         createdAt: item.createdAt.toISOString(),
@@ -435,7 +481,8 @@ export const getPregnancyDiaries = async (req: Request, res: Response, next: Nex
 export const savePregnancyDiary = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.userId!;
-    const week = parseTodoWeek(req.body.week);
+    const period = parseTimelinePeriod(req.body);
+    const week = period.storageWeek;
     const content = parseDiaryContent(req.body.content);
 
     const diary = await prisma.userPregnancyDiary.upsert({
@@ -456,7 +503,7 @@ export const savePregnancyDiary = async (req: Request, res: Response, next: Next
     });
 
     res.json(successResponse({
-      week: diary.week,
+      ...serializeTimelineMetaFromStorageWeek(diary.week),
       content: diary.content,
       date: formatDate(diary.updatedAt),
       createdAt: diary.createdAt.toISOString(),
@@ -471,7 +518,8 @@ export const savePregnancyDiary = async (req: Request, res: Response, next: Next
 export const deletePregnancyDiary = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.userId!;
-    const week = parseTodoWeek(req.params.week);
+    const period = parseTimelinePeriod(req.params.week !== undefined ? { week: req.params.week } : req.query);
+    const week = period.storageWeek;
 
     const existingDiary = await prisma.userPregnancyDiary.findUnique({
       where: {
@@ -495,7 +543,7 @@ export const deletePregnancyDiary = async (req: Request, res: Response, next: Ne
       }
     });
 
-    res.json(successResponse({ week }, '删除成功'));
+    res.json(successResponse(serializeTimelineMetaFromStorageWeek(week), '删除成功'));
   } catch (error) {
     next(error);
   }
@@ -505,14 +553,14 @@ export const deletePregnancyDiary = async (req: Request, res: Response, next: Ne
 export const getCustomTodos = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.userId!;
-    const { week } = req.query;
+    const period = parseOptionalTimelinePeriod(req.query);
 
     const where: { userId: bigint; week?: number } = {
       userId: BigInt(userId)
     };
 
-    if (week !== undefined) {
-      where.week = parseTodoWeek(week);
+    if (period) {
+      where.week = period.storageWeek;
     }
 
     const customTodos = await prisma.userPregnancyCustomTodo.findMany({
@@ -526,11 +574,96 @@ export const getCustomTodos = async (req: Request, res: Response, next: NextFunc
     res.json(successResponse({
       list: customTodos.map((item) => ({
         id: item.id.toString(),
-        week: item.week,
+        ...serializeTimelineMetaFromStorageWeek(item.week),
         content: item.content,
         createdAt: item.createdAt.toISOString(),
         updatedAt: item.updatedAt.toISOString()
       }))
+    }));
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getTimelineContext = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.userId!;
+    const userIdBigInt = BigInt(userId);
+
+    const [user, growthProfile] = await Promise.all([
+      prisma.user.findUniqueOrThrow({
+        where: { id: userIdBigInt },
+        select: {
+          pregnancyStatus: true,
+          dueDate: true,
+          babyBirthday: true,
+        },
+      }),
+      prisma.growthProfile.findUnique({
+        where: { userId: userIdBigInt },
+        select: { birthday: true },
+      }),
+    ]);
+
+    const birthdayResolution = resolveTimelineBabyBirthday({
+      userBabyBirthday: user.babyBirthday,
+      growthProfileBirthday: growthProfile?.birthday ?? null,
+    });
+    const babyBirthday = birthdayResolution.babyBirthday;
+    const isPostpartumStatus = user.pregnancyStatus === 3;
+    let lifecycleStage: 'preparing' | 'pregnancy' | 'postpartum' = 'preparing';
+    let currentPeriod: TimelinePeriod | null = null;
+    let requiresBabyBirthday = false;
+
+    if (babyBirthday) {
+      lifecycleStage = 'postpartum';
+      currentPeriod = toTimelinePeriodFromStorageWeek(
+        getPostpartumStorageWeek(calculatePostpartumWeek(babyBirthday)),
+      );
+    } else if (isPostpartumStatus) {
+      lifecycleStage = 'postpartum';
+      requiresBabyBirthday = true;
+    } else if (user.dueDate) {
+      lifecycleStage = 'pregnancy';
+      const pregnancyWeek = calculatePregnancyWeekFromDueDate(user.dueDate);
+      if (pregnancyWeek) {
+        currentPeriod = toTimelinePeriodFromStorageWeek(
+          Math.min(Math.max(pregnancyWeek, PREGNANCY_WEEK_MIN), PREGNANCY_WEEK_MAX),
+        );
+      }
+    } else if (user.pregnancyStatus === 2) {
+      lifecycleStage = 'pregnancy';
+    }
+
+    const currentPeriodMeta = currentPeriod ? serializeTimelinePeriodWithStorageWeek(currentPeriod) : null;
+
+    res.json(successResponse({
+      lifecycleStage,
+      pregnancyStatus: user.pregnancyStatus,
+      dueDate: user.dueDate ? formatDate(user.dueDate) : null,
+      babyBirthday: babyBirthday ? formatDate(babyBirthday) : null,
+      babyBirthdaySource: birthdayResolution.source,
+      requiresBabyBirthday,
+      currentPeriod: currentPeriodMeta,
+      defaultTodos: currentPeriod
+        ? getPostpartumTimelineTodos(currentPeriod).map((todo) => ({
+          ...todo,
+          ...serializeTimelinePeriodWithStorageWeek(currentPeriod),
+          completed: false,
+        }))
+        : [],
+      supportedRanges: {
+        pregnancy: {
+          minWeek: PREGNANCY_WEEK_MIN,
+          maxWeek: PREGNANCY_WEEK_MAX,
+          timelineKeyPrefix: 'pregnancy',
+        },
+        postpartum: {
+          minWeek: POSTPARTUM_WEEK_MIN,
+          maxWeek: POSTPARTUM_WEEK_MAX,
+          timelineKeyPrefix: 'postpartum',
+        },
+      },
     }));
   } catch (error) {
     next(error);
@@ -641,7 +774,8 @@ export const generateStandardSchedule = async (req: Request, res: Response, next
 export const createCustomTodo = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.userId!;
-    const week = parseTodoWeek(req.body.week);
+    const period = parseTimelinePeriod(req.body);
+    const week = period.storageWeek;
     const content = parseCustomTodoContent(req.body.content);
 
     const customTodo = await prisma.userPregnancyCustomTodo.create({
@@ -654,7 +788,7 @@ export const createCustomTodo = async (req: Request, res: Response, next: NextFu
 
     res.status(201).json(successResponse({
       id: customTodo.id.toString(),
-      week: customTodo.week,
+      ...serializeTimelineMetaFromStorageWeek(customTodo.week),
       content: customTodo.content,
       createdAt: customTodo.createdAt.toISOString(),
       updatedAt: customTodo.updatedAt.toISOString()
@@ -693,7 +827,7 @@ export const updateCustomTodo = async (req: Request, res: Response, next: NextFu
 
     res.json(successResponse({
       id: updatedTodo.id.toString(),
-      week: updatedTodo.week,
+      ...serializeTimelineMetaFromStorageWeek(updatedTodo.week),
       content: updatedTodo.content,
       createdAt: updatedTodo.createdAt.toISOString(),
       updatedAt: updatedTodo.updatedAt.toISOString()
@@ -739,7 +873,7 @@ export const deleteCustomTodo = async (req: Request, res: Response, next: NextFu
 
     res.json(successResponse({
       id: existingTodo.id.toString(),
-      week: existingTodo.week,
+      ...serializeTimelineMetaFromStorageWeek(existingTodo.week),
       todoKey
     }, '删除成功'));
   } catch (error) {

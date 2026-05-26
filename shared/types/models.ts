@@ -142,24 +142,65 @@ export interface User {
   createdAt: string
 }
 
-export interface PregnancyTodoProgress {
+export type TimelineStage = 'pregnancy' | 'postpartum'
+export type TimelineLifecycleStage = 'preparing' | TimelineStage
+
+export interface TimelinePeriodMeta {
   week: number
+  timelineKey?: string
+  stage?: TimelineStage
+  displayWeek?: number
+  timelineTitle?: string
+  timelineShortTitle?: string
+}
+
+export interface TimelineDefaultTodo extends TimelinePeriodMeta {
+  todoKey: string
+  title: string
+  desc: string
+  type: 'checkup' | 'vaccine' | 'feeding' | 'development' | 'safety' | 'care'
+  sourceLabel: string
+  completed: boolean
+}
+
+export interface TimelineContext {
+  lifecycleStage: TimelineLifecycleStage
+  pregnancyStatus: number
+  dueDate: string | null
+  babyBirthday: string | null
+  babyBirthdaySource: 'user' | 'growth_profile' | null
+  requiresBabyBirthday: boolean
+  currentPeriod: TimelinePeriodMeta | null
+  defaultTodos: TimelineDefaultTodo[]
+  supportedRanges: {
+    pregnancy: {
+      minWeek: number
+      maxWeek: number
+      timelineKeyPrefix: 'pregnancy'
+    }
+    postpartum: {
+      minWeek: number
+      maxWeek: number
+      timelineKeyPrefix: 'postpartum'
+    }
+  }
+}
+
+export interface PregnancyTodoProgress extends TimelinePeriodMeta {
   todoKey: string
   completed: boolean
   completedAt?: string
 }
 
-export interface PregnancyDiary {
-  week: number
+export interface PregnancyDiary extends TimelinePeriodMeta {
   content: string
   date: string
   createdAt?: string
   updatedAt?: string
 }
 
-export interface PregnancyCustomTodo {
+export interface PregnancyCustomTodo extends TimelinePeriodMeta {
   id: string
-  week: number
   content: string
   createdAt?: string
   updatedAt?: string

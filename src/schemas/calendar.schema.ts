@@ -1,4 +1,8 @@
 import { z } from 'zod';
+import {
+  parseTimelineKey,
+  POSTPARTUM_STORAGE_WEEK_MAX,
+} from '../utils/timeline';
 
 const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 const TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
@@ -26,7 +30,22 @@ const nullableDateString = z.union([dateString, z.literal(''), z.null()]);
 const timeString = z.string().regex(TIME_PATTERN, '时间格式无效，请使用 HH:mm');
 const optionalTimeString = z.union([timeString, z.literal('')]);
 const nullableTimeString = z.union([timeString, z.literal(''), z.null()]);
-const weekQueryValue = z.coerce.number().int().min(1, '孕周最小为1').max(40, '孕周最大为40');
+const weekQueryValue = z.coerce.number().int().min(1, '时间线周数最小为1').max(POSTPARTUM_STORAGE_WEEK_MAX, '时间线周数超出范围');
+const timelineKeyValue = z.string()
+  .trim()
+  .min(1, '时间线标识不能为空')
+  .max(20, '时间线标识过长')
+  .refine((value) => parseTimelineKey(value) !== null, '时间线标识无效');
+
+function refineTimelinePeriodInput(data: { week?: number; timelineKey?: string }, ctx: z.RefinementCtx) {
+  if (data.week === undefined && data.timelineKey === undefined) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: '请提供时间线周数或时间线标识',
+      path: ['week'],
+    });
+  }
+}
 
 export const calendarEventIdParam = z.object({
   id: z.string().regex(/^\d+$/, '事件ID无效'),
@@ -37,7 +56,7 @@ export const customTodoIdParam = z.object({
 });
 
 export const diaryWeekParam = z.object({
-  week: z.coerce.number().int().min(1, '孕周最小为1').max(40, '孕周最大为40'),
+  week: weekQueryValue,
 });
 
 export const dayParam = z.object({
@@ -50,6 +69,7 @@ export const weekDateQuery = z.object({
 
 export const weekQuery = z.object({
   week: weekQueryValue.optional(),
+  timelineKey: timelineKeyValue.optional(),
 });
 
 export const createEventBody = z.object({
@@ -113,22 +133,25 @@ export const getEventsQuery = z.object({
 
 // 孕周待办进度
 export const updateTodoProgressBody = z.object({
-  week: z.coerce.number().int().min(1, '孕周最小为1').max(40, '孕周最大为40'),
+  week: weekQueryValue.optional(),
+  timelineKey: timelineKeyValue.optional(),
   todoKey: z.string().min(1, '待办标识不能为空').max(100),
   completed: z.boolean(),
-});
+}).superRefine(refineTimelinePeriodInput);
 
 // 孕周记录
 export const saveDiaryBody = z.object({
-  week: z.coerce.number().int().min(1).max(40),
+  week: weekQueryValue.optional(),
+  timelineKey: timelineKeyValue.optional(),
   content: z.string().min(1, '记录内容不能为空').max(500, '记录内容不能超过500字'),
-});
+}).superRefine(refineTimelinePeriodInput);
 
 // 自定义待办
 export const createCustomTodoBody = z.object({
-  week: z.coerce.number().int().min(1).max(40),
+  week: weekQueryValue.optional(),
+  timelineKey: timelineKeyValue.optional(),
   content: z.string().min(1, '待办内容不能为空').max(200, '待办内容不能超过200字'),
-});
+}).superRefine(refineTimelinePeriodInput);
 
 export const updateCustomTodoBody = z.object({
   content: z.string().min(1, '待办内容不能为空').max(200, '待办内容不能超过200字'),

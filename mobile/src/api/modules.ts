@@ -16,6 +16,7 @@ import type {
   PaginationParams,
   ParentCategoryParams,
   PregnancyTodoProgress, PregnancyDiary, PregnancyCustomTodo, PregnancyProfile,
+  TimelineContext,
   PregnancyCustomTodoCreatePayload,
   PregnancyCustomTodoUpdatePayload,
   PregnancyDiaryPayload,
@@ -47,6 +48,7 @@ export type {
   PregnancyDiary,
   PregnancyCustomTodo,
   PregnancyProfile,
+  TimelineContext,
   StandardSchedulePlan,
   StandardScheduleGenerateResult,
 }
@@ -177,6 +179,7 @@ export const calendarApi = {
   getWeek: (params?: CalendarWeekParams) => api.get('/calendar/week', { params }),
   getDay: (date: string) => api.get(`/calendar/day/${date}`),
   getEventTypes: () => api.get('/calendar/event-types'),
+  getTimelineContext: () => api.get<TimelineContext>('/calendar/timeline/context'),
   getTodoProgress: (params?: PregnancyWeekParams) =>
     api.get<{ list: PregnancyTodoProgress[] }>('/calendar/todo-progress', { params })
       .then(res => (res as { list: PregnancyTodoProgress[] }).list),
@@ -187,7 +190,11 @@ export const calendarApi = {
       .then(res => (res as { list: PregnancyDiary[] }).list),
   saveDiary: (data: PregnancyDiaryPayload) =>
     api.put<PregnancyDiary>('/calendar/diaries', data),
-  deleteDiary: (week: number) => api.delete<{ week: number }>(`/calendar/diaries/${week}`),
+  deleteDiary: (period: number | PregnancyWeekParams) => (
+    typeof period === 'number'
+      ? api.delete<{ week: number }>(`/calendar/diaries/${period}`)
+      : api.delete<{ week: number }>('/calendar/diaries', { params: period })
+  ),
   getCustomTodos: (params?: PregnancyWeekParams) =>
     api.get<{ list: PregnancyCustomTodo[] }>('/calendar/custom-todos', { params })
       .then(res => (res as { list: PregnancyCustomTodo[] }).list),

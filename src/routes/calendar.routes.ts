@@ -9,6 +9,7 @@ import {
   savePregnancyDiary,
   deletePregnancyDiary,
   getCustomTodos,
+  getTimelineContext,
   getStandardSchedule,
   generateStandardSchedule,
   createCustomTodo,
@@ -38,6 +39,9 @@ const router = Router();
 // 所有日历路由都需要认证
 router.use(authMiddleware);
 
+// 孕育时间线上下文
+router.get('/timeline/context', queryRateLimiter, getTimelineContext);
+
 // 事件类型
 router.get('/event-types', queryRateLimiter, getEventTypes);
 
@@ -54,6 +58,7 @@ router.put('/todo-progress', writeRateLimiter, validate({ body: updateTodoProgre
 // 孕周记录
 router.get('/diaries', queryRateLimiter, validate({ query: weekQuery }), getPregnancyDiaries);
 router.put('/diaries', writeRateLimiter, validate({ body: saveDiaryBody }), savePregnancyDiary);
+router.delete('/diaries', writeRateLimiter, validate({ query: weekQuery }), deletePregnancyDiary);
 router.delete('/diaries/:week', writeRateLimiter, validate({ params: diaryWeekParam }), deletePregnancyDiary);
 
 // 自定义待办

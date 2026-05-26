@@ -1,8 +1,11 @@
 import {
   createEventBody,
+  createCustomTodoBody,
   dragEventBody,
   getEventsQuery,
+  saveDiaryBody,
   updateEventBody,
+  updateTodoProgressBody,
   weekDateQuery,
   weekQuery,
 } from '../src/schemas/calendar.schema';
@@ -58,6 +61,50 @@ describe('calendar schemas', () => {
 
     expect(weekQuery.parse({ week: '12' })).toEqual({ week: 12 });
     expect(weekQuery.safeParse({ week: '0' }).success).toBe(false);
-    expect(weekQuery.safeParse({ week: '41' }).success).toBe(false);
+    expect(weekQuery.safeParse({ week: '197' }).success).toBe(false);
+  });
+
+  it('accepts timeline keys for pregnancy and postpartum record inputs', () => {
+    expect(weekQuery.parse({ timelineKey: 'pregnancy:w12' })).toEqual({ timelineKey: 'pregnancy:w12' });
+    expect(weekQuery.parse({ timelineKey: 'postpartum:w156' })).toEqual({ timelineKey: 'postpartum:w156' });
+
+    expect(updateTodoProgressBody.parse({
+      timelineKey: 'postpartum:w01',
+      todoKey: 'postpartum:w01:newborn-home-visit',
+      completed: true,
+    })).toMatchObject({
+      timelineKey: 'postpartum:w01',
+      completed: true,
+    });
+
+    expect(saveDiaryBody.parse({
+      timelineKey: 'postpartum:w26',
+      content: '今天开始记录辅食和睡眠。',
+    })).toMatchObject({
+      timelineKey: 'postpartum:w26',
+    });
+
+    expect(createCustomTodoBody.parse({
+      timelineKey: 'postpartum:w52',
+      content: '整理一岁体检问题',
+    })).toMatchObject({
+      timelineKey: 'postpartum:w52',
+    });
+  });
+
+  it('rejects missing or invalid timeline period inputs', () => {
+    expect(weekQuery.safeParse({ timelineKey: 'postpartum:w157' }).success).toBe(false);
+    expect(updateTodoProgressBody.safeParse({
+      todoKey: 'feeding-output-log',
+      completed: true,
+    }).success).toBe(false);
+    expect(saveDiaryBody.safeParse({
+      timelineKey: 'pregnancy:w41',
+      content: '越界',
+    }).success).toBe(false);
+    expect(createCustomTodoBody.safeParse({
+      timelineKey: 'postpartum:week1',
+      content: '格式不对',
+    }).success).toBe(false);
   });
 });
