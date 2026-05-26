@@ -11,6 +11,8 @@ const AI_PROVIDER_TIMEOUT_MS = Math.max(
   5000,
   Number.parseInt(process.env.AI_PROVIDER_TIMEOUT_MS || '25000', 10) || 25000,
 );
+const AI_TASK_TRANSIENT_RETRY_ATTEMPTS = parseNonNegativeIntegerEnv(process.env.AI_TASK_TRANSIENT_RETRY_ATTEMPTS, 1);
+const AI_TASK_TRANSIENT_RETRY_DELAY_MS = parseNonNegativeIntegerEnv(process.env.AI_TASK_TRANSIENT_RETRY_DELAY_MS, 1200);
 const AI_PROVIDER_USAGE_LIMIT_BLOCK_MS = Math.max(
   60_000,
   Number.parseInt(process.env.AI_PROVIDER_USAGE_LIMIT_BLOCK_MS || '900000', 10) || 900_000,
@@ -157,6 +159,19 @@ interface AIGatewayProviderBlock {
 
 const providerCircuitBreakers = new Map<string, AIGatewayProviderBlock>();
 
+function parseNonNegativeIntegerEnv(value: string | undefined, fallback: number): number {
+  if (value == null || value.trim() === '') {
+    return fallback;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return fallback;
+  }
+
+  return parsed;
+}
+
 function createGatewayError(
   status: number,
   errorText: string,
@@ -232,6 +247,24 @@ function registerProviderUsageLimitBlock(provider: GatewayProvider, error: unkno
     blockedUntil: resolveProviderBlockUntil(error),
     message: getAIGatewayErrorOpsMessage(error).slice(0, 500),
   });
+}
+
+function isTransientGatewayError(error: unknown): boolean {
+  const gatewayError = error as AIGatewayProviderError | null;
+  if (gatewayError?.gatewayStatus && [408, 500, 502, 503, 504, 529].includes(gatewayError.gatewayStatus)) {
+    return true;
+  }
+
+  const message = error instanceof Error ? error.message : String(error);
+  return /timeout|timed out|empty response|service is too busy|service_unavailable|temporarily unavailable|overloaded/i.test(message);
+}
+
+function sleep(ms: number): Promise<void> {
+  if (ms <= 0) {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function getActiveProviderBlock(provider: GatewayProvider, nowMs = Date.now()): AIGatewayProviderBlock | null {
@@ -831,6 +864,35 @@ async function callProvider(
   return content;
 }
 
+async function callProviderWithTransientRetry(
+  provider: GatewayProvider,
+  messages: ChatMessage[],
+  options: {
+    temperature?: number;
+    maxTokens?: number;
+    timeoutMs?: number;
+    responseFormat?: 'json_object';
+    thinking?: 'enabled' | 'disabled';
+  } = {},
+): Promise<string> {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= AI_TASK_TRANSIENT_RETRY_ATTEMPTS; attempt += 1) {
+    try {
+      return await callProvider(provider, messages, options);
+    } catch (error) {
+      lastError = error;
+      if (attempt >= AI_TASK_TRANSIENT_RETRY_ATTEMPTS || !isTransientGatewayError(error)) {
+        throw error;
+      }
+
+      await sleep(AI_TASK_TRANSIENT_RETRY_DELAY_MS * (attempt + 1));
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error('AI provider transient retry failed');
+}
+
 function toRouteInfo(provider: GatewayProvider): AIGatewayRouteInfo {
   return {
     provider: provider.provider,
@@ -982,7 +1044,7 @@ export async function callAIGatewayDetailed(
   let lastError: unknown;
   for (const provider of providers) {
     try {
-      const answer = await callProvider(provider, messages, options);
+      const answer = await callProviderWithTransientRetry(provider, messages, options);
       return {
         answer,
         route: toRouteInfo(provider),
@@ -1017,7 +1079,7 @@ export async function callTaskModelDetailed(
   let lastError: unknown;
   for (const provider of providers) {
     try {
-      const answer = await callProvider(provider, messages, options);
+      const answer = await callProviderWithTransientRetry(provider, messages, options);
       return {
         answer,
         route: toRouteInfo(provider),

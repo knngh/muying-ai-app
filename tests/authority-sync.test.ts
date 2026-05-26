@@ -336,6 +336,43 @@ describe('authority index discovery', () => {
     expect(links[0]).toBe('https://www.msdmanuals.cn/home/children-s-health-issues/symptoms-in-infants-and-children/fever-in-infants-and-children');
   });
 
+  test('builds stable authority snapshot IDs from source URL instead of export order', () => {
+    const sourceUrl = 'https://www.nhs.uk/medicines/cyclizine/pregnancy-breastfeeding-and-fertility-while-taking-cyclizine/';
+
+    expect(__authoritySyncTestUtils.buildStableAuthorityId('nhs', sourceUrl, 1))
+      .toBe(__authoritySyncTestUtils.buildStableAuthorityId('nhs', sourceUrl, 99));
+    expect(__authoritySyncTestUtils.buildStableAuthorityId('nhs', `${sourceUrl}#content`, 1))
+      .toBe(__authoritySyncTestUtils.buildStableAuthorityId('nhs', sourceUrl, 1));
+    expect(__authoritySyncTestUtils.buildStableAuthorityId('cdc', sourceUrl, 1))
+      .not.toBe(__authoritySyncTestUtils.buildStableAuthorityId('nhs', sourceUrl, 1));
+  });
+
+  test('limits repetitive NHS pregnancy medicine template URLs while filling from other topics', () => {
+    const source = {
+      ...getAuthoritySourceConfig('nhs')!,
+      maxPagesPerRun: 8,
+    };
+
+    const links = __authoritySyncTestUtils.buildDiscoveredAuthorityUrls(source, 'incremental', [
+      'https://www.nhs.uk/medicines/docusate/pregnancy-breastfeeding-and-fertility-while-taking-or-using-docusate/',
+      'https://www.nhs.uk/medicines/rapid-acting-insulin/pregnancy-breastfeeding-and-fertility-while-taking-rapid-acting-insulin/',
+      'https://www.nhs.uk/medicines/co-dydramol/pregnancy-breastfeeding-and-fertility-while-taking-co-dydramol/',
+      'https://www.nhs.uk/medicines/risperidone/pregnancy-breastfeeding-and-fertility-while-taking-risperidone/',
+      'https://www.nhs.uk/medicines/cyclizine/pregnancy-breastfeeding-and-fertility-while-taking-cyclizine/',
+      'https://www.nhs.uk/medicines/carvedilol/pregnancy-breastfeeding-and-fertility-while-taking-carvedilol/',
+      'https://www.nhs.uk/pregnancy/keeping-well/vaccinations/',
+      'https://www.nhs.uk/conditions/baby/babys-development/',
+      'https://www.nhs.uk/conditions/baby/breastfeeding-and-bottle-feeding/',
+    ]).map((item) => item.url);
+
+    expect(links.filter((url) => url.includes('/pregnancy-breastfeeding-and-fertility-while-'))).toHaveLength(5);
+    expect(links).toEqual(expect.arrayContaining([
+      'https://www.nhs.uk/pregnancy/keeping-well/vaccinations/',
+      'https://www.nhs.uk/conditions/baby/babys-development/',
+      'https://www.nhs.uk/conditions/baby/breastfeeding-and-bottle-feeding/',
+    ]));
+  });
+
   test('extracts pagination links from category pages without following other channel tabs', () => {
     const source = getAuthoritySourceConfig('chunyu-maternal');
     expect(source).toBeDefined();

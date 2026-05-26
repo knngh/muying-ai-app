@@ -128,6 +128,12 @@ export function KnowledgeDetail() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
+  const handleCopySourceLink = () => {
+    if (!displaySourceUrl) return
+    navigator.clipboard.writeText(displaySourceUrl)
+    setToast('来源链接已复制')
+  }
+
   if (loading) {
     return (
       <div className={styles.loadingState}>
@@ -267,9 +273,9 @@ export function KnowledgeDetail() {
           <section className={styles.sourceBox}>
             <span>原始来源</span>
             <strong>{toReadableUrl(displaySourceUrl)}</strong>
-            <a href={displaySourceUrl} target="_blank" rel="noreferrer">
-              查看机构原文
-            </a>
+            <button type="button" onClick={handleCopySourceLink}>
+              复制来源链接
+            </button>
           </section>
         ) : null}
 

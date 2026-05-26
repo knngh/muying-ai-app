@@ -1,18 +1,17 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Alert,
+  Clipboard,
   NativeSyntheticEvent,
   NativeScrollEvent,
   View,
   ScrollView,
   StyleSheet,
   Image,
-  Linking,
   Share,
   Dimensions,
 } from 'react-native'
 import { WebView, type WebViewMessageEvent } from 'react-native-webview'
-import { Text, Chip, Button, ActivityIndicator } from 'react-native-paper'
+import { Text, Chip, Button, ActivityIndicator, Snackbar } from 'react-native-paper'
 import LinearGradient from 'react-native-linear-gradient'
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons'
 import { useRoute } from '@react-navigation/native'
@@ -89,6 +88,7 @@ export default function KnowledgeDetailScreen() {
   const [sectionOffsets, setSectionOffsets] = useState<Record<string, number>>({})
   const [scrollProgress, setScrollProgress] = useState(0)
   const [showBackToTop, setShowBackToTop] = useState(false)
+  const [snackMessage, setSnackMessage] = useState('')
   const articleOpenedAtRef = useRef(Date.now())
   const reportedReadKeyRef = useRef<string | null>(null)
   const detailOpenTrackedRef = useRef<string | null>(null)
@@ -293,7 +293,7 @@ export default function KnowledgeDetailScreen() {
   const displayedContentHtml = useMemo(() => {
     const rawContent = isBodyFallback
       ? formatRichArticleContent(
-          displayedSummary || '当前文章暂未同步完整正文，可先查看摘要，再打开机构原文继续阅读。',
+          displayedSummary || '当前文章暂未同步完整正文，可先查看摘要，并通过来源链接核对机构页面。',
         )
       : formatRichArticleContent(displayedBodyContent)
     return buildSafeArticleHtml(addArticleHeadingAnchors(rawContent))
@@ -427,19 +427,10 @@ export default function KnowledgeDetailScreen() {
     }
   }
 
-  const handleOpenSource = async () => {
+  const handleCopySourceLink = () => {
     if (!displayedSourceUrl) return
-
-    try {
-      const canOpen = await Linking.canOpenURL(displayedSourceUrl)
-      if (!canOpen) {
-        Alert.alert('提示', '当前无法打开原始来源链接')
-        return
-      }
-      await Linking.openURL(displayedSourceUrl)
-    } catch {
-      Alert.alert('提示', '打开原始来源失败，请稍后重试')
-    }
+    Clipboard.setString(displayedSourceUrl)
+    setSnackMessage('来源链接已复制')
   }
 
   const handleJumpToSection = (sectionId: string) => {
@@ -644,8 +635,8 @@ export default function KnowledgeDetailScreen() {
   ].filter(Boolean) as Array<{ icon: string; text: string }>
   const actionGuideText = isAuthorityArticle
     ? (article.isLiked
-      ? '已记录你的权威内容偏好。当前支持点赞、分享与打开原文，收藏能力后续接入。'
-      : '权威文章当前支持点赞、分享与打开原文回看，收藏能力后续接入。')
+      ? '已记录你的权威内容偏好。当前支持点赞、分享与复制来源链接，收藏能力后续接入。'
+      : '权威文章当前支持点赞、分享与复制来源链接回看，收藏能力后续接入。')
     : article.isLiked && article.isFavorited
       ? '已记录为重点内容，后续推荐与回看会优先保留这类主题。'
       : article.isFavorited
@@ -943,19 +934,6 @@ export default function KnowledgeDetailScreen() {
               继续提问
             </Button>
           ) : null}
-          {displayedSourceUrl ? (
-            <Button
-              mode="contained-tonal"
-              icon="open-in-new"
-              onPress={() => void handleOpenSource()}
-              style={styles.quickActionButton}
-              contentStyle={styles.quickActionContent}
-              buttonColor="rgba(94,126,134,0.14)"
-              textColor={colors.techDark}
-            >
-              查看原文
-            </Button>
-          ) : null}
           {!isLikelyChineseSource ? (
             <Button
               mode="contained-tonal"
@@ -1007,11 +985,12 @@ export default function KnowledgeDetailScreen() {
             ) : null}
             <Button
               mode="outlined"
-              onPress={() => void handleOpenSource()}
+              icon="content-copy"
+              onPress={handleCopySourceLink}
               style={styles.sourceButton}
               textColor={colors.techDark}
             >
-              查看机构原文
+              复制来源链接
             </Button>
           </View>
         ) : null}
@@ -1071,7 +1050,7 @@ export default function KnowledgeDetailScreen() {
           </View>
           <Text style={styles.readingHint}>
             {isBodyFallback
-              ? '当前条目暂无完整正文，已自动切换为摘要模式；需要细读时请直接打开机构原文。'
+              ? '当前条目暂无完整正文，已自动切换为摘要模式；需要细读时可通过来源链接核对机构页面。'
               : '建议先看摘要与来源，再进入正文细读；如有身体异常，请以线下医生建议为准。'}
           </Text>
           {isBodyFallback ? (
@@ -1202,18 +1181,7 @@ export default function KnowledgeDetailScreen() {
             >
               {article.isFavorited ? '已收藏' : '收藏'} {article.collectCount || 0}
             </Button>
-          ) : (
-            <Button
-              mode="outlined"
-              icon="open-in-new"
-              onPress={() => void handleOpenSource()}
-              style={styles.actionButton}
-              contentStyle={styles.actionButtonContent}
-              textColor={colors.techDark}
-            >
-              原文
-            </Button>
-          )}
+          ) : null}
           <Button
             mode="outlined"
             icon="share-variant-outline"
@@ -1226,6 +1194,9 @@ export default function KnowledgeDetailScreen() {
           </Button>
         </View>
       </View>
+      <Snackbar visible={Boolean(snackMessage)} onDismiss={() => setSnackMessage('')} duration={2200}>
+        {snackMessage}
+      </Snackbar>
     </ScreenContainer>
   )
 }

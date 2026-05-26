@@ -39,12 +39,36 @@ describe('authority translation cache cleaner', () => {
         translationNotice: '辅助翻译',
         updatedAt: '2026-05-07T00:00:00.000Z',
       },
+      templateTitle: {
+        slug: 'templateTitle',
+        translatedTitle: '译后的标题',
+        translatedSummary: '摘要',
+        translatedContent: '译后的正文',
+        translationNotice: '辅助翻译',
+        updatedAt: '2026-05-07T00:00:00.000Z',
+      },
+      leakedFieldLabel: {
+        slug: 'leakedFieldLabel',
+        translatedTitle: '怀孕、哺乳期间使用速效胰岛素与生育能力',
+        translatedSummary: '摘要',
+        translatedContent: '怀孕期间使用胰岛素时，应按医生建议监测血糖。\n\n译后的标题>怀孕、哺乳期间使用速效胰岛素与生育能力',
+        translationNotice: '辅助翻译',
+        updatedAt: '2026-05-07T00:00:00.000Z',
+      },
+      structuredTagLeak: {
+        slug: 'structuredTagLeak',
+        translatedTitle: '母乳冷冻与冷藏小贴士',
+        translatedSummary: '摘要',
+        translatedContent: '母乳冷冻与冷藏小贴士\n美国儿科学会提供了关于如何安全储存和准备母乳的指南。</summary>\n译后的正文：\n请彻底清洗双手和所有储存容器。',
+        translationNotice: '辅助翻译',
+        updatedAt: '2026-05-07T00:00:00.000Z',
+      },
     });
 
     expect(result).toMatchObject({
-      total: 4,
+      total: 7,
       kept: 1,
-      removed: 3,
+      removed: 6,
       normalizedEntries: [],
       cleanedCache: {
         valid: expect.objectContaining({ translatedTitle: '儿童发热' }),
@@ -54,6 +78,9 @@ describe('authority translation cache cleaner', () => {
       { slug: 'promptLeak', reason: 'prompt_leak' },
       { slug: 'placeholder', reason: 'empty_or_invalid_content' },
       { slug: 'analysisLeak', reason: 'prompt_leak' },
+      { slug: 'templateTitle', reason: 'empty_or_invalid_content' },
+      { slug: 'leakedFieldLabel', reason: 'prompt_leak' },
+      { slug: 'structuredTagLeak', reason: 'prompt_leak' },
     ]);
   });
 

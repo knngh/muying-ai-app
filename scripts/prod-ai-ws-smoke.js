@@ -14,8 +14,10 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || DEFAULT_PASSWORD;
 const AI_SMOKE_STAGE = process.env.AI_SMOKE_STAGE || 'newborn';
 const AI_SMOKE_QUESTION = process.env.AI_SMOKE_QUESTION || '宝宝低热但精神还可以，今晚观察要注意哪三件事？';
 const AI_OVERVIEW_RANGE_DAYS = Number(process.env.AI_OVERVIEW_RANGE_DAYS || 7);
-const AI_WS_SMOKE_TIMEOUT_MS = Number(process.env.AI_WS_SMOKE_TIMEOUT_MS || 45000);
-const AI_WS_ANALYTICS_WAIT_MS = Number(process.env.AI_WS_ANALYTICS_WAIT_MS || 16000);
+const AI_WS_SMOKE_TIMEOUT_MS = Number(process.env.AI_WS_SMOKE_TIMEOUT_MS || 120000);
+const AI_WS_ANALYTICS_WAIT_MS = Number(process.env.AI_WS_ANALYTICS_WAIT_MS || 24000);
+const AI_WS_EXPECT_PROVIDER = process.env.AI_WS_EXPECT_PROVIDER || 'deepseek';
+const AI_WS_EXPECT_MODEL = process.env.AI_WS_EXPECT_MODEL || 'deepseek-v4-flash';
 
 function fail(message) {
   console.error(message);
@@ -255,6 +257,24 @@ async function main() {
   console.log(JSON.stringify(result, null, 2));
   if (!result.ok && result.status && result.status >= 400 && result.status < 500) {
     fail(`WebSocket AI smoke was rejected by the API with status ${result.status}`);
+  }
+  if (!result.ok) {
+    fail(`WebSocket AI smoke failed: ${result.error || result.code || 'unknown error'}`);
+  }
+  if (result.answerLength <= 0) {
+    fail('WebSocket AI smoke returned an empty answer');
+  }
+  if (result.degraded) {
+    fail('WebSocket AI smoke returned degraded=true');
+  }
+  if (result.provider !== AI_WS_EXPECT_PROVIDER) {
+    fail(`WebSocket AI smoke expected provider ${AI_WS_EXPECT_PROVIDER}, got ${result.provider || '<empty>'}`);
+  }
+  if (result.model !== AI_WS_EXPECT_MODEL) {
+    fail(`WebSocket AI smoke expected model ${AI_WS_EXPECT_MODEL}, got ${result.model || '<empty>'}`);
+  }
+  if (result.sourcesCount < 1) {
+    fail(`WebSocket AI smoke expected at least one source, got ${result.sourcesCount}`);
   }
 
   console.log('[4/4] ai overview after');

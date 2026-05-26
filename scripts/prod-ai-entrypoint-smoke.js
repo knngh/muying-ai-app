@@ -10,6 +10,8 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || DEFAULT_PASSWORD;
 const AI_OVERVIEW_RANGE_DAYS = Number(process.env.AI_OVERVIEW_RANGE_DAYS || 7);
 const AI_ENTRYPOINT_SMOKE_WAIT_MS = Number(process.env.AI_ENTRYPOINT_SMOKE_WAIT_MS || 18000);
 const AI_ENTRYPOINT_SMOKE_RATE_LIMIT_WAIT_MS = Number(process.env.AI_ENTRYPOINT_SMOKE_RATE_LIMIT_WAIT_MS || 65000);
+const AI_ENTRYPOINT_EXPECT_PROVIDER = process.env.AI_ENTRYPOINT_EXPECT_PROVIDER || 'deepseek';
+const AI_ENTRYPOINT_EXPECT_MODEL = process.env.AI_ENTRYPOINT_EXPECT_MODEL || 'deepseek-v4-flash';
 const TRAFFIC_KIND = 'ops_product_entrypoint_smoke';
 
 const JOURNEYS = [
@@ -190,6 +192,27 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function validateAIResult(result) {
+  if (!result.ok) {
+    fail(`AI entrypoint ${result.entrySource} did not return ok=true`);
+  }
+  if (result.answerLength <= 0) {
+    fail(`AI entrypoint ${result.entrySource} returned an empty answer`);
+  }
+  if (result.degraded) {
+    fail(`AI entrypoint ${result.entrySource} returned degraded=true`);
+  }
+  if (result.provider !== AI_ENTRYPOINT_EXPECT_PROVIDER) {
+    fail(`AI entrypoint ${result.entrySource} expected provider ${AI_ENTRYPOINT_EXPECT_PROVIDER}, got ${result.provider || '<empty>'}`);
+  }
+  if (result.model !== AI_ENTRYPOINT_EXPECT_MODEL) {
+    fail(`AI entrypoint ${result.entrySource} expected model ${AI_ENTRYPOINT_EXPECT_MODEL}, got ${result.model || '<empty>'}`);
+  }
+  if (result.sourcesCount < 1) {
+    fail(`AI entrypoint ${result.entrySource} expected at least one source, got ${result.sourcesCount}`);
+  }
+}
+
 async function runJourney(journey, index, vipToken) {
   const clientRequestId = `ops-ai-entrypoint-smoke-${journey.entrySource}-${Date.now()}-${index}`;
   const commonProperties = {
@@ -286,7 +309,9 @@ async function main() {
   console.log('[3/4] run product entrypoint journeys');
   const results = [];
   for (const [index, journey] of JOURNEYS.entries()) {
-    results.push(await runJourney(journey, index, vipToken));
+    const result = await runJourney(journey, index, vipToken);
+    validateAIResult(result);
+    results.push(result);
   }
   console.log(JSON.stringify(results, null, 2));
 

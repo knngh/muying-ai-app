@@ -26,6 +26,7 @@ import {
   normalizeAuthorityAudienceLabel,
   normalizeAuthorityTopicLabel,
 } from '../utils/authority-metadata';
+import { buildAuthoritySlugCandidates, buildStableAuthoritySlug } from '../utils/authority-identity';
 import { inferAuthorityStages } from '../utils/authority-stage';
 import { matchesAuthorityStageFilters } from '../utils/authority-stage-filter';
 import { logger } from '../utils/logger';
@@ -229,12 +230,11 @@ function isMostlyChineseText(input: string): boolean {
 }
 
 function buildAuthoritySlug(record: AuthorityCacheRecord, index: number): string {
-  const base = (record.id || record.original_id || record.question || `authority-${index + 1}`)
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
+  return buildStableAuthoritySlug(record, index);
+}
 
-  return base.startsWith('authority-') ? base : `authority-${base || index + 1}`;
+function getAuthoritySlugCandidates(record: AuthorityCacheRecord, index: number): string[] {
+  return buildAuthoritySlugCandidates(record, index);
 }
 
 function toRichTextHtml(text: string): string {
@@ -666,7 +666,7 @@ function incrementAuthorityViewCountBySlug(slug: string): number | null {
     return null;
   }
 
-  const recordIndex = records.findIndex((item, index) => buildAuthoritySlug(item, index) === slug);
+  const recordIndex = records.findIndex((item, index) => getAuthoritySlugCandidates(item, index).includes(slug));
   if (recordIndex < 0) {
     return null;
   }
@@ -767,22 +767,42 @@ function getCachedAuthorityTranslation(
   slug: string,
   sourceUpdatedAt?: string,
   sourceFingerprint?: string,
+  fallbackSlugs: string[] = [],
 ): AuthorityTranslationCacheRecord | null {
   const translationCache = loadAuthorityTranslationCache();
-  const cached = translationCache[slug];
-  if (isAuthorityTranslationCacheFresh(cached, { sourceUpdatedAt, sourceFingerprint })) {
+  const candidateSlugs = Array.from(new Set([
+    slug,
+    ...fallbackSlugs,
+    ...Object.entries(translationCache)
+      .filter(([, cached]) => Boolean(
+        sourceFingerprint
+        && cached?.sourceFingerprint
+        && cached.sourceFingerprint === sourceFingerprint,
+      ))
+      .map(([candidateSlug]) => candidateSlug),
+  ]));
+
+  for (const candidateSlug of candidateSlugs) {
+    const cached = translationCache[candidateSlug];
+    if (!isAuthorityTranslationCacheFresh(cached, { sourceUpdatedAt, sourceFingerprint })) {
+      continue;
+    }
+
     const normalized = normalizeAuthorityTranslationRecord(cached);
     if (!normalized) {
-      return null;
+      continue;
     }
 
     const repaired: AuthorityTranslationCacheRecord = {
       ...normalized,
+      slug,
       sourceUpdatedAt: sourceUpdatedAt || normalized.sourceUpdatedAt,
       sourceFingerprint: sourceFingerprint || normalized.sourceFingerprint,
     };
     if (
-      repaired.sourceUpdatedAt !== cached.sourceUpdatedAt
+      candidateSlug !== slug
+      || repaired.slug !== cached.slug
+      || repaired.sourceUpdatedAt !== cached.sourceUpdatedAt
       || repaired.sourceFingerprint !== cached.sourceFingerprint
       || repaired.translatedTitle !== cached.translatedTitle
       || repaired.translatedSummary !== cached.translatedSummary
@@ -802,6 +822,7 @@ function getCachedAuthorityArticleTranslation(article: AuthorityArticle): Author
     article.slug,
     article.sourceUpdatedAt || article.updatedAt || article.publishedAt || article.createdAt,
     article.sourceFingerprint,
+    article.slugCandidates,
   );
 }
 
@@ -834,6 +855,11 @@ function withAuthorityDisplayTranslation(
     ...(options.includeTranslation ? { translation } : {}),
     hasChineseTranslation: true,
   };
+}
+
+function stripAuthorityInternalFields<T extends { slugCandidates?: string[] }>(article: T): Omit<T, 'slugCandidates'> {
+  const { slugCandidates: _slugCandidates, ...publicArticle } = article;
+  return publicArticle;
 }
 
 function isInvalidAuthoritySourceUrl(record: Pick<AuthorityCacheRecord, 'source_url'>): boolean {
@@ -908,9 +934,25 @@ async function getAuthorityRecords(): Promise<AuthorityCacheRecord[]> {
     .filter((record) => !isAuthorityRecordLowValue(record));
 }
 
-async function findAuthorityRecordBySlug(slug: string): Promise<AuthorityCacheRecord | null> {
+async function findAuthorityRecordMatchBySlug(slug: string): Promise<{
+  record: AuthorityCacheRecord;
+  index: number;
+  slug: string;
+  slugCandidates: string[];
+} | null> {
   const records = await getAuthorityRecords();
-  return records.find((item, index) => buildAuthoritySlug(item, index) === slug) || null;
+  const index = records.findIndex((item, itemIndex) => getAuthoritySlugCandidates(item, itemIndex).includes(slug));
+  if (index < 0) {
+    return null;
+  }
+
+  const record = records[index];
+  return {
+    record,
+    index,
+    slug: buildAuthoritySlug(record, index),
+    slugCandidates: getAuthoritySlugCandidates(record, index),
+  };
 }
 
 function extractTaggedContent(input: string, tag: string): string {
@@ -1377,10 +1419,11 @@ function getOrCreateAuthorityTranslation(
   slug: string,
   record: AuthorityCacheRecord,
   options: AuthorityTranslationExecutionOptions = {},
+  fallbackSlugs: string[] = [],
 ): Promise<AuthorityTranslationCacheRecord> {
   const sourceUpdatedAt = resolveAuthorityTranslationSourceUpdatedAt(record);
   const sourceFingerprint = buildAuthorityTranslationSourceFingerprint(record);
-  const cached = getCachedAuthorityTranslation(slug, sourceUpdatedAt, sourceFingerprint);
+  const cached = getCachedAuthorityTranslation(slug, sourceUpdatedAt, sourceFingerprint, fallbackSlugs);
   if (cached) {
     return Promise.resolve(cached);
   }
@@ -1403,16 +1446,16 @@ function getOrCreateAuthorityTranslation(
   return task;
 }
 
-function prewarmAuthorityTranslation(slug: string, record: AuthorityCacheRecord): void {
+function prewarmAuthorityTranslation(slug: string, record: AuthorityCacheRecord, fallbackSlugs: string[] = []): void {
   const sourceUpdatedAt = resolveAuthorityTranslationSourceUpdatedAt(record);
   const sourceFingerprint = buildAuthorityTranslationSourceFingerprint(record);
-  if (getCachedAuthorityTranslation(slug, sourceUpdatedAt, sourceFingerprint) || authorityTranslationInFlight.has(slug)) {
+  if (getCachedAuthorityTranslation(slug, sourceUpdatedAt, sourceFingerprint, fallbackSlugs) || authorityTranslationInFlight.has(slug)) {
     return;
   }
 
   void getOrCreateAuthorityTranslation(slug, record, {
     providerTimeoutMs: AUTHORITY_TRANSLATION_WARMUP_PROVIDER_TIMEOUT_MS,
-  }).catch((error) => {
+  }, fallbackSlugs).catch((error) => {
     console.error(`[Authority Translation] Prewarm failed for ${slug}:`, error);
   });
 }
@@ -1421,15 +1464,16 @@ async function waitForAuthorityTranslation(
   slug: string,
   record: AuthorityCacheRecord,
   timeoutMs = AUTHORITY_TRANSLATION_WAIT_TIMEOUT_MS,
+  fallbackSlugs: string[] = [],
 ): Promise<AuthorityTranslationCacheRecord | null> {
   const sourceUpdatedAt = resolveAuthorityTranslationSourceUpdatedAt(record);
   const sourceFingerprint = buildAuthorityTranslationSourceFingerprint(record);
-  const cached = getCachedAuthorityTranslation(slug, sourceUpdatedAt, sourceFingerprint);
+  const cached = getCachedAuthorityTranslation(slug, sourceUpdatedAt, sourceFingerprint, fallbackSlugs);
   if (cached) {
     return cached;
   }
 
-  const translationTask = getOrCreateAuthorityTranslation(slug, record).catch((error) => {
+  const translationTask = getOrCreateAuthorityTranslation(slug, record, {}, fallbackSlugs).catch((error) => {
     console.error(`[Authority Translation] Wait failed for ${slug}:`, error);
     return null;
   });
@@ -1592,6 +1636,7 @@ function mapAuthorityRecordToArticle(record: AuthorityCacheRecord, index: number
   const sourceOrg = record.source_org || record.source || '权威机构';
   const { sourceLanguage, sourceLocale } = resolveAuthorityLocale(record);
   const slug = buildAuthoritySlug(record, index);
+  const slugCandidates = getAuthoritySlugCandidates(record, index);
   const localeDefaults = inferAuthorityLocaleDefaults(
     record.source_id,
     record.region,
@@ -1669,6 +1714,7 @@ function mapAuthorityRecordToArticle(record: AuthorityCacheRecord, index: number
     id: hashStringToPositiveInt(record.id || slug),
     title: record.question,
     slug,
+    slugCandidates,
     summary: toAuthoritySummary(resolveAuthoritySummaryText(record)),
     content: toRichTextHtml(record.answer || ''),
     categoryId: 0,
@@ -1832,15 +1878,18 @@ async function prewarmAuthorityTranslationsForArticles(
   }
 
   const records = await getAuthorityRecords();
-  const recordsBySlug = new Map<string, AuthorityCacheRecord>();
+  const recordsBySlug = new Map<string, { record: AuthorityCacheRecord; fallbackSlugs: string[] }>();
   records.forEach((record, index) => {
-    recordsBySlug.set(buildAuthoritySlug(record, index), record);
+    recordsBySlug.set(buildAuthoritySlug(record, index), {
+      record,
+      fallbackSlugs: getAuthoritySlugCandidates(record, index),
+    });
   });
 
   englishArticles.forEach((article) => {
-    const record = recordsBySlug.get(article.slug);
-    if (record) {
-      prewarmAuthorityTranslation(article.slug, record);
+    const match = recordsBySlug.get(article.slug);
+    if (match) {
+      prewarmAuthorityTranslation(article.slug, match.record, match.fallbackSlugs);
     }
   });
 }
@@ -1936,9 +1985,10 @@ function toAuthorityArticleListItem(article: ReturnType<typeof mapAuthorityRecor
     includeContent: false,
     includeTranslation: false,
   });
+  const publicArticle = stripAuthorityInternalFields(displayArticle);
 
   return {
-    ...displayArticle,
+    ...publicArticle,
     content: '',
   };
 }
@@ -1960,7 +2010,6 @@ async function filterAuthorityArticles(
     return [];
   }
 
-  const translationCache = keyword ? loadAuthorityTranslationCache() : null;
   const searchQueries = keyword
     ? Array.from(new Set([keyword, ...(await rewriteSearchQueries(keyword))].map((item) => item.trim()).filter(Boolean)))
     : [];
@@ -2002,7 +2051,7 @@ async function filterAuthorityArticles(
       return true;
     }
 
-    const translated = translationCache?.[article.slug];
+    const translated = getCachedAuthorityArticleTranslation(article);
     const searchable = [
       article.title,
       article.summary,
@@ -2262,13 +2311,18 @@ export const getArticleBySlug = async (req: Request, res: Response, next: NextFu
     const { slug } = req.params;
     const userId = req.userId;
 
-    const authorityArticle = (await getAuthorityArticles()).find((item: ReturnType<typeof mapAuthorityRecordToArticle>) => item.slug === slug);
-    if (authorityArticle) {
-      const authorityRecord = await findAuthorityRecordBySlug(slug);
-      if (authorityRecord) {
-        prewarmAuthorityTranslation(slug, authorityRecord);
+    const authorityMatch = await findAuthorityRecordMatchBySlug(slug);
+    if (authorityMatch) {
+      const canonicalSlug = authorityMatch.slug;
+      const fallbackSlugs = authorityMatch.slugCandidates;
+      const authorityArticle = (await getAuthorityArticles())
+        .find((item: ReturnType<typeof mapAuthorityRecordToArticle>) => item.slug === canonicalSlug);
+      if (!authorityArticle) {
+        throw new AppError('文章不存在', ErrorCodes.ARTICLE_NOT_FOUND, 404);
       }
-      const viewCount = incrementAuthorityViewCountBySlug(slug) ?? authorityArticle.viewCount ?? 0;
+
+      prewarmAuthorityTranslation(canonicalSlug, authorityMatch.record, fallbackSlugs);
+      const viewCount = incrementAuthorityViewCountBySlug(canonicalSlug) ?? authorityArticle.viewCount ?? 0;
       let isLiked = false;
       let likeCount = authorityArticle.likeCount || 0;
 
@@ -2293,10 +2347,10 @@ export const getArticleBySlug = async (req: Request, res: Response, next: NextFu
       }
 
       return res.json(successResponse({
-        ...withAuthorityDisplayTranslation(authorityArticle, {
+        ...stripAuthorityInternalFields(withAuthorityDisplayTranslation(authorityArticle, {
           includeContent: true,
           includeTranslation: true,
-        }),
+        })),
         viewCount,
         isLiked,
         likeCount,
@@ -2370,15 +2424,18 @@ export const getAuthorityArticleTranslation = async (req: Request, res: Response
   try {
     const { slug } = req.params;
     const shouldWaitForTranslation = /^(1|true)$/i.test(String(req.query.wait || ''));
-    const authorityRecord = await findAuthorityRecordBySlug(slug);
+    const authorityMatch = await findAuthorityRecordMatchBySlug(slug);
 
-    if (!authorityRecord) {
+    if (!authorityMatch) {
       throw new AppError('文章不存在', ErrorCodes.ARTICLE_NOT_FOUND, 404);
     }
 
+    const authorityRecord = authorityMatch.record;
+    const canonicalSlug = authorityMatch.slug;
+    const fallbackSlugs = authorityMatch.slugCandidates;
     const sourceUpdatedAt = resolveAuthorityTranslationSourceUpdatedAt(authorityRecord);
     const sourceFingerprint = buildAuthorityTranslationSourceFingerprint(authorityRecord);
-    const cached = getCachedAuthorityTranslation(slug, sourceUpdatedAt, sourceFingerprint);
+    const cached = getCachedAuthorityTranslation(canonicalSlug, sourceUpdatedAt, sourceFingerprint, fallbackSlugs);
     if (cached) {
       return res.json(successResponse(buildAuthorityTranslationResponse('ready', {
         translation: cached,
@@ -2392,14 +2449,14 @@ export const getAuthorityArticleTranslation = async (req: Request, res: Response
     ].join('\n');
 
     if (isMostlyChineseText(sourceTextForDetection)) {
-      const translation = await getOrCreateAuthorityTranslation(slug, authorityRecord);
+      const translation = await getOrCreateAuthorityTranslation(canonicalSlug, authorityRecord, {}, fallbackSlugs);
       return res.json(successResponse(buildAuthorityTranslationResponse('ready', {
         translation,
       })));
     }
 
     if (shouldWaitForTranslation) {
-      const translation = await waitForAuthorityTranslation(slug, authorityRecord);
+      const translation = await waitForAuthorityTranslation(canonicalSlug, authorityRecord, AUTHORITY_TRANSLATION_WAIT_TIMEOUT_MS, fallbackSlugs);
       if (translation) {
         return res.json(successResponse(buildAuthorityTranslationResponse('ready', {
           translation,
@@ -2407,8 +2464,8 @@ export const getAuthorityArticleTranslation = async (req: Request, res: Response
       }
     }
 
-    prewarmAuthorityTranslation(slug, authorityRecord);
-    const retryAfterMs = authorityTranslationInFlight.has(slug) ? 3000 : 5000;
+    prewarmAuthorityTranslation(canonicalSlug, authorityRecord, fallbackSlugs);
+    const retryAfterMs = authorityTranslationInFlight.has(canonicalSlug) ? 3000 : 5000;
     res.json(successResponse(buildAuthorityTranslationResponse('processing', {
       retryAfterMs,
     })));
@@ -2513,7 +2570,7 @@ export const searchArticles = async (req: Request, res: Response, next: NextFunc
         keyword: q,
       });
       const paged = filtered.slice(skip, skip + currentPageSize);
-      res.json(paginatedResponse(paged, currentPage, currentPageSize, filtered.length));
+      res.json(paginatedResponse(paged.map(toAuthorityArticleListItem), currentPage, currentPageSize, filtered.length));
       return;
     }
 

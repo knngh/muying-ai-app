@@ -40,6 +40,50 @@ type MilvusSearchResponse = {
   results?: MilvusSearchResultRow[]
 }
 
+type MilvusVectorSearchRequest = {
+  collection_name: string
+  data: number[]
+  limit: number
+  anns_field: string
+  params: {
+    nprobe: number
+  }
+  output_fields: string[]
+}
+
+type MilvusStatusResponse = {
+  status?: {
+    error_code?: unknown
+    reason?: unknown
+    code?: unknown
+    detail?: unknown
+  }
+}
+
+type MilvusMutationResponse = MilvusStatusResponse & {
+  insert_cnt?: unknown
+  upsert_cnt?: unknown
+  succ_index?: unknown
+  err_index?: unknown
+  acknowledged?: unknown
+}
+
+type MilvusWriteRequest = {
+  collection_name: string
+  data: Array<{
+    id: string;
+    embedding: number[];
+    question: string;
+    answer: string;
+    category: string;
+    source: string;
+  }>
+}
+
+type MilvusWriteClient = MilvusClient & {
+  upsert: (params: MilvusWriteRequest) => Promise<unknown>
+}
+
 // Milvus 配置
 const RAW_MILVUS_ADDRESS = process.env.MILVUS_ADDRESS
   || process.env.ZILLIZ_PUBLIC_ENDPOINT
@@ -159,7 +203,7 @@ function toVectorSafeText(input: string, maxBytes = 3500): string {
   return truncateUtf8(input.replace(/\s+/g, ' ').trim(), maxBytes);
 }
 
-function buildAuthorityVectorId(sourceUrl: string): string {
+export function buildAuthorityVectorId(sourceUrl: string): string {
   let hash = 0;
   for (let index = 0; index < sourceUrl.length; index += 1) {
     hash = ((hash << 5) - hash) + sourceUrl.charCodeAt(index);
@@ -242,6 +286,161 @@ function extractCollectionEmbeddingDim(collectionInfo: MilvusCollectionSchema): 
 
   return null;
 }
+
+function assertMilvusSuccess(operation: string, result: MilvusStatusResponse, requireStatus = false): void {
+  const status = result?.status;
+  if (!status) {
+    if (requireStatus) {
+      throw new Error(`${operation} did not return a Milvus status`);
+    }
+    return;
+  }
+
+  const errorCode = String(status.error_code || '');
+  const numericCode = Number(status.code);
+  if (errorCode && errorCode !== 'Success') {
+    throw new Error(
+      `${operation} failed: ${errorCode}${status.reason ? ` - ${status.reason}` : ''}${status.detail ? ` (${status.detail})` : ''}`,
+    );
+  }
+
+  if (Number.isFinite(numericCode) && numericCode !== 0) {
+    throw new Error(
+      `${operation} failed: code=${numericCode}${status.reason ? ` - ${status.reason}` : ''}${status.detail ? ` (${status.detail})` : ''}`,
+    );
+  }
+}
+
+function parseMilvusCount(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+}
+
+function getMutationInsertCount(result: MilvusMutationResponse, fallbackBatchSize: number): number | null {
+  const insertCount = parseMilvusCount(result.insert_cnt)
+    ?? parseMilvusCount(result.upsert_cnt);
+  if (insertCount !== null) {
+    return insertCount;
+  }
+
+  if (Array.isArray(result.succ_index) && result.succ_index.length > 0) {
+    return result.succ_index.length;
+  }
+
+  if (result.acknowledged === true) {
+    return fallbackBatchSize;
+  }
+
+  return null;
+}
+
+function dedupeVectorDocumentsById<T extends { id: string }>(items: T[]): T[] {
+  const seen = new Set<string>();
+  const unique: T[] = [];
+
+  for (const item of items) {
+    if (seen.has(item.id)) {
+      continue;
+    }
+
+    seen.add(item.id);
+    unique.push(item);
+  }
+
+  return unique;
+}
+
+type VectorWriteMode = 'insert' | 'upsert';
+
+async function writeDocuments(
+  documents: Array<{
+    id: string;
+    embedding: number[];
+    question: string;
+    answer: string;
+    category: string;
+    source: string;
+  }>,
+  mode: VectorWriteMode,
+): Promise<void> {
+  const client = await getMilvusClient() as MilvusWriteClient;
+  let totalWritten = 0;
+
+  for (let start = 0; start < documents.length; start += VECTOR_INSERT_BATCH_SIZE) {
+    const batch = documents.slice(start, start + VECTOR_INSERT_BATCH_SIZE);
+    const request = {
+      collection_name: COLLECTION_NAME,
+      data: batch,
+    };
+    const result = mode === 'upsert'
+      ? await client.upsert(request) as MilvusMutationResponse
+      : await client.insert(request) as MilvusMutationResponse;
+    const operation = mode === 'upsert' ? 'Vector upsert batch' : 'Vector insert batch';
+
+    assertMilvusSuccess(operation, result, true);
+
+    const writtenCount = getMutationInsertCount(result, batch.length);
+    const failedCount = Array.isArray(result.err_index)
+      ? result.err_index.length
+      : 0;
+
+    if (failedCount > 0) {
+      throw new Error(`${operation} failed: written=${writtenCount ?? 'unknown'}, failed=${failedCount}, batchSize=${batch.length}`);
+    }
+
+    if (writtenCount === null) {
+      throw new Error(`${operation} did not return a write count: batchSize=${batch.length}`);
+    }
+
+    if (writtenCount !== batch.length) {
+      throw new Error(`${operation} count mismatch: written=${writtenCount}, batchSize=${batch.length}`);
+    }
+
+    totalWritten += writtenCount;
+  }
+
+  const flushResult = await client.flushSync({
+    collection_names: [COLLECTION_NAME],
+  }) as MilvusStatusResponse;
+  assertMilvusSuccess('Vector flush', flushResult);
+
+  console.log(`✅ ${mode === 'upsert' ? '写入' : '插入'} ${totalWritten} 条文档`);
+}
+
+function normalizeVectorSearchLimit(topK: number): number {
+  if (!Number.isFinite(topK) || topK < 1) {
+    return 5;
+  }
+
+  return Math.floor(topK);
+}
+
+function buildVectorSearchRequest(queryEmbedding: number[], topK: number): MilvusVectorSearchRequest {
+  return {
+    collection_name: COLLECTION_NAME,
+    data: queryEmbedding,
+    limit: normalizeVectorSearchLimit(topK),
+    anns_field: 'embedding',
+    params: { nprobe: 10 },
+    output_fields: ['id', 'question', 'answer', 'category', 'source'],
+  };
+}
+
+export const __vectorServiceTestUtils = {
+  assertMilvusSuccess,
+  buildVectorSearchRequest,
+  dedupeVectorDocumentsById,
+  getMutationInsertCount,
+  parseMilvusCount,
+};
 
 async function ensureCollectionEmbeddingDim(client: MilvusClient): Promise<void> {
   const describeCollection = (client as MilvusClient & {
@@ -381,39 +580,18 @@ export async function insertDocuments(documents: Array<{
   category: string;
   source: string;
 }>): Promise<void> {
-  const client = await getMilvusClient();
-  let totalInserted = 0;
+  await writeDocuments(documents, 'insert');
+}
 
-  for (let start = 0; start < documents.length; start += VECTOR_INSERT_BATCH_SIZE) {
-    const batch = documents.slice(start, start + VECTOR_INSERT_BATCH_SIZE);
-    const result = await client.insert({
-      collection_name: COLLECTION_NAME,
-      data: batch,
-    });
-
-    const insertedCount = typeof (result as { insert_cnt?: unknown }).insert_cnt === 'number'
-      ? (result as { insert_cnt: number }).insert_cnt
-      : (typeof (result as { insert_cnt?: unknown }).insert_cnt === 'string'
-        ? Number((result as { insert_cnt: string }).insert_cnt)
-        : (Array.isArray((result as { succ_index?: unknown }).succ_index)
-          ? (result as { succ_index: unknown[] }).succ_index.length
-          : batch.length));
-    const failedCount = Array.isArray((result as { err_index?: unknown }).err_index)
-      ? (result as { err_index: unknown[] }).err_index.length
-      : 0;
-
-    if (failedCount > 0) {
-      throw new Error(`Vector insert batch failed: inserted=${insertedCount}, failed=${failedCount}, batchSize=${batch.length}`);
-    }
-
-    totalInserted += insertedCount;
-  }
-
-  await client.flushSync({
-    collection_names: [COLLECTION_NAME],
-  });
-
-  console.log(`✅ 插入 ${totalInserted} 条文档`);
+async function upsertDocuments(documents: Array<{
+  id: string;
+  embedding: number[];
+  question: string;
+  answer: string;
+  category: string;
+  source: string;
+}>): Promise<void> {
+  await writeDocuments(documents, 'upsert');
 }
 
 export async function deleteDocumentsByIds(ids: string[]): Promise<void> {
@@ -477,18 +655,13 @@ export async function publishAuthorityDocumentsToVectorStore(documents: Array<{
     })
     .filter((item): item is NonNullable<typeof item> => Boolean(item));
 
-  if (prepared.length === 0) {
+  const uniquePrepared = dedupeVectorDocumentsById(prepared);
+
+  if (uniquePrepared.length === 0) {
     return { published: 0, skipped: documents.length };
   }
 
-  const ids = prepared.map((item) => item.id);
-  try {
-    await deleteDocumentsByIds(ids);
-  } catch (error) {
-    console.warn('[Vector] 删除旧权威向量失败，将尝试继续插入:', error);
-  }
-
-  const data = await mapWithConcurrency(prepared, EMBEDDING_CONCURRENCY, async (item) => ({
+  const data = await mapWithConcurrency(uniquePrepared, EMBEDDING_CONCURRENCY, async (item) => ({
     id: item.id,
     embedding: await getEmbedding(`${item.question} ${item.answer}`),
     question: item.question,
@@ -497,7 +670,7 @@ export async function publishAuthorityDocumentsToVectorStore(documents: Array<{
     source: item.source,
   }));
 
-  await insertDocuments(data);
+  await upsertDocuments(data);
   return {
     published: data.length,
     skipped: documents.length - data.length,
@@ -518,13 +691,7 @@ export async function searchKnowledge(
 }>> {
   const client = await getMilvusClient();
   
-  const results = await client.search({
-    collection_name: COLLECTION_NAME,
-    vector: queryEmbedding,
-    top_k: topK,
-    params: { nprobe: 10 },
-    output_fields: ['id', 'question', 'answer', 'category', 'source'],
-  }) as MilvusSearchResponse;
+  const results = await client.search(buildVectorSearchRequest(queryEmbedding, topK)) as MilvusSearchResponse;
   
   return (results.results || []).map((result) => ({
     id: String(result.id ?? ''),

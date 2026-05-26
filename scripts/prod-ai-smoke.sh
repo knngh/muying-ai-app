@@ -11,10 +11,12 @@ VIP_PASSWORD="${VIP_PASSWORD:-${DEFAULT_PASSWORD}}"
 ADMIN_PASSWORD="${ADMIN_PASSWORD:-${DEFAULT_PASSWORD}}"
 AI_SMOKE_STAGE="${AI_SMOKE_STAGE:-newborn}"
 AI_SMOKE_QUESTION="${AI_SMOKE_QUESTION:-宝宝37.8度低热，精神还可以，需要马上去医院吗？请用三点说明。}"
-AI_SMOKE_MAX_TIME_SECONDS="${AI_SMOKE_MAX_TIME_SECONDS:-45}"
-AI_SMOKE_ANALYTICS_WAIT_SECONDS="${AI_SMOKE_ANALYTICS_WAIT_SECONDS:-16}"
+AI_SMOKE_MAX_TIME_SECONDS="${AI_SMOKE_MAX_TIME_SECONDS:-120}"
+AI_SMOKE_ANALYTICS_WAIT_SECONDS="${AI_SMOKE_ANALYTICS_WAIT_SECONDS:-24}"
 AI_SMOKE_RECOMMENDATION_LIMIT="${AI_SMOKE_RECOMMENDATION_LIMIT:-3}"
 AI_OVERVIEW_RANGE_DAYS="${AI_OVERVIEW_RANGE_DAYS:-7}"
+AI_SMOKE_EXPECT_PROVIDER="${AI_SMOKE_EXPECT_PROVIDER:-deepseek}"
+AI_SMOKE_EXPECT_MODEL="${AI_SMOKE_EXPECT_MODEL:-deepseek-v4-flash}"
 
 require_bin() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -163,6 +165,45 @@ fi
 
 if [[ "${AI_HTTP_STATUS}" =~ ^[0-9]+$ ]] && ((AI_HTTP_STATUS >= 400 && AI_HTTP_STATUS < 500)); then
   echo "AI smoke request was rejected by the API with HTTP ${AI_HTTP_STATUS}; not treating this as provider degradation." >&2
+  exit 1
+fi
+
+if ((AI_CURL_EXIT != 0)); then
+  echo "AI smoke curl failed with exit ${AI_CURL_EXIT}." >&2
+  exit 1
+fi
+
+if ! [[ "${AI_HTTP_STATUS}" =~ ^[0-9]+$ ]] || ((AI_HTTP_STATUS < 200 || AI_HTTP_STATUS >= 300)); then
+  echo "AI smoke expected HTTP 2xx, got ${AI_HTTP_STATUS}." >&2
+  exit 1
+fi
+
+if ! printf '%s\n' "${AI_RESPONSE_BODY}" | jq -e '.code == 0 and .data and (.data.answer // "" | length > 0)' >/dev/null; then
+  echo "AI smoke response did not contain a successful answer payload." >&2
+  exit 1
+fi
+
+if printf '%s\n' "${AI_RESPONSE_BODY}" | jq -e '.data.degraded == true' >/dev/null; then
+  echo "AI smoke response was degraded; expected live provider answer." >&2
+  exit 1
+fi
+
+AI_RESPONSE_PROVIDER="$(printf '%s\n' "${AI_RESPONSE_BODY}" | jq -r '.data.provider // ""')"
+AI_RESPONSE_MODEL="$(printf '%s\n' "${AI_RESPONSE_BODY}" | jq -r '.data.model // ""')"
+AI_RESPONSE_SOURCES_COUNT="$(printf '%s\n' "${AI_RESPONSE_BODY}" | jq -r '(.data.sources // []) | length')"
+
+if [[ "${AI_RESPONSE_PROVIDER}" != "${AI_SMOKE_EXPECT_PROVIDER}" ]]; then
+  echo "AI smoke expected provider ${AI_SMOKE_EXPECT_PROVIDER}, got ${AI_RESPONSE_PROVIDER:-<empty>}." >&2
+  exit 1
+fi
+
+if [[ "${AI_RESPONSE_MODEL}" != "${AI_SMOKE_EXPECT_MODEL}" ]]; then
+  echo "AI smoke expected model ${AI_SMOKE_EXPECT_MODEL}, got ${AI_RESPONSE_MODEL:-<empty>}." >&2
+  exit 1
+fi
+
+if ((AI_RESPONSE_SOURCES_COUNT < 1)); then
+  echo "AI smoke expected at least one source, got ${AI_RESPONSE_SOURCES_COUNT}." >&2
   exit 1
 fi
 

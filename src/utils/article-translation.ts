@@ -1,4 +1,4 @@
-export const TRANSLATION_PROMPT_LEAK_PATTERN = /<translated_(title|summary|content)>|<think>|Be accurate and faithful to the original|不要输出任何额外说明|输出必须严格使用以下标签|Provide complete translations|Let me translate|do not add recommendations|do not change into diagnostic conclusions|do not omit important risk warnings|output only the translation|让我(?:仔细)?(?:分析|翻译)|现在翻译正文|原文(?:标题|摘要|正文)|摘要被截断/i;
+export const TRANSLATION_PROMPT_LEAK_PATTERN = /<translated_(title|summary|content)>|<\/?(?:summary|translation)>|译后的?(?:标题|摘要|正文)\s*[>：:]|<think>|Be accurate and faithful to the original|不要输出任何额外说明|输出必须严格使用以下标签|Provide complete translations|Let me translate|do not add recommendations|do not change into diagnostic conclusions|do not omit important risk warnings|output only the translation|让我(?:仔细)?(?:分析|翻译)|现在翻译正文|原文(?:标题|摘要|正文)|摘要被截断/i;
 
 export function stripCodeFence(input: string): string {
   const fenced = input.trim().match(/^```(?:xml|json|markdown|md|text)?\s*([\s\S]*?)\s*```$/i);
@@ -22,7 +22,7 @@ export function isPlaceholderTranslationText(input: string): boolean {
     .replace(/[\s\u00a0]+/g, '')
     .trim();
 
-  return /^(?:[.。．]{2,}|…+|省略|待翻译|翻译内容|译文内容|中文译文|中文翻译|placeholder)$/iu.test(normalized);
+  return /^(?:[.。．]{2,}|…+|省略|待翻译|翻译内容|译文内容|中文译文|中文翻译|译后的?(?:标题|摘要|正文)|placeholder)$/iu.test(normalized);
 }
 
 export function sanitizeTranslationText(

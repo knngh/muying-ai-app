@@ -391,8 +391,14 @@
   word-break: break-all;
 }
 
-.sourceBox a {
+.sourceBox button {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: transparent;
   color: #a8543e;
+  cursor: pointer;
+  font: inherit;
   font-weight: 700;
   text-decoration: none;
 }

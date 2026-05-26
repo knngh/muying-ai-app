@@ -10,6 +10,7 @@ import {
 } from '../config/authority-sources';
 import { inferAuthorityStages } from '../utils/authority-stage';
 import { buildAuthorityDisplayTags } from '../utils/authority-metadata';
+import { buildStableAuthorityId } from '../utils/authority-identity';
 import { isIndexLikeAuthorityUrl, shouldFilterAuthoritySourceUrl } from '../utils/authority-source-url';
 import { getAuthorityKnowledgeDropReason } from '../utils/knowledge-content-guard';
 import { normalizeWithAuthorityAdapter } from './authority-adapters';
@@ -118,6 +119,10 @@ const AUTHORITY_RETRY_429_DELAY_MS = Math.max(0, Number(process.env.AUTHORITY_RE
 const AUTHORITY_FETCH_TIMEOUT_MS = Math.max(5000, Number(process.env.AUTHORITY_FETCH_TIMEOUT_MS || 20000));
 const AUTHORITY_CACHE_PATH = path.join(process.cwd(), 'data', 'authority-knowledge-cache.json');
 const AUTHORITY_VECTOR_PUBLISH_ENABLED = /^true$/i.test(process.env.AUTHORITY_VECTOR_PUBLISH_ENABLED || '');
+const NHS_PREGNANCY_MEDICINE_TEMPLATE_LIMIT = Math.max(
+  0,
+  Number(process.env.AUTHORITY_NHS_PREGNANCY_MEDICINE_TEMPLATE_LIMIT || 5),
+);
 
 function toMysqlDateTime(input?: string | Date | null): string | null {
   if (!input) {
@@ -649,6 +654,67 @@ function prioritizeAuthorityUrls(urls: string[], source: AuthoritySourceConfig):
     .map((item) => item.url);
 }
 
+function getAuthorityUrlDiversityFamily(url: string, source: AuthoritySourceConfig): string | null {
+  if (source.id !== 'nhs') {
+    return null;
+  }
+
+  try {
+    const pathname = new URL(url).pathname.toLowerCase();
+    if (/^\/medicines\/.+\/pregnancy-breastfeeding-and-fertility-while-[^/]+\/?$/.test(pathname)) {
+      return 'nhs-pregnancy-medicine-template';
+    }
+  } catch {
+    if (/\/medicines\/.+\/pregnancy-breastfeeding-and-fertility-while-/i.test(url)) {
+      return 'nhs-pregnancy-medicine-template';
+    }
+  }
+
+  return null;
+}
+
+function getAuthorityUrlDiversityLimit(family: string | null): number {
+  if (family === 'nhs-pregnancy-medicine-template') {
+    return NHS_PREGNANCY_MEDICINE_TEMPLATE_LIMIT;
+  }
+
+  return Number.POSITIVE_INFINITY;
+}
+
+function selectDiverseAuthorityUrls(urls: string[], source: AuthoritySourceConfig, limit: number): string[] {
+  const prioritized = prioritizeAuthorityUrls(urls, source);
+  const selected: string[] = [];
+  const deferred: string[] = [];
+  const familyCounts = new Map<string, number>();
+
+  for (const url of prioritized) {
+    if (selected.length >= limit) {
+      break;
+    }
+
+    const family = getAuthorityUrlDiversityFamily(url, source);
+    const familyLimit = getAuthorityUrlDiversityLimit(family);
+    if (family && (familyCounts.get(family) || 0) >= familyLimit) {
+      deferred.push(url);
+      continue;
+    }
+
+    selected.push(url);
+    if (family) {
+      familyCounts.set(family, (familyCounts.get(family) || 0) + 1);
+    }
+  }
+
+  for (const url of deferred) {
+    if (selected.length >= limit) {
+      break;
+    }
+    selected.push(url);
+  }
+
+  return selected;
+}
+
 function extractSitemapUrls(xml: string, source: AuthoritySourceConfig): string[] {
   return prioritizeAuthorityUrls(
     filterAuthorityUrls(extractSitemapLocUrls(xml), source),
@@ -1161,7 +1227,7 @@ function buildDiscoveredAuthorityUrls(
   urls: string[],
 ): DiscoveredAuthorityUrl[] {
   const discovered = new Map<string, DiscoveredAuthorityUrl>();
-  for (const url of prioritizeAuthorityUrls(urls, source).slice(0, source.maxPagesPerRun)) {
+  for (const url of selectDiverseAuthorityUrls(urls, source, source.maxPagesPerRun)) {
     if (!discovered.has(url)) {
       discovered.set(url, {
         url,
@@ -1430,9 +1496,12 @@ export const __authoritySyncTestUtils = {
   extractSitemapUrls,
   filterNestedSitemapCandidates,
   getAuthorityUrlRelevanceScore,
+  buildDiscoveredAuthorityUrls,
+  buildStableAuthorityId,
   isAuthorityUrlMatched,
   isIndexLikeAuthorityUrl,
   prioritizeAuthorityUrls,
+  selectDiverseAuthorityUrls,
 };
 
 export async function persistDiscoveredAuthorityUrls(urls: DiscoveredAuthorityUrl[]): Promise<void> {
@@ -1837,7 +1906,7 @@ export async function exportPublishedAuthoritySnapshot(): Promise<void> {
     });
 
     return {
-      id: `authority-${row.sourceId}-${index + 1}`,
+      id: buildStableAuthorityId(row.sourceId, row.sourceUrl, index + 1),
       source_id: row.sourceId,
       source_class: typeof (metadata as { sourceClass?: unknown }).sourceClass === 'string'
         ? (metadata as { sourceClass: 'official' | 'medical_platform' | 'dataset' | 'unknown' }).sourceClass

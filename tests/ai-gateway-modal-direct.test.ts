@@ -16,6 +16,8 @@ describe('AI gateway Modal Direct provider', () => {
     AI_DEEPSEEK_URL: process.env.AI_DEEPSEEK_URL,
     AI_DEEPSEEK_MODEL: process.env.AI_DEEPSEEK_MODEL,
     AI_DEEPSEEK_PROVIDER: process.env.AI_DEEPSEEK_PROVIDER,
+    AI_TASK_TRANSIENT_RETRY_ATTEMPTS: process.env.AI_TASK_TRANSIENT_RETRY_ATTEMPTS,
+    AI_TASK_TRANSIENT_RETRY_DELAY_MS: process.env.AI_TASK_TRANSIENT_RETRY_DELAY_MS,
   };
 
   function restoreEnv() {
@@ -139,6 +141,107 @@ describe('AI gateway Modal Direct provider', () => {
     expect(requestBody.thinking).toEqual({ type: 'disabled' });
   });
 
+  it('retries transient DeepSeek task provider failures before falling back', async () => {
+    process.env.AI_DEEPSEEK_KEY = 'test-deepseek-key';
+    process.env.AI_TASK_TRANSIENT_RETRY_ATTEMPTS = '1';
+    process.env.AI_TASK_TRANSIENT_RETRY_DELAY_MS = '0';
+
+    const fetchMock = jest.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response(
+        JSON.stringify({
+          error: {
+            message: 'Service is too busy. We advise users to temporarily switch to alternative LLM API service providers.',
+            type: 'service_unavailable_error',
+            code: 'service_unavailable_error',
+          },
+        }),
+        { status: 503, headers: { 'Content-Type': 'application/json' } },
+      ))
+      .mockResolvedValueOnce(new Response(
+        JSON.stringify({
+          choices: [{
+            message: {
+              role: 'assistant',
+              content: '{"translated_title":"母乳喂养"}',
+            },
+            finish_reason: 'stop',
+          }],
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ));
+
+    let callTaskModelDetailed: typeof import('../src/services/ai-gateway.service').callTaskModelDetailed;
+    jest.isolateModules(() => {
+      const aiGateway = require('../src/services/ai-gateway.service') as typeof import('../src/services/ai-gateway.service');
+      callTaskModelDetailed = aiGateway.callTaskModelDetailed;
+    });
+
+    await expect(callTaskModelDetailed('deepseek_translate', [
+      { role: 'user', content: 'translate' },
+    ], {
+      primaryOnly: true,
+      responseFormat: 'json_object',
+    })).resolves.toMatchObject({
+      answer: '{"translated_title":"母乳喂养"}',
+      route: {
+        provider: 'deepseek',
+        model: 'deepseek-v4-flash',
+      },
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('retries an empty DeepSeek task response before falling back', async () => {
+    process.env.AI_DEEPSEEK_KEY = 'test-deepseek-key';
+    process.env.AI_TASK_TRANSIENT_RETRY_ATTEMPTS = '1';
+    process.env.AI_TASK_TRANSIENT_RETRY_DELAY_MS = '0';
+
+    const fetchMock = jest.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response(
+        JSON.stringify({
+          choices: [{
+            message: { role: 'assistant' },
+            finish_reason: 'stop',
+          }],
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ))
+      .mockResolvedValueOnce(new Response(
+        JSON.stringify({
+          choices: [{
+            message: {
+              role: 'assistant',
+              content: '{"translated_title":"母乳喂养"}',
+            },
+            finish_reason: 'stop',
+          }],
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ));
+
+    let callTaskModelDetailed: typeof import('../src/services/ai-gateway.service').callTaskModelDetailed;
+    jest.isolateModules(() => {
+      const aiGateway = require('../src/services/ai-gateway.service') as typeof import('../src/services/ai-gateway.service');
+      callTaskModelDetailed = aiGateway.callTaskModelDetailed;
+    });
+
+    await expect(callTaskModelDetailed('deepseek_translate', [
+      { role: 'user', content: 'translate' },
+    ], {
+      primaryOnly: true,
+      responseFormat: 'json_object',
+    })).resolves.toMatchObject({
+      answer: '{"translated_title":"母乳喂养"}',
+      route: {
+        provider: 'deepseek',
+        model: 'deepseek-v4-flash',
+      },
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it('sends Kimi task calls to the OpenRouter free router model', async () => {
     process.env.AI_KIMI_KEY = 'test-openrouter-key';
     process.env.AI_KIMI_URL = 'https://openrouter.ai/api/v1';
@@ -217,6 +320,7 @@ describe('AI gateway Modal Direct provider', () => {
 
   it('can stop task fallback after any Modal Direct provider failure', async () => {
     process.env.AI_MODAL_DIRECT_KEY = 'test-modal-key';
+    process.env.AI_TASK_TRANSIENT_RETRY_ATTEMPTS = '0';
     delete process.env.AI_GLM_KEY;
     delete process.env.AI_GLM_URL;
     delete process.env.AI_GLM_MODEL;

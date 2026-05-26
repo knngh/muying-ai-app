@@ -1,11 +1,13 @@
 import {
   callTaskModelDetailed,
   getEmergencyResponse,
+  getTaskModelBindings,
   isEmergencyQuestion,
   type AIGatewayRouteInfo,
+  type AITaskModelBinding,
   type AITaskModelRole,
 } from './ai-gateway.service';
-import { planTrustedAIRoute, type RoutePlan } from './ai-route-planner.service';
+import { planTrustedAIRoute, type ExecutionStep, type RoutePlan } from './ai-route-planner.service';
 import {
   type KnowledgeSearchResult,
   type KnowledgeRiskLevel,
@@ -560,6 +562,44 @@ function buildTaskModelMessages(params: {
   ];
 }
 
+function getEquivalentTaskKey(
+  step: ExecutionStep,
+  bindingsByRole: Map<AITaskModelRole, AITaskModelBinding>,
+): string | null {
+  if (step === 'system') {
+    return null;
+  }
+
+  const binding = bindingsByRole.get(step);
+  if (!binding?.configured || !binding.provider || !binding.model) {
+    return null;
+  }
+
+  return `${binding.provider}::${binding.model}`;
+}
+
+export function compactEquivalentExecutionPlan(
+  executionPlan: ExecutionStep[],
+  bindings: AITaskModelBinding[] = getTaskModelBindings(),
+): ExecutionStep[] {
+  const bindingsByRole = new Map<AITaskModelRole, AITaskModelBinding>(
+    bindings.map((binding) => [binding.role, binding]),
+  );
+  const lastIndexByTaskKey = new Map<string, number>();
+
+  executionPlan.forEach((step, index) => {
+    const taskKey = getEquivalentTaskKey(step, bindingsByRole);
+    if (taskKey) {
+      lastIndexByTaskKey.set(taskKey, index);
+    }
+  });
+
+  return executionPlan.filter((step, index) => {
+    const taskKey = getEquivalentTaskKey(step, bindingsByRole);
+    return !taskKey || lastIndexByTaskKey.get(taskKey) === index;
+  });
+}
+
 async function executePlannedGeneration(params: {
   question: string;
   finalContext?: string;
@@ -581,8 +621,9 @@ async function executePlannedGeneration(params: {
   let degraded = false;
   let lastRouteInfo: AIGatewayRouteInfo | undefined;
   const executedSteps: string[] = [];
+  const effectiveExecutionPlan = compactEquivalentExecutionPlan(params.plan.executionPlan);
 
-  for (const step of params.plan.executionPlan) {
+  for (const step of effectiveExecutionPlan) {
     if (step === 'system') {
       executedSteps.push('system');
       continue;
@@ -629,11 +670,13 @@ async function executePlannedGeneration(params: {
     }
   }
 
+  const plannedRoute = effectiveExecutionPlan.join('>');
+  const originalRoute = params.plan.executionPlan.join('>');
   return {
     structuredAnswer: currentDraft,
     degraded,
     routeInfo: lastRouteInfo,
-    routeSummary: `${params.plan.executionPlan.join('>')}|${params.plan.retrievalTier}|${params.plan.complexity}|${executedSteps.join('>')}`,
+    routeSummary: `${plannedRoute}|${params.plan.retrievalTier}|${params.plan.complexity}|${executedSteps.join('>')}${plannedRoute === originalRoute ? '' : `|compacted:${originalRoute}`}`,
   };
 }
 

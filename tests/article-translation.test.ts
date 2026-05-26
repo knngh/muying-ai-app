@@ -44,10 +44,34 @@ describe('article translation sanitization', () => {
     expect(hasTranslationPromptLeak(input)).toBe(true);
   });
 
+  test('returns empty string for leaked translation field labels in content', () => {
+    const input = [
+      '怀孕期间使用胰岛素时，应按医生建议监测血糖。',
+      '译后的标题>怀孕、哺乳期间使用速效胰岛素与生育能力',
+    ].join('\n');
+
+    expect(sanitizeTranslationText(input, 'content')).toBe('');
+    expect(hasTranslationPromptLeak(input)).toBe(true);
+  });
+
+  test('returns empty string for leaked structured translation tags', () => {
+    const input = [
+      '宝宝长牙后的母乳喂养',
+      '美国儿科学会讨论了宝宝长牙后的母乳喂养问题。</summary>',
+      '译后的正文：',
+      '宝宝的第一颗牙齿通常会在6个月后长出。',
+    ].join('\n');
+
+    expect(sanitizeTranslationText(input, 'content')).toBe('');
+    expect(hasTranslationPromptLeak(input)).toBe(true);
+  });
+
   test('returns empty string for placeholder translation output', () => {
     expect(sanitizeTranslationText('...', 'content')).toBe('');
     expect(sanitizeTranslationText('…', 'summary')).toBe('');
     expect(isPlaceholderTranslationText('待翻译')).toBe(true);
+    expect(isPlaceholderTranslationText('译后的标题')).toBe(true);
+    expect(isPlaceholderTranslationText('译后的正文')).toBe(true);
   });
 
   test('extracts json object from fenced response payload', () => {

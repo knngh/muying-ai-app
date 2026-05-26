@@ -30,6 +30,7 @@ import {
 import {
   resolveAuthorityTranslationTaskRoles,
 } from '../utils/authority-translation-routing';
+import { buildAuthoritySlugCandidates, buildStableAuthoritySlug } from '../utils/authority-identity';
 
 export { resolveAuthorityTranslationSourceUpdatedAt } from '../utils/authority-translation-source';
 
@@ -219,12 +220,7 @@ function isMostlyChineseText(input: string): boolean {
 }
 
 export function buildAuthoritySlug(record: AuthorityCacheRecord, index: number): string {
-  const base = (record.id || record.original_id || record.question || `authority-${index + 1}`)
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-
-  return base.startsWith('authority-') ? base : `authority-${base || index + 1}`;
+  return buildStableAuthoritySlug(record, index);
 }
 
 function normalizeAuthorityText(text: string): string {
@@ -473,14 +469,14 @@ export async function findAuthorityRecordForTranslationBySlug(
   slug: string,
 ): Promise<{ record: AuthorityCacheRecord; slug: string } | null> {
   const records = await getAuthorityRecordsForTranslation();
-  const index = records.findIndex((item, itemIndex) => buildAuthoritySlug(item, itemIndex) === slug);
+  const index = records.findIndex((item, itemIndex) => buildAuthoritySlugCandidates(item, itemIndex).includes(slug));
   if (index < 0) {
     return null;
   }
 
   return {
     record: records[index],
-    slug,
+    slug: buildAuthoritySlug(records[index], index),
   };
 }
 
@@ -782,22 +778,42 @@ export function getCachedAuthorityTranslation(
   slug: string,
   sourceUpdatedAt?: string,
   sourceFingerprint?: string,
+  fallbackSlugs: string[] = [],
 ): AuthorityTranslationCacheRecord | null {
   const translationCache = loadAuthorityTranslationCache();
-  const cached = translationCache[slug];
-  if (isAuthorityTranslationCacheFresh(cached, { sourceUpdatedAt, sourceFingerprint })) {
+  const candidateSlugs = Array.from(new Set([
+    slug,
+    ...fallbackSlugs,
+    ...Object.entries(translationCache)
+      .filter(([, cached]) => Boolean(
+        sourceFingerprint
+        && cached?.sourceFingerprint
+        && cached.sourceFingerprint === sourceFingerprint,
+      ))
+      .map(([candidateSlug]) => candidateSlug),
+  ]));
+
+  for (const candidateSlug of candidateSlugs) {
+    const cached = translationCache[candidateSlug];
+    if (!isAuthorityTranslationCacheFresh(cached, { sourceUpdatedAt, sourceFingerprint })) {
+      continue;
+    }
+
     const normalized = normalizeAuthorityTranslationRecord(cached);
     if (!normalized) {
-      return null;
+      continue;
     }
 
     const repaired: AuthorityTranslationCacheRecord = {
       ...normalized,
+      slug,
       sourceUpdatedAt: sourceUpdatedAt || normalized.sourceUpdatedAt,
       sourceFingerprint: sourceFingerprint || normalized.sourceFingerprint,
     };
     if (
-      repaired.sourceUpdatedAt !== cached.sourceUpdatedAt
+      candidateSlug !== slug
+      || repaired.slug !== cached.slug
+      || repaired.sourceUpdatedAt !== cached.sourceUpdatedAt
       || repaired.sourceFingerprint !== cached.sourceFingerprint
       || repaired.translatedTitle !== cached.translatedTitle
       || repaired.translatedSummary !== cached.translatedSummary
@@ -1270,10 +1286,11 @@ export function getOrCreateAuthorityTranslation(
   slug: string,
   record: AuthorityCacheRecord,
   options: AuthorityTranslationExecutionOptions = {},
+  fallbackSlugs: string[] = [],
 ): Promise<AuthorityTranslationCacheRecord> {
   const sourceUpdatedAt = resolveAuthorityTranslationSourceUpdatedAt(record);
   const sourceFingerprint = buildAuthorityTranslationSourceFingerprint(record);
-  const cached = getCachedAuthorityTranslation(slug, sourceUpdatedAt, sourceFingerprint);
+  const cached = getCachedAuthorityTranslation(slug, sourceUpdatedAt, sourceFingerprint, fallbackSlugs);
   if (cached) {
     return Promise.resolve(cached);
   }
@@ -1310,7 +1327,7 @@ export async function warmPublishedAuthorityTranslations(
   );
   const records = await getAuthorityRecordsForTranslation();
   const failures: WarmAuthorityTranslationsResult['failures'] = [];
-  const candidates: Array<{ slug: string; record: AuthorityCacheRecord }> = [];
+  const candidates: Array<{ slug: string; record: AuthorityCacheRecord; fallbackSlugs: string[] }> = [];
   let cached = 0;
   let skipped = 0;
   const quotaResetAt = options.slug
@@ -1322,20 +1339,23 @@ export async function warmPublishedAuthorityTranslations(
 
   records.forEach((record, index) => {
     const slug = buildAuthoritySlug(record, index);
+    const fallbackSlugs = buildAuthoritySlugCandidates(record, index);
     if (options.slug && slug !== options.slug) {
-      skipped += 1;
-      return;
+      if (!fallbackSlugs.includes(options.slug)) {
+        skipped += 1;
+        return;
+      }
     }
 
     const sourceUpdatedAt = resolveAuthorityTranslationSourceUpdatedAt(record);
     const sourceFingerprint = buildAuthorityTranslationSourceFingerprint(record);
-    if (getCachedAuthorityTranslation(slug, sourceUpdatedAt, sourceFingerprint)) {
-      clearAuthorityTranslationFailure(slug);
+    if (getCachedAuthorityTranslation(slug, sourceUpdatedAt, sourceFingerprint, fallbackSlugs)) {
+      fallbackSlugs.forEach((candidateSlug) => clearAuthorityTranslationFailure(candidateSlug));
       cached += 1;
       return;
     }
 
-    if (!options.slug && shouldSkipRecentlyFailedAuthorityTranslation(slug, sourceUpdatedAt)) {
+    if (!options.slug && fallbackSlugs.some((candidateSlug) => shouldSkipRecentlyFailedAuthorityTranslation(candidateSlug, sourceUpdatedAt))) {
       skipped += 1;
       return;
     }
@@ -1345,7 +1365,7 @@ export async function warmPublishedAuthorityTranslations(
       return;
     }
 
-    candidates.push({ slug, record });
+    candidates.push({ slug, record, fallbackSlugs });
   });
 
   const selected = limit > 0 ? candidates.slice(0, limit) : [];
@@ -1357,8 +1377,8 @@ export async function warmPublishedAuthorityTranslations(
       const item = selected[index];
       attempted += 1;
       try {
-        await getOrCreateAuthorityTranslation(item.slug, item.record, { providerTimeoutMs });
-        clearAuthorityTranslationFailure(item.slug);
+        await getOrCreateAuthorityTranslation(item.slug, item.record, { providerTimeoutMs }, item.fallbackSlugs);
+        item.fallbackSlugs.forEach((candidateSlug) => clearAuthorityTranslationFailure(candidateSlug));
         warmed += 1;
       } catch (error) {
         recordAuthorityTranslationFailure(item.slug, resolveAuthorityTranslationSourceUpdatedAt(item.record), error);

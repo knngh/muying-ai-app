@@ -62,7 +62,7 @@
         <text class="source-label">原始来源</text>
         <text class="source-url">{{ displayedSourceUrl }}</text>
         <view class="source-btn" @tap="copySourceLink(displayedSourceUrl)">
-          <text class="source-btn-text">复制来源链接</text>
+          <text class="source-btn-text">复制链接</text>
         </view>
       </view>
       <view v-else class="source-box source-box--muted">
@@ -114,13 +114,6 @@
         <view class="body-language-banner" :class="{ 'body-language-banner--translated': showingTranslation }">
           <text class="body-language-label">{{ currentBodyLanguageLabel }}</text>
           <text class="body-language-text">{{ currentBodyLanguageDescription }}</text>
-        </view>
-        <view v-if="displayedSourceUrl" class="content-source-reference content-source-reference--top">
-          <text class="content-source-label">原文链接</text>
-          <text class="content-source-url">{{ displayedSourceUrl }}</text>
-          <view class="content-source-btn" @tap="copySourceLink(displayedSourceUrl)">
-            <text class="content-source-btn-text">复制链接</text>
-          </view>
         </view>
         <view v-if="isBodyFallback" class="body-fallback-notice">
           <text class="body-fallback-notice-text">当前正文暂未同步，以下为摘要内容。</text>
@@ -314,29 +307,6 @@ const displayedSummaryText = computed(() => normalizePlainText(displayedSummary.
 
 const displayedSourceUrl = computed(() => normalizeAuthoritySourceUrl(getArticleSourceUrl(article.value)))
 
-function escapeRichText(input: string): string {
-  return input
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-}
-
-const sourceUrlRichText = computed(() => {
-  if (!displayedSourceUrl.value) {
-    return ''
-  }
-
-  const url = escapeRichText(displayedSourceUrl.value)
-  return [
-    '<p style="margin:0 0 1.1em;padding:0 0 1em;border-bottom:1px solid rgba(82,96,114,0.16);line-height:1.8;text-align:left;word-break:break-all;overflow-wrap:anywhere;">',
-    '<strong style="display:block;margin:0 0 0.35em;color:#526072;font-weight:700;">原文链接：</strong>',
-    `<span style="color:#1f6f8f;">${url}</span>`,
-    '</p>',
-  ].join('')
-})
-
 const displayedBodySource = computed(() => {
   if (showingTranslation.value) {
     return translatedDisplayContent.value
@@ -351,11 +321,10 @@ const isBodyFallback = computed(() => {
 
 const displayedContent = computed(() => {
   const body = displayedBodySource.value
-  const sourcePrefix = sourceUrlRichText.value
   if (!body.trim() && displayedSummary.value) {
-    return addArticleHeadingAnchors(`${sourcePrefix}${formatRichArticleContent(displayedSummary.value)}`)
+    return addArticleHeadingAnchors(formatRichArticleContent(displayedSummary.value))
   }
-  return addArticleHeadingAnchors(`${sourcePrefix}${formatRichArticleContent(body)}`)
+  return addArticleHeadingAnchors(formatRichArticleContent(body))
 })
 
 const contentOutline = computed(() => {
@@ -422,7 +391,7 @@ const currentBodyLanguageLabel = computed(() => {
 const currentBodyLanguageDescription = computed(() => {
   if (showingTranslation.value) {
     return displayedSourceUrl.value
-      ? '当前正文为系统生成的中文辅助阅读版，原文链接保留在正文上方用于核对。'
+      ? '当前正文为系统生成的中文辅助阅读版，可通过页面上方来源链接核对。'
       : '当前正文为系统生成的中文辅助阅读版，可切换回机构原文核对。'
   }
 
@@ -1392,53 +1361,6 @@ watch(
   color: #444;
   text-align: justify;
   text-align-last: left;
-}
-
-.content-source-reference {
-  margin-top: 28rpx;
-  padding-top: 24rpx;
-  border-top: 1rpx solid rgba(82, 96, 114, 0.16);
-}
-
-.content-source-reference--top {
-  margin-top: 0;
-  margin-bottom: 26rpx;
-  padding-top: 0;
-  padding-bottom: 22rpx;
-  border-top: 0;
-  border-bottom: 1rpx solid rgba(82, 96, 114, 0.16);
-}
-
-.content-source-label {
-  display: block;
-  font-size: 24rpx;
-  font-weight: 700;
-  color: #526072;
-  margin-bottom: 12rpx;
-}
-
-.content-source-url {
-  display: block;
-  font-size: 25rpx;
-  line-height: 1.7;
-  color: #1f6f8f;
-  word-break: break-all;
-}
-
-.content-source-btn {
-  display: inline-flex;
-  margin-top: 16rpx;
-  align-items: center;
-  justify-content: center;
-  padding: 12rpx 22rpx;
-  border-radius: 999rpx;
-  background: rgba(31, 143, 116, 0.12);
-}
-
-.content-source-btn-text {
-  font-size: 24rpx;
-  font-weight: 700;
-  color: #18755f;
 }
 
 .translation-head {
