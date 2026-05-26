@@ -34,7 +34,7 @@ import checkinRoutes from './routes/checkin.routes';
 import growthRoutes from './routes/growth.routes';
 
 // 中间件导入
-import { errorHandler, notFoundHandler } from './middlewares/error.middleware';
+import { ErrorCodes, errorHandler, notFoundHandler } from './middlewares/error.middleware';
 import { cache } from './services/cache.service';
 import { setupWebSocket } from './services/websocket.service';
 import prisma from './config/database';
@@ -91,14 +91,24 @@ if (env.isDev) {
   app.use(morgan(':remote-addr - :remote-user [:date[clf]] ":method :safe-url HTTP/:http-version" :status :res[content-length] ":referrer" ":user-agent"'));
 }
 
-// 静态文件 - 头像上传目录
+// 静态文件 - 用户上传目录。上传文件可能被用户删除，不能使用长缓存或 immutable。
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads'), {
   dotfiles: 'deny',
-  fallthrough: false,
+  fallthrough: true,
   index: false,
-  immutable: true,
-  maxAge: '7d',
+  etag: false,
+  maxAge: 0,
+  setHeaders: (res) => {
+    res.setHeader('Cache-Control', 'no-store, max-age=0');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  },
 }));
+app.use('/uploads', (_req: Request, res: Response) => {
+  res.status(404).json({
+    code: ErrorCodes.SERVER_ERROR,
+    message: '资源不存在'
+  });
+});
 
 // ============================================
 // API 路由
@@ -166,9 +176,9 @@ app.use(errorHandler);
 const server = createServer(app);
 
 // 挂载 WebSocket 服务（供小程序和 App 使用）
-setupWebSocket(server);
-
 if (!isTestEnv) {
+  setupWebSocket(server);
+
   server.listen(Number(PORT), HOST, () => {
     console.log(`Server is running on http://${HOST}:${PORT}`);
     console.log(`API prefix: ${API_PREFIX}`);
