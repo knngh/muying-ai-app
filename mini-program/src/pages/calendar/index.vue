@@ -342,12 +342,24 @@
             </view>
             <view
               v-if="diaryImageUrls.length < MAX_DIARY_IMAGES"
-              class="diary-photo-add"
+              class="diary-photo-add diary-photo-add-options"
               :class="{ 'diary-photo-add--loading': isUploadingDiaryImage }"
-              @tap="chooseDiaryImages"
             >
-              <text class="diary-photo-add-icon">{{ isUploadingDiaryImage ? '...' : '+' }}</text>
-              <text class="diary-photo-add-text">{{ isUploadingDiaryImage ? '上传中' : '拍照' }}</text>
+              <template v-if="isUploadingDiaryImage">
+                <text class="diary-photo-add-icon">...</text>
+                <text class="diary-photo-add-text">上传中</text>
+              </template>
+              <template v-else>
+                <view class="diary-photo-option" @tap.stop="chooseDiaryImages('camera')">
+                  <text class="diary-photo-add-icon">+</text>
+                  <text class="diary-photo-add-text">拍照</text>
+                </view>
+                <view class="diary-photo-option-divider"></view>
+                <view class="diary-photo-option" @tap.stop="chooseDiaryImages('album')">
+                  <text class="diary-photo-add-icon">□</text>
+                  <text class="diary-photo-add-text">相册</text>
+                </view>
+              </template>
             </view>
           </view>
         </view>
@@ -955,7 +967,7 @@ const uploadDiaryImages = async (filePaths: string[]) => {
   }
 }
 
-const chooseDiaryImages = () => {
+const chooseDiaryImages = (source: 'camera' | 'album') => {
   if (!checkLogin('请先登录后上传照片', false)) return
   if (isUploadingDiaryImage.value) return
 
@@ -968,7 +980,7 @@ const chooseDiaryImages = () => {
   uni.chooseImage({
     count: remaining,
     sizeType: ['compressed'],
-    sourceType: ['camera', 'album'],
+    sourceType: [source],
     success: (res) => {
       const rawFilePaths = Array.isArray(res.tempFilePaths)
         ? res.tempFilePaths
@@ -1798,8 +1810,27 @@ onShareTimeline(() => {
   border: 2rpx dashed #cbd5e1;
   box-sizing: border-box;
 }
+.diary-photo-add-options {
+  flex-direction: row;
+  gap: 0;
+}
 .diary-photo-add--loading {
   opacity: 0.72;
+}
+.diary-photo-option {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8rpx;
+}
+.diary-photo-option-divider {
+  width: 2rpx;
+  height: 56rpx;
+  background: #d8e0e8;
 }
 .diary-photo-add-icon {
   font-size: 38rpx;
