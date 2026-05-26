@@ -197,11 +197,11 @@ export default function HomeScreen() {
       })
     }
 
-    if (todoStats.total > 0 && todoStats.week) {
+    if (todoStats.total > 0) {
       items.push({
         key: 'todo',
         icon: todoStats.completed >= todoStats.total ? 'clipboard-check-outline' : 'clipboard-text-clock-outline',
-        title: `孕${todoStats.week}周待办 ${todoStats.completed}/${todoStats.total}`,
+        title: `${todoStats.label || '本阶段'}待办 ${todoStats.completed}/${todoStats.total}`,
         description: todoStats.completed >= todoStats.total
           ? '这周待办已经补齐，保持这个节奏更容易持续回来。'
           : `还差 ${todoStats.total - todoStats.completed} 项，把本周事项补完会更踏实。`,
@@ -219,8 +219,8 @@ export default function HomeScreen() {
     nextCheckInBonus,
     status,
     todoStats.completed,
+    todoStats.label,
     todoStats.total,
-    todoStats.week,
     weeklyReport.stageLabel,
   ])
 

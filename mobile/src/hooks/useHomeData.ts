@@ -9,6 +9,7 @@ import type {
   PaginatedResponse,
   PregnancyCustomTodo,
   PregnancyTodoProgress,
+  TimelineContext,
 } from '../api/modules'
 import { useAppStore } from '../stores/appStore'
 import { useMembershipStore } from '../stores/membershipStore'
@@ -43,6 +44,13 @@ type HomePrimaryTask = {
   description: string
   actionLabel: string
   action: HomePrimaryTaskAction
+}
+
+type HomeTodoStats = {
+  week: number | null
+  label: string | null
+  total: number
+  completed: number
 }
 
 const CHECKIN_BONUS_TIERS = [
@@ -84,8 +92,9 @@ export function useHomeData() {
   const [articles, setArticles] = useState<Article[]>([])
   const [upcomingEvents, setUpcomingEvents] = useState<CalendarEvent[]>([])
   const [todayEvents, setTodayEvents] = useState<CalendarEvent[]>([])
-  const [todoStats, setTodoStats] = useState<{ week: number | null; total: number; completed: number }>({
+  const [todoStats, setTodoStats] = useState<HomeTodoStats>({
     week: null,
+    label: null,
     total: 0,
     completed: 0,
   })
@@ -179,18 +188,32 @@ export function useHomeData() {
       endDate.setDate(endDate.getDate() + 7)
       const todayString = dayjs().format('YYYY-MM-DD')
 
-      const [events, customTodos, progress] = await Promise.all([
+      const [events, timelineContext] = await Promise.all([
         calendarApi.getEvents({
           startDate: startDate.toISOString().slice(0, 10),
           endDate: endDate.toISOString().slice(0, 10),
         }) as Promise<CalendarEvent[]>,
-        stage.kind === 'pregnant' && currentPregnancyWeek
-          ? (calendarApi.getCustomTodos({ week: currentPregnancyWeek }) as Promise<PregnancyCustomTodo[]>)
-          : Promise.resolve([] as PregnancyCustomTodo[]),
-        stage.kind === 'pregnant' && currentPregnancyWeek
-          ? (calendarApi.getTodoProgress({ week: currentPregnancyWeek }) as Promise<PregnancyTodoProgress[]>)
-          : Promise.resolve([] as PregnancyTodoProgress[]),
+        calendarApi.getTimelineContext()
+          .catch(() => null as TimelineContext | null),
       ])
+      const currentPeriod = timelineContext?.currentPeriod ?? null
+      const activeTimelineWeek = currentPeriod?.week ?? currentPregnancyWeek
+      const activeTimelineLabel = currentPeriod?.timelineShortTitle
+        ?? (currentPregnancyWeek ? `孕 ${currentPregnancyWeek} 周` : null)
+      const activeTimelineParams = currentPeriod?.timelineKey
+        ? { timelineKey: currentPeriod.timelineKey }
+        : activeTimelineWeek
+          ? { week: activeTimelineWeek }
+          : null
+      const [customTodos, progress] = activeTimelineParams
+        ? await Promise.all([
+            calendarApi.getCustomTodos(activeTimelineParams) as Promise<PregnancyCustomTodo[]>,
+            calendarApi.getTodoProgress(activeTimelineParams) as Promise<PregnancyTodoProgress[]>,
+          ])
+        : [
+            [] as PregnancyCustomTodo[],
+            [] as PregnancyTodoProgress[],
+          ]
 
       const sortedEvents = [...events].sort((left, right) => {
         const leftTime = dayjs(`${left.eventDate} ${left.startTime || '23:59'}`).valueOf()
@@ -199,22 +222,30 @@ export function useHomeData() {
       })
       setUpcomingEvents(sortedEvents.slice(0, 3))
       setTodayEvents(sortedEvents.filter((event) => event.eventDate === todayString))
-      const defaultTodoKeys = (currentWeekGuide?.content?.todo || []).map((_, index) => `todo-${index}`)
+      const defaultTodoKeys = currentPeriod?.stage === 'postpartum'
+        ? (timelineContext?.defaultTodos || []).map((item) => item.todoKey)
+        : (currentWeekGuide?.content?.todo || []).map((_, index) => `todo-${index}`)
       const customTodoKeys = customTodos.map((item) => `custom-${item.id}`)
       const validTodoKeys = new Set([...defaultTodoKeys, ...customTodoKeys])
       setTodoStats({
-        week: currentPregnancyWeek,
+        week: activeTimelineWeek ?? null,
+        label: activeTimelineLabel,
         total: validTodoKeys.size,
         completed: progress.filter(
-          (item) => item.week === currentPregnancyWeek && validTodoKeys.has(item.todoKey),
+          (item) => item.week === activeTimelineWeek && validTodoKeys.has(item.todoKey),
         ).length,
       })
     } catch (_error) {
       setUpcomingEvents([])
       setTodayEvents([])
-      setTodoStats({ week: currentPregnancyWeek, total: 0, completed: 0 })
+      setTodoStats({
+        week: currentPregnancyWeek,
+        label: currentPregnancyWeek ? `孕 ${currentPregnancyWeek} 周` : null,
+        total: 0,
+        completed: 0,
+      })
     }
-  }, [currentPregnancyWeek, currentWeekGuide, stage.kind])
+  }, [currentPregnancyWeek, currentWeekGuide])
 
   const loadWeeklyReportReadState = useCallback(async () => {
     const latestId = await getLastSeenWeeklyReportId()
@@ -383,7 +414,7 @@ export function useHomeData() {
     ...stage.statusTags,
     `连续打卡 ${resolvedCheckInStreak} 天`,
     `本周完成 ${weeklyCompletionRate}%`,
-    todoStats.total > 0 && todoStats.week ? `孕${todoStats.week}周待办 ${todoStats.completed}/${todoStats.total}` : null,
+    todoStats.total > 0 ? `${todoStats.label || '阶段'}待办 ${todoStats.completed}/${todoStats.total}` : null,
     upcomingEvents[0] ? `${eventTypeLabels[upcomingEvents[0].eventType] || '提醒'} · ${upcomingEvents[0].title}` : null,
   ].filter(Boolean) as string[]
 
