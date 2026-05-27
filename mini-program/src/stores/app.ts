@@ -100,8 +100,7 @@ export const useAppStore = defineStore('app', {
       try {
         const userData = await authApi.me() as User
         this.setUser(userData)
-        await this.restoreDueDateFromStoredWeek(userData)
-        return userData
+        return await this.restoreDueDateFromStoredWeek(userData)
       } catch (_e) {
         if (!uni.getStorageSync('token')) {
           this.setUser(null)

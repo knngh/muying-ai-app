@@ -1,7 +1,10 @@
 import { inferAuthorityStages } from '../src/utils/authority-stage';
 import { shouldFilterAuthoritySourceUrl } from '../src/utils/authority-source-url';
+import { getAuthoritySourceConfig } from '../src/config/authority-sources';
 import {
   containsDeathRelatedTerms,
+  detectAudience,
+  detectTopic,
   evaluateAuthorityDocumentQuality,
   isHighRiskOrClickbaitTitle,
   isLikelyEnglishNavigationShell,
@@ -11,6 +14,56 @@ import {
 import { getAuthorityKnowledgeDropReason } from '../src/utils/knowledge-content-guard';
 
 describe('authority content guards', () => {
+  it('keeps postpartum recovery articles out of pregnancy stages', () => {
+    const source = getAuthoritySourceConfig('cma-kepu-maternal-child')!;
+    const input = {
+      sourceUrl: 'https://www.cma.org.cn/art/2025/10/30/art_4584_60359.html',
+      title: '产后尿失禁一般和这五个因素有关！怎么检查和治疗？',
+      summary: '生产后很多妈妈会出现憋不住尿的情况，也就是产后尿失禁。',
+      contentText: '产后盆底肌肉恢复需要循序渐进，必要时接受盆底康复评估和治疗。',
+    };
+    const topic = detectTopic(input, source);
+    const audience = detectAudience(input, source);
+
+    expect(topic).toBe('postpartum');
+    expect(audience).toBe('产后妈妈');
+    expect(inferAuthorityStages({ ...input, topic, audience })).toEqual(['postpartum']);
+  });
+
+  it('does not place postpartum breastfeeding guidance in pregnancy stages', () => {
+    const source = getAuthoritySourceConfig('aap')!;
+    const input = {
+      sourceUrl: 'https://www.healthychildren.org/English/ages-stages/baby/breastfeeding/Pages/postpartum-depression-breastfeeding.aspx',
+      title: 'Postpartum Depression & Breastfeeding',
+      summary: 'How a mom seeking help for postpartum depression can still meet breastfeeding goals.',
+      contentText: 'This article is about postpartum depression treatment support and breastfeeding after birth.',
+    };
+    const topic = detectTopic(input, source);
+    const audience = detectAudience(input, source);
+    const stages = inferAuthorityStages({ ...input, topic, audience });
+
+    expect(stages).toEqual(expect.arrayContaining(['postpartum', '0-6-months', '6-12-months']));
+    expect(stages).not.toContain('first-trimester');
+    expect(stages).not.toContain('second-trimester');
+    expect(stages).not.toContain('third-trimester');
+  });
+
+  it('keeps combined pregnancy and postpartum clinical guidance in both timelines', () => {
+    const source = getAuthoritySourceConfig('acog')!;
+    const input = {
+      sourceUrl: 'https://www.acog.org/clinical/clinical-guidance/clinical-practice-guideline/articles/2022/05/headaches-in-pregnancy-and-postpartum',
+      title: 'Headaches in Pregnancy and Postpartum',
+      summary: 'Guidance for evaluating and treating headaches during pregnancy and postpartum.',
+      contentText: 'Recommendations apply to patients during pregnancy and the postpartum period.',
+    };
+    const topic = detectTopic(input, source);
+    const audience = detectAudience(input, source);
+    const stages = inferAuthorityStages({ ...input, topic, audience });
+
+    expect(topic).toBe('pregnancy');
+    expect(stages).toEqual(expect.arrayContaining(['first-trimester', 'second-trimester', 'third-trimester', 'postpartum']));
+  });
+
   it('keeps explicit pregnancy week guides on the pregnancy timeline only', () => {
     expect(
       inferAuthorityStages({
@@ -24,12 +77,24 @@ describe('authority content guards', () => {
   });
 
   it('does not classify baby articles as postpartum only because summary mentions after birth', () => {
-    const stages = inferAuthorityStages({
+    const source = getAuthoritySourceConfig('aap')!;
+    const input = {
+      sourceUrl: 'https://www.healthychildren.org/English/ages-stages/baby/Pages/Your-Babys-Head.aspx',
       title: "Your Baby's Head",
       summary: 'In the first weeks after birth, your baby may still have molding of the skull.',
       contentText: 'This article explains normal newborn head shape changes.',
       audience: '婴幼儿家长',
       topic: 'development',
+    };
+    expect(detectTopic(input, source)).not.toBe('postpartum');
+    expect(detectTopic(input, source)).not.toBe('pregnancy');
+
+    const stages = inferAuthorityStages({
+      title: input.title,
+      summary: input.summary,
+      contentText: input.contentText,
+      audience: input.audience,
+      topic: input.topic,
     });
 
     expect(stages).not.toContain('postpartum');

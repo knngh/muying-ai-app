@@ -1270,14 +1270,29 @@ onShow(() => {
     }
     loginUserId.value = resolveLoginUserId()
 
+    const selectedFromUserDueDate = loginUserId.value
+      ? await selectPregnancyWeekFromDueDate(appStore.user?.dueDate)
+      : false
+
+    if (selectedFromUserDueDate) {
+      initialSharedWeek.value = null
+      await syncTimelineContext({ preserveSelected: true })
+      await Promise.all([
+        syncTodoContext(),
+        syncDiaryContext(),
+        syncCustomTodoContext(),
+        syncTimelineTodos(),
+      ])
+      return
+    }
+
     if (hasSharedWeek && sharedWeek) {
       await selectStorageWeek(sharedWeek)
       initialSharedWeek.value = null
     } else if (!loginUserId.value) {
       await syncSelectedWeekFromSession()
     } else {
-      const selectedFromUserDueDate = await selectPregnancyWeekFromDueDate(appStore.user?.dueDate)
-      await syncTimelineContext({ preserveSelected: selectedFromUserDueDate })
+      await syncTimelineContext()
       await Promise.all([
         syncTodoContext(),
         syncDiaryContext(),

@@ -113,9 +113,18 @@ export function detectTopic(input: string | DetectionInput, source: AuthoritySou
   const headline = typeof input === 'string'
     ? input.toLowerCase()
     : `${input.sourceUrl || ''} ${input.title || ''}`.toLowerCase();
+  const titleText = typeof input === 'string' ? input : `${input.title || ''} ${input.summary || ''}`;
+  const hasPostpartumHeadline = /postpartum|postnatal|产后|生产后|分娩后|顺产后|剖宫产后|月子|产褥|恶露|盆底|会阴裂伤|漏尿|尿失禁/u.test(headline);
+  const hasPostpartumPrimary = hasPostpartumHeadline
+    || /postpartum|postnatal|产后|生产后|分娩后|顺产后|剖宫产后|月子|产褥|恶露/u.test(titleText);
+  const hasPregnancyHeadline = /pregnan|prenatal|antenatal|gestational|怀孕|孕妇|孕期|孕早期|孕中期|孕晚期|妊娠|产检|胎儿|胎动/u.test(headline);
   const hasExplicitBabySignal = /\/(newborn|baby|infant|neonat)\//.test(sourceUrl)
     || /\/ages-stages\/baby\//.test(sourceUrl)
     || /newborn|neonat|infant|baby|新生儿|婴儿|宝宝/u.test(headline);
+
+  if (hasPostpartumPrimary && !hasPregnancyHeadline) {
+    return 'postpartum';
+  }
 
   if (/\/(vaccines?|vaccinations?|immunization|immunisation)\//.test(sourceUrl) || /vaccine|vaccin|immuni|接种|疫苗/u.test(primary)) {
     return 'vaccination';
@@ -167,6 +176,14 @@ export function detectTopic(input: string | DetectionInput, source: AuthoritySou
 
 export function detectAudience(input: string | DetectionInput, source: AuthoritySourceConfig): string {
   const { primary, extended, sourceUrl } = normalizeDetectionInput(input);
+  const headline = typeof input === 'string'
+    ? input.toLowerCase()
+    : `${input.sourceUrl || ''} ${input.title || ''}`.toLowerCase();
+  const titleText = typeof input === 'string' ? input : `${input.title || ''} ${input.summary || ''}`;
+  const hasPostpartumHeadline = /postpartum|postnatal|产后|生产后|分娩后|顺产后|剖宫产后|月子|产褥|恶露|盆底|会阴裂伤|漏尿|尿失禁/u.test(headline);
+  const hasPostpartumPrimary = hasPostpartumHeadline
+    || /postpartum|postnatal|产后|生产后|分娩后|顺产后|剖宫产后|月子|产褥|恶露/u.test(titleText);
+  const hasPregnancyHeadline = /pregnan|prenatal|antenatal|gestational|怀孕|孕妇|孕期|孕早期|孕中期|孕晚期|妊娠|产检|胎儿|胎动/u.test(headline);
 
   if (/\/(newborn|baby|infant|child|children|ages-stages\/baby)\//.test(sourceUrl)
     || /newborn|infant|baby|child|children|新生儿|婴儿|婴幼儿|宝宝|儿童|孩子|小儿|育儿|托育/u.test(primary)) {
@@ -176,6 +193,10 @@ export function detectAudience(input: string | DetectionInput, source: Authority
   if (/\/(toddler|preschool|school|parenting)\//.test(sourceUrl)
     || /toddler|preschool|school-age|potty|discipline|behavior|如厕|学步|学龄前|幼儿/u.test(primary)) {
     return '幼儿家长';
+  }
+
+  if (hasPostpartumPrimary && !hasPregnancyHeadline) {
+    return '产后妈妈';
   }
 
   if (/\/(pregnancy|prenatal|postpartum|womens-health|fertility|contraception)\//.test(sourceUrl) || /pregnan|prenatal|postpartum|孕妇|孕期|怀孕|妊娠|产后/u.test(primary)) {

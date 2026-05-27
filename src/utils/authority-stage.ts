@@ -129,7 +129,10 @@ export function inferAuthorityStages(input: InferAuthorityStagesInput): Authorit
     stages.push('preparation');
   }
 
-  if (hasMaternalContext && /孕早期|早孕|孕早|nt|hcg|孕酮|见红|先兆流产|前三个月/u.test(haystack)) {
+  if (hasMaternalContext && (
+    /孕早期|早孕|孕早|孕酮|见红|先兆流产|前三个月/u.test(haystack)
+    || /\b(?:nt|hcg)\b/i.test(haystack)
+  )) {
     stages.push('first-trimester');
   }
 
