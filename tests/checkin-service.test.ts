@@ -223,4 +223,29 @@ describe('checkin.service', () => {
       nextBonusPoints: 10,
     });
   });
+
+  it('falls back to today checkin streak count when DATE comparisons miss the streak row', async () => {
+    mockUserCheckinFindUnique.mockResolvedValue({ id: 1n, streakCount: 4 });
+    mockUserCheckinFindMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        { checkinDate: makeDate('2026-05-05') },
+      ]);
+    mockUserFindUniqueOrThrow.mockResolvedValue({ totalPoints: 120 });
+    mockUserCheckinCount.mockResolvedValue(8);
+
+    const status = await getCheckinStatus('42');
+
+    expect(status).toMatchObject({
+      checkedInToday: true,
+      currentStreak: 4,
+      consecutiveDays: 4,
+      streakDates: ['2026-05-02', '2026-05-03', '2026-05-04', '2026-05-05'],
+      totalDays: 8,
+      totalPoints: 120,
+      monthlyCheckins: ['2026-05-05'],
+      nextBonusAt: 7,
+      nextBonusPoints: 10,
+    });
+  });
 });

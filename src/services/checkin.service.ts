@@ -61,6 +61,12 @@ function computeNextBonus(streak: number): { nextBonusAt: number | null; nextBon
   return { nextBonusAt: null, nextBonusPoints: null };
 }
 
+function buildStreakDatesEndingAt(date: dayjs.Dayjs, streakCount: number): string[] {
+  return Array.from({ length: Math.max(streakCount, 0) }, (_, index) => (
+    date.subtract(streakCount - index - 1, 'day').format('YYYY-MM-DD')
+  ));
+}
+
 function isUniqueConstraintError(error: unknown): error is Prisma.PrismaClientKnownRequestError {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
 }
@@ -229,12 +235,19 @@ export async function getCheckinStatus(userId: string): Promise<CheckinStatus> {
         checkinDate: today.toDate(),
       },
     },
+    select: { id: true, streakCount: true },
   });
 
   const checkedInToday = !!todayCheckin;
 
   // Compute current streak
   const currentStreak = await computeStreakInfo(userIdBigInt, true);
+  const effectiveStreak = todayCheckin && todayCheckin.streakCount > currentStreak.count
+    ? {
+      count: todayCheckin.streakCount,
+      dates: buildStreakDatesEndingAt(today, todayCheckin.streakCount),
+    }
+    : currentStreak;
 
   // Monthly checkins calendar
   const monthStart = today.startOf('month').toDate();
@@ -262,13 +275,13 @@ export async function getCheckinStatus(userId: string): Promise<CheckinStatus> {
     where: { userId: userIdBigInt },
   });
 
-  const { nextBonusAt, nextBonusPoints } = computeNextBonus(currentStreak.count);
+  const { nextBonusAt, nextBonusPoints } = computeNextBonus(effectiveStreak.count);
 
   return {
     checkedInToday,
-    currentStreak: currentStreak.count,
-    consecutiveDays: currentStreak.count,
-    streakDates: currentStreak.dates,
+    currentStreak: effectiveStreak.count,
+    consecutiveDays: effectiveStreak.count,
+    streakDates: effectiveStreak.dates,
     totalDays,
     totalPoints: user.totalPoints,
     monthlyCheckins,
