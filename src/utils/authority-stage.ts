@@ -154,6 +154,10 @@ export function inferAuthorityStages(input: InferAuthorityStagesInput): Authorit
     );
   }
 
+  if (topic === 'postpartum' && isPostpartumAudience) {
+    return ['postpartum'];
+  }
+
   if (hasPostpartumContext) {
     stages.push('postpartum');
   }

@@ -30,6 +30,22 @@ describe('authority content guards', () => {
     expect(inferAuthorityStages({ ...input, topic, audience })).toEqual(['postpartum']);
   });
 
+  it('locks postpartum mom guidance to postpartum even when body text has noisy stage signals', () => {
+    const source = getAuthoritySourceConfig('cma-kepu-maternal-child')!;
+    const input = {
+      sourceUrl: 'https://www.cma.org.cn/art/2024/11/18/art_4584_59526.html',
+      title: '产后漏尿？试试凯格尔运动',
+      summary: '很多产后女性或中老年女性会有压力性尿失禁。',
+      contentText: '文章介绍盆底肌训练、凯格尔运动、咳嗽大笑时漏尿的处理。正文可能提到足月、孩子、女性等泛化词，但目标对象仍是产后妈妈。',
+    };
+    const topic = detectTopic(input, source);
+    const audience = detectAudience(input, source);
+
+    expect(topic).toBe('postpartum');
+    expect(audience).toBe('产后妈妈');
+    expect(inferAuthorityStages({ ...input, topic, audience })).toEqual(['postpartum']);
+  });
+
   it('does not place postpartum breastfeeding guidance in pregnancy stages', () => {
     const source = getAuthoritySourceConfig('aap')!;
     const input = {
