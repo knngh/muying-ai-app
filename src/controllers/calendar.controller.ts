@@ -6,8 +6,8 @@ import { awardBehaviorPoints } from '../services/checkin.service';
 import {
   cleanupUnusedDiaryImages,
   getRemovedDiaryImageUrls,
-  isDiaryImageUrl,
 } from '../services/diary-image-cleanup.service';
+import { isDiaryImageUrl } from '../utils/diary-image-url';
 import {
   getDiaryUploadCurrentImageCount,
   hasDiaryUploadSlot,

@@ -12,6 +12,28 @@ import {
 } from '../src/schemas/calendar.schema';
 
 describe('calendar schemas', () => {
+  const originalCosPublicBaseUrl = process.env.COS_PUBLIC_BASE_URL;
+  const originalCosUploadPrefix = process.env.COS_UPLOAD_PREFIX;
+
+  beforeAll(() => {
+    process.env.COS_PUBLIC_BASE_URL = 'https://beihu-1304335890.cos.ap-shanghai.myqcloud.com';
+    process.env.COS_UPLOAD_PREFIX = 'diary';
+  });
+
+  afterAll(() => {
+    if (originalCosPublicBaseUrl === undefined) {
+      delete process.env.COS_PUBLIC_BASE_URL;
+    } else {
+      process.env.COS_PUBLIC_BASE_URL = originalCosPublicBaseUrl;
+    }
+
+    if (originalCosUploadPrefix === undefined) {
+      delete process.env.COS_UPLOAD_PREFIX;
+    } else {
+      process.env.COS_UPLOAD_PREFIX = originalCosUploadPrefix;
+    }
+  });
+
   it('accepts valid date-only calendar inputs', () => {
     expect(createEventBody.parse({
       title: '产检',
@@ -95,6 +117,15 @@ describe('calendar schemas', () => {
     })).toMatchObject({
       timelineKey: 'postpartum:w27',
       content: '',
+    });
+
+    expect(saveDiaryBody.parse({
+      timelineKey: 'postpartum:w28',
+      content: '今天拍了照片。',
+      imageUrls: ['https://beihu-1304335890.cos.ap-shanghai.myqcloud.com/diary/2026/05/1779870353348-aa074b24871f5fc8.jpg'],
+    })).toMatchObject({
+      timelineKey: 'postpartum:w28',
+      imageUrls: ['https://beihu-1304335890.cos.ap-shanghai.myqcloud.com/diary/2026/05/1779870353348-aa074b24871f5fc8.jpg'],
     });
 
     expect(createCustomTodoBody.parse({

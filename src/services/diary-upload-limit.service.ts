@@ -1,4 +1,4 @@
-import { isDiaryImageUrl } from './diary-image-cleanup.service';
+import { isDiaryImageUrl } from '../utils/diary-image-url';
 
 export const MAX_DIARY_IMAGES_PER_WEEK = 3;
 

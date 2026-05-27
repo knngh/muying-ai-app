@@ -3,6 +3,7 @@ import {
   parseTimelineKey,
   POSTPARTUM_STORAGE_WEEK_MAX,
 } from '../utils/timeline';
+import { isDiaryImageUrl } from '../utils/diary-image-url';
 
 const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 const TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
@@ -35,7 +36,7 @@ const diaryImageUrl = z.string()
   .trim()
   .min(1, '图片地址不能为空')
   .max(300, '图片地址过长')
-  .regex(/^\/uploads\/[A-Za-z0-9][A-Za-z0-9._-]*\.(jpg|jpeg|png|gif|webp)$/i, '图片地址无效');
+  .refine(isDiaryImageUrl, '图片地址无效');
 const timelineKeyValue = z.string()
   .trim()
   .min(1, '时间线标识不能为空')
