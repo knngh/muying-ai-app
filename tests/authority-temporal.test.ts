@@ -32,4 +32,15 @@ describe('authority temporal metadata', () => {
 
     expect(updatedAt).toBeNull();
   });
+
+  it('drops timestamps that exactly match first collection time without a reliable marker', () => {
+    const updatedAt = resolveReliableAuthorityUpdatedAt({
+      sourceId: 'nhs',
+      updatedAt: '2026-05-23T02:42:04.115Z',
+      collectedAt: '2026-05-23T02:42:04.115Z',
+      fetchedAt: '2026-05-27T00:45:58.199Z',
+    });
+
+    expect(updatedAt).toBeNull();
+  });
 });

@@ -12,6 +12,7 @@ interface AuthorityTemporalInput {
   sourceUrl?: string;
   updatedAt?: Date | string | null;
   fetchedAt?: Date | string | null;
+  collectedAt?: Date | string | null;
   updatedAtSource?: string | null;
 }
 
@@ -77,6 +78,11 @@ export function resolveReliableAuthorityUpdatedAt(input: AuthorityTemporalInput)
     return updatedAt;
   }
   if (UNRELIABLE_UPDATED_AT_SOURCES.has(updatedAtSource)) {
+    return null;
+  }
+
+  const collectedAt = parseAuthorityTemporalDate(input.collectedAt);
+  if (collectedAt && Math.abs(updatedAt.getTime() - collectedAt.getTime()) <= 1000) {
     return null;
   }
 

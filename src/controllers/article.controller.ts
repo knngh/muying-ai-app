@@ -214,6 +214,7 @@ function normalizeAuthorityRecordTemporalFields(record: AuthorityCacheRecord): A
       sourceUrl: record.source_url || record.url,
       updatedAt: parseAuthorityTemporalDate(record.source_updated_at),
       fetchedAt: record.last_synced_at || metadataFetchedAt,
+      collectedAt: record.created_at,
       updatedAtSource: typeof record.metadata?.updatedAtSource === 'string' ? record.metadata.updatedAtSource : undefined,
     },
   );
@@ -1588,6 +1589,7 @@ function mapAuthorityDbRowToRecord(row: {
     sourceUrl: row.sourceUrl,
     updatedAt: row.updatedAt,
     fetchedAt: metadataFetchedAt,
+    collectedAt: row.createdAt,
     updatedAtSource: metadataUpdatedAtSource,
   });
   const stableDate = reliableUpdatedAt || row.createdAt;

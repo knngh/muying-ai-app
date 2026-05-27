@@ -1928,6 +1928,7 @@ export async function exportPublishedAuthoritySnapshot(): Promise<void> {
       sourceUrl: row.sourceUrl,
       updatedAt: row.updatedAt,
       fetchedAt: metadataFetchedAt,
+      collectedAt: row.createdAt,
       updatedAtSource: metadataUpdatedAtSource,
     });
     const stableDate = reliableUpdatedAt || row.createdAt;
