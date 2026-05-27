@@ -1,4 +1,5 @@
 const mockUserCheckinFindUnique = jest.fn();
+const mockUserCheckinFindFirst = jest.fn();
 const mockUserCheckinFindMany = jest.fn();
 const mockUserCheckinCount = jest.fn();
 const mockUserCheckinCreate = jest.fn();
@@ -20,6 +21,7 @@ jest.mock('../src/config/database', () => ({
   default: {
     userCheckin: {
       findUnique: mockUserCheckinFindUnique,
+      findFirst: mockUserCheckinFindFirst,
       findMany: mockUserCheckinFindMany,
       count: mockUserCheckinCount,
       create: mockUserCheckinCreate,
@@ -56,6 +58,15 @@ function makeDate(date: string) {
   return new Date(year, month - 1, day);
 }
 
+function makeDbDate(date: string) {
+  return new Date(`${date}T00:00:00.000Z`);
+}
+
+function makeEndOfDay(date: string) {
+  const [year, month, day] = date.split('-').map(Number);
+  return new Date(year, month - 1, day, 23, 59, 59, 999);
+}
+
 function buildUniqueConstraintError() {
   return new mockPrismaClientKnownRequestError('Unique constraint failed', { code: 'P2002' });
 }
@@ -66,6 +77,7 @@ describe('checkin.service', () => {
     jest.setSystemTime(makeDate('2026-05-05'));
 
     mockUserCheckinFindUnique.mockReset();
+    mockUserCheckinFindFirst.mockReset();
     mockUserCheckinFindMany.mockReset();
     mockUserCheckinCount.mockReset();
     mockUserCheckinCreate.mockReset();
@@ -93,11 +105,14 @@ describe('checkin.service', () => {
   });
 
   it('creates one atomic checkin and returns frontend-compatible status fields', async () => {
-    mockUserCheckinFindUnique.mockResolvedValue(null);
-    mockUserCheckinFindMany.mockResolvedValue([
-      { checkinDate: makeDate('2026-05-04') },
-      { checkinDate: makeDate('2026-05-03') },
-    ]);
+    mockUserCheckinFindFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        id: 2n,
+        checkinDate: makeDbDate('2026-05-04'),
+        streakCount: 2,
+        createdAt: makeDate('2026-05-04'),
+      });
     mockUserUpdate.mockResolvedValue({ totalPoints: 120 });
     mockUserCheckinCount.mockResolvedValue(8);
 
@@ -106,7 +121,7 @@ describe('checkin.service', () => {
     expect(mockUserCheckinCreate).toHaveBeenCalledWith({
       data: {
         userId: 42n,
-        checkinDate: makeDate('2026-05-05'),
+        checkinDate: makeDbDate('2026-05-05'),
         streakCount: 3,
         pointsAwarded: 10,
       },
@@ -141,18 +156,24 @@ describe('checkin.service', () => {
   });
 
   it('returns current status for duplicate checkin before opening a transaction', async () => {
-    mockUserCheckinFindUnique.mockResolvedValue({ id: 1n });
-    mockUserCheckinFindMany
-      .mockResolvedValueOnce([
-        { checkinDate: makeDate('2026-05-05') },
-        { checkinDate: makeDate('2026-05-04') },
-        { checkinDate: makeDate('2026-05-03') },
-      ])
-      .mockResolvedValueOnce([
-        { checkinDate: makeDate('2026-05-03') },
-        { checkinDate: makeDate('2026-05-04') },
-        { checkinDate: makeDate('2026-05-05') },
-      ]);
+    mockUserCheckinFindFirst
+      .mockResolvedValueOnce({
+        id: 1n,
+        checkinDate: makeDbDate('2026-05-05'),
+        streakCount: 3,
+        createdAt: makeDate('2026-05-05'),
+      })
+      .mockResolvedValueOnce({
+        id: 1n,
+        checkinDate: makeDbDate('2026-05-05'),
+        streakCount: 3,
+        createdAt: makeDate('2026-05-05'),
+      });
+    mockUserCheckinFindMany.mockResolvedValueOnce([
+      { checkinDate: makeDbDate('2026-05-03') },
+      { checkinDate: makeDbDate('2026-05-04') },
+      { checkinDate: makeDbDate('2026-05-05') },
+    ]);
     mockUserFindUniqueOrThrow.mockResolvedValue({ totalPoints: 120 });
     mockUserCheckinCount.mockResolvedValue(8);
 
@@ -161,6 +182,9 @@ describe('checkin.service', () => {
     expect(result).toMatchObject({
       alreadyCheckedIn: true,
       checkedInToday: true,
+      streakCount: 3,
+      consecutiveDays: 3,
+      streakDates: ['2026-05-03', '2026-05-04', '2026-05-05'],
       pointsAwarded: 0,
       pointsEarned: 0,
       totalPoints: 120,
@@ -170,13 +194,18 @@ describe('checkin.service', () => {
   });
 
   it('maps unique constraint races to idempotent duplicate checkin status', async () => {
-    mockUserCheckinFindUnique
+    mockUserCheckinFindFirst
       .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({ id: 1n });
-    mockUserCheckinFindMany
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ checkinDate: makeDate('2026-05-05') }])
-      .mockResolvedValueOnce([{ checkinDate: makeDate('2026-05-05') }]);
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        id: 1n,
+        checkinDate: makeDbDate('2026-05-05'),
+        streakCount: 1,
+        createdAt: makeDate('2026-05-05'),
+      });
+    mockUserCheckinFindMany.mockResolvedValueOnce([
+      { checkinDate: makeDbDate('2026-05-05') },
+    ]);
     mockUserFindUniqueOrThrow.mockResolvedValue({ totalPoints: 115 });
     mockUserCheckinCount.mockResolvedValue(7);
     mockTransaction.mockRejectedValue(buildUniqueConstraintError());
@@ -186,6 +215,9 @@ describe('checkin.service', () => {
     expect(result).toMatchObject({
       alreadyCheckedIn: true,
       checkedInToday: true,
+      streakCount: 1,
+      consecutiveDays: 1,
+      streakDates: ['2026-05-05'],
       pointsAwarded: 0,
       pointsEarned: 0,
       totalPoints: 115,
@@ -194,18 +226,17 @@ describe('checkin.service', () => {
   });
 
   it('returns checkin status with streak dates, total days, and monthly checkins', async () => {
-    mockUserCheckinFindUnique.mockResolvedValue({ id: 1n });
-    mockUserCheckinFindMany
-      .mockResolvedValueOnce([
-        { checkinDate: makeDate('2026-05-05') },
-        { checkinDate: makeDate('2026-05-04') },
-        { checkinDate: makeDate('2026-05-03') },
-      ])
-      .mockResolvedValueOnce([
-        { checkinDate: makeDate('2026-05-03') },
-        { checkinDate: makeDate('2026-05-04') },
-        { checkinDate: makeDate('2026-05-05') },
-      ]);
+    mockUserCheckinFindFirst.mockResolvedValue({
+      id: 1n,
+      checkinDate: makeDbDate('2026-05-05'),
+      streakCount: 3,
+      createdAt: makeDate('2026-05-05'),
+    });
+    mockUserCheckinFindMany.mockResolvedValueOnce([
+      { checkinDate: makeDbDate('2026-05-03') },
+      { checkinDate: makeDbDate('2026-05-04') },
+      { checkinDate: makeDbDate('2026-05-05') },
+    ]);
     mockUserFindUniqueOrThrow.mockResolvedValue({ totalPoints: 120 });
     mockUserCheckinCount.mockResolvedValue(8);
 
@@ -224,18 +255,29 @@ describe('checkin.service', () => {
     });
   });
 
-  it('falls back to today checkin streak count when DATE comparisons miss the streak row', async () => {
-    mockUserCheckinFindUnique.mockResolvedValue({ id: 1n, streakCount: 4 });
-    mockUserCheckinFindMany
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([
-        { checkinDate: makeDate('2026-05-05') },
-      ]);
+  it('keeps today checked in when old DATE rows are shifted by local timezone', async () => {
+    mockUserCheckinFindFirst.mockResolvedValue({
+      id: 1n,
+      checkinDate: makeDbDate('2026-05-04'),
+      streakCount: 4,
+      createdAt: makeDate('2026-05-05'),
+    });
+    mockUserCheckinFindMany.mockResolvedValueOnce([
+      { checkinDate: makeDbDate('2026-05-04'), createdAt: makeDate('2026-05-05') },
+    ]);
     mockUserFindUniqueOrThrow.mockResolvedValue({ totalPoints: 120 });
     mockUserCheckinCount.mockResolvedValue(8);
 
     const status = await getCheckinStatus('42');
 
+    expect(mockUserCheckinFindFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        createdAt: {
+          gte: makeDate('2026-05-05'),
+          lte: makeEndOfDay('2026-05-05'),
+        },
+      }),
+    }));
     expect(status).toMatchObject({
       checkedInToday: true,
       currentStreak: 4,

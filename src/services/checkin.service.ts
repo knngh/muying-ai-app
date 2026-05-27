@@ -62,76 +62,63 @@ function computeNextBonus(streak: number): { nextBonusAt: number | null; nextBon
 }
 
 function buildStreakDatesEndingAt(date: dayjs.Dayjs, streakCount: number): string[] {
-  return Array.from({ length: Math.max(streakCount, 0) }, (_, index) => (
-    date.subtract(streakCount - index - 1, 'day').format('YYYY-MM-DD')
+  const dateCount = Math.min(Math.max(streakCount, 0), 60);
+
+  return Array.from({ length: dateCount }, (_, index) => (
+    date.subtract(dateCount - index - 1, 'day').format('YYYY-MM-DD')
   ));
+}
+
+function toDbDate(date: dayjs.Dayjs): Date {
+  return new Date(Date.UTC(date.year(), date.month(), date.date()));
+}
+
+function getDbDateCandidates(date: dayjs.Dayjs): Date[] {
+  const canonicalDate = toDbDate(date);
+  const legacyDateKey = date.toDate().toISOString().slice(0, 10);
+  const legacyDate = toDbDate(dayjs(legacyDateKey));
+  const uniqueDates = new Map<string, Date>();
+
+  for (const candidate of [canonicalDate, legacyDate]) {
+    uniqueDates.set(candidate.toISOString().slice(0, 10), candidate);
+  }
+
+  return Array.from(uniqueDates.values());
+}
+
+async function findCheckinForBusinessDay(userId: bigint, date: dayjs.Dayjs) {
+  return prisma.userCheckin.findFirst({
+    where: {
+      userId,
+      checkinDate: { in: getDbDateCandidates(date) },
+      createdAt: {
+        gte: date.startOf('day').toDate(),
+        lte: date.endOf('day').toDate(),
+      },
+    },
+    select: { id: true, checkinDate: true, streakCount: true, createdAt: true },
+    orderBy: { checkinDate: 'desc' },
+  });
 }
 
 function isUniqueConstraintError(error: unknown): error is Prisma.PrismaClientKnownRequestError {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
 }
 
-async function computeStreakInfo(
-  userId: bigint,
-  includeToday: boolean,
-): Promise<{ count: number; dates: string[] }> {
-  const today = dayjs().startOf('day');
-  const startDate = includeToday ? today : today.subtract(1, 'day');
-
-  // Fetch recent checkins ordered desc to count consecutive days
-  const checkins = await prisma.userCheckin.findMany({
-    where: {
-      userId,
-      checkinDate: { lte: startDate.toDate() },
-    },
-    orderBy: { checkinDate: 'desc' },
-    take: 60, // enough to cover max streak window
-    select: { checkinDate: true },
-  });
-
-  let streak = 0;
-  const dates: string[] = [];
-  let expectedDate = startDate;
-
-  for (const checkin of checkins) {
-    const checkinDay = dayjs(checkin.checkinDate).startOf('day');
-    if (checkinDay.isSame(expectedDate, 'day')) {
-      streak++;
-      dates.push(checkinDay.format('YYYY-MM-DD'));
-      expectedDate = expectedDate.subtract(1, 'day');
-    } else {
-      break;
-    }
-  }
-
-  return {
-    count: streak,
-    dates: dates.reverse(),
-  };
-}
-
 export async function performCheckin(userId: string): Promise<CheckinResult> {
   const userIdBigInt = BigInt(userId);
-  const today = dayjs().startOf('day').toDate();
-  const todayString = dayjs(today).format('YYYY-MM-DD');
+  const today = dayjs().startOf('day');
+  const todayString = today.format('YYYY-MM-DD');
 
-  const existingCheckin = await prisma.userCheckin.findUnique({
-    where: {
-      userId_checkinDate: {
-        userId: userIdBigInt,
-        checkinDate: today,
-      },
-    },
-    select: { id: true },
-  });
+  const existingCheckin = await findCheckinForBusinessDay(userIdBigInt, today);
 
   if (existingCheckin) {
     return buildAlreadyCheckedInResult(userId, todayString);
   }
 
   // Compute streak before creating today; unique create below prevents concurrent double awards.
-  const yesterdayStreak = await computeStreakInfo(userIdBigInt, false);
-  const streakCount = yesterdayStreak.count + 1;
+  const yesterdayCheckin = await findCheckinForBusinessDay(userIdBigInt, today.subtract(1, 'day'));
+  const streakCount = Math.max(yesterdayCheckin?.streakCount ?? 0, 0) + 1;
   const bonus = computeBonus(streakCount);
   const pointsAwarded = BASE_POINTS + bonus;
 
@@ -142,7 +129,7 @@ export async function performCheckin(userId: string): Promise<CheckinResult> {
       await tx.userCheckin.create({
         data: {
           userId: userIdBigInt,
-          checkinDate: today,
+          checkinDate: toDbDate(today),
           streakCount,
           pointsAwarded,
         },
@@ -193,7 +180,7 @@ export async function performCheckin(userId: string): Promise<CheckinResult> {
     checkinDate: todayString,
     streakCount,
     consecutiveDays: streakCount,
-    streakDates: [...yesterdayStreak.dates, todayString],
+    streakDates: buildStreakDatesEndingAt(today, streakCount),
     totalDays: result.totalDays,
     checkedInToday: true,
     pointsAwarded,
@@ -228,41 +215,39 @@ export async function getCheckinStatus(userId: string): Promise<CheckinStatus> {
   const today = dayjs().startOf('day');
 
   // Check if already checked in today
-  const todayCheckin = await prisma.userCheckin.findUnique({
-    where: {
-      userId_checkinDate: {
-        userId: userIdBigInt,
-        checkinDate: today.toDate(),
-      },
-    },
-    select: { id: true, streakCount: true },
-  });
+  const todayCheckin = await findCheckinForBusinessDay(userIdBigInt, today);
 
   const checkedInToday = !!todayCheckin;
-
-  // Compute current streak
-  const currentStreak = await computeStreakInfo(userIdBigInt, true);
-  const effectiveStreak = todayCheckin && todayCheckin.streakCount > currentStreak.count
+  const effectiveStreak = todayCheckin
     ? {
-      count: todayCheckin.streakCount,
-      dates: buildStreakDatesEndingAt(today, todayCheckin.streakCount),
+      count: Math.max(todayCheckin.streakCount, 1),
+      dates: buildStreakDatesEndingAt(today, Math.max(todayCheckin.streakCount, 1)),
     }
-    : currentStreak;
+    : { count: 0, dates: [] };
 
   // Monthly checkins calendar
-  const monthStart = today.startOf('month').toDate();
-  const monthEnd = today.endOf('month').toDate();
+  const monthStart = today.startOf('month');
+  const monthEnd = today.endOf('month');
+  const monthStartKey = monthStart.format('YYYY-MM-DD');
+  const monthEndKey = monthEnd.format('YYYY-MM-DD');
 
   const monthlyRecords = await prisma.userCheckin.findMany({
     where: {
       userId: userIdBigInt,
-      checkinDate: { gte: monthStart, lte: monthEnd },
+      checkinDate: {
+        gte: toDbDate(monthStart.subtract(1, 'day')),
+        lte: toDbDate(monthEnd),
+      },
     },
-    select: { checkinDate: true },
+    select: { checkinDate: true, createdAt: true },
     orderBy: { checkinDate: 'asc' },
   });
 
-  const monthlyCheckins = monthlyRecords.map((r) => dayjs(r.checkinDate).format('YYYY-MM-DD'));
+  const monthlyCheckins = Array.from(new Set(
+    monthlyRecords
+      .map((r) => dayjs(r.createdAt || r.checkinDate).format('YYYY-MM-DD'))
+      .filter((date) => date >= monthStartKey && date <= monthEndKey),
+  )).sort();
 
   // Get points balance
   const user = await prisma.user.findUniqueOrThrow({
