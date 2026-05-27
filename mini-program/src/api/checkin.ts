@@ -12,6 +12,7 @@ export interface CheckinStatus {
   monthlyCheckins?: string[]
   pointsEarned?: number
   pointsAwarded?: number
+  alreadyCheckedIn?: boolean
   nextBonusAt?: number | null
   nextBonusPoints?: number | null
 }

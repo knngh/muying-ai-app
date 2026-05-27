@@ -13,7 +13,6 @@ const BONUS_TIERS = [
 ] as const;
 
 const BASE_POINTS = 5;
-const ALREADY_CHECKED_IN_MESSAGE = '今日已签到';
 
 interface CheckinResult {
   checkinDate: string;
@@ -27,6 +26,7 @@ interface CheckinResult {
   totalPoints: number;
   nextBonusAt: number | null;
   nextBonusPoints: number | null;
+  alreadyCheckedIn?: boolean;
 }
 
 interface CheckinStatus {
@@ -120,7 +120,7 @@ export async function performCheckin(userId: string): Promise<CheckinResult> {
   });
 
   if (existingCheckin) {
-    throw new AppError(ALREADY_CHECKED_IN_MESSAGE, ErrorCodes.PARAM_ERROR, 400);
+    return buildAlreadyCheckedInResult(userId, todayString);
   }
 
   // Compute streak before creating today; unique create below prevents concurrent double awards.
@@ -176,7 +176,7 @@ export async function performCheckin(userId: string): Promise<CheckinResult> {
     });
   } catch (error) {
     if (isUniqueConstraintError(error)) {
-      throw new AppError(ALREADY_CHECKED_IN_MESSAGE, ErrorCodes.PARAM_ERROR, 400);
+      return buildAlreadyCheckedInResult(userId, todayString);
     }
     throw error;
   }
@@ -195,6 +195,25 @@ export async function performCheckin(userId: string): Promise<CheckinResult> {
     totalPoints: result.totalPoints,
     nextBonusAt,
     nextBonusPoints,
+  };
+}
+
+async function buildAlreadyCheckedInResult(userId: string, todayString: string): Promise<CheckinResult> {
+  const status = await getCheckinStatus(userId);
+
+  return {
+    checkinDate: todayString,
+    streakCount: status.currentStreak,
+    consecutiveDays: status.consecutiveDays,
+    streakDates: status.streakDates,
+    totalDays: status.totalDays,
+    checkedInToday: true,
+    pointsAwarded: 0,
+    pointsEarned: 0,
+    totalPoints: status.totalPoints,
+    nextBonusAt: status.nextBonusAt,
+    nextBonusPoints: status.nextBonusPoints,
+    alreadyCheckedIn: true,
   };
 }
 

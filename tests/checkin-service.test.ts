@@ -49,7 +49,6 @@ jest.mock('../src/services/cache.service', () => ({
   },
 }));
 
-import { AppError, ErrorCodes } from '../src/middlewares/error.middleware';
 import { getCheckinStatus, performCheckin } from '../src/services/checkin.service';
 
 function makeDate(date: string) {
@@ -141,26 +140,56 @@ describe('checkin.service', () => {
     });
   });
 
-  it('rejects duplicate checkin before opening a transaction', async () => {
+  it('returns current status for duplicate checkin before opening a transaction', async () => {
     mockUserCheckinFindUnique.mockResolvedValue({ id: 1n });
+    mockUserCheckinFindMany
+      .mockResolvedValueOnce([
+        { checkinDate: makeDate('2026-05-05') },
+        { checkinDate: makeDate('2026-05-04') },
+        { checkinDate: makeDate('2026-05-03') },
+      ])
+      .mockResolvedValueOnce([
+        { checkinDate: makeDate('2026-05-03') },
+        { checkinDate: makeDate('2026-05-04') },
+        { checkinDate: makeDate('2026-05-05') },
+      ]);
+    mockUserFindUniqueOrThrow.mockResolvedValue({ totalPoints: 120 });
+    mockUserCheckinCount.mockResolvedValue(8);
 
-    await expect(performCheckin('42')).rejects.toMatchObject<AppError>({
-      code: ErrorCodes.PARAM_ERROR,
-      statusCode: 400,
-      message: '今日已签到',
+    const result = await performCheckin('42');
+
+    expect(result).toMatchObject({
+      alreadyCheckedIn: true,
+      checkedInToday: true,
+      pointsAwarded: 0,
+      pointsEarned: 0,
+      totalPoints: 120,
+      totalDays: 8,
     });
     expect(mockTransaction).not.toHaveBeenCalled();
   });
 
-  it('maps unique constraint races to duplicate checkin errors', async () => {
-    mockUserCheckinFindUnique.mockResolvedValue(null);
-    mockUserCheckinFindMany.mockResolvedValue([]);
+  it('maps unique constraint races to idempotent duplicate checkin status', async () => {
+    mockUserCheckinFindUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: 1n });
+    mockUserCheckinFindMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ checkinDate: makeDate('2026-05-05') }])
+      .mockResolvedValueOnce([{ checkinDate: makeDate('2026-05-05') }]);
+    mockUserFindUniqueOrThrow.mockResolvedValue({ totalPoints: 115 });
+    mockUserCheckinCount.mockResolvedValue(7);
     mockTransaction.mockRejectedValue(buildUniqueConstraintError());
 
-    await expect(performCheckin('42')).rejects.toMatchObject<AppError>({
-      code: ErrorCodes.PARAM_ERROR,
-      statusCode: 400,
-      message: '今日已签到',
+    const result = await performCheckin('42');
+
+    expect(result).toMatchObject({
+      alreadyCheckedIn: true,
+      checkedInToday: true,
+      pointsAwarded: 0,
+      pointsEarned: 0,
+      totalPoints: 115,
+      totalDays: 7,
     });
   });
 

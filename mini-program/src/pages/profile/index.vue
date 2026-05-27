@@ -238,8 +238,16 @@ async function doCheckin() {
   if (checkinSummary.value.checkedInToday || checkinSubmitting.value) return
   checkinSubmitting.value = true
   try {
-    checkinStatus.value = normalizeCheckinStatus(await checkinApi.checkin())
-    uni.showToast({ title: `签到成功！+${checkinStatus.value.pointsEarned || checkinStatus.value.pointsAwarded || 1}积分`, icon: 'success' })
+    const result = await checkinApi.checkin()
+    checkinStatus.value = normalizeCheckinStatus(result)
+
+    if (result.alreadyCheckedIn) {
+      uni.showToast({ title: '今日已签到', icon: 'none' })
+      return
+    }
+
+    const pointsEarned = result.pointsEarned ?? result.pointsAwarded ?? 1
+    uni.showToast({ title: `签到成功！+${pointsEarned}积分`, icon: 'success' })
   } catch (e: any) {
     if (String(e?.message || '').includes('今日已签到')) {
       checkinStatus.value = normalizeCheckinStatus({ ...checkinStatus.value, checkedInToday: true, checkinDate: dayjs().format('YYYY-MM-DD') })
