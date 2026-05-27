@@ -172,6 +172,8 @@ const AUTHORITY_TRANSLATION_MAX_TOKENS = Math.max(
   1000,
   Number.parseInt(process.env.AUTHORITY_TRANSLATION_MAX_TOKENS || '1600', 10) || 1600,
 );
+const UNRELIABLE_HEADER_UPDATED_AT_SOURCE_IDS = new Set(['aap']);
+const FETCH_TIMESTAMP_UPDATED_AT_WINDOW_MS = 15 * 60 * 1000;
 
 interface AuthorityTranslationExecutionOptions {
   providerTimeoutMs?: number;
@@ -198,6 +200,29 @@ interface AuthorityArticleTranslationApiResponse {
 }
 
 type AuthorityArticle = ReturnType<typeof mapAuthorityRecordToArticle>;
+
+function resolveReliableAuthorityUpdatedAt(
+  sourceId: string,
+  updatedAt: Date | null,
+  fetchedAt?: string,
+): Date | null {
+  if (!updatedAt) {
+    return null;
+  }
+
+  if (!UNRELIABLE_HEADER_UPDATED_AT_SOURCE_IDS.has(sourceId)) {
+    return updatedAt;
+  }
+
+  const fetchedTimestamp = fetchedAt ? Date.parse(fetchedAt) : Number.NaN;
+  if (Number.isNaN(fetchedTimestamp)) {
+    return updatedAt;
+  }
+
+  return Math.abs(updatedAt.getTime() - fetchedTimestamp) <= FETCH_TIMESTAMP_UPDATED_AT_WINDOW_MS
+    ? null
+    : updatedAt;
+}
 
 function hashStringToPositiveInt(input: string): number {
   let hash = 0;
@@ -1547,7 +1572,8 @@ function mapAuthorityDbRowToRecord(row: {
 
   const cleanedTitle = sanitizeAuthorityTitle(row.title);
   const localeDefaults = inferAuthorityLocaleDefaults(row.sourceId, row.region);
-  const stableDate = row.updatedAt || row.createdAt;
+  const reliableUpdatedAt = resolveReliableAuthorityUpdatedAt(row.sourceId, row.updatedAt, metadataFetchedAt);
+  const stableDate = reliableUpdatedAt || row.createdAt;
   const sourceConfig = getAuthoritySourceConfig(row.sourceId);
   const inferredAudience = detectAudience({
     sourceUrl: row.sourceUrl,
@@ -1613,7 +1639,7 @@ function mapAuthorityDbRowToRecord(row: {
     view_count: 0,
     like_count: 0,
     created_at: row.createdAt.toISOString(),
-    updated_at: stableDate.toISOString(),
+    updated_at: reliableUpdatedAt?.toISOString(),
     published_at: stableDate.toISOString(),
     source_id: row.sourceId,
     source: row.sourceOrg,
@@ -1622,7 +1648,7 @@ function mapAuthorityDbRowToRecord(row: {
     source_url: row.sourceUrl,
     source_language: metadataSourceLanguage || localeDefaults.sourceLanguage,
     source_locale: metadataSourceLocale || localeDefaults.sourceLocale,
-    source_updated_at: stableDate.toISOString(),
+    source_updated_at: reliableUpdatedAt?.toISOString(),
     last_synced_at: metadataFetchedAt || row.createdAt.toISOString(),
     url: row.sourceUrl,
     audience: inferredAudience,
@@ -1753,7 +1779,7 @@ function mapAuthorityRecordToArticle(record: AuthorityCacheRecord, index: number
     sourceUrl: record.source_url || record.url,
     sourceLanguage,
     sourceLocale,
-    sourceUpdatedAt: record.source_updated_at || record.published_at || record.updated_at || record.created_at,
+    sourceUpdatedAt: record.source_updated_at,
     sourceFingerprint: buildAuthorityTranslationSourceFingerprint(record),
     lastSyncedAt: record.last_synced_at || record.updated_at || record.created_at,
     audience: normalizeAuthorityAudienceLabel(inferredAudience),

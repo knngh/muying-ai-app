@@ -50,10 +50,10 @@
           </view>
           <view
             class="checkin-btn"
-            :class="{ disabled: checkinSummary.checkedInToday || checkinSubmitting }"
+            :class="{ disabled: checkinSummary.checkedInToday || checkinSubmitting || checkinLoading }"
             @tap="doCheckin"
           >
-            <text class="checkin-btn-text">{{ checkinSummary.checkedInToday ? '已签到' : (checkinSubmitting ? '签到中' : '签到') }}</text>
+            <text class="checkin-btn-text">{{ checkinButtonText }}</text>
           </view>
         </view>
       </view>
@@ -158,6 +158,7 @@ const appStore = useAppStore()
 
 const checkinStatus = ref<CheckinStatus>({ checkedInToday: false, consecutiveDays: 0, totalDays: 0, totalPoints: 0 })
 const checkinSubmitting = ref(false)
+const checkinLoading = ref(false)
 
 const normalizeDateList = (dates?: string[]) => {
   const seen = new Set<string>()
@@ -228,14 +229,34 @@ const checkinSummary = computed(() => {
   }
 })
 
+const checkinButtonText = computed(() => (
+  checkinLoading.value
+    ? '同步中'
+    : checkinSummary.value.checkedInToday
+      ? '已签到'
+      : checkinSubmitting.value
+        ? '签到中'
+        : '签到'
+))
+
 async function loadCheckinStatus() {
+  if (!uni.getStorageSync('token')) {
+    checkinStatus.value = { checkedInToday: false, consecutiveDays: 0, totalDays: 0, totalPoints: 0 }
+    checkinLoading.value = false
+    return
+  }
+
+  checkinLoading.value = true
   try {
     checkinStatus.value = normalizeCheckinStatus(await checkinApi.getStatus())
   } catch (_e) { /* ignore */ }
+  finally {
+    checkinLoading.value = false
+  }
 }
 
 async function doCheckin() {
-  if (checkinSummary.value.checkedInToday || checkinSubmitting.value) return
+  if (checkinSummary.value.checkedInToday || checkinSubmitting.value || checkinLoading.value) return
   checkinSubmitting.value = true
   try {
     const result = await checkinApi.checkin()
@@ -405,6 +426,8 @@ const onLogout = () => {
       if (res.confirm) {
         clearLocalSession()
         appStore.setUser(null)
+        checkinStatus.value = { checkedInToday: false, consecutiveDays: 0, totalDays: 0, totalPoints: 0 }
+        checkinLoading.value = false
         uni.reLaunch({ url: '/pages/login/index' })
       }
     },
@@ -416,6 +439,8 @@ async function syncProfileSession() {
   if (!token) {
     appStore.setIsLoading(false)
     appStore.setUser(null)
+    checkinStatus.value = { checkedInToday: false, consecutiveDays: 0, totalDays: 0, totalPoints: 0 }
+    checkinLoading.value = false
     return
   }
 
@@ -424,7 +449,7 @@ async function syncProfileSession() {
     await appStore.fetchUser()
     appStore.setIsLoading(false)
   }
-  loadCheckinStatus()
+  await loadCheckinStatus()
 }
 
 onMounted(async () => {

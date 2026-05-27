@@ -186,7 +186,8 @@
         <view class="article-meta">
           <text v-if="group.article.audience" class="meta-item">{{ group.article.audience }}</text>
           <text v-if="group.article.region" class="meta-item">{{ group.article.region }}</text>
-          <text class="meta-item">来源更新 {{ formatDate(group.article.sourceUpdatedAt || group.article.publishedAt || group.article.createdAt) }}</text>
+          <text v-if="group.article.sourceUpdatedAt" class="meta-item">来源更新 {{ formatDate(group.article.sourceUpdatedAt) }}</text>
+          <text v-else class="meta-item">首次收录 {{ formatDate(group.article.createdAt || group.article.publishedAt) }}</text>
         </view>
 
         <view class="reading-note">
@@ -194,7 +195,7 @@
         </view>
 
         <view class="article-footer">
-          <text class="verified-text">已记录来源 · 同步 {{ formatDate(group.article.lastSyncedAt || group.article.updatedAt || group.article.createdAt) }}</text>
+          <text class="verified-text">已记录来源 · 最近校验 {{ formatDate(group.article.lastSyncedAt || group.article.updatedAt || group.article.createdAt) }}</text>
           <text class="read-more">查看详情</text>
         </view>
       </view>
@@ -413,7 +414,7 @@ function goToDetail(article: Article) {
 
 function getReadingHint(article: Article): string {
   if (isChineseKnowledgeArticle(article)) {
-    return '优先读中文原文与同步时间，适合核对公开资料表述。'
+    return '优先读中文原文与最近校验时间，适合核对公开资料表述。'
   }
 
   return '进入详情后会准备中文辅助阅读，适合先看摘要再核对来源信息。'

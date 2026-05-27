@@ -1864,7 +1864,6 @@ export async function exportPublishedAuthoritySnapshot(): Promise<void> {
     const cleanedTitle = sanitizeAuthorityTitle(row.title);
     const localeDefaults = inferAuthorityLocaleDefaults(row.sourceId, row.region);
     const metadata = row.metadataJson ? JSON.parse(row.metadataJson) : {};
-    const stableDate = row.updatedAt || row.createdAt;
     const inferredAudience = detectAudience({
       sourceUrl: row.sourceUrl,
       title: cleanedTitle,
@@ -1916,6 +1915,16 @@ export async function exportPublishedAuthoritySnapshot(): Promise<void> {
       audience: inferredAudience,
       topic: inferredTopic,
     });
+    const metadataFetchedAt = typeof (metadata as { fetchedAt?: unknown }).fetchedAt === 'string'
+      ? (metadata as { fetchedAt: string }).fetchedAt
+      : undefined;
+    const reliableUpdatedAt = row.sourceId === 'aap'
+      && row.updatedAt
+      && metadataFetchedAt
+      && Math.abs(row.updatedAt.getTime() - Date.parse(metadataFetchedAt)) <= 15 * 60 * 1000
+        ? null
+        : row.updatedAt;
+    const stableDate = reliableUpdatedAt || row.createdAt;
 
     return {
       id: buildStableAuthorityId(row.sourceId, row.sourceUrl, index + 1),
@@ -1945,17 +1954,15 @@ export async function exportPublishedAuthoritySnapshot(): Promise<void> {
       view_count: 0,
       like_count: 0,
       created_at: row.createdAt.toISOString(),
-      updated_at: stableDate.toISOString(),
+      updated_at: reliableUpdatedAt?.toISOString(),
       published_at: stableDate.toISOString(),
       source: row.sourceOrg,
       source_org: row.sourceOrg,
       source_url: row.sourceUrl,
       source_language: localeDefaults.sourceLanguage,
       source_locale: localeDefaults.sourceLocale,
-      source_updated_at: stableDate.toISOString(),
-      last_synced_at: typeof (metadata as { fetchedAt?: unknown }).fetchedAt === 'string'
-        ? (metadata as { fetchedAt: string }).fetchedAt
-        : row.createdAt.toISOString(),
+      source_updated_at: reliableUpdatedAt?.toISOString(),
+      last_synced_at: metadataFetchedAt || row.createdAt.toISOString(),
       url: row.sourceUrl,
       audience: inferredAudience,
       topic: inferredTopic,

@@ -57,8 +57,7 @@ export const aapAdapter: AuthorityDocumentAdapter = {
       sourceUrl: raw.url,
       title,
       updatedAt: extractMetaContent(raw.rawBody, 'article:modified_time')
-        || extractMetaContent(raw.rawBody, 'last-modified')
-        || raw.lastModified,
+        || extractMetaContent(raw.rawBody, 'last-modified'),
       audience: detectAudience({ sourceUrl: raw.url, title, summary: description, contentText }, source),
       topic: detectTopic({ sourceUrl: raw.url, title, summary: description, contentText }, source),
       region: source.region,

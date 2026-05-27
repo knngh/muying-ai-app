@@ -28,8 +28,9 @@
           <text class="meta-item">当前显示 {{ currentBodyLanguageLabel }}</text>
           <text v-if="article.audience" class="meta-item">{{ article.audience }}</text>
           <text v-if="article.region" class="meta-item">{{ article.region }}</text>
-          <text class="meta-item">来源更新 {{ formatDate(article.sourceUpdatedAt || article.publishedAt || article.createdAt) }}</text>
-          <text v-if="article.lastSyncedAt" class="meta-item">同步 {{ formatDate(article.lastSyncedAt) }}</text>
+          <text v-if="article.sourceUpdatedAt" class="meta-item">来源更新 {{ formatDate(article.sourceUpdatedAt) }}</text>
+          <text v-else class="meta-item">首次收录 {{ formatDate(article.createdAt || article.publishedAt) }}</text>
+          <text v-if="article.lastSyncedAt" class="meta-item">最近校验 {{ formatDate(article.lastSyncedAt) }}</text>
         </view>
       </view>
 
@@ -67,7 +68,7 @@
       </view>
       <view v-else class="source-box source-box--muted">
         <text class="source-label">原始来源</text>
-        <text class="source-url">当前未提供可复制的机构来源链接，请优先参考本页摘要、同步时间和机构标签。</text>
+        <text class="source-url">当前未提供可复制的机构来源链接，请优先参考本页摘要、最近校验时间和机构标签。</text>
       </view>
 
       <view v-if="displayedSummaryText" class="summary-box">
@@ -416,7 +417,7 @@ const authorityRegionLabel = computed(() => getAuthorityRegionLabel(article.valu
 const authorityRegionTag = computed(() => getAuthorityRegionTag(article.value))
 const authorityCalloutText = computed(() => {
   if (isChineseAuthoritySource(article.value)) {
-    return '这篇内容来自中国公开机构资料，默认展示中文原文与同步时间。'
+    return '这篇内容来自中国公开机构资料，默认展示中文原文与最近校验时间。'
   }
 
   return '这篇内容来自国际公开机构资料，可切换中文辅助阅读并核对来源链接。'
