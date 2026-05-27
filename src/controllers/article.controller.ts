@@ -224,6 +224,34 @@ function resolveReliableAuthorityUpdatedAt(
     : updatedAt;
 }
 
+function parseAuthorityDate(value?: string): Date | null {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function normalizeAuthorityRecordTemporalFields(record: AuthorityCacheRecord): AuthorityCacheRecord {
+  const reliableSourceUpdatedAt = resolveReliableAuthorityUpdatedAt(
+    record.source_id || '',
+    parseAuthorityDate(record.source_updated_at),
+    record.last_synced_at,
+  );
+
+  if (record.source_updated_at && !reliableSourceUpdatedAt) {
+    return {
+      ...record,
+      updated_at: undefined,
+      published_at: record.created_at || record.published_at,
+      source_updated_at: undefined,
+    };
+  }
+
+  return record;
+}
+
 function hashStringToPositiveInt(input: string): number {
   let hash = 0;
   for (let index = 0; index < input.length; index += 1) {
@@ -910,6 +938,7 @@ async function getAuthorityRecords(): Promise<AuthorityCacheRecord[]> {
   const cacheRecords = loadAuthorityCacheRecords();
   if (cacheRecords.length > 0) {
     return cacheRecords
+      .map(normalizeAuthorityRecordTemporalFields)
       .filter((record) => !shouldFilterAuthoritySourceUrl(record))
       .filter((record) => !getAuthorityKnowledgeDropReason(record))
       .filter((record) => !isInvalidAuthoritySourceUrl(record))
