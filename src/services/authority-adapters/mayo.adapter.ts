@@ -1,4 +1,5 @@
 import type { AuthoritySourceConfig } from '../../config/authority-sources';
+import { pickAuthorityUpdatedAt } from '../../utils/authority-temporal';
 import type { AuthorityRawDocument, NormalizedAuthorityDocument } from '../authority-sync.service';
 import {
   detectAudience,
@@ -54,6 +55,12 @@ export const mayoAdapter: AuthorityDocumentAdapter = {
     if (!isMaternalInfantRelevant(raw.url, title, mergedText)) {
       return null;
     }
+    const temporal = pickAuthorityUpdatedAt([
+      { value: extractMetaContent(raw.rawBody, 'article:modified_time'), source: 'article_modified_time' },
+      { value: extractMetaContent(raw.rawBody, 'dateModified'), source: 'schema_date_modified' },
+      { value: extractMetaContent(raw.rawBody, 'last-modified'), source: 'page_last_modified_meta' },
+      { value: raw.lastModified, source: 'http_last_modified' },
+    ]);
 
     const document: NormalizedAuthorityDocument = {
       sourceId: source.id,
@@ -62,10 +69,7 @@ export const mayoAdapter: AuthorityDocumentAdapter = {
       sourceLanguage: 'zh',
       sourceLocale: source.locale,
       title,
-      updatedAt: extractMetaContent(raw.rawBody, 'article:modified_time')
-        || extractMetaContent(raw.rawBody, 'last-modified')
-        || extractMetaContent(raw.rawBody, 'dateModified')
-        || raw.lastModified,
+      updatedAt: temporal.updatedAt,
       audience: detectAudience({ sourceUrl: raw.url, title, summary: description, contentText }, source),
       topic: detectTopic({ sourceUrl: raw.url, title, summary: description, contentText }, source),
       region: source.region,
@@ -77,6 +81,7 @@ export const mayoAdapter: AuthorityDocumentAdapter = {
         sourceSite: 'mayoclinic',
         contentType: raw.contentType,
         fetchedAt: raw.fetchedAt,
+        updatedAtSource: temporal.updatedAtSource,
       },
       publishStatus: 'draft',
     };

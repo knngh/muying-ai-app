@@ -104,22 +104,31 @@ UPLOAD_RESPONSE="$(curl -fsS "${API_BASE}/calendar/diaries/images" \
 UPLOAD_URL="$(printf '%s\n' "${UPLOAD_RESPONSE}" | jq -r '.data.url')"
 printf '%s\n' "${UPLOAD_RESPONSE}" | jq '{code,message,data}'
 
-if [[ ! "${UPLOAD_URL}" =~ ^/uploads/[A-Za-z0-9][A-Za-z0-9._-]*\.(jpg|jpeg|png|gif|webp)$ ]]; then
+if [[ ! "${UPLOAD_URL}" =~ ^/uploads/[A-Za-z0-9][A-Za-z0-9._-]*\.(jpg|jpeg|png|gif|webp)$ && ! "${UPLOAD_URL}" =~ ^https://beihu-1304335890\.cos\.ap-shanghai\.myqcloud\.com/diary/[A-Za-z0-9._/-]+\.(jpg|jpeg|png|gif|webp)$ ]]; then
   echo "Upload returned an invalid URL: ${UPLOAD_URL}" >&2
   exit 1
 fi
 
 echo "[5/7] assert uploaded image headers"
 HEADERS_FILE="$(mktemp "${TMPDIR:-/tmp}/muying-upload-headers.XXXXXX")"
-curl -fsS -o /dev/null -D "${HEADERS_FILE}" "${BASE_URL}${UPLOAD_URL}"
+if [[ "${UPLOAD_URL}" =~ ^https:// ]]; then
+  IMAGE_URL="${UPLOAD_URL}"
+else
+  IMAGE_URL="${BASE_URL}${UPLOAD_URL}"
+fi
+curl -fsS -o /dev/null -D "${HEADERS_FILE}" "${IMAGE_URL}"
 HEADERS_LOWER="$(tr -d '\r' < "${HEADERS_FILE}" | tr '[:upper:]' '[:lower:]')"
 rm -f "${HEADERS_FILE}"
 
-printf '%s\n' "${HEADERS_LOWER}" | grep -q '^cross-origin-resource-policy: cross-origin$'
-printf '%s\n' "${HEADERS_LOWER}" | grep -q '^cache-control: no-store, max-age=0$'
-if printf '%s\n' "${HEADERS_LOWER}" | grep -q 'immutable'; then
-  echo "Uploaded image response still contains immutable cache headers" >&2
-  exit 1
+if [[ "${UPLOAD_URL}" =~ ^/uploads/ ]]; then
+  printf '%s\n' "${HEADERS_LOWER}" | grep -q '^cross-origin-resource-policy: cross-origin$'
+  printf '%s\n' "${HEADERS_LOWER}" | grep -q '^cache-control: no-store, max-age=0$'
+  if printf '%s\n' "${HEADERS_LOWER}" | grep -q 'immutable'; then
+    echo "Uploaded image response still contains immutable cache headers" >&2
+    exit 1
+  fi
+else
+  printf '%s\n' "${HEADERS_LOWER}" | grep -q '^content-type: image/'
 fi
 echo "headers ok"
 
@@ -152,9 +161,14 @@ printf '%s\n' "${DELETE_RESPONSE}" | jq -e '.code == 0' >/dev/null
 DIARY_CREATED="false"
 
 sleep 1
-DELETED_STATUS="$(curl -sS -o /dev/null -w '%{http_code}' "${BASE_URL}${UPLOAD_URL}")"
-if [[ "${DELETED_STATUS}" != "404" ]]; then
-  echo "Expected deleted uploaded image to return 404, got ${DELETED_STATUS}" >&2
+if [[ "${UPLOAD_URL}" =~ ^https:// ]]; then
+  DELETED_URL="${UPLOAD_URL}"
+else
+  DELETED_URL="${BASE_URL}${UPLOAD_URL}"
+fi
+DELETED_STATUS="$(curl -sS -o /dev/null -w '%{http_code}' "${DELETED_URL}")"
+if [[ "${DELETED_STATUS}" != "404" && "${DELETED_STATUS}" != "403" ]]; then
+  echo "Expected deleted uploaded image to return 403/404, got ${DELETED_STATUS}" >&2
   exit 1
 fi
 

@@ -1,18 +1,26 @@
 import fs from 'fs';
 import path from 'path';
 import prisma from '../config/database';
+import {
+  deleteCosObject,
+  resolveCosObjectKeyFromPublicUrl,
+} from './cos-storage.service';
 
-export const DIARY_IMAGE_URL_PATTERN = /^\/uploads\/[A-Za-z0-9][A-Za-z0-9._-]*\.(jpg|jpeg|png|gif|webp)$/i;
+export const LOCAL_DIARY_IMAGE_URL_PATTERN = /^\/uploads\/[A-Za-z0-9][A-Za-z0-9._-]*\.(jpg|jpeg|png|gif|webp)$/i;
 
 const UPLOAD_DIR = path.resolve(process.cwd(), 'uploads');
 
+export function isDiaryImageUrl(url: string): boolean {
+  return LOCAL_DIARY_IMAGE_URL_PATTERN.test(url) || Boolean(resolveCosObjectKeyFromPublicUrl(url));
+}
+
 export function getRemovedDiaryImageUrls(previousUrls: string[], nextUrls: string[]): string[] {
   const nextSet = new Set(nextUrls);
-  return [...new Set(previousUrls.filter((url) => !nextSet.has(url) && DIARY_IMAGE_URL_PATTERN.test(url)))];
+  return [...new Set(previousUrls.filter((url) => !nextSet.has(url) && isDiaryImageUrl(url)))];
 }
 
 export function resolveDiaryUploadFilePath(url: string): string | null {
-  if (!DIARY_IMAGE_URL_PATTERN.test(url)) {
+  if (!LOCAL_DIARY_IMAGE_URL_PATTERN.test(url)) {
     return null;
   }
 
@@ -36,7 +44,7 @@ async function countDiaryImageReferences(url: string): Promise<number> {
 }
 
 export async function cleanupUnusedDiaryImages(urls: string[]): Promise<void> {
-  const candidates = [...new Set(urls)].filter((url) => DIARY_IMAGE_URL_PATTERN.test(url));
+  const candidates = [...new Set(urls)].filter(isDiaryImageUrl);
 
   for (const url of candidates) {
     try {
@@ -45,11 +53,16 @@ export async function cleanupUnusedDiaryImages(urls: string[]): Promise<void> {
         continue;
       }
 
+      const cosObjectKey = resolveCosObjectKeyFromPublicUrl(url);
+      if (cosObjectKey) {
+        await deleteCosObject(cosObjectKey);
+        continue;
+      }
+
       const filePath = resolveDiaryUploadFilePath(url);
       if (!filePath) {
         continue;
       }
-
       await fs.promises.unlink(filePath);
     } catch {
       // Best-effort cleanup: record updates should not fail because an old upload is missing.

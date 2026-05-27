@@ -1,4 +1,5 @@
 import type { AuthoritySourceConfig } from '../../config/authority-sources';
+import { pickAuthorityUpdatedAt } from '../../utils/authority-temporal';
 import type { AuthorityRawDocument, NormalizedAuthorityDocument } from '../authority-sync.service';
 import {
   detectAudience,
@@ -50,14 +51,17 @@ export const aapAdapter: AuthorityDocumentAdapter = {
     if (!isMaternalInfantRelevant(raw.url, title, mergedText)) {
       return null;
     }
+    const temporal = pickAuthorityUpdatedAt([
+      { value: extractMetaContent(raw.rawBody, 'article:modified_time'), source: 'article_modified_time' },
+      { value: extractMetaContent(raw.rawBody, 'last-modified'), source: 'page_last_modified_meta' },
+    ]);
 
     const document: NormalizedAuthorityDocument = {
       sourceId: source.id,
       sourceOrg: source.org,
       sourceUrl: raw.url,
       title,
-      updatedAt: extractMetaContent(raw.rawBody, 'article:modified_time')
-        || extractMetaContent(raw.rawBody, 'last-modified'),
+      updatedAt: temporal.updatedAt,
       audience: detectAudience({ sourceUrl: raw.url, title, summary: description, contentText }, source),
       topic: detectTopic({ sourceUrl: raw.url, title, summary: description, contentText }, source),
       region: source.region,
@@ -69,6 +73,7 @@ export const aapAdapter: AuthorityDocumentAdapter = {
         sourceSite: 'healthychildren',
         contentType: raw.contentType,
         fetchedAt: raw.fetchedAt,
+        updatedAtSource: temporal.updatedAtSource,
       },
       publishStatus: 'draft',
     };

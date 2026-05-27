@@ -37,6 +37,10 @@ import { rewriteSearchQueries } from '../services/knowledge.service';
 import { recordServerRetentionBehaviorEvent } from '../services/analytics.service';
 import { resolveArticleSourceUrl } from '../utils/article-source-url';
 import {
+  parseAuthorityTemporalDate,
+  resolveReliableAuthorityUpdatedAt,
+} from '../utils/authority-temporal';
+import {
   extractJsonObject,
   compactTranslationSummary,
   hasTranslationPromptLeak,
@@ -86,6 +90,7 @@ interface AuthorityCacheRecord {
   topic?: string;
   region?: string;
   original_id?: string;
+  metadata?: Record<string, unknown>;
 }
 
 type ArticleTagRelation = {
@@ -172,8 +177,6 @@ const AUTHORITY_TRANSLATION_MAX_TOKENS = Math.max(
   1000,
   Number.parseInt(process.env.AUTHORITY_TRANSLATION_MAX_TOKENS || '1600', 10) || 1600,
 );
-const FETCH_TIMESTAMP_UPDATED_AT_WINDOW_MS = 15 * 60 * 1000;
-
 interface AuthorityTranslationExecutionOptions {
   providerTimeoutMs?: number;
 }
@@ -200,37 +203,19 @@ interface AuthorityArticleTranslationApiResponse {
 
 type AuthorityArticle = ReturnType<typeof mapAuthorityRecordToArticle>;
 
-function resolveReliableAuthorityUpdatedAt(
-  updatedAt: Date | null,
-  fetchedAt?: string,
-): Date | null {
-  if (!updatedAt) {
-    return null;
-  }
-
-  const fetchedTimestamp = fetchedAt ? Date.parse(fetchedAt) : Number.NaN;
-  if (Number.isNaN(fetchedTimestamp)) {
-    return updatedAt;
-  }
-
-  return Math.abs(updatedAt.getTime() - fetchedTimestamp) <= FETCH_TIMESTAMP_UPDATED_AT_WINDOW_MS
-    ? null
-    : updatedAt;
-}
-
-function parseAuthorityDate(value?: string): Date | null {
-  if (!value) {
-    return null;
-  }
-
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
 function normalizeAuthorityRecordTemporalFields(record: AuthorityCacheRecord): AuthorityCacheRecord {
+  const metadataFetchedAt = typeof record.metadata?.fetchedAt === 'string'
+    ? record.metadata.fetchedAt
+    : undefined;
   const reliableSourceUpdatedAt = resolveReliableAuthorityUpdatedAt(
-    parseAuthorityDate(record.source_updated_at),
-    record.last_synced_at,
+    {
+      sourceId: record.source_id,
+      sourceOrg: record.source_org || record.source,
+      sourceUrl: record.source_url || record.url,
+      updatedAt: parseAuthorityTemporalDate(record.source_updated_at),
+      fetchedAt: record.last_synced_at || metadataFetchedAt,
+      updatedAtSource: typeof record.metadata?.updatedAtSource === 'string' ? record.metadata.updatedAtSource : undefined,
+    },
   );
 
   if (record.source_updated_at && !reliableSourceUpdatedAt) {
@@ -1568,6 +1553,7 @@ function mapAuthorityDbRowToRecord(row: {
   let metadataSourceLocale: string | undefined;
   let metadataSourceClass: 'official' | 'medical_platform' | 'dataset' | 'unknown' | undefined;
   let metadataFetchedAt: string | undefined;
+  let metadataUpdatedAtSource: string | undefined;
   try {
     const parsed = row.metadataJson ? JSON.parse(row.metadataJson) as {
       tags?: unknown;
@@ -1575,6 +1561,7 @@ function mapAuthorityDbRowToRecord(row: {
       sourceLocale?: unknown;
       sourceClass?: unknown;
       fetchedAt?: unknown;
+      updatedAtSource?: unknown;
     } : {};
     metadataTags = Array.isArray(parsed.tags) ? parsed.tags.map((tag) => String(tag)) : [];
     metadataSourceLanguage = parsed.sourceLanguage === 'zh' || parsed.sourceLanguage === 'en'
@@ -1588,13 +1575,21 @@ function mapAuthorityDbRowToRecord(row: {
       ? parsed.sourceClass
       : undefined;
     metadataFetchedAt = typeof parsed.fetchedAt === 'string' ? parsed.fetchedAt : undefined;
+    metadataUpdatedAtSource = typeof parsed.updatedAtSource === 'string' ? parsed.updatedAtSource : undefined;
   } catch {
     metadataTags = [];
   }
 
   const cleanedTitle = sanitizeAuthorityTitle(row.title);
   const localeDefaults = inferAuthorityLocaleDefaults(row.sourceId, row.region);
-  const reliableUpdatedAt = resolveReliableAuthorityUpdatedAt(row.updatedAt, metadataFetchedAt);
+  const reliableUpdatedAt = resolveReliableAuthorityUpdatedAt({
+    sourceId: row.sourceId,
+    sourceOrg: row.sourceOrg,
+    sourceUrl: row.sourceUrl,
+    updatedAt: row.updatedAt,
+    fetchedAt: metadataFetchedAt,
+    updatedAtSource: metadataUpdatedAtSource,
+  });
   const stableDate = reliableUpdatedAt || row.createdAt;
   const sourceConfig = getAuthoritySourceConfig(row.sourceId);
   const inferredAudience = detectAudience({

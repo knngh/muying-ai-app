@@ -17,6 +17,7 @@ import {
   isAuthorityAiQualityReviewExportable,
   reviewAuthorityDocumentQualityWithAiIfNeeded,
 } from './authority-ai-quality-review.service';
+import { resolveReliableAuthorityUpdatedAt } from '../utils/authority-temporal';
 import { normalizeWithAuthorityAdapter } from './authority-adapters';
 import { detectAudience, detectTopic, extractTitle, sanitizeAuthorityTitle, stripHtml } from './authority-adapters/base.adapter';
 
@@ -1918,11 +1919,17 @@ export async function exportPublishedAuthoritySnapshot(): Promise<void> {
     const metadataFetchedAt = typeof (metadata as { fetchedAt?: unknown }).fetchedAt === 'string'
       ? (metadata as { fetchedAt: string }).fetchedAt
       : undefined;
-    const reliableUpdatedAt = row.updatedAt
-      && metadataFetchedAt
-      && Math.abs(row.updatedAt.getTime() - Date.parse(metadataFetchedAt)) <= 15 * 60 * 1000
-        ? null
-        : row.updatedAt;
+    const metadataUpdatedAtSource = typeof (metadata as { updatedAtSource?: unknown }).updatedAtSource === 'string'
+      ? (metadata as { updatedAtSource: string }).updatedAtSource
+      : undefined;
+    const reliableUpdatedAt = resolveReliableAuthorityUpdatedAt({
+      sourceId: row.sourceId,
+      sourceOrg: row.sourceOrg,
+      sourceUrl: row.sourceUrl,
+      updatedAt: row.updatedAt,
+      fetchedAt: metadataFetchedAt,
+      updatedAtSource: metadataUpdatedAtSource,
+    });
     const stableDate = reliableUpdatedAt || row.createdAt;
 
     return {

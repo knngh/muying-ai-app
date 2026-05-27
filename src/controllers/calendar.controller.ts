@@ -5,8 +5,8 @@ import { successResponse, AppError, ErrorCodes } from '../middlewares/error.midd
 import { awardBehaviorPoints } from '../services/checkin.service';
 import {
   cleanupUnusedDiaryImages,
-  DIARY_IMAGE_URL_PATTERN,
   getRemovedDiaryImageUrls,
+  isDiaryImageUrl,
 } from '../services/diary-image-cleanup.service';
 import {
   getDiaryUploadCurrentImageCount,
@@ -14,6 +14,10 @@ import {
   MAX_DIARY_IMAGES_PER_WEEK,
   parseDiaryUploadImageUrls,
 } from '../services/diary-upload-limit.service';
+import {
+  isCosStorageEnabled,
+  uploadFileToCos,
+} from '../services/cos-storage.service';
 import {
   buildStandardScheduleEventPayload,
   buildStandardSchedulePlan,
@@ -202,7 +206,7 @@ const parseDiaryImageUrls = (value: unknown): string[] => {
     }
 
     const url = item.trim();
-    if (!DIARY_IMAGE_URL_PATTERN.test(url)) {
+    if (!isDiaryImageUrl(url)) {
       throw new AppError('照片地址无效', ErrorCodes.PARAM_ERROR, 400);
     }
     return url;
@@ -214,7 +218,7 @@ const serializeDiaryImageUrls = (value: Prisma.JsonValue | null | undefined): st
     return [];
   }
 
-  return value.filter((item): item is string => typeof item === 'string' && DIARY_IMAGE_URL_PATTERN.test(item));
+  return value.filter((item): item is string => typeof item === 'string' && isDiaryImageUrl(item));
 };
 
 const parseCustomTodoContent = (value: unknown): string => {
@@ -588,7 +592,8 @@ export const uploadPregnancyDiaryImage = async (req: Request, res: Response, nex
       throw new AppError('请选择图片', ErrorCodes.PARAM_ERROR, 400);
     }
 
-    uploadedUrl = `/uploads/${file.filename}`;
+    const localUploadedUrl = `/uploads/${file.filename}`;
+    uploadedUrl = localUploadedUrl;
     const period = parseTimelinePeriod(req.body);
     let draftImageUrls: string[];
     try {
@@ -613,6 +618,11 @@ export const uploadPregnancyDiaryImage = async (req: Request, res: Response, nex
 
     if (!hasDiaryUploadSlot(currentImageCount)) {
       throw new AppError(`最多添加${MAX_DIARY_IMAGES_PER_WEEK}张照片`, ErrorCodes.PARAM_ERROR, 400);
+    }
+
+    if (isCosStorageEnabled()) {
+      const cosResult = await uploadFileToCos(file);
+      uploadedUrl = cosResult.url;
     }
 
     res.json(successResponse({

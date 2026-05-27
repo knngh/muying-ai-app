@@ -1,4 +1,4 @@
-import { DIARY_IMAGE_URL_PATTERN } from './diary-image-cleanup.service';
+import { isDiaryImageUrl } from './diary-image-cleanup.service';
 
 export const MAX_DIARY_IMAGES_PER_WEEK = 3;
 
@@ -30,7 +30,7 @@ export function parseDiaryUploadImageUrls(value: unknown): string[] {
     }
 
     const url = item.trim();
-    if (!DIARY_IMAGE_URL_PATTERN.test(url)) {
+    if (!isDiaryImageUrl(url)) {
       throw new Error('照片地址无效');
     }
     return url;
