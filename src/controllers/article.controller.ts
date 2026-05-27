@@ -1938,13 +1938,13 @@ async function prewarmAuthorityTranslationsForArticles(
 }
 
 function getAuthorityArticleTimestamp(article: ReturnType<typeof mapAuthorityRecordToArticle>): number {
-  const value = article.publishedAt || article.updatedAt || article.createdAt;
+  const value = article.sourceUpdatedAt;
   const timestamp = value ? new Date(value).getTime() : 0;
   return Number.isNaN(timestamp) ? 0 : timestamp;
 }
 
 function getAuthorityArticleDateBucket(article: ReturnType<typeof mapAuthorityRecordToArticle>): string {
-  const value = article.publishedAt || article.updatedAt || article.createdAt;
+  const value = article.sourceUpdatedAt;
   if (!value) {
     return '';
   }
