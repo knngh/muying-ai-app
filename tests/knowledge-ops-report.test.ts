@@ -1,7 +1,9 @@
 import {
   buildKnowledgeOpsAuthoritySlug,
   buildKnowledgeOpsReport,
+  DEFAULT_WATCHED_SOURCE_IDS,
   hasAuthorityCoverage,
+  parseKnowledgeWatchedSourceIds,
   type KnowledgeOpsQaRecord,
 } from '../src/utils/knowledge-ops-report';
 import { buildAuthorityTranslationSourceFingerprint } from '../src/utils/authority-translation-source';
@@ -637,6 +639,32 @@ describe('knowledge ops report', () => {
       message: 'mayo-clinic-zh has 1/10 published authority records',
     });
     expect(report.actionItems.some((item) => item.message.includes('chinacdc-nutrition'))).toBe(false);
+  });
+
+  it('watches a broader default official source set for daily low coverage refreshes', () => {
+    const report = buildKnowledgeOpsReport({
+      qaRecords: [],
+      authorityRecords: [],
+    });
+
+    const watchedSourceIds = report.sourceCoverage.watchedSources.map((source) => source.sourceId);
+    expect(watchedSourceIds).toEqual(DEFAULT_WATCHED_SOURCE_IDS);
+    expect(watchedSourceIds.length).toBeGreaterThanOrEqual(10);
+    expect(watchedSourceIds).toEqual(expect.arrayContaining([
+      'nhc-fys',
+      'chinacdc-immunization',
+      'ncwch-maternal-child-health',
+      'mchscn-monitoring',
+      'chinanutri-maternal-child',
+    ]));
+  });
+
+  it('parses watched source env overrides without empty or duplicate entries', () => {
+    expect(parseKnowledgeWatchedSourceIds(' nhc-fys, chinacdc-nutrition,nhc-fys,, ')).toEqual([
+      'nhc-fys',
+      'chinacdc-nutrition',
+    ]);
+    expect(parseKnowledgeWatchedSourceIds(' , , ')).toBeUndefined();
   });
 
   it('builds a promotion-safe question candidate pool from enriched official QA coverage', () => {

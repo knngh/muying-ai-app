@@ -345,8 +345,8 @@ export const AUTHORITY_SOURCES: AuthoritySourceConfig[] = [
     topics: ['pregnancy', 'postpartum', 'newborn', 'feeding', 'development', 'common-symptoms'],
     enabled: true,
     fetchIntervalMinutes: 360,
-    maxPagesPerRun: 6,
-    maxDiscoveryIndexPages: 1,
+    maxPagesPerRun: 36,
+    maxDiscoveryIndexPages: 4,
     parserId: 'cn-health',
   },
   {
@@ -368,8 +368,8 @@ export const AUTHORITY_SOURCES: AuthoritySourceConfig[] = [
     topics: ['pregnancy', 'newborn', 'development', 'common-symptoms', 'policy'],
     enabled: true,
     fetchIntervalMinutes: 720,
-    maxPagesPerRun: 6,
-    maxDiscoveryIndexPages: 1,
+    maxPagesPerRun: 36,
+    maxDiscoveryIndexPages: 4,
     parserId: 'cn-health',
   },
   {
@@ -391,8 +391,8 @@ export const AUTHORITY_SOURCES: AuthoritySourceConfig[] = [
     topics: ['feeding', 'pregnancy', 'postpartum', 'newborn', 'development'],
     enabled: true,
     fetchIntervalMinutes: 720,
-    maxPagesPerRun: 6,
-    maxDiscoveryIndexPages: 1,
+    maxPagesPerRun: 24,
+    maxDiscoveryIndexPages: 4,
     parserId: 'cn-health',
   },
   {
@@ -414,8 +414,8 @@ export const AUTHORITY_SOURCES: AuthoritySourceConfig[] = [
     topics: ['feeding', 'pregnancy', 'postpartum', 'newborn', 'development'],
     enabled: true,
     fetchIntervalMinutes: 720,
-    maxPagesPerRun: 6,
-    maxDiscoveryIndexPages: 1,
+    maxPagesPerRun: 36,
+    maxDiscoveryIndexPages: 4,
     parserId: 'cn-health',
   },
   {

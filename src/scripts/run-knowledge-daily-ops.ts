@@ -2,7 +2,10 @@ import '../config/env';
 import { spawnSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
-import { buildKnowledgeOpsReportCommandEnv } from '../utils/knowledge-daily-ops-command-env';
+import {
+  buildKnowledgeOpsReportCommandEnv,
+  buildLowCoverageSourceRefreshCommandEnv,
+} from '../utils/knowledge-daily-ops-command-env';
 import {
   buildKnowledgeDailyOpsReport,
   type KnowledgeDailyOpsCommandResult,
@@ -82,14 +85,17 @@ async function main() {
   commands.push(runCommand('knowledge_ops_report', 'npm run ops:knowledge:report', buildKnowledgeOpsReportCommandEnv({
     dailyCoverageAuditFile: DAILY_COVERAGE_AUDIT_FILE,
     knowledgeReportFile: KNOWLEDGE_REPORT_FILE,
+    watchedSourceIds: process.env.WATCHED_SOURCE_IDS,
+    watchedSourceMinimumRecords: process.env.WATCHED_SOURCE_MINIMUM_RECORDS,
   })));
 
-  commands.push(runCommand('low_coverage_source_refresh', 'npm run ops:authority:refresh-low-coverage', {
-    DRY_RUN: APPLY_FIXES ? 'false' : 'true',
-    AUTHORITY_SOURCE_DRY_RUN_PROBE_DISCOVERY: APPLY_FIXES ? undefined : 'true',
-    AUTHORITY_SOURCE_DRY_RUN_SAMPLE_LIMIT: process.env.AUTHORITY_SOURCE_DRY_RUN_SAMPLE_LIMIT || '3',
-    OUTPUT_FILE: SOURCE_REFRESH_REPORT_FILE,
-  }));
+  commands.push(runCommand('low_coverage_source_refresh', 'npm run ops:authority:refresh-low-coverage', buildLowCoverageSourceRefreshCommandEnv({
+    applyFixes: APPLY_FIXES,
+    outputFile: SOURCE_REFRESH_REPORT_FILE,
+    authoritySourceDryRunSampleLimit: process.env.AUTHORITY_SOURCE_DRY_RUN_SAMPLE_LIMIT,
+    authoritySourceLimit: process.env.AUTHORITY_SOURCE_LIMIT,
+    authoritySourceMinDiscoveryCandidates: process.env.AUTHORITY_SOURCE_MIN_DISCOVERY_CANDIDATES,
+  })));
   commands.push(runCommand('authority_translation_cache_clean', 'npm run clean:authority-translation-cache', {
     DRY_RUN: APPLY_FIXES ? 'false' : 'true',
     REPORT_FILE: TRANSLATION_CLEAN_REPORT_FILE,

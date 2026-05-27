@@ -909,6 +909,11 @@ export default function CalendarScreen() {
   }, [activeTimelineWeek, currentWeekDiary, isPostpartumTimeline])
 
   const uploadDiaryAssets = useCallback(async (assets: Asset[]) => {
+    if (!activeTimelineWeek) {
+      setSnackMessage(isPostpartumTimeline ? '先补充宝宝出生日期后再记录' : '先完善预产期后再记录')
+      return
+    }
+
     const uploadableAssets = assets.filter((asset) => Boolean(asset.uri))
     if (!uploadableAssets.length) return
 
@@ -932,6 +937,8 @@ export default function CalendarScreen() {
           uri: asset.uri,
           name: asset.fileName || `diary-${Date.now()}-${index}.jpg`,
           type: asset.type || 'image/jpeg',
+          week: activeTimelineWeek,
+          imageUrls: nextUrls,
         })
         nextUrls.push(result.url)
         setDiaryImageUrls([...nextUrls])
@@ -941,7 +948,7 @@ export default function CalendarScreen() {
     } finally {
       setDiaryUploading(false)
     }
-  }, [diaryImageUrls])
+  }, [activeTimelineWeek, diaryImageUrls, isPostpartumTimeline])
 
   const chooseDiaryImages = useCallback(async () => {
     if (diaryUploading) return

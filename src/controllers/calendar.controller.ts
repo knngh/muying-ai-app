@@ -9,6 +9,12 @@ import {
   getRemovedDiaryImageUrls,
 } from '../services/diary-image-cleanup.service';
 import {
+  getDiaryUploadCurrentImageCount,
+  hasDiaryUploadSlot,
+  MAX_DIARY_IMAGES_PER_WEEK,
+  parseDiaryUploadImageUrls,
+} from '../services/diary-upload-limit.service';
+import {
   buildStandardScheduleEventPayload,
   buildStandardSchedulePlan,
   getMissingStandardScheduleDefinitions,
@@ -186,8 +192,8 @@ const parseDiaryImageUrls = (value: unknown): string[] => {
     throw new AppError('照片列表格式无效', ErrorCodes.PARAM_ERROR, 400);
   }
 
-  if (value.length > 3) {
-    throw new AppError('最多添加3张照片', ErrorCodes.PARAM_ERROR, 400);
+  if (value.length > MAX_DIARY_IMAGES_PER_WEEK) {
+    throw new AppError(`最多添加${MAX_DIARY_IMAGES_PER_WEEK}张照片`, ErrorCodes.PARAM_ERROR, 400);
   }
 
   return value.map((item) => {
@@ -574,18 +580,49 @@ export const savePregnancyDiary = async (req: Request, res: Response, next: Next
 
 // 上传孕育记录照片
 export const uploadPregnancyDiaryImage = async (req: Request, res: Response, next: NextFunction) => {
+  let uploadedUrl: string | null = null;
+
   try {
     const file = req.file;
     if (!file) {
       throw new AppError('请选择图片', ErrorCodes.PARAM_ERROR, 400);
     }
 
-    const url = `/uploads/${file.filename}`;
+    uploadedUrl = `/uploads/${file.filename}`;
+    const period = parseTimelinePeriod(req.body);
+    let draftImageUrls: string[];
+    try {
+      draftImageUrls = parseDiaryUploadImageUrls(req.body.imageUrls);
+    } catch (error) {
+      throw new AppError(error instanceof Error ? error.message : '照片列表格式无效', ErrorCodes.PARAM_ERROR, 400);
+    }
+
+    const existingDiary = await prisma.userPregnancyDiary.findUnique({
+      where: {
+        userId_week: {
+          userId: BigInt(req.userId!),
+          week: period.storageWeek,
+        },
+      },
+    });
+    const currentImageCount = getDiaryUploadCurrentImageCount({
+      draftImageUrlsProvided: Object.prototype.hasOwnProperty.call(req.body, 'imageUrls'),
+      draftImageUrls,
+      existingImageUrls: serializeDiaryImageUrls(existingDiary?.imageUrls),
+    });
+
+    if (!hasDiaryUploadSlot(currentImageCount)) {
+      throw new AppError(`最多添加${MAX_DIARY_IMAGES_PER_WEEK}张照片`, ErrorCodes.PARAM_ERROR, 400);
+    }
+
     res.json(successResponse({
-      url,
+      url: uploadedUrl,
       filename: file.filename,
     }, '上传成功'));
   } catch (error) {
+    if (uploadedUrl) {
+      await cleanupUnusedDiaryImages([uploadedUrl]);
+    }
     next(error);
   }
 };

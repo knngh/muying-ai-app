@@ -127,8 +127,23 @@ describe('authority source refresh planning', () => {
     ], {
       probeDiscovery: true,
       sampleLimit: 1,
+      minimumDiscovered: 1,
       diagnoseDiscovery,
     });
+
+    const entryDiagnostics = [
+      {
+        entryUrl: 'https://www.mayoclinic.org/chinese_patient_consumer_faq.xml',
+        ok: true,
+        status: 200,
+        contentType: 'application/xml',
+        locCount: 500,
+        matchedCandidateCount: 1,
+        sampleMatchedUrls: [
+          'https://www.mayoclinic.org/zh-hans/healthy-lifestyle/infant-and-toddler-health/in-depth/baby-poop/art-20043980',
+        ],
+      },
+    ];
 
     expect(diagnoseDiscovery).toHaveBeenCalledWith('mayo-clinic-zh');
     expect(summaries).toEqual([
@@ -142,19 +157,18 @@ describe('authority source refresh planning', () => {
           sampleUrls: [
             'https://www.mayoclinic.org/zh-hans/healthy-lifestyle/infant-and-toddler-health/in-depth/baby-poop/art-20043980',
           ],
-          entryDiagnostics: [
-            {
-              entryUrl: 'https://www.mayoclinic.org/chinese_patient_consumer_faq.xml',
-              ok: true,
-              status: 200,
-              contentType: 'application/xml',
-              locCount: 500,
-              matchedCandidateCount: 1,
-              sampleMatchedUrls: [
-                'https://www.mayoclinic.org/zh-hans/healthy-lifestyle/infant-and-toddler-health/in-depth/baby-poop/art-20043980',
-              ],
-            },
+          entryDiagnostics,
+        },
+        discoveryPreflight: {
+          sourceId: 'mayo-clinic-zh',
+          ok: true,
+          reason: 'discovery_passed',
+          discovered: 1,
+          minimumDiscovered: 1,
+          sampleUrls: [
+            'https://www.mayoclinic.org/zh-hans/healthy-lifestyle/infant-and-toddler-health/in-depth/baby-poop/art-20043980',
           ],
+          entryDiagnostics,
         },
       },
     ]);
@@ -204,8 +218,44 @@ describe('authority source refresh planning', () => {
       ok: true,
       reason: 'discovery_passed',
       discovered: 2,
+      minimumDiscovered: 1,
       sampleUrls: [
         'https://www.chinacdc.cn/jkkp/yyjk/rqyy/202408/t20240825_295584.html',
+      ],
+      entryDiagnostics: [
+        {
+          entryUrl: 'https://www.chinacdc.cn/jkkp/yyjk/rqyy/',
+          ok: true,
+          status: 200,
+          matchedCandidateCount: 2,
+        },
+      ],
+    });
+  });
+
+  it('blocks source refresh when discovery is below the quality floor', () => {
+    expect(evaluateAuthoritySourceDiscoveryPreflight('chinacdc-nutrition', {
+      discovered: [
+        { url: 'https://www.chinacdc.cn/jkkp/yyjk/rqyy/202408/t20240825_295584.html' },
+        { url: 'https://www.chinacdc.cn/jkkp/yyjk/rqyy/202408/t20240825_295585.html' },
+      ],
+      entryDiagnostics: [
+        {
+          entryUrl: 'https://www.chinacdc.cn/jkkp/yyjk/rqyy/',
+          ok: true,
+          status: 200,
+          matchedCandidateCount: 2,
+        },
+      ],
+    }, 2, { minimumDiscovered: 3 })).toEqual({
+      sourceId: 'chinacdc-nutrition',
+      ok: false,
+      reason: 'discovery_below_quality_floor',
+      discovered: 2,
+      minimumDiscovered: 3,
+      sampleUrls: [
+        'https://www.chinacdc.cn/jkkp/yyjk/rqyy/202408/t20240825_295584.html',
+        'https://www.chinacdc.cn/jkkp/yyjk/rqyy/202408/t20240825_295585.html',
       ],
       entryDiagnostics: [
         {
@@ -234,6 +284,7 @@ describe('authority source refresh planning', () => {
       ok: false,
       reason: 'discovery_entry_blocked',
       discovered: 0,
+      minimumDiscovered: 1,
       sampleUrls: [],
       blockedEntryUrl: 'https://www.mayoclinic.org/chinese_patient_consumer_faq.xml',
       blockedStatus: 403,
@@ -264,6 +315,7 @@ describe('authority source refresh planning', () => {
       ok: false,
       reason: 'discovery_returned_zero',
       discovered: 0,
+      minimumDiscovered: 1,
       sampleUrls: [],
       entryDiagnostics: [
         {

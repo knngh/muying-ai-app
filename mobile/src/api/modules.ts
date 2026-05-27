@@ -19,6 +19,7 @@ import type {
   TimelineContext,
   PregnancyCustomTodoCreatePayload,
   PregnancyCustomTodoUpdatePayload,
+  PregnancyDiaryImageUploadPayload,
   PregnancyDiaryPayload,
   PregnancyTodoProgressUpdatePayload,
   PregnancyWeekParams,
@@ -81,7 +82,7 @@ export interface CheckinResult {
   nextBonusPoints: number | null
 }
 
-export interface DiaryImageUploadFile {
+export interface DiaryImageUploadFile extends PregnancyDiaryImageUploadPayload {
   uri: string
   name?: string
   type?: string
@@ -207,6 +208,12 @@ export const calendarApi = {
       name: file.name || `diary-${Date.now()}.jpg`,
       type: file.type || 'image/jpeg',
     })
+    if (file.timelineKey) {
+      formData.append('timelineKey', file.timelineKey)
+    } else if (file.week) {
+      formData.append('week', String(file.week))
+    }
+    formData.append('imageUrls', JSON.stringify(file.imageUrls || []))
 
     return api.post<{ url: string; filename: string }>('/calendar/diaries/images', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },

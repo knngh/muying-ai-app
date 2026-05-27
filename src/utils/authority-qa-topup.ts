@@ -287,11 +287,6 @@ function normalizeAuthorityRecord(
   };
 }
 
-function hasChildMedicationOrSymptomSignal(text: string): boolean {
-  return /儿童|孩子|宝宝|婴儿|婴幼儿|幼儿|小儿|child|children|infant|baby|pediatric|paediatric/i.test(text)
-    && /用药|药物|药品|退烧药|退热药|止痛|疼痛|发热|发烧|高热|布洛芬|对乙酰氨基酚|medicine|medication|drug|ibuprofen|acetaminophen|paracetamol|pain|fever/i.test(text);
-}
-
 function hasExplicitPregnancyTitleSignal(title: string): boolean {
   return /孕期|孕妇|怀孕|妊娠|prenatal|pregnan/i.test(title);
 }
@@ -596,22 +591,6 @@ function extractTopupTitle(record: QAPair): string {
 
   const fromReference = record.references?.find((reference) => reference.title)?.title;
   return (fromReference || '').trim();
-}
-
-function buildTopupSourceText(record: QAPair): string {
-  return [
-    record.question,
-    record.source_url,
-    record.url,
-    record.original_id,
-    record.metadata?.generatedFromAuthorityId,
-    ...(record.references || []).flatMap((reference) => [
-      reference.title,
-      reference.url,
-      reference.sourceOrg,
-      reference.org,
-    ]),
-  ].filter(Boolean).join(' ');
 }
 
 function buildTopupSourceIdentityText(record: QAPair): string {

@@ -8,6 +8,7 @@ import {
   isOffTopicGovPolicyTitle,
   shouldPublishDocument,
 } from '../src/services/authority-adapters/base.adapter';
+import { getAuthorityKnowledgeDropReason } from '../src/utils/knowledge-content-guard';
 
 describe('authority content guards', () => {
   it('keeps explicit pregnancy week guides on the pregnancy timeline only', () => {
@@ -637,5 +638,106 @@ describe('authority content guards', () => {
     expect(quality.decision).toBe('pass');
     expect(quality.ocrCandidate).toBe(true);
     expect(shouldPublishDocument(document)).toBe('rejected');
+  });
+
+  it('rejects Chinese official training, meeting, and activity pages from guidance sources', () => {
+    expect(
+      shouldFilterAuthoritySourceUrl({
+        source_id: 'mchscn-monitoring',
+        source_url: 'https://www.mchscn.cn/MaternalSafetyMonitoring-26/682.html',
+        question: '全国妇幼卫生监测培训班在京举办',
+      }),
+    ).toBe(true);
+    expect(
+      shouldFilterAuthoritySourceUrl({
+        source_id: 'chinanutri-maternal-child',
+        source_url: 'https://www.chinanutri.cn/xwzx_238/xyxw/202505/t20250519_306901.html',
+        question: '营养所工会举办妇女节活动',
+      }),
+    ).toBe(true);
+    expect(
+      shouldFilterAuthoritySourceUrl({
+        source_id: 'ncwch-maternal-child-health',
+        source_url: 'https://www.ncwchnhc.org.cn/content/content.html?id=7313481602116358144',
+        question: '体重管理指导原则（2024年版）—孕前、孕期及产后女性体重管理',
+      }),
+    ).toBe(false);
+
+    const document = {
+      sourceId: 'ncwch-maternal-child-health',
+      sourceOrg: '国家卫生健康委妇幼健康中心',
+      sourceUrl: 'https://www.ncwchnhc.org.cn/content/content.html?id=7374642712508633088',
+      sourceLanguage: 'zh' as const,
+      sourceLocale: 'zh-CN',
+      title: '妇幼健康服务能力提升培训班通知',
+      updatedAt: undefined,
+      audience: '孕妇',
+      topic: 'pregnancy',
+      region: 'CN',
+      riskLevelDefault: 'green' as const,
+      summary: '培训班报名通知和会议安排。',
+      contentText: '本通知介绍培训班报名、会议安排、参会人员和报到地点。'.repeat(20),
+      metadataJson: {},
+      publishStatus: 'draft' as const,
+    };
+
+    expect(evaluateAuthorityDocumentQuality(document).reasons).toContain('official_chinese_activity_or_admin');
+    expect(shouldPublishDocument(document)).toBe('rejected');
+    expect(getAuthorityKnowledgeDropReason({
+      sourceId: document.sourceId,
+      sourceOrg: document.sourceOrg,
+      sourceUrl: document.sourceUrl,
+      question: document.title,
+      summary: document.summary,
+      answer: document.contentText,
+    })).toBe('official_chinese_activity_or_admin');
+  });
+
+  it('rejects Chinese official navigation shells and admin form pages from guidance sources', () => {
+    const cnsocShell = {
+      sourceId: 'cnsoc-dietary-guidelines',
+      sourceOrg: '中国营养学会/中国居民膳食指南',
+      sourceUrl: 'http://dg.cnsoc.org/article/04/hjgfxca3Ra69sKbvqDETbg.html',
+      sourceLanguage: 'zh' as const,
+      sourceLocale: 'zh-CN',
+      title: '《中国孕妇、乳母膳食指南（2022）》核心信息',
+      updatedAt: undefined,
+      audience: '孕妇',
+      topic: 'feeding',
+      region: 'CN',
+      riskLevelDefault: 'green' as const,
+      summary: '核心信息。',
+      contentText: '宣传和培训 2022版平衡膳食八准则 2022版解读工作会议国际交流其它中国居民膳食指南（2022） 联系我们地址： 北京市西城区广安门内大街6号 电话：010-83554781 传真：010-83554780 E-mail：dg@cnsoc.org',
+      metadataJson: {},
+      publishStatus: 'draft' as const,
+    };
+    expect(evaluateAuthorityDocumentQuality(cnsocShell).reasons).toContain('official_chinese_navigation_shell');
+    expect(shouldPublishDocument(cnsocShell)).toBe('rejected');
+    expect(getAuthorityKnowledgeDropReason({
+      sourceId: cnsocShell.sourceId,
+      question: cnsocShell.title,
+      summary: cnsocShell.summary,
+      answer: cnsocShell.contentText,
+    })).toBe('official_chinese_navigation_shell');
+
+    const mchscnFormPage = {
+      sourceId: 'mchscn-monitoring',
+      sourceOrg: '中国妇幼健康监测系统',
+      sourceUrl: 'https://www.mchscn.cn/ChildHealthMonitoring-27/684.html',
+      sourceLanguage: 'zh' as const,
+      sourceLocale: 'zh-CN',
+      title: '儿童营养监测表卡及项目数标注（2025）',
+      updatedAt: undefined,
+      audience: '婴幼儿家长',
+      topic: 'nutrition',
+      region: 'CN',
+      riskLevelDefault: 'green' as const,
+      summary: '表卡项目数说明。',
+      contentText: '儿童营养监测表卡项目数说明，包含系统填报字段和表卡项目数量。'.repeat(8),
+      metadataJson: {},
+      publishStatus: 'draft' as const,
+    };
+    expect(evaluateAuthorityDocumentQuality(mchscnFormPage).reasons).toContain('official_chinese_admin_or_form_page');
+    expect(shouldPublishDocument(mchscnFormPage)).toBe('rejected');
   });
 });

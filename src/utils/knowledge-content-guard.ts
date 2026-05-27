@@ -1,4 +1,5 @@
 import { getMedicalPlatformQualityDropReason } from './medical-platform-quality';
+import { getOfficialChineseAuthorityQualityDropReason } from './official-chinese-authority-quality';
 
 export interface KnowledgeGuardRecord {
   title?: string;
@@ -211,6 +212,20 @@ export function getAuthorityKnowledgeDropReason(record: KnowledgeGuardRecord): s
   });
   if (medicalPlatformReason) {
     return medicalPlatformReason;
+  }
+
+  const officialChineseReason = getOfficialChineseAuthorityQualityDropReason({
+    title: getQuestion(record),
+    summary: record.summary,
+    answer: record.answer,
+    content: record.content,
+    contentText: record.contentText,
+    sourceId: record.sourceId || record.source_id,
+    sourceOrg: record.sourceOrg || record.source_org,
+    source: record.source,
+  });
+  if (officialChineseReason) {
+    return officialChineseReason;
   }
 
   return null;

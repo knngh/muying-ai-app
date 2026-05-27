@@ -87,6 +87,27 @@ export interface KnowledgeDailyOpsSourceRefreshResult {
       }>;
       error?: string;
     };
+    discoveryPreflight?: {
+      ok?: boolean;
+      reason?: string;
+      discovered?: number;
+      minimumDiscovered?: number;
+      sampleUrls?: string[];
+      blockedEntryUrl?: string;
+      blockedStatus?: number | null;
+      entryDiagnostics?: Array<{
+        entryUrl?: string;
+        ok?: boolean;
+        status?: number | null;
+        contentType?: string | null;
+        locCount?: number;
+        nestedSitemapCount?: number;
+        matchedCandidateCount?: number;
+        paginationCandidateCount?: number;
+        sampleMatchedUrls?: string[];
+        error?: string;
+      }>;
+    };
   }>;
 }
 
@@ -307,8 +328,22 @@ function buildNextActions(input: BuildKnowledgeDailyOpsReportInput): string[] {
   const coverageRate = input.knowledgeReport?.coverage?.coverageRate ?? 100;
   const blockedExternalSources = resolveBlockedExternalSources(input);
   const blockedExternalSourceIds = new Set(blockedExternalSources.map((source) => source.sourceId));
+  const sourceSummariesById = new Map((input.sourceRefreshResult?.summaries || [])
+    .filter((summary) => summary.sourceId)
+    .map((summary) => [summary.sourceId!, summary]));
   const refreshableSources = (input.sourceRefreshResult?.selectedSources || [])
-    .filter((source) => source.sourceId && !blockedExternalSourceIds.has(source.sourceId));
+    .filter((source) => {
+      if (!source.sourceId || blockedExternalSourceIds.has(source.sourceId)) {
+        return false;
+      }
+
+      const summary = sourceSummariesById.get(source.sourceId);
+      if (!summary?.discoveryPreflight) {
+        return true;
+      }
+
+      return summary.discoveryPreflight.ok !== false;
+    });
   const aiHealth = input.aiProviderHealthReport;
 
   if (failedCommands.length > 0) {
@@ -337,16 +372,25 @@ function buildNextActions(input: BuildKnowledgeDailyOpsReportInput): string[] {
       continue;
     }
 
-    const blockedEntry = (probe.entryDiagnostics || []).find((entry) => entry.ok === false && entry.status);
-    if (blockedEntry?.entryUrl) {
-      if (!blockedExternalSourceIds.has(sourceId)) {
-        actions.push(`${sourceId} discovery entry is blocked upstream (${blockedEntry.status}): ${blockedEntry.entryUrl}`);
+    const preflight = summary.discoveryPreflight;
+    if (preflight?.ok === false) {
+      if (preflight.reason === 'discovery_below_quality_floor') {
+        const minimumDiscovered = preflight.minimumDiscovered || 1;
+        actions.push(`${sourceId} discovery probe found ${preflight.discovered || 0} candidate URL(s), below quality floor ${minimumDiscovered}; improve source discovery before applying refresh.`);
+      } else if (preflight.reason === 'discovery_returned_zero') {
+        actions.push(`${sourceId} discovery returned zero candidate URL(s); improve source discovery before applying refresh.`);
       }
       continue;
     }
 
     if (Number(probe.discovered || 0) > 0) {
       actions.push(`${sourceId} discovery probe found ${probe.discovered} candidate URL(s); safe to run a controlled source refresh for that source.`);
+      continue;
+    }
+
+    const blockedEntry = (probe.entryDiagnostics || []).find((entry) => entry.ok === false && entry.status);
+    if (blockedEntry?.entryUrl && !blockedExternalSourceIds.has(sourceId)) {
+      actions.push(`${sourceId} discovery entry is blocked upstream (${blockedEntry.status}): ${blockedEntry.entryUrl}`);
     }
   }
   if (removedTranslations > 0 && input.translationCleanupReport?.dryRun !== false) {

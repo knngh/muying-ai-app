@@ -1,3 +1,5 @@
+import { getOfficialChineseAuthorityQualityDropReason } from './official-chinese-authority-quality';
+
 interface AuthoritySourceUrlRecord {
   source_id?: string;
   source_url?: string;
@@ -68,6 +70,15 @@ function isOutOfScopeChineseAuthority(record: AuthoritySourceUrlRecord, url: str
 
   if (!isChineseAuthority) {
     return false;
+  }
+
+  if (getOfficialChineseAuthorityQualityDropReason({
+    sourceId: record.source_id,
+    sourceOrg: record.source_org,
+    source: record.source,
+    title: record.title || record.question,
+  })) {
+    return true;
   }
 
   if (isNhcSource(record, url) && /nhc-fys|妇幼健康司|儿童青少年.{0,8}(?:健康|五健)|五健/u.test(text)) {

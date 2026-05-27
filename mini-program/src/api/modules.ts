@@ -20,6 +20,7 @@ import type {
   TimelineContext,
   PregnancyCustomTodoCreatePayload,
   PregnancyCustomTodoUpdatePayload,
+  PregnancyDiaryImageUploadPayload,
   PregnancyDiaryPayload,
   PregnancyTodoProgressUpdatePayload,
   PregnancyWeekParams,
@@ -132,8 +133,12 @@ export const calendarApi = {
       .then(res => (res as { list: PregnancyDiary[] }).list),
   saveDiary: (data: PregnancyDiaryPayload) =>
     api.put<PregnancyDiary>('/calendar/diaries', data),
-  uploadDiaryImage: (filePath: string) =>
-    api.upload<{ url: string; filename: string }>('/calendar/diaries/images', filePath),
+  uploadDiaryImage: (filePath: string, data: PregnancyDiaryImageUploadPayload) =>
+    api.upload<{ url: string; filename: string }>('/calendar/diaries/images', filePath, 'file', {
+      week: data.week === undefined ? undefined : String(data.week),
+      timelineKey: data.timelineKey,
+      imageUrls: JSON.stringify(data.imageUrls || []),
+    }),
   deleteDiary: (period: number | PregnancyWeekParams) => (
     typeof period === 'number'
       ? api.delete<{ week: number }>(`/calendar/diaries/${period}`)

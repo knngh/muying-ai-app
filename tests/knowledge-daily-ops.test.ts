@@ -173,6 +173,116 @@ describe('knowledge daily ops report', () => {
     ]));
   });
 
+  it('keeps sources with candidates refreshable even when one entry diagnostic is blocked', () => {
+    const report = buildKnowledgeDailyOpsReport({
+      generatedAt: '2026-05-12T00:00:00.000Z',
+      applyFixes: false,
+      commands: [
+        { name: 'low_coverage_source_refresh', command: 'npm run ops:authority:refresh-low-coverage', ok: true, exitCode: 0, durationMs: 100 },
+      ],
+      sourceRefreshResult: {
+        dryRun: true,
+        selectedSources: [
+          { sourceId: 'mchscn-monitoring', count: 0, minimumPublishedRecords: 10, status: 'missing' },
+        ],
+        summaries: [
+          {
+            sourceId: 'mchscn-monitoring',
+            skipped: true,
+            reason: 'dry_run',
+            discoveryProbe: {
+              ok: true,
+              discovered: 36,
+              sampleUrls: [
+                'https://www.mchscn.cn/details/monitoring-1.html',
+              ],
+              entryDiagnostics: [
+                {
+                  entryUrl: 'https://www.mchscn.cn/missing.html',
+                  ok: false,
+                  status: 404,
+                  contentType: 'text/html',
+                },
+                {
+                  entryUrl: 'https://www.mchscn.cn/monitoring/',
+                  ok: true,
+                  status: 200,
+                  matchedCandidateCount: 36,
+                },
+              ],
+            },
+            discoveryPreflight: {
+              ok: true,
+              reason: 'discovery_passed',
+              discovered: 36,
+              minimumDiscovered: 3,
+              sampleUrls: [
+                'https://www.mchscn.cn/details/monitoring-1.html',
+              ],
+            },
+          },
+        ],
+      },
+    });
+
+    expect(report.blockedExternalSources).toEqual([]);
+    expect(report.nextActions).toEqual(expect.arrayContaining([
+      'Review low-coverage source dry-run output, then run KNOWLEDGE_DAILY_APPLY_FIXES=true npm run ops:knowledge:daily when ready.',
+      'mchscn-monitoring discovery probe found 36 candidate URL(s); safe to run a controlled source refresh for that source.',
+    ]));
+    expect(report.nextActions).not.toEqual(expect.arrayContaining([
+      'mchscn-monitoring discovery entry is blocked upstream (404): https://www.mchscn.cn/missing.html',
+    ]));
+  });
+
+  it('does not recommend applying a source refresh when discovery is below the quality floor', () => {
+    const report = buildKnowledgeDailyOpsReport({
+      generatedAt: '2026-05-12T01:00:00.000Z',
+      applyFixes: false,
+      commands: [
+        { name: 'low_coverage_source_refresh', command: 'npm run ops:authority:refresh-low-coverage', ok: true, exitCode: 0, durationMs: 100 },
+      ],
+      sourceRefreshResult: {
+        dryRun: true,
+        selectedSources: [
+          { sourceId: 'chinacdc-nutrition', count: 1, minimumPublishedRecords: 10, status: 'low' },
+        ],
+        summaries: [
+          {
+            sourceId: 'chinacdc-nutrition',
+            skipped: true,
+            reason: 'dry_run',
+            discoveryProbe: {
+              ok: true,
+              discovered: 1,
+              sampleUrls: [
+                'https://www.chinacdc.cn/jkkp/yyjk/rqyy/202408/t20240825_295584.html',
+              ],
+            },
+            discoveryPreflight: {
+              ok: false,
+              reason: 'discovery_below_quality_floor',
+              discovered: 1,
+              minimumDiscovered: 3,
+              sampleUrls: [
+                'https://www.chinacdc.cn/jkkp/yyjk/rqyy/202408/t20240825_295584.html',
+              ],
+            },
+          },
+        ],
+      },
+    });
+
+    expect(report.status).toBe('attention');
+    expect(report.nextActions).toEqual([
+      'chinacdc-nutrition discovery probe found 1 candidate URL(s), below quality floor 3; improve source discovery before applying refresh.',
+    ]);
+    expect(report.nextActions).not.toEqual(expect.arrayContaining([
+      'Review low-coverage source dry-run output, then run KNOWLEDGE_DAILY_APPLY_FIXES=true npm run ops:knowledge:daily when ready.',
+      'chinacdc-nutrition discovery probe found 1 candidate URL(s); safe to run a controlled source refresh for that source.',
+    ]));
+  });
+
   it('keeps Mayo preflight failures downgraded during apply fixes runs', () => {
     const report = buildKnowledgeDailyOpsReport({
       generatedAt: '2026-05-10T05:30:00.000Z',

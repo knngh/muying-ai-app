@@ -30,6 +30,7 @@ export interface AuthoritySourceDryRunSummary {
     entryDiagnostics?: AuthoritySourceDiscoveryEntryDiagnostic[];
     error?: string;
   };
+  discoveryPreflight?: AuthoritySourceDiscoveryPreflight;
 }
 
 export interface AuthoritySourceDiscoveryEntryDiagnostic {
@@ -53,8 +54,9 @@ export interface AuthoritySourceDiscoveryDiagnosis {
 export interface AuthoritySourceDiscoveryPreflight {
   sourceId: string;
   ok: boolean;
-  reason: 'discovery_passed' | 'discovery_entry_blocked' | 'discovery_returned_zero';
+  reason: 'discovery_passed' | 'discovery_entry_blocked' | 'discovery_returned_zero' | 'discovery_below_quality_floor';
   discovered: number;
+  minimumDiscovered?: number;
   sampleUrls: string[];
   blockedEntryUrl?: string;
   blockedStatus?: number | null;
@@ -64,11 +66,13 @@ export interface AuthoritySourceDiscoveryPreflight {
 export interface BuildAuthoritySourceDryRunSummariesOptions {
   probeDiscovery?: boolean;
   sampleLimit?: number;
+  minimumDiscovered?: number;
   discover?: (sourceId: string) => Promise<Array<{ url?: string }>>;
   diagnoseDiscovery?: (sourceId: string) => Promise<AuthoritySourceDiscoveryDiagnosis>;
 }
 
 const DEFAULT_REFRESH_STATUSES: AuthoritySourceRefreshStatus[] = ['missing', 'low'];
+export const DEFAULT_AUTHORITY_SOURCE_MIN_DISCOVERY_CANDIDATES = 3;
 
 function normalizeSourceId(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
@@ -132,22 +136,39 @@ export function evaluateAuthoritySourceDiscoveryPreflight(
   sourceId: string,
   diagnosis: AuthoritySourceDiscoveryDiagnosis,
   sampleLimit = 3,
+  options: { minimumDiscovered?: number } = {},
 ): AuthoritySourceDiscoveryPreflight {
   const limit = Number.isFinite(sampleLimit) && Number(sampleLimit) >= 0
     ? Math.floor(Number(sampleLimit))
     : 3;
+  const minimumDiscovered = Number.isFinite(options.minimumDiscovered) && Number(options.minimumDiscovered) > 0
+    ? Math.floor(Number(options.minimumDiscovered))
+    : 1;
   const sampleUrls = diagnosis.discovered
     .map((item) => item.url)
     .filter((url): url is string => typeof url === 'string' && url.length > 0)
     .slice(0, limit);
   const blockedEntry = diagnosis.entryDiagnostics.find((entry) => entry.ok === false && entry.status);
 
-  if (sampleUrls.length > 0) {
+  if (sampleUrls.length > 0 && diagnosis.discovered.length >= minimumDiscovered) {
     return {
       sourceId,
       ok: true,
       reason: 'discovery_passed',
       discovered: diagnosis.discovered.length,
+      minimumDiscovered,
+      sampleUrls,
+      entryDiagnostics: diagnosis.entryDiagnostics,
+    };
+  }
+
+  if (sampleUrls.length > 0) {
+    return {
+      sourceId,
+      ok: false,
+      reason: 'discovery_below_quality_floor',
+      discovered: diagnosis.discovered.length,
+      minimumDiscovered,
       sampleUrls,
       entryDiagnostics: diagnosis.entryDiagnostics,
     };
@@ -159,6 +180,7 @@ export function evaluateAuthoritySourceDiscoveryPreflight(
       ok: false,
       reason: 'discovery_entry_blocked',
       discovered: diagnosis.discovered.length,
+      minimumDiscovered,
       sampleUrls,
       blockedEntryUrl: blockedEntry.entryUrl,
       blockedStatus: blockedEntry.status,
@@ -171,6 +193,7 @@ export function evaluateAuthoritySourceDiscoveryPreflight(
     ok: false,
     reason: 'discovery_returned_zero',
     discovered: diagnosis.discovered.length,
+    minimumDiscovered,
     sampleUrls,
     entryDiagnostics: diagnosis.entryDiagnostics,
   };
@@ -187,6 +210,9 @@ export async function buildAuthoritySourceDryRunSummaries(
   const sampleLimit = Number.isFinite(options.sampleLimit) && Number(options.sampleLimit) >= 0
     ? Math.floor(Number(options.sampleLimit))
     : 5;
+  const minimumDiscovered = Number.isFinite(options.minimumDiscovered) && Number(options.minimumDiscovered) > 0
+    ? Math.floor(Number(options.minimumDiscovered))
+    : DEFAULT_AUTHORITY_SOURCE_MIN_DISCOVERY_CANDIDATES;
 
   const summaries: AuthoritySourceDryRunSummary[] = [];
   for (const source of selectedSources) {
@@ -212,6 +238,9 @@ export async function buildAuthoritySourceDryRunSummaries(
         };
         if (diagnosis?.entryDiagnostics) {
           summary.discoveryProbe.entryDiagnostics = diagnosis.entryDiagnostics;
+          summary.discoveryPreflight = evaluateAuthoritySourceDiscoveryPreflight(source.sourceId, diagnosis, sampleLimit, {
+            minimumDiscovered,
+          });
         }
       } catch (error) {
         summary.discoveryProbe = {

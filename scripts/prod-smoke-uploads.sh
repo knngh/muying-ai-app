@@ -98,6 +98,8 @@ echo "${TMP_IMAGE}"
 echo "[4/7] upload image"
 UPLOAD_RESPONSE="$(curl -fsS "${API_BASE}/calendar/diaries/images" \
   -H "Authorization: Bearer ${TOKEN}" \
+  -F "timelineKey=${SMOKE_KEY}" \
+  -F "imageUrls=[]" \
   -F "file=@${TMP_IMAGE};type=image/jpeg")"
 UPLOAD_URL="$(printf '%s\n' "${UPLOAD_RESPONSE}" | jq -r '.data.url')"
 printf '%s\n' "${UPLOAD_RESPONSE}" | jq '{code,message,data}'

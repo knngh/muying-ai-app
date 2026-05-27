@@ -5,6 +5,7 @@ import { diagnoseAuthorityUrlDiscovery, syncAuthoritySource } from '../services/
 import { getAuthoritySourceConfig } from '../config/authority-sources';
 import {
   buildAuthoritySourceDryRunSummaries,
+  DEFAULT_AUTHORITY_SOURCE_MIN_DISCOVERY_CANDIDATES,
   evaluateAuthoritySourceDiscoveryPreflight,
   parseAuthoritySourceIdList,
   selectAuthoritySourcesForRefresh,
@@ -22,6 +23,16 @@ const PROBE_SAMPLE_LIMIT = process.env.AUTHORITY_SOURCE_DRY_RUN_SAMPLE_LIMIT
   ? Number(process.env.AUTHORITY_SOURCE_DRY_RUN_SAMPLE_LIMIT)
   : undefined;
 const PREFLIGHT_DISCOVERY = process.env.AUTHORITY_SOURCE_PREFLIGHT_DISCOVERY !== 'false';
+
+function parsePositiveInteger(value: string | undefined, fallback: number): number {
+  const parsed = value ? Number(value) : NaN;
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
+}
+
+const MIN_DISCOVERY_CANDIDATES = parsePositiveInteger(
+  process.env.AUTHORITY_SOURCE_MIN_DISCOVERY_CANDIDATES,
+  DEFAULT_AUTHORITY_SOURCE_MIN_DISCOVERY_CANDIDATES,
+);
 
 function readReport(filePath: string): AuthoritySourceRefreshReport {
   if (!fs.existsSync(filePath)) {
@@ -60,6 +71,7 @@ async function main() {
     summaries.push(...await buildAuthoritySourceDryRunSummaries(selectedSources, {
       probeDiscovery: PROBE_DISCOVERY,
       sampleLimit: PROBE_SAMPLE_LIMIT,
+      minimumDiscovered: MIN_DISCOVERY_CANDIDATES,
       diagnoseDiscovery: async (sourceId) => {
         const sourceConfig = getAuthoritySourceConfig(sourceId);
         if (!sourceConfig) {
@@ -88,7 +100,9 @@ async function main() {
       const preflight = evaluateAuthoritySourceDiscoveryPreflight(sourceId, {
         discovered: diagnosis.discovered,
         entryDiagnostics: diagnosis.entryDiagnostics,
-      }, PROBE_SAMPLE_LIMIT);
+      }, PROBE_SAMPLE_LIMIT, {
+        minimumDiscovered: MIN_DISCOVERY_CANDIDATES,
+      });
 
       if (!preflight.ok) {
         summaries.push({

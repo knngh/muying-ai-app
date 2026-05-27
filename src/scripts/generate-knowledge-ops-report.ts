@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import {
   buildKnowledgeOpsReport,
+  parseKnowledgeWatchedSourceIds,
   type KnowledgeOpsCoverageAudit,
   type KnowledgeOpsFileStat,
   type KnowledgeOpsQaRecord,
@@ -13,6 +14,7 @@ import {
 const OUTPUT_FILE = process.env.OUTPUT_FILE || path.join(process.cwd(), 'tmp', 'knowledge-ops-report.json');
 const SAMPLE_LIMIT = Math.max(1, Number(process.env.SAMPLE_LIMIT || 20));
 const PROMOTION_CANDIDATE_LIMIT = Math.max(1, Number(process.env.PROMOTION_CANDIDATE_LIMIT || 100));
+const WATCHED_SOURCE_IDS = parseKnowledgeWatchedSourceIds(process.env.WATCHED_SOURCE_IDS);
 const WATCHED_SOURCE_MINIMUM_RECORDS = process.env.WATCHED_SOURCE_MINIMUM_RECORDS
   ? Number(process.env.WATCHED_SOURCE_MINIMUM_RECORDS)
   : undefined;
@@ -127,6 +129,7 @@ async function main() {
     {
       sampleLimit: SAMPLE_LIMIT,
       promotionCandidateLimit: PROMOTION_CANDIDATE_LIMIT,
+      watchedSourceIds: WATCHED_SOURCE_IDS,
       watchedSourceMinimumRecords: WATCHED_SOURCE_MINIMUM_RECORDS,
       fileStats: {
         qa: describeJsonFile(files.qa),

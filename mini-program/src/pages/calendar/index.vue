@@ -586,7 +586,10 @@ const isPostpartumTimeline = computed(() => (
 ))
 const weeksList = computed(() => (isPostpartumTimeline.value ? postpartumTimelineItems : pregnancyTimelineItems))
 const selectedPeriodTitle = computed(() => `${selectedTimelineItem.value.title}`)
-const selectedTimelineParams = computed(() => ({ timelineKey: selectedTimelineItem.value.timelineKey }))
+const selectedTimelineParams = computed(() => ({
+  week: selectedTimelineItem.value.storageWeek,
+  timelineKey: selectedTimelineItem.value.timelineKey,
+}))
 const heroMetricLabel = computed(() => selectedTimelineItem.value.stage === 'postpartum' ? '宝宝阶段' : '相当于')
 const heroMetricDescLabel = computed(() => selectedTimelineItem.value.stage === 'postpartum' ? '定位依据' : '体重约')
 const guideTabLabel = computed(() => selectedTimelineItem.value.stage === 'postpartum' ? '成长时间线' : '孕周日历')
@@ -955,7 +958,10 @@ const uploadDiaryImages = async (filePaths: string[]) => {
     const nextUrls = [...diaryImageUrls.value]
     for (const filePath of filePaths) {
       if (nextUrls.length >= MAX_DIARY_IMAGES) break
-      const result = await calendarApi.uploadDiaryImage(filePath)
+      const result = await calendarApi.uploadDiaryImage(filePath, {
+        ...selectedTimelineParams.value,
+        imageUrls: nextUrls,
+      })
       nextUrls.push(result.url)
       diaryImageUrls.value = [...nextUrls]
     }
@@ -965,6 +971,23 @@ const uploadDiaryImages = async (filePaths: string[]) => {
   } finally {
     isUploadingDiaryImage.value = false
   }
+}
+
+type ChooseMediaSource = 'camera' | 'album'
+
+const chooseImageFallback = (source: ChooseMediaSource, count: number) => {
+  uni.chooseImage({
+    count,
+    sizeType: ['compressed'],
+    sourceType: [source],
+    success: (res) => {
+      const rawFilePaths = Array.isArray(res.tempFilePaths)
+        ? res.tempFilePaths
+        : [res.tempFilePaths].filter(Boolean)
+      const filePaths = rawFilePaths.map((item: string) => String(item)).filter(Boolean)
+      void uploadDiaryImages(filePaths)
+    },
+  })
 }
 
 const chooseDiaryImages = (source: 'camera' | 'album') => {
@@ -977,18 +1000,12 @@ const chooseDiaryImages = (source: 'camera' | 'album') => {
     return
   }
 
-  uni.chooseImage({
-    count: remaining,
-    sizeType: ['compressed'],
-    sourceType: [source],
-    success: (res) => {
-      const rawFilePaths = Array.isArray(res.tempFilePaths)
-        ? res.tempFilePaths
-        : [res.tempFilePaths].filter(Boolean)
-      const filePaths = rawFilePaths.map((item: string) => String(item)).filter(Boolean)
-      void uploadDiaryImages(filePaths)
-    },
-  })
+  if (source === 'camera') {
+    chooseImageFallback('camera', 1)
+    return
+  }
+
+  chooseImageFallback('album', remaining)
 }
 
 const removeDiaryImage = (index: number) => {

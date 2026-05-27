@@ -13,6 +13,10 @@ import { buildAuthorityDisplayTags } from '../utils/authority-metadata';
 import { buildStableAuthorityId } from '../utils/authority-identity';
 import { isIndexLikeAuthorityUrl, shouldFilterAuthoritySourceUrl } from '../utils/authority-source-url';
 import { getAuthorityKnowledgeDropReason } from '../utils/knowledge-content-guard';
+import {
+  isAuthorityAiQualityReviewExportable,
+  reviewAuthorityDocumentQualityWithAiIfNeeded,
+} from './authority-ai-quality-review.service';
 import { normalizeWithAuthorityAdapter } from './authority-adapters';
 import { detectAudience, detectTopic, extractTitle, sanitizeAuthorityTitle, stripHtml } from './authority-adapters/base.adapter';
 
@@ -1754,9 +1758,13 @@ export async function syncAuthoritySource(
         continue;
       }
 
-      await persistNormalizedAuthorityDocument(normalized);
+      const reviewed = await reviewAuthorityDocumentQualityWithAiIfNeeded(normalized, raw);
+      await persistNormalizedAuthorityDocument(reviewed);
       summary.normalized += 1;
-      if (normalized.publishStatus === 'published' || normalized.publishStatus === 'review') {
+      if (
+        (reviewed.publishStatus === 'published' || reviewed.publishStatus === 'review')
+        && isAuthorityAiQualityReviewExportable(reviewed.metadataJson)
+      ) {
         summary.published += 1;
       }
     } catch (error) {
@@ -1828,25 +1836,29 @@ export async function exportPublishedAuthoritySnapshot(): Promise<void> {
      ORDER BY COALESCE(updated_at, created_at) DESC, id DESC`
   );
 
-  const exportableRows = rows.filter((row) => shouldExportAuthoritySnapshotDocument({
-    publishStatus: row.publishStatus as NormalizedAuthorityDocument['publishStatus'],
-    riskLevelDefault: row.riskLevelDefault as NormalizedAuthorityDocument['riskLevelDefault'],
-  })).filter((row) => !shouldFilterAuthoritySourceUrl({
-    source_id: row.sourceId,
-    source_org: row.sourceOrg,
-    source_url: row.sourceUrl,
-    title: row.title,
-    question: row.title,
-  })).filter((row) => !getAuthorityKnowledgeDropReason({
-    sourceId: row.sourceId,
-    sourceOrg: row.sourceOrg,
-    sourceUrl: row.sourceUrl,
-    title: row.title,
-    question: row.title,
-    summary: row.summary,
-    answer: row.contentText,
-    updatedAt: row.updatedAt?.toISOString() || row.createdAt.toISOString(),
-  }));
+  const exportableRows = rows
+    .filter((row) => shouldExportAuthoritySnapshotDocument({
+      publishStatus: row.publishStatus as NormalizedAuthorityDocument['publishStatus'],
+      riskLevelDefault: row.riskLevelDefault as NormalizedAuthorityDocument['riskLevelDefault'],
+    }))
+    .filter((row) => isAuthorityAiQualityReviewExportable(row.metadataJson))
+    .filter((row) => !shouldFilterAuthoritySourceUrl({
+      source_id: row.sourceId,
+      source_org: row.sourceOrg,
+      source_url: row.sourceUrl,
+      title: row.title,
+      question: row.title,
+    }))
+    .filter((row) => !getAuthorityKnowledgeDropReason({
+      sourceId: row.sourceId,
+      sourceOrg: row.sourceOrg,
+      sourceUrl: row.sourceUrl,
+      title: row.title,
+      question: row.title,
+      summary: row.summary,
+      answer: row.contentText,
+      updatedAt: row.updatedAt?.toISOString() || row.createdAt.toISOString(),
+    }));
 
   const payload = exportableRows.map((row, index) => {
     const cleanedTitle = sanitizeAuthorityTitle(row.title);

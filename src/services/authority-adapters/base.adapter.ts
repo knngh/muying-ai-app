@@ -1,6 +1,7 @@
 import type { AuthorityRawDocument, NormalizedAuthorityDocument } from '../authority-sync.service';
 import { OFFICIAL_AUTHORITY_SOURCE_IDS, type AuthoritySourceConfig } from '../../config/authority-sources';
 import { getMedicalPlatformQualityDropReason } from '../../utils/medical-platform-quality';
+import { getOfficialChineseAuthorityQualityDropReason } from '../../utils/official-chinese-authority-quality';
 
 export interface AuthorityDocumentAdapter {
   id: string;
@@ -516,6 +517,17 @@ export function evaluateAuthorityDocumentQuality(document: NormalizedAuthorityDo
   const govPolicyReason = isOffTopicGovPolicyTitle(title, document.sourceId);
   if (govPolicyReason) {
     reasons.push(govPolicyReason);
+  }
+
+  const officialChineseReason = getOfficialChineseAuthorityQualityDropReason({
+    sourceId: document.sourceId,
+    sourceOrg: document.sourceOrg,
+    title: document.title,
+    summary: document.summary,
+    contentText: document.contentText,
+  });
+  if (officialChineseReason) {
+    reasons.push(officialChineseReason);
   }
 
   const sensitivityReason = isHighRiskOrClickbaitTitle(title);

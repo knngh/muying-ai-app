@@ -129,7 +129,23 @@ export interface KnowledgeOpsPromotionQuestionCandidate {
   };
 }
 
-const DEFAULT_WATCHED_SOURCE_IDS = ['mayo-clinic-zh', 'chinacdc-nutrition'];
+export const DEFAULT_WATCHED_SOURCE_IDS = [
+  'mayo-clinic-zh',
+  'msd-manuals-cn',
+  'nhc-fys',
+  'nhc-rkjt',
+  'chinacdc-immunization',
+  'chinacdc-nutrition',
+  'govcn-muying',
+  'govcn-jiedu-muying',
+  'ndcpa-immunization',
+  'ndcpa-public-health',
+  'ncwch-maternal-child-health',
+  'mchscn-monitoring',
+  'cnsoc-dietary-guidelines',
+  'chinanutri-maternal-child',
+  'cma-kepu-maternal-child',
+];
 const DEFAULT_WATCHED_SOURCE_MINIMUM_RECORDS = 10;
 const DEFAULT_PROMOTION_CANDIDATE_LIMIT = 100;
 const AUTHORITY_SOURCE_PATTERN = /who\.int|cdc\.gov|healthychildren\.org|acog\.org|mayoclinic\.org|msdmanuals\.cn|nhs\.uk|nih\.gov|fda\.gov|nhc\.gov\.cn|chinacdc\.cn|ndcpa\.gov\.cn|gov\.cn|who|cdc|aap|acog|mayo|nhs|卫健委|疾控|中国政府网|国家疾病预防控制局/iu;
@@ -195,6 +211,21 @@ function normalizePositiveInteger(value: unknown, fallback: number): number {
 
 function normalizeKey(value: unknown): string {
   return typeof value === 'string' && value.trim() ? value.trim() : 'unknown';
+}
+
+export function parseKnowledgeWatchedSourceIds(value?: string): string[] | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  const sourceIds = Array.from(new Set(
+    value
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean),
+  ));
+
+  return sourceIds.length > 0 ? sourceIds : undefined;
 }
 
 function normalizeRiskLevel(value: unknown): KnowledgeOpsRiskLevel {

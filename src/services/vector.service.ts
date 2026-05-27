@@ -114,6 +114,7 @@ const EMBEDDING_DIM = Number(process.env.EMBEDDING_DIM || resolveEmbeddingDim(EM
 const COLLECTION_NAME = process.env.MILVUS_COLLECTION_NAME || resolveDefaultCollectionName(EMBEDDING_MODEL);
 const MILVUS_TIMEOUT_MS = Math.max(5000, Number(process.env.MILVUS_TIMEOUT_MS || 30000));
 const EMBEDDING_CONCURRENCY = Math.max(1, Number(process.env.EMBEDDING_CONCURRENCY || 1));
+const EMBEDDING_TIMEOUT_MS = Math.max(5000, Number(process.env.EMBEDDING_TIMEOUT_MS || 30000));
 const EMBEDDING_RETRY_429_LIMIT = Math.max(0, Number(process.env.EMBEDDING_RETRY_429_LIMIT || 3));
 const EMBEDDING_RETRY_429_DELAY_MS = Math.max(0, Number(process.env.EMBEDDING_RETRY_429_DELAY_MS || 3000));
 const EMBEDDING_REQUEST_DELAY_MS = Math.max(0, Number(process.env.EMBEDDING_REQUEST_DELAY_MS || 800));
@@ -724,20 +725,40 @@ export async function getEmbedding(text: string): Promise<number[]> {
       await sleep(EMBEDDING_REQUEST_DELAY_MS - elapsed);
     }
 
-    const response = await fetch(resolveEmbeddingEndpoint(EMBEDDING_API_BASE_URL), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${EMBEDDING_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: EMBEDDING_MODEL,
-        input: text,
-      }),
-    });
-    lastEmbeddingRequestAt = Date.now();
+    let response: Response;
+    let bodyText: string;
+    try {
+      response = await fetch(resolveEmbeddingEndpoint(EMBEDDING_API_BASE_URL), {
+        method: 'POST',
+        signal: AbortSignal.timeout(EMBEDDING_TIMEOUT_MS),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${EMBEDDING_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: EMBEDDING_MODEL,
+          input: text,
+        }),
+      });
+      bodyText = await response.text();
+      lastEmbeddingRequestAt = Date.now();
+    } catch (error) {
+      lastEmbeddingRequestAt = Date.now();
+      const errName = (error as { name?: string }).name;
+      const errCode = (error as { code?: string }).code;
+      const isTransient = errName === 'TimeoutError' || errName === 'AbortError'
+        || errCode === 'ECONNRESET' || errCode === 'ETIMEDOUT' || errCode === 'ECONNREFUSED'
+        || errCode === 'UND_ERR_CONNECT_TIMEOUT';
+      if (isTransient && attempt < EMBEDDING_RETRY_429_LIMIT) {
+        await sleep(EMBEDDING_RETRY_429_DELAY_MS * (attempt + 1));
+        continue;
+      }
+      if (errName === 'TimeoutError' || errName === 'AbortError') {
+        throw new Error(`Embedding request timed out after ${EMBEDDING_TIMEOUT_MS}ms`);
+      }
+      throw error;
+    }
 
-    const bodyText = await response.text();
     let data: {
       data?: Array<{ embedding?: number[] }>;
       error?: { message?: string };
