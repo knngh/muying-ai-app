@@ -394,7 +394,7 @@ import mockDataArray from './mockData.json'
 import { useAppStore } from '@/stores/app'
 import { calendarApi, type PregnancyTodoProgress, type PregnancyDiary, type PregnancyCustomTodo, type TimelineContext, type TimelineDefaultTodo } from '@/api/modules'
 import { resolveUploadUrl } from '@/api/request'
-import { calculatePregnancyWeekFromDueDate } from '@/utils'
+import { calculatePregnancyWeekFromDueDate, syncPregnancyWeekStorage } from '@/utils'
 import { buildAcquisitionPath, buildAcquisitionQuery, recordAcquisitionContext } from '@/utils/acquisition'
 import { buildWeekPriorityPlan } from '@/utils/record-assist'
 
@@ -458,17 +458,28 @@ const buildPostpartumTimelineItems = (): TimelineListItem[] => (
 const pregnancyTimelineItems = buildPregnancyTimelineItems()
 const postpartumTimelineItems = buildPostpartumTimelineItems()
 
-const resolveInitialWeek = () => {
-  const storedWeek = Number(uni.getStorageSync('userPregnancyWeek'))
+const resolvePregnancyWeekFromDueDate = (dueDate?: string | null): number | null => {
+  if (!dueDate) return null
 
-  if (storedWeek >= 1 && storedWeek <= 40) return storedWeek
-
-  if (appStore.user?.dueDate) {
-    const weekFromDueDate = calculatePregnancyWeekFromDueDate(appStore.user.dueDate)
-    if (weekFromDueDate && weekFromDueDate >= 1 && weekFromDueDate <= 40) {
-      return weekFromDueDate
-    }
+  const weekFromDueDate = calculatePregnancyWeekFromDueDate(dueDate)
+  if (weekFromDueDate && weekFromDueDate >= 1 && weekFromDueDate <= PREGNANCY_WEEK_MAX) {
+    return weekFromDueDate
   }
+
+  return null
+}
+
+const readStoredPregnancyWeek = () => {
+  const storedWeek = Number(uni.getStorageSync('userPregnancyWeek'))
+  return storedWeek >= 1 && storedWeek <= PREGNANCY_WEEK_MAX ? storedWeek : null
+}
+
+const resolveInitialWeek = () => {
+  const weekFromDueDate = resolvePregnancyWeekFromDueDate(appStore.user?.dueDate)
+  if (weekFromDueDate) return weekFromDueDate
+
+  const storedWeek = readStoredPregnancyWeek()
+  if (storedWeek) return storedWeek
 
   return 1
 }
@@ -707,6 +718,10 @@ const syncTimelineContext = async (options: { preserveSelected?: boolean } = {})
     timelineContext.value = context
 
     if (!options.preserveSelected) {
+      if (context.lifecycleStage === 'pregnancy' && context.dueDate && await selectPregnancyWeekFromDueDate(context.dueDate)) {
+        return
+      }
+
       if (context.currentPeriod?.week) {
         await selectStorageWeek(context.currentPeriod.week)
       } else if (context.lifecycleStage === 'postpartum') {
@@ -874,6 +889,15 @@ const scrollToWeek = async (week: number) => {
 const selectStorageWeek = async (week: number) => {
   currentSelectedWeek.value = week
   await scrollToWeek(week)
+}
+
+const selectPregnancyWeekFromDueDate = async (dueDate?: string | null) => {
+  const weekFromDueDate = resolvePregnancyWeekFromDueDate(dueDate)
+  if (!weekFromDueDate) return false
+
+  syncPregnancyWeekStorage(dueDate, weekFromDueDate)
+  await selectStorageWeek(weekFromDueDate)
+  return true
 }
 
 const syncSelectedWeekFromSession = async () => {
@@ -1232,6 +1256,10 @@ onShow(() => {
     const sharedWeek = initialSharedWeek.value
     const hasSharedWeek = sharedWeek !== null
 
+    const hasToken = Boolean(uni.getStorageSync('token'))
+    if (hasToken) {
+      await appStore.fetchUser()
+    }
     loginUserId.value = resolveLoginUserId()
 
     if (hasSharedWeek && sharedWeek) {
@@ -1239,6 +1267,8 @@ onShow(() => {
       initialSharedWeek.value = null
     } else if (!loginUserId.value) {
       await syncSelectedWeekFromSession()
+    } else {
+      await selectPregnancyWeekFromDueDate(appStore.user?.dueDate)
     }
 
     await syncTimelineContext({ preserveSelected: hasSharedWeek })

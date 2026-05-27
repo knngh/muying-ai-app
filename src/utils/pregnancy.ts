@@ -178,12 +178,11 @@ export function calculateDueDateFromPregnancyWeek(value: unknown, baseDate = new
 export function calculatePregnancyWeekFromDueDate(dueDate: Date, baseDate = new Date()): number | undefined {
   const due = startOfDay(dueDate);
   const today = startOfDay(baseDate);
-  const diffDays = Math.round((due.getTime() - today.getTime()) / DAY_IN_MS);
-  const week = FULL_TERM_WEEKS - Math.floor(diffDays / 7);
+  const remainingDays = Math.max(0, Math.round((due.getTime() - today.getTime()) / DAY_IN_MS));
+  const remainingWeeks = Math.ceil(remainingDays / 7);
+  const week = FULL_TERM_WEEKS - remainingWeeks;
 
-  if (week < 1 || week > 42) {
-    return undefined;
-  }
-
+  if (week < 1) return 1;
+  if (week > FULL_TERM_WEEKS) return FULL_TERM_WEEKS;
   return week;
 }

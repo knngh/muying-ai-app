@@ -43,7 +43,10 @@
         <view class="checkin-main-row">
           <view class="checkin-info">
             <text class="checkin-streak">连续签到 {{ checkinSummary.consecutiveDays }} 天</text>
-            <text class="checkin-total">累计 {{ checkinSummary.totalDays }} 天</text>
+            <view class="checkin-metrics">
+              <text class="checkin-total">累计 {{ checkinSummary.totalDays }} 天</text>
+              <text class="checkin-points">积分 {{ checkinSummary.totalPoints }}</text>
+            </view>
           </view>
           <view
             class="checkin-btn"
@@ -153,7 +156,7 @@ import { calculateDueDateFromPregnancyWeek, calculatePregnancyWeekFromDueDate, c
 const PROFILE_AUTO_OPEN_EDIT_KEY = 'profileAutoOpenEdit'
 const appStore = useAppStore()
 
-const checkinStatus = ref<CheckinStatus>({ checkedInToday: false, consecutiveDays: 0, totalDays: 0 })
+const checkinStatus = ref<CheckinStatus>({ checkedInToday: false, consecutiveDays: 0, totalDays: 0, totalPoints: 0 })
 const checkinSubmitting = ref(false)
 
 const normalizeDateList = (dates?: string[]) => {
@@ -200,6 +203,7 @@ const normalizeCheckinStatus = (
     currentStreak: status.currentStreak ?? consecutiveDays,
     streakCount: status.streakCount ?? consecutiveDays,
     totalDays: status.totalDays ?? previous.totalDays ?? monthlyCheckins.length,
+    totalPoints: status.totalPoints ?? previous.totalPoints ?? 0,
     monthlyCheckins,
     streakDates,
   }
@@ -214,11 +218,13 @@ const checkinSummary = computed(() => {
   const checkedInToday = status.checkedInToday || monthlyDates.includes(dayjs().format('YYYY-MM-DD')) || streakDates.includes(dayjs().format('YYYY-MM-DD'))
   const consecutiveDays = checkedInToday && rawConsecutiveDays < 1 ? 1 : rawConsecutiveDays
   const totalDays = status.totalDays ?? monthlyDates.length ?? fallbackToday.length ?? 0
+  const totalPoints = Math.max(0, Number(status.totalPoints ?? 0) || 0)
 
   return {
     checkedInToday,
     consecutiveDays,
     totalDays: checkedInToday && totalDays < 1 ? 1 : totalDays,
+    totalPoints,
   }
 })
 
@@ -552,9 +558,11 @@ onShow(() => {
   gap: 24rpx;
   width: 100%;
 }
-.checkin-info { display: flex; flex-direction: column; gap: 8rpx; }
+.checkin-info { display: flex; flex-direction: column; gap: 8rpx; min-width: 0; }
 .checkin-streak { font-size: 30rpx; font-weight: 700; color: #fff; }
-.checkin-total { font-size: 22rpx; color: rgba(255, 255, 255, 0.8); }
+.checkin-metrics { display: flex; align-items: center; gap: 18rpx; flex-wrap: wrap; }
+.checkin-total,
+.checkin-points { font-size: 22rpx; color: rgba(255, 255, 255, 0.82); }
 .checkin-btn { background: #fffcf8; padding: 14rpx 36rpx; border-radius: 24rpx; }
 .checkin-btn.disabled { opacity: 0.6; }
 .checkin-btn-text { font-size: 28rpx; font-weight: 700; color: #16806a; }

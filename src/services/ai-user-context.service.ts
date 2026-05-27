@@ -1,5 +1,5 @@
 import prisma from '../config/database';
-import { resolveLifecycleStage } from '../utils/pregnancy';
+import { calculatePregnancyWeekFromDueDate, resolveLifecycleStage } from '../utils/pregnancy';
 
 export interface UserProfileContext {
   prompt?: string;
@@ -15,19 +15,6 @@ const PREGNANCY_STATUS_LABELS: Record<number, string> = {
 
 function startOfDay(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-}
-
-function calculatePregnancyWeekFromDueDate(dueDate: Date, baseDate = new Date()): number | undefined {
-  const due = startOfDay(dueDate);
-  const today = startOfDay(baseDate);
-  const diffDays = Math.round((due.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
-  const week = 40 - Math.floor(diffDays / 7);
-
-  if (week < 1 || week > 42) {
-    return undefined;
-  }
-
-  return week;
 }
 
 function calculateBabyAgeMonths(babyBirthday: Date, baseDate = new Date()): number {
