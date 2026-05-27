@@ -172,7 +172,6 @@ const AUTHORITY_TRANSLATION_MAX_TOKENS = Math.max(
   1000,
   Number.parseInt(process.env.AUTHORITY_TRANSLATION_MAX_TOKENS || '1600', 10) || 1600,
 );
-const UNRELIABLE_HEADER_UPDATED_AT_SOURCE_IDS = new Set(['aap']);
 const FETCH_TIMESTAMP_UPDATED_AT_WINDOW_MS = 15 * 60 * 1000;
 
 interface AuthorityTranslationExecutionOptions {
@@ -202,16 +201,11 @@ interface AuthorityArticleTranslationApiResponse {
 type AuthorityArticle = ReturnType<typeof mapAuthorityRecordToArticle>;
 
 function resolveReliableAuthorityUpdatedAt(
-  sourceId: string,
   updatedAt: Date | null,
   fetchedAt?: string,
 ): Date | null {
   if (!updatedAt) {
     return null;
-  }
-
-  if (!UNRELIABLE_HEADER_UPDATED_AT_SOURCE_IDS.has(sourceId)) {
-    return updatedAt;
   }
 
   const fetchedTimestamp = fetchedAt ? Date.parse(fetchedAt) : Number.NaN;
@@ -235,7 +229,6 @@ function parseAuthorityDate(value?: string): Date | null {
 
 function normalizeAuthorityRecordTemporalFields(record: AuthorityCacheRecord): AuthorityCacheRecord {
   const reliableSourceUpdatedAt = resolveReliableAuthorityUpdatedAt(
-    record.source_id || '',
     parseAuthorityDate(record.source_updated_at),
     record.last_synced_at,
   );
@@ -1601,7 +1594,7 @@ function mapAuthorityDbRowToRecord(row: {
 
   const cleanedTitle = sanitizeAuthorityTitle(row.title);
   const localeDefaults = inferAuthorityLocaleDefaults(row.sourceId, row.region);
-  const reliableUpdatedAt = resolveReliableAuthorityUpdatedAt(row.sourceId, row.updatedAt, metadataFetchedAt);
+  const reliableUpdatedAt = resolveReliableAuthorityUpdatedAt(row.updatedAt, metadataFetchedAt);
   const stableDate = reliableUpdatedAt || row.createdAt;
   const sourceConfig = getAuthoritySourceConfig(row.sourceId);
   const inferredAudience = detectAudience({

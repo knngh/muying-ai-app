@@ -1918,8 +1918,7 @@ export async function exportPublishedAuthoritySnapshot(): Promise<void> {
     const metadataFetchedAt = typeof (metadata as { fetchedAt?: unknown }).fetchedAt === 'string'
       ? (metadata as { fetchedAt: string }).fetchedAt
       : undefined;
-    const reliableUpdatedAt = row.sourceId === 'aap'
-      && row.updatedAt
+    const reliableUpdatedAt = row.updatedAt
       && metadataFetchedAt
       && Math.abs(row.updatedAt.getTime() - Date.parse(metadataFetchedAt)) <= 15 * 60 * 1000
         ? null
