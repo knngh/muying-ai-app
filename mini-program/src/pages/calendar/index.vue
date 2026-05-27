@@ -33,7 +33,7 @@
             :key="week.timelineKey"
             :id="'week-' + week.storageWeek"
             class="timeline-item"
-            :class="{ 'active': currentSelectedWeek === week.storageWeek }"
+            :class="{ 'active': isTimelineItemSelected(week) }"
             :data-week="week.storageWeek"
             @tap="handleSelectWeek"
           >
@@ -592,10 +592,12 @@ const getTimelineItemFromStorageWeek = (storageWeek: number): TimelineListItem =
 }
 
 const selectedTimelineItem = computed(() => getTimelineItemFromStorageWeek(currentSelectedWeek.value))
+const selectedTimelineKey = computed(() => selectedTimelineItem.value.timelineKey)
 const isPostpartumTimeline = computed(() => (
   timelineContext.value?.lifecycleStage === 'postpartum' || selectedTimelineItem.value.stage === 'postpartum'
 ))
 const weeksList = computed(() => (isPostpartumTimeline.value ? postpartumTimelineItems : pregnancyTimelineItems))
+const isTimelineItemSelected = (week: TimelineListItem) => week.timelineKey === selectedTimelineKey.value
 const selectedPeriodTitle = computed(() => `${selectedTimelineItem.value.title}`)
 const selectedTimelineParams = computed(() => ({
   week: selectedTimelineItem.value.storageWeek,
@@ -717,7 +719,13 @@ const syncTimelineContext = async (options: { preserveSelected?: boolean } = {})
     const context = await calendarApi.getTimelineContext()
     timelineContext.value = context
 
-    if (!options.preserveSelected) {
+    const shouldPreserveSelected = options.preserveSelected
+      && (
+        context.lifecycleStage === selectedTimelineItem.value.stage
+        || context.lifecycleStage === 'preparing'
+      )
+
+    if (!shouldPreserveSelected) {
       if (context.lifecycleStage === 'pregnancy' && context.dueDate && await selectPregnancyWeekFromDueDate(context.dueDate)) {
         return
       }

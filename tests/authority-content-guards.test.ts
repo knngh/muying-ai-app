@@ -641,6 +641,200 @@ describe('authority content guards', () => {
   });
 
   it('rejects Chinese official training, meeting, and activity pages from guidance sources', () => {
+    const lowValueOfficialRecords = [
+      {
+        source_id: 'nhc-fys',
+        source_org: '国家卫生健康委员会妇幼健康司',
+        source_url: 'https://www.nhc.gov.cn/fys/s3581/202604/1234567890abcdef1234567890abcdef.shtml',
+        question: '儿童青少年“五健”促进行动启动',
+      },
+      {
+        source_id: 'chinacdc-immunization',
+        source_org: '中国疾病预防控制中心',
+        source_url: 'https://www.chinacdc.cn/jkkp/mygh/ztrxc/202604/t20260420_305001.html',
+        question: '国疾控综卫免函〔2026〕79号',
+      },
+      {
+        source_id: 'ndcpa-immunization',
+        source_org: '国家疾病预防控制局',
+        source_url: 'https://www.ndcpa.gov.cn/jbkzzx/c100014/common/content/content_1988800344257630208.html',
+        question: '2026年全国儿童预防接种日主题宣传海报发布',
+      },
+      {
+        source_id: 'ndcpa-immunization',
+        source_org: '国家疾病预防控制局',
+        source_url: 'https://www.ndcpa.gov.cn/jbkzzx/c100014/common/content/content_1988800344257630209.html',
+        question: '国家疾控局综合司关于组织开展2026年全国儿童预防接种日宣传活动的通知',
+      },
+      {
+        source_id: 'ndcpa-immunization',
+        source_org: '国家疾病预防控制局',
+        source_url: 'https://www.ndcpa.gov.cn/jbkzzx/c100014/common/content/content_1988800344257630210.html',
+        question: '2026年全国卫生与免疫规划工作会议召开',
+      },
+      {
+        source_id: 'nhc-fys',
+        source_org: '国家卫生健康委员会妇幼健康司',
+        source_url: 'https://www.nhc.gov.cn/fys/s3581/202603/1234567890abcdef1234567890abcdee.shtml',
+        question: '全国儿童青少年“五健”促进行动政策宣贯电视电话会议在京召开',
+      },
+      {
+        source_id: 'nhc-fys',
+        source_org: '国家卫生健康委员会妇幼健康司',
+        source_url: 'https://www.nhc.gov.cn/fys/s3581/202604/1234567890abcdef1234567890abcdff.shtml',
+        question: '世界母乳喂养周宣传日活动在京举办',
+      },
+      {
+        source_id: 'nhc-fys',
+        source_org: '国家卫生健康委员会妇幼健康司',
+        source_url: 'https://www.nhc.gov.cn/fys/c100077/202512/156aee28a1f543f1a3301ab92580a48b.shtml',
+        question: '《儿童青少年“五健”促进行动计划（2026-2030年）》解读',
+      },
+      {
+        source_id: 'nhc-rkjt',
+        source_org: '国家卫生健康委员会人口监测与家庭发展司',
+        source_url: 'https://www.nhc.gov.cn/rkjcyjtfzs/c100147/202601/1234567890abcdef1234567890abcd01.shtml',
+        question: '2026年全国人口家庭发展工作会议在京召开',
+      },
+      {
+        source_id: 'nhc-fys',
+        source_org: '国家卫生健康委员会妇幼健康司',
+        source_url: 'https://www.nhc.gov.cn/fys/c100077/202601/1234567890abcdef1234567890abcd02.shtml',
+        question: '2026年全国妇幼健康工作会议在京召开',
+      },
+      {
+        source_id: 'nhc-rkjt',
+        source_org: '国家卫生健康委员会人口监测与家庭发展司',
+        source_url: 'https://www.nhc.gov.cn/rkjcyjtfzs/c100147/202512/1234567890abcdef1234567890abcd03.shtml',
+        question: '关于开展2025年全国托育服务宣传月活动的通知',
+      },
+      {
+        source_id: 'ndcpa-public-health',
+        source_org: '国家疾病预防控制局',
+        source_url: 'https://www.ndcpa.gov.cn/jbkzzx/c100008/common/content/content_1988800344257630211.html',
+        question: '2025年全国预防接种职业技能竞赛决赛成功举办',
+      },
+      {
+        source_id: 'ndcpa-public-health',
+        source_org: '国家疾病预防控制局',
+        source_url: 'https://www.ndcpa.gov.cn/jbkzzx/c100008/common/content/content_1988800344257630212.html',
+        question: '全国128名预防接种职业技能精英将在青岛同台竞技',
+      },
+      {
+        source_id: 'nhc-fys',
+        source_org: '国家卫生健康委员会妇幼健康司',
+        source_url: 'https://www.nhc.gov.cn/fys/c100077/202508/1234567890abcdef1234567890abcd04.shtml',
+        question: '妇幼司发布2025年预防出生缺陷日主题和海报',
+      },
+      {
+        source_id: 'nhc-rkjt',
+        source_org: '国家卫生健康委员会人口监测与家庭发展司',
+        source_url: 'https://www.nhc.gov.cn/rkjcyjtfzs/c100147/202508/1234567890abcdef1234567890abcd05.shtml',
+        question: '中华全国总工会 国家卫生健康委员会 中华全国妇女联合会关于举办2025年职工托育职业技能大赛的通知',
+      },
+      {
+        source_id: 'nhc-rkjt',
+        source_org: '国家卫生健康委员会人口监测与家庭发展司',
+        source_url: 'https://www.nhc.gov.cn/rkjcyjtfzs/c100147/202505/1234567890abcdef1234567890abcd06.shtml',
+        question: '2025年国际家庭日主题宣传活动暨全国托育服务宣传月启动仪式在哈尔滨举办',
+      },
+      {
+        source_id: 'nhc-rkjt',
+        source_org: '国家卫生健康委员会人口监测与家庭发展司',
+        source_url: 'https://www.nhc.gov.cn/rkjcyjtfzs/c100147/202306/1d627d4372924202a73d3a82c730e0b0.shtml',
+        question: '全国婴幼儿照护服务示范城市现场经验交流会在山东济宁召开',
+      },
+      {
+        source_id: 'nhc-fys',
+        source_org: '国家卫生健康委员会妇幼健康司',
+        source_url: 'https://www.nhc.gov.cn/fys/c100077/202409/de98d52489ac4680a9b134127f9f6718.shtml',
+        question: '关于儿童保健与婴幼儿养育照护科普作品征集评选活动评选结果的公示',
+      },
+      {
+        source_id: 'nhc-fys',
+        source_org: '国家卫生健康委员会妇幼健康司',
+        source_url: 'https://www.nhc.gov.cn/fys/c100078/202308/070f3e53423e4b51bf4221666bfbb57b.shtml',
+        question: '国家卫生健康委办公厅关于开展儿童保健与婴幼儿养育照护科普作品征集评选活动的通知',
+      },
+      {
+        source_id: 'chinacdc-immunization',
+        source_org: '中国疾病预防控制中心',
+        source_url: 'https://www.chinacdc.cn/jkyj/mygh02/jswj_mygh/myfw_mygh/202505/t20250528_300934.html',
+        question: '附件： 预防接种工作规范（2016年版）',
+      },
+      {
+        source_id: 'chinacdc-immunization',
+        source_org: '中国疾病预防控制中心',
+        source_url: 'https://www.chinacdc.cn/jkyj/mygh02/jswj_mygh/myfw_mygh/202505/t20250530_300935.html',
+        question: '为贯彻温家宝总理在十届全国人大五次会议上提出的“扩大国家免疫规划范围，将甲肝、流脑等１５种可以通过接种疫苗有效预防的传染病纳入国家免疫规划”的精神，落实扩大国家免疫规划的目标和任务，规范和指导各地科学实施扩大国家免疫规划工作，有效预防和控制相关传染病，制订本方案。',
+      },
+      {
+        source_id: 'chinacdc-nutrition',
+        source_org: '中国疾病预防控制中心营养与健康所',
+        source_url: 'https://www.chinacdc.cn/jkkp/yyjk/rqyy/202603/t20260323_315315.html',
+        question: '中国疾病预防控制中心',
+      },
+      {
+        source_id: 'chinacdc-nutrition',
+        source_org: '中国疾病预防控制中心营养与健康所',
+        source_url: 'https://www.chinacdc.cn/jkkp/yyjk/rqyy/202602/t20260224_315001.html',
+        question: '“ 二十五，磨豆腐。”一句民谚，不仅勾勒出年关将至的忙碌与期待，更蕴含着中国人对健康与富足的美好祈愿。',
+      },
+      {
+        source_id: 'chinacdc-nutrition',
+        source_org: '中国疾病预防控制中心营养与健康所',
+        source_url: 'https://www.chinacdc.cn/jkkp/yyjk/rqyy/202408/t20240825_295586.html',
+        question: '我国 6～17岁学龄儿童主要食物摄入量存在地区差异',
+      },
+      {
+        source_id: 'chinacdc-nutrition',
+        source_org: '中国疾病预防控制中心营养与健康所',
+        source_url: 'https://www.chinacdc.cn/jkkp/yyjk/swyy/202408/t20240825_295598.html',
+        question: '清明时节话饮食、护健康',
+      },
+      {
+        source_id: 'chinacdc-nutrition',
+        source_org: '中国疾病预防控制中心营养与健康所',
+        source_url: 'https://www.chinacdc.cn/jkkp/yyjk/rqyy/202408/t20240825_295589.html',
+        question: '素食人群是指以不吃畜肉、家禽、海鲜、蛋、奶等动物性食物为饮食方式的人群。完全戒食动物性食品及其产品的为全素人群；不戒食蛋奶类及其相关产品的为蛋奶素人群。根据统计，我国目前素食人群已超过 5000万，其中女性较高。',
+      },
+    ];
+
+    lowValueOfficialRecords.forEach((record) => {
+      expect(shouldFilterAuthoritySourceUrl(record)).toBe(true);
+      expect(getAuthorityKnowledgeDropReason(record)).toMatch(/^official_chinese_/);
+    });
+
+    [
+      {
+        source_id: 'ndcpa-immunization',
+        source_org: '国家疾病预防控制局',
+        source_url: 'https://www.ndcpa.gov.cn/jbkzzx/c100014/common/content/content_1961007702056800256.html',
+        question: '全国儿童预防接种日宣传核心信息',
+      },
+      {
+        source_id: 'nhc-fys',
+        source_org: '国家卫生健康委员会妇幼健康司',
+        source_url: 'https://www.nhc.gov.cn/fys/s3581/202604/1234567890abcdef1234567890abcddd.shtml',
+        question: '婴幼儿营养喂养评估服务指南（试行）',
+      },
+      {
+        source_id: 'chinacdc-immunization',
+        source_org: '中国疾病预防控制中心',
+        source_url: 'https://www.chinacdc.cn/jkyj/mygh02/jswj_mygh/myfw_mygh/202409/t20240925_300934.html',
+        question: '国家免疫规划疫苗儿童免疫程序及说明（2024年版）',
+      },
+      {
+        source_id: 'nhc-fys',
+        source_org: '国家卫生健康委员会妇幼健康司',
+        source_url: 'https://www.nhc.gov.cn/fys/s3581/202604/1234567890abcdef1234567890abcddc.shtml',
+        question: '中国婴幼儿喂养指南发布',
+      },
+    ].forEach((record) => {
+      expect(shouldFilterAuthoritySourceUrl(record)).toBe(false);
+      expect(getAuthorityKnowledgeDropReason(record)).toBeNull();
+    });
+
     expect(
       shouldFilterAuthoritySourceUrl({
         source_id: 'mchscn-monitoring',

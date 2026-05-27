@@ -60,7 +60,7 @@ describe('authority index discovery', () => {
     expect(links).toContain(articleUrl);
     expect(links).toContain('https://www.chinacdc.cn/jkkp/yyjk/rqyy/202603/t20260309_315315.html');
     expect(links).toContain('https://www.chinacdc.cn/jkkp/yyjk/rqyy/202408/t20240825_295583.html');
-    expect(links).toContain('https://www.chinacdc.cn/jkkp/yyjk/jbyy/202408/t20240825_295601.html');
+    expect(links).not.toContain('https://www.chinacdc.cn/jkkp/yyjk/jbyy/202408/t20240825_295601.html');
     expect(__authoritySyncTestUtils.isAuthorityUrlMatched(
       articleUrl,
       source!,
@@ -138,7 +138,7 @@ describe('authority index discovery', () => {
     const html = `
       <script>
         var itemObj = [{
-          "aT":"关于调整国家免疫规划专家咨询委员会委员的通知",
+          "aT":"全国儿童预防接种日宣传核心信息",
           "aU":"{\\"common\\":\\"/jbkzzx/c100014/common/content/content_1961007702056800256.html\\"}"
         }];
       </script>
@@ -1171,7 +1171,7 @@ describe('authority index discovery', () => {
     expect(document?.contentText).not.toContain('中心介绍');
   });
 
-  test('normalizes NHC xw_box article content without header navigation chrome', () => {
+  test('rejects NHC xw_box activity pages even when body contains health terms', () => {
     const source = getAuthoritySourceConfig('nhc-fys');
     expect(source).toBeDefined();
 
@@ -1205,12 +1205,7 @@ describe('authority index discovery', () => {
 
     const document = normalizeAuthorityDocument(source!, raw);
 
-    expect(document).not.toBeNull();
-    expect(document?.title).toBe('儿童青少年“五健”促进行动启动');
-    expect(document?.summary).toContain('4月28日下午');
-    expect(document?.contentText).toContain('儿童青少年体重');
-    expect(document?.contentText).not.toContain('中文 | 英文');
-    expect(document?.contentText).not.toContain('返回主站');
+    expect(document).toBeNull();
   });
 
   test('normalizes Mayo Chinese maternal-child articles by Chinese title and body text', () => {
