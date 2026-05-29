@@ -216,6 +216,9 @@ export async function getCheckinStatus(userId: string): Promise<CheckinStatus> {
 
   // Check if already checked in today
   const todayCheckin = await findCheckinForBusinessDay(userIdBigInt, today);
+  const yesterdayCheckin = todayCheckin
+    ? null
+    : await findCheckinForBusinessDay(userIdBigInt, today.subtract(1, 'day'));
 
   const checkedInToday = !!todayCheckin;
   const effectiveStreak = todayCheckin
@@ -223,6 +226,11 @@ export async function getCheckinStatus(userId: string): Promise<CheckinStatus> {
       count: Math.max(todayCheckin.streakCount, 1),
       dates: buildStreakDatesEndingAt(today, Math.max(todayCheckin.streakCount, 1)),
     }
+    : yesterdayCheckin
+      ? {
+        count: Math.max(yesterdayCheckin.streakCount, 1),
+        dates: buildStreakDatesEndingAt(today.subtract(1, 'day'), Math.max(yesterdayCheckin.streakCount, 1)),
+      }
     : { count: 0, dates: [] };
 
   // Monthly checkins calendar

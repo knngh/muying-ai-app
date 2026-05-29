@@ -255,6 +255,36 @@ describe('checkin.service', () => {
     });
   });
 
+  it('keeps yesterday streak visible before today is checked in', async () => {
+    mockUserCheckinFindFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        id: 1n,
+        checkinDate: makeDbDate('2026-05-04'),
+        streakCount: 1,
+        createdAt: makeDate('2026-05-04'),
+      });
+    mockUserCheckinFindMany.mockResolvedValueOnce([
+      { checkinDate: makeDbDate('2026-05-04'), createdAt: makeDate('2026-05-04') },
+    ]);
+    mockUserFindUniqueOrThrow.mockResolvedValue({ totalPoints: 105 });
+    mockUserCheckinCount.mockResolvedValue(1);
+
+    const status = await getCheckinStatus('42');
+
+    expect(status).toMatchObject({
+      checkedInToday: false,
+      currentStreak: 1,
+      consecutiveDays: 1,
+      streakDates: ['2026-05-04'],
+      totalDays: 1,
+      totalPoints: 105,
+      monthlyCheckins: ['2026-05-04'],
+      nextBonusAt: 3,
+      nextBonusPoints: 5,
+    });
+  });
+
   it('keeps today checked in when old DATE rows are shifted by local timezone', async () => {
     mockUserCheckinFindFirst.mockResolvedValue({
       id: 1n,
