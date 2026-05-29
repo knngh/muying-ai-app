@@ -35,7 +35,16 @@
     "appid": "wx77c66576e02a48dc",
     "setting": { "urlCheck": false },
     "usingComponents": true,
-    "lazyCodeLoading": "requiredComponents"
+    "lazyCodeLoading": "requiredComponents",
+    "__usePrivacyCheck__": true,
+    "requiredPrivateInfos": [
+      "chooseImage"
+    ],
+    "permission": {
+      "scope.camera": {
+        "desc": "用于拍摄并上传孕育记录照片"
+      }
+    }
   },
   "mp-alipay": {
     "usingComponents": true

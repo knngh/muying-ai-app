@@ -7,6 +7,7 @@ PROJECT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 DEVTOOLS_CLI="${WECHAT_DEVTOOLS_CLI:-/Applications/wechatwebdevtools.app/Contents/MacOS/cli}"
 OUTPUT_DIR="${MP_WEIXIN_SMOKE_OUTPUT_DIR:-/tmp/muying-mini-preview}"
 INFO_OUTPUT="${OUTPUT_DIR}/info.json"
+APP_JSON="${PROJECT_DIR}/dist/build/mp-weixin/app.json"
 
 if [[ ! -x "${DEVTOOLS_CLI}" ]]; then
   echo "Missing WeChat DevTools CLI: ${DEVTOOLS_CLI}" >&2
@@ -16,16 +17,19 @@ fi
 
 mkdir -p "${OUTPUT_DIR}"
 
-echo "[1/4] type-check"
+echo "[1/5] type-check"
 npm --prefix "${PROJECT_DIR}" run type-check
 
-echo "[2/4] build mp-weixin"
+echo "[2/5] build mp-weixin"
 npm --prefix "${PROJECT_DIR}" run build:mp-weixin
 
-echo "[3/4] open project in WeChat DevTools"
+echo "[3/5] assert privacy config"
+node -e 'const fs = require("fs"); const app = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); const hasChooseImage = Array.isArray(app.requiredPrivateInfos) && app.requiredPrivateInfos.includes("chooseImage"); if (app.__usePrivacyCheck__ !== true || !hasChooseImage) { console.error("Missing mp-weixin privacy config: expected __usePrivacyCheck__ and requiredPrivateInfos.chooseImage"); process.exit(1); }' "${APP_JSON}"
+
+echo "[4/5] open project in WeChat DevTools"
 "${DEVTOOLS_CLI}" open --project "${PROJECT_DIR}"
 
-echo "[4/4] preview"
+echo "[5/5] preview"
 "${DEVTOOLS_CLI}" preview \
   --project "${PROJECT_DIR}" \
   --info-output "${INFO_OUTPUT}" \
