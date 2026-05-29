@@ -151,7 +151,7 @@ import { useAppStore } from '@/stores/app'
 import { authApi } from '@/api/modules'
 import { checkinApi, type CheckinStatus } from '@/api/checkin'
 import dayjs from 'dayjs'
-import { calculateDueDateFromPregnancyWeek, calculatePregnancyWeekFromDueDate, clearLocalSession } from '@/utils'
+import { calculateDueDateFromPregnancyWeek, calculatePregnancyWeekFromDueDate, clearLocalSession, syncPregnancyWeekStorage } from '@/utils'
 
 const PROFILE_AUTO_OPEN_EDIT_KEY = 'profileAutoOpenEdit'
 const appStore = useAppStore()
@@ -331,6 +331,7 @@ const editForm = reactive<{
   pregnancyWeek: '',
   dueDate: '',
 })
+const pregnancyWeekEdited = ref(false)
 
 const weekOptions = Array.from({ length: 40 }, (_, i) => `第 ${i + 1} 周`)
 
@@ -371,6 +372,7 @@ const openEditModal = () => {
   editForm.nickname = user.value.nickname || ''
   editForm.dueDate = user.value.dueDate ? dayjs(user.value.dueDate).format('YYYY-MM-DD') : ''
   editForm.pregnancyWeek = user.value.dueDate ? String(calculatePregnancyWeekFromDueDate(user.value.dueDate) || '') : ''
+  pregnancyWeekEdited.value = false
   showEditModal.value = true
 }
 
@@ -379,12 +381,14 @@ const onDueDateChange = (e: any) => {
   editForm.pregnancyWeek = editForm.dueDate
     ? String(calculatePregnancyWeekFromDueDate(editForm.dueDate) || '')
     : ''
+  pregnancyWeekEdited.value = false
 }
 
 const onPregnancyWeekChange = (e: any) => {
   const selectedOption = weekOptions[Number(e.detail.value)] || ''
   const selectedWeek = selectedOption.replace(/\D/g, '')
   editForm.pregnancyWeek = selectedWeek
+  pregnancyWeekEdited.value = true
 
   const dueDate = calculateDueDateFromPregnancyWeek(selectedWeek)
   editForm.dueDate = dueDate ? dayjs(dueDate).format('YYYY-MM-DD') : ''
@@ -395,6 +399,7 @@ const submitEdit = async () => {
     const data: {
       nickname?: string
       pregnancyStatus?: number
+      pregnancyWeek?: string
       dueDate?: string
       babyBirthday?: null
     } = {}
@@ -402,6 +407,9 @@ const submitEdit = async () => {
     if (editForm.nickname.trim()) data.nickname = editForm.nickname.trim()
 
     if (editForm.dueDate) {
+      if (pregnancyWeekEdited.value && editForm.pregnancyWeek) {
+        data.pregnancyWeek = editForm.pregnancyWeek
+      }
       data.dueDate = editForm.dueDate
       data.babyBirthday = null
       data.pregnancyStatus = 2
@@ -409,7 +417,7 @@ const submitEdit = async () => {
 
     const updatedUser = await authApi.updateProfile(data)
     appStore.setUser(updatedUser)
-    await appStore.fetchUser()
+    syncPregnancyWeekStorage(updatedUser.dueDate, data.pregnancyWeek || editForm.pregnancyWeek)
     closeEditModal()
     uni.showToast({ title: '保存成功', icon: 'success' })
   } catch (err: any) {

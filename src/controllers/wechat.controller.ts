@@ -6,6 +6,7 @@ import prisma from '../config/database';
 import { successResponse, AppError, ErrorCodes } from '../middlewares/error.middleware';
 import { calculateDueDateFromPregnancyWeek } from '../utils/pregnancy';
 import { generateToken } from '../utils/jwt';
+import { serializeUserDateFields } from '../utils/user-serialization';
 
 export const wechatLogin = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -60,14 +61,14 @@ export const wechatLogin = async (req: Request, res: Response, next: NextFunctio
 
       const token = generateToken(user.id.toString());
       return res.json(successResponse({
-        user: {
+        user: serializeUserDateFields({
           id: user.id,
           username: user.username,
           nickname: user.nickname,
           avatar: user.avatar,
           pregnancyStatus: user.pregnancyStatus,
           dueDate: user.dueDate
-        },
+        }),
         token
       }, '微信登录成功(模拟)'));
     }
@@ -125,14 +126,14 @@ export const wechatLogin = async (req: Request, res: Response, next: NextFunctio
     const token = generateToken(user.id.toString());
 
     res.json(successResponse({
-      user: {
+      user: serializeUserDateFields({
         id: user.id,
         username: user.username,
         nickname: user.nickname,
         avatar: user.avatar,
         pregnancyStatus: user.pregnancyStatus,
         dueDate: user.dueDate
-      },
+      }),
       token
     }, '微信登录成功'));
 

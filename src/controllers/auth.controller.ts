@@ -15,6 +15,7 @@ import {
 import { env } from '../config/env';
 import { generateToken } from '../utils/jwt';
 import { recordServerAnalyticsEvent } from '../services/analytics.service';
+import { serializeUserDateFields } from '../utils/user-serialization';
 
 function isUniqueConstraintError(error: unknown): error is { code: 'P2002'; meta?: { target?: unknown } } {
   return typeof error === 'object'
@@ -90,7 +91,7 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
     const token = generateToken(user.id.toString());
 
     res.status(201).json(successResponse({
-      user,
+      user: serializeUserDateFields(user),
       token
     }, '注册成功'));
   } catch (error) {
@@ -150,7 +151,7 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
     const token = generateToken(user.id.toString());
 
     res.json(successResponse({
-      user: {
+      user: serializeUserDateFields({
         id: user.id,
         username: user.username,
         nickname: user.nickname,
@@ -167,7 +168,7 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
         feedingMode: user.feedingMode,
         developmentConcerns: user.developmentConcerns,
         familyNotes: user.familyNotes,
-      },
+      }),
       token
     }, '登录成功'));
   } catch (error) {
@@ -209,7 +210,7 @@ export const getMe = async (req: Request, res: Response, next: NextFunction) => 
       throw new AppError('用户不存在', ErrorCodes.USER_NOT_FOUND, 404);
     }
 
-    res.json(successResponse(user));
+    res.json(successResponse(serializeUserDateFields(user)));
   } catch (error) {
     next(error);
   }
@@ -266,6 +267,7 @@ export const updateProfile = async (req: Request, res: Response, next: NextFunct
   try {
     const userId = req.userId;
     const hasPregnancyStatus = Object.prototype.hasOwnProperty.call(req.body, 'pregnancyStatus');
+    const hasPregnancyWeek = Object.prototype.hasOwnProperty.call(req.body, 'pregnancyWeek');
     const hasDueDate = Object.prototype.hasOwnProperty.call(req.body, 'dueDate');
     const hasBabyBirthday = Object.prototype.hasOwnProperty.call(req.body, 'babyBirthday');
     const {
@@ -274,6 +276,7 @@ export const updateProfile = async (req: Request, res: Response, next: NextFunct
       email,
       avatar,
       pregnancyStatus,
+      pregnancyWeek,
       dueDate,
       babyBirthday,
       babyGender,
@@ -296,7 +299,10 @@ export const updateProfile = async (req: Request, res: Response, next: NextFunct
     const normalizedFamilyNotes = typeof familyNotes === 'string' ? familyNotes.trim() : undefined;
     const phonePattern = /^1\d{10}$/;
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    const parsedDueDate = dueDate ? new Date(dueDate) : null;
+    const dueDateFromPregnancyWeek = hasPregnancyWeek
+      ? calculateDueDateFromPregnancyWeek(pregnancyWeek)
+      : undefined;
+    const parsedDueDate = dueDateFromPregnancyWeek ?? (dueDate ? new Date(dueDate) : null);
     const parsedBabyBirthday = babyBirthday ? new Date(babyBirthday) : null;
 
     if (normalizedPhone && !phonePattern.test(normalizedPhone)) {
@@ -343,11 +349,11 @@ export const updateProfile = async (req: Request, res: Response, next: NextFunct
       }
     }
 
-    const lifecycleTouched = hasPregnancyStatus || hasDueDate || hasBabyBirthday;
+    const lifecycleTouched = hasPregnancyStatus || hasPregnancyWeek || hasDueDate || hasBabyBirthday;
     const lifecycleStage = lifecycleTouched
       ? resolveLifecycleStage(
           normalizedPregnancyStatus,
-          hasDueDate ? parsedDueDate : undefined,
+          (hasPregnancyWeek || hasDueDate) ? parsedDueDate : undefined,
           hasBabyBirthday ? parsedBabyBirthday : undefined,
         )
       : null;
@@ -366,7 +372,7 @@ export const updateProfile = async (req: Request, res: Response, next: NextFunct
       familyNotes: normalizedFamilyNotes !== undefined ? (normalizedFamilyNotes || null) : undefined,
     };
 
-    if (hasDueDate) {
+    if (hasPregnancyWeek || hasDueDate) {
       updateData.dueDate = parsedDueDate;
     }
 
@@ -425,7 +431,7 @@ export const updateProfile = async (req: Request, res: Response, next: NextFunct
       }).catch(() => {});
     }
 
-    res.json(successResponse(user, '更新成功'));
+    res.json(successResponse(serializeUserDateFields(user), '更新成功'));
   } catch (error) {
     next(error);
   }

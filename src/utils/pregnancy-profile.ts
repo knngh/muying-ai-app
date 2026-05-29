@@ -1,5 +1,5 @@
 import dayjs from 'dayjs';
-import { calculatePregnancyWeekFromDueDate } from './pregnancy';
+import { calculateDaysUntilDue, calculatePregnancyWeekFromDueDate } from './pregnancy';
 
 type MilestoneStatus = 'done' | 'active' | 'upcoming';
 
@@ -232,7 +232,7 @@ export function buildPregnancyProfile(
     };
   }
 
-  const daysUntilDue = Math.max(dayjs(dueDate).startOf('day').diff(dayjs().startOf('day'), 'day'), 0);
+  const daysUntilDue = calculateDaysUntilDue(dueDate);
   const phase = buildPhaseSummary(currentWeek);
   const milestones = buildMilestones(dueDate, currentWeek);
 

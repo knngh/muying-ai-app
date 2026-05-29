@@ -103,6 +103,7 @@ export interface AuthProfileUpdatePayload {
   nickname?: string
   avatar?: string
   pregnancyStatus?: number
+  pregnancyWeek?: string | number
   dueDate?: string | null
   babyBirthday?: string | null
   babyGender?: number

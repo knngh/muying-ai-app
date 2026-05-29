@@ -10,6 +10,7 @@ const PREGNANCY_STATUS_MAP: Record<string, number> = {
   postpartum: 3,
 }
 const BASE64_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+const DATE_ONLY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/
 
 function decodeBase64UrlAscii(input: string): string | null {
   const normalized = input.replace(/-/g, '+').replace(/_/g, '/')
@@ -62,7 +63,7 @@ export function v4(): string {
 
 // 日期格式化
 export function formatDate(date: Date | string, format = 'YYYY-MM-DD'): string {
-  const d = new Date(date)
+  const d = parseDateInput(date)
   const year = d.getFullYear()
   const month = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
@@ -79,6 +80,22 @@ export function formatDate(date: Date | string, format = 'YYYY-MM-DD'): string {
     .replace('ss', seconds)
 }
 
+function parseDateInput(value: Date | string): Date {
+  if (value instanceof Date) {
+    return value
+  }
+
+  const dateOnlyMatch = DATE_ONLY_PATTERN.exec(value.trim())
+  if (dateOnlyMatch) {
+    const year = Number(dateOnlyMatch[1])
+    const month = Number(dateOnlyMatch[2])
+    const day = Number(dateOnlyMatch[3])
+    return new Date(year, month - 1, day)
+  }
+
+  return new Date(value)
+}
+
 function normalizeDate(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate())
 }
@@ -93,7 +110,7 @@ function parseWeek(value: unknown): number | null {
 
 // 计算孕周
 export function calculatePregnancyWeek(lastMenstrualPeriod: Date | string): number {
-  const lmp = new Date(lastMenstrualPeriod)
+  const lmp = parseDateInput(lastMenstrualPeriod)
   const now = new Date()
   const diffTime = Math.abs(now.getTime() - lmp.getTime())
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
@@ -102,7 +119,7 @@ export function calculatePregnancyWeek(lastMenstrualPeriod: Date | string): numb
 
 // 计算预产期
 export function calculateDueDate(lastMenstrualPeriod: Date | string): Date {
-  const lmp = new Date(lastMenstrualPeriod)
+  const lmp = parseDateInput(lastMenstrualPeriod)
   const dueDate = new Date(lmp)
   dueDate.setDate(dueDate.getDate() + 280)
   return dueDate
@@ -110,7 +127,7 @@ export function calculateDueDate(lastMenstrualPeriod: Date | string): Date {
 
 // 从预产期反推末次月经日期（-280天）
 export function calculatePregnancyStartFromDueDate(dueDate: Date | string): Date {
-  const dd = new Date(dueDate)
+  const dd = parseDateInput(dueDate)
   const start = new Date(dd)
   start.setDate(start.getDate() - 280)
   return start
@@ -126,7 +143,7 @@ export function calculateDueDateFromPregnancyWeek(value: unknown, baseDate = new
 }
 
 export function calculatePregnancyWeekFromDueDate(dueDate: Date | string, baseDate = new Date()): number | null {
-  const due = normalizeDate(new Date(dueDate))
+  const due = normalizeDate(parseDateInput(dueDate))
   if (Number.isNaN(due.getTime())) return null
 
   const today = normalizeDate(baseDate)

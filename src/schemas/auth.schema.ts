@@ -48,6 +48,7 @@ export const updateProfileBody = z.object({
   email: z.string().email('邮箱格式错误').optional().nullable(),
   avatar: z.string().url().optional().nullable(),
   pregnancyStatus: z.coerce.number().int().min(0).max(3).optional(),
+  pregnancyWeek: z.coerce.number().int().min(1).max(40).optional(),
   dueDate: dateString.optional().nullable(),
   babyBirthday: dateString.optional().nullable(),
   babyGender: z.coerce.number().int().min(0).max(2).optional(),
@@ -59,6 +60,8 @@ export const updateProfileBody = z.object({
   familyNotes: z.string().min(1).max(500).optional().nullable(),
 }).refine((data) => !(data.dueDate && data.babyBirthday), {
   message: '预产期和宝宝生日不能同时设置',
+}).refine((data) => !(data.pregnancyWeek && data.babyBirthday), {
+  message: '孕周和宝宝生日不能同时设置',
 }).refine(data => Object.keys(data).length > 0, {
   message: '请提供至少一个需要更新的字段',
 });

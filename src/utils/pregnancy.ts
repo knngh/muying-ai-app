@@ -1,5 +1,18 @@
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 const FULL_TERM_WEEKS = 40;
+const BUSINESS_TIME_ZONE = 'Asia/Shanghai';
+const businessDateFormatter = new Intl.DateTimeFormat('en-CA', {
+  timeZone: BUSINESS_TIME_ZONE,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+
+type DateParts = {
+  year: number;
+  month: number;
+  day: number;
+};
 
 const pregnancyStatusMap: Record<string, number> = {
   preparing: 1,
@@ -63,12 +76,51 @@ function normalizeNumber(value: unknown): number | undefined {
   return undefined;
 }
 
+function padDatePart(value: number): string {
+  return String(value).padStart(2, '0');
+}
+
+function getBusinessDateParts(date: Date): DateParts {
+  const parts = businessDateFormatter.formatToParts(date);
+  const year = Number(parts.find(part => part.type === 'year')?.value);
+  const month = Number(parts.find(part => part.type === 'month')?.value);
+  const day = Number(parts.find(part => part.type === 'day')?.value);
+
+  return { year, month, day };
+}
+
+function getUtcDateParts(date: Date): DateParts {
+  return {
+    year: date.getUTCFullYear(),
+    month: date.getUTCMonth() + 1,
+    day: date.getUTCDate(),
+  };
+}
+
+function toUtcDate(parts: DateParts): Date {
+  return new Date(Date.UTC(parts.year, parts.month - 1, parts.day));
+}
+
+function toDayNumber(parts: DateParts): number {
+  return Math.floor(Date.UTC(parts.year, parts.month - 1, parts.day) / DAY_IN_MS);
+}
+
+function addDays(parts: DateParts, days: number): DateParts {
+  const date = new Date(Date.UTC(parts.year, parts.month - 1, parts.day + days));
+  return getUtcDateParts(date);
+}
+
 function normalizeDate(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  return toUtcDate(getUtcDateParts(date));
 }
 
 export function startOfDay(date: Date): Date {
   return normalizeDate(date);
+}
+
+export function formatDateOnly(date: Date): string {
+  const parts = getUtcDateParts(date);
+  return `${parts.year}-${padDatePart(parts.month)}-${padDatePart(parts.day)}`;
 }
 
 export function normalizePregnancyStatus(value: unknown): number | undefined {
@@ -170,19 +222,24 @@ export function calculateDueDateFromPregnancyWeek(value: unknown, baseDate = new
     return undefined;
   }
 
-  const today = normalizeDate(baseDate);
-  const dueDate = new Date(today.getTime() + (FULL_TERM_WEEKS - week) * 7 * DAY_IN_MS);
-  return normalizeDate(dueDate);
+  const today = getBusinessDateParts(baseDate);
+  return toUtcDate(addDays(today, (FULL_TERM_WEEKS - week) * 7));
 }
 
 export function calculatePregnancyWeekFromDueDate(dueDate: Date, baseDate = new Date()): number | undefined {
-  const due = startOfDay(dueDate);
-  const today = startOfDay(baseDate);
-  const remainingDays = Math.max(0, Math.round((due.getTime() - today.getTime()) / DAY_IN_MS));
+  const dueDay = toDayNumber(getUtcDateParts(dueDate));
+  const todayDay = toDayNumber(getBusinessDateParts(baseDate));
+  const remainingDays = Math.max(0, dueDay - todayDay);
   const remainingWeeks = Math.ceil(remainingDays / 7);
   const week = FULL_TERM_WEEKS - remainingWeeks;
 
   if (week < 1) return 1;
   if (week > FULL_TERM_WEEKS) return FULL_TERM_WEEKS;
   return week;
+}
+
+export function calculateDaysUntilDue(dueDate: Date, baseDate = new Date()): number {
+  const dueDay = toDayNumber(getUtcDateParts(dueDate));
+  const todayDay = toDayNumber(getBusinessDateParts(baseDate));
+  return Math.max(0, dueDay - todayDay);
 }

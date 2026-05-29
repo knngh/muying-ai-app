@@ -293,13 +293,13 @@ async function savePregnancyWeek() {
     uni.showLoading({ title: '保存中...' })
     const updatedUser = await authApi.updateProfile({
       pregnancyStatus: 2,
+      pregnancyWeek: pregnancyWeek.value,
       dueDate: dayjs(dueDate).format('YYYY-MM-DD'),
       babyBirthday: null,
     })
 
     appStore.setUser(updatedUser)
-    await appStore.fetchUser()
-    syncPregnancyWeekStorage(appStore.user?.dueDate, pregnancyWeek.value)
+    syncPregnancyWeekStorage(updatedUser.dueDate, pregnancyWeek.value)
     uni.hideLoading()
     navigateHome()
   } catch (err: any) {
