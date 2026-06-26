@@ -37,7 +37,7 @@ function authorityFixture(overrides: Partial<QAPair> = {}): QAPair {
     id: overrides.id || 'authority-aap-fever',
     content_type: 'authority',
     question: overrides.question || 'Fever and Your Baby',
-    answer: overrides.answer || 'Fever can be part of infection. Parents should watch feeding, behavior, and breathing, and contact a clinician when concerned.'.repeat(6),
+    answer: overrides.answer || 'Fever can be part of infection. Parents should watch feeding, behavior, and breathing, and contact a clinician when concerned.'.repeat(12),
     category: overrides.category || 'common-symptoms',
     tags: overrides.tags || ['发热'],
     target_stage: overrides.target_stage || ['0-6-months'],
@@ -212,7 +212,7 @@ describe('authority QA top-up', () => {
         authorityFixture({
           id: 'authority-fda-child-ibuprofen',
           question: 'Ibuprofen for Children: Medicine for pain and fever',
-          answer: 'Ibuprofen can help reduce pain and fever in children. Families should follow product directions and ask a clinician when a child is very young, symptoms persist, or warning signs appear.'.repeat(6),
+          answer: 'Ibuprofen can help reduce pain and fever in children. Families should follow product directions and ask a clinician when a child is very young, symptoms persist, or warning signs appear.'.repeat(12),
           category: 'nutrition-pregnancy',
           topic: 'feeding',
           target_stage: ['first-trimester', 'second-trimester', 'third-trimester'],
@@ -255,7 +255,7 @@ describe('authority QA top-up', () => {
         authorityFixture({
           id: 'authority-nhs-vague-title',
           question: 'Vague feeding guidance',
-          answer: 'This general feeding article mentions that families should ask a clinician if a baby has fever or needs medication guidance.'.repeat(6),
+          answer: 'This general feeding article mentions that families should ask a clinician if a baby has fever or needs medication guidance.'.repeat(12),
           category: 'nutrition-pregnancy',
           topic: 'feeding',
           target_stage: ['first-trimester', 'second-trimester', 'third-trimester'],
@@ -312,7 +312,7 @@ describe('authority QA top-up', () => {
         authorityFixture({
           id: 'authority-fda-child-ibuprofen',
           question: 'Ibuprofen for Children: Medicine for pain and fever',
-          answer: 'Ibuprofen can help reduce pain and fever in children. Families should follow product directions and ask a clinician when warning signs appear.'.repeat(6),
+          answer: 'Ibuprofen can help reduce pain and fever in children. Families should follow product directions and ask a clinician when warning signs appear.'.repeat(12),
           category: 'nutrition-pregnancy',
           topic: 'feeding',
           target_stage: ['first-trimester', 'second-trimester', 'third-trimester'],
@@ -389,7 +389,7 @@ describe('authority QA top-up', () => {
         authorityFixture({
           id: 'authority-nhs-mebendazole',
           question: 'Pregnancy, breastfeeding and fertility while taking mebendazole',
-          answer: 'Mebendazole can be used during pregnancy if necessary. Ask a doctor or midwife about medicines during pregnancy and breastfeeding.'.repeat(6),
+          answer: 'Mebendazole can be used during pregnancy if necessary. Ask a doctor or midwife about medicines during pregnancy and breastfeeding.'.repeat(12),
           category: 'feeding',
           topic: 'feeding',
           target_stage: ['first-trimester', 'second-trimester', 'third-trimester'],
@@ -403,7 +403,7 @@ describe('authority QA top-up', () => {
         authorityFixture({
           id: 'authority-nhs-child-ibuprofen',
           question: 'Ibuprofen for children: medicine for pain and high temperature',
-          answer: 'Ibuprofen for children can treat pain and high temperature. Families should follow the medicine instructions and ask a clinician when symptoms persist or warning signs appear.'.repeat(6),
+          answer: 'Ibuprofen for children can treat pain and high temperature. Families should follow the medicine instructions and ask a clinician when symptoms persist or warning signs appear.'.repeat(12),
           category: 'common-symptoms',
           topic: 'common-symptoms',
           target_stage: ['0-6-months', '6-12-months'],
@@ -519,7 +519,7 @@ describe('authority QA top-up', () => {
       [authorityFixture({
         id: 'authority-aap-fever',
         question: 'Fever care for babies',
-        answer: 'Parents can track fever, feeding, and behavior, and contact a clinician when warning signs appear.'.repeat(6),
+        answer: 'Parents can track fever, feeding, and behavior, and contact a clinician when warning signs appear.'.repeat(12),
       })],
       translationCache,
       {

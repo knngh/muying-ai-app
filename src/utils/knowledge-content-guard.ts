@@ -1,6 +1,10 @@
 import { getMedicalPlatformQualityDropReason } from './medical-platform-quality';
 import { getOfficialChineseAuthorityQualityDropReason } from './official-chinese-authority-quality';
-import { getAuthoritySourceQualityTier, type AuthorityQualityTier } from '../config/authority-sources';
+import {
+  getAuthoritySourceConfig,
+  getAuthoritySourceQualityTier,
+  type AuthorityQualityTier,
+} from '../config/authority-sources';
 
 export interface KnowledgeGuardRecord {
   title?: string;
@@ -22,6 +26,12 @@ export interface KnowledgeGuardRecord {
   sourceUrl?: string;
   source_url?: string;
   url?: string;
+  sourceLanguage?: string;
+  source_language?: string;
+  sourceLocale?: string;
+  source_locale?: string;
+  riskLevelDefault?: string;
+  risk_level_default?: string;
   source_updated_at?: string;
   updated_at?: string;
   updatedAt?: string;
@@ -130,6 +140,73 @@ const MATERNAL_RELEVANCE_HEADER_EN = /pregnan|prenatal|antenatal|postnatal|postp
 
 function countChineseChars(text: string): number {
   return (text.match(/[\u4e00-\u9fff]/gu) || []).length;
+}
+
+const ENGLISH_AUTHORITY_MIN_BODY_WORDS = 180;
+
+function normalizePlainText(value: string | undefined): string {
+  return (value || '')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&#39;/gi, '\'')
+    .replace(/https?:\/\/\S+|www\.\S+/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function countEnglishWords(text: string): number {
+  return (normalizePlainText(text).match(/[A-Za-z]+(?:[-'’][A-Za-z]+)*/g) || []).length;
+}
+
+function getAuthorityBodyText(record: KnowledgeGuardRecord): string {
+  return normalizePlainText(record.contentText || record.answer || record.content || '');
+}
+
+function isPredominantlyEnglishAuthorityRecord(record: KnowledgeGuardRecord): boolean {
+  const sourceId = record.sourceId || record.source_id || '';
+  const sourceConfig = getAuthoritySourceConfig(sourceId);
+  const language = (record.sourceLanguage || record.source_language || sourceConfig?.language || '').toLowerCase();
+  const locale = (record.sourceLocale || record.source_locale || sourceConfig?.locale || '').toLowerCase();
+  const signalText = [
+    record.title || record.question || '',
+    record.summary || '',
+    record.sourceUrl || record.source_url || record.url || '',
+    getAuthorityBodyText(record).slice(0, 600),
+  ].join(' ');
+
+  if (countChineseChars(signalText) >= 40 || language === 'zh' || locale.startsWith('zh')) {
+    return false;
+  }
+
+  if (language === 'en' || locale.startsWith('en')) {
+    return true;
+  }
+
+  return /[A-Za-z]/.test(signalText) && countChineseChars(signalText) < 12;
+}
+
+export function getAuthorityThinContentDropReason(record: KnowledgeGuardRecord): string | null {
+  const body = getAuthorityBodyText(record);
+  if (!body || !isPredominantlyEnglishAuthorityRecord(record)) {
+    return null;
+  }
+
+  const riskLevel = (record.riskLevelDefault || record.risk_level_default || '').toLowerCase();
+  if (riskLevel === 'red') {
+    return null;
+  }
+
+  const wordCount = countEnglishWords(body);
+  if (wordCount > 0 && wordCount < ENGLISH_AUTHORITY_MIN_BODY_WORDS) {
+    return 'english_authority_short_content';
+  }
+
+  return null;
 }
 
 // Time-bound news / press-release ("资讯") content. A personal-entity WeChat
@@ -305,6 +382,11 @@ export function getAuthorityKnowledgeDropReason(record: KnowledgeGuardRecord): s
 
   if (isEnglishAuthorityOffTopic(record)) {
     return 'off_topic_non_maternal';
+  }
+
+  const thinContentReason = getAuthorityThinContentDropReason(record);
+  if (thinContentReason) {
+    return thinContentReason;
   }
 
   const tier = record.qualityTier

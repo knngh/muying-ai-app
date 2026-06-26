@@ -38,7 +38,7 @@ function authorityFixture(overrides: Partial<QAPair>): QAPair {
       id: overrides.id || 'authority-acog-1',
       content_type: 'authority',
       question: overrides.question || 'Bleeding during pregnancy',
-      answer: overrides.answer || 'Bleeding during pregnancy can need clinical evaluation, especially with pain or heavy bleeding. Contact a health professional for individual care.'.repeat(8),
+      answer: overrides.answer || 'Bleeding during pregnancy can need clinical evaluation, especially with pain or heavy bleeding. Contact a health professional for individual care.'.repeat(12),
       category: overrides.category || 'pregnancy',
       tags: overrides.tags || ['孕期与产检'],
       target_stage: overrides.target_stage || ['first-trimester'],
@@ -116,7 +116,7 @@ describe('knowledge enrichment', () => {
         authorityFixture({
           id: 'authority-acog-fetal-movement',
           question: 'Fetal movement in the second trimester',
-          answer: 'Fetal movement changes during pregnancy should be discussed during prenatal care, especially if movement seems reduced.'.repeat(8),
+          answer: 'Fetal movement changes during pregnancy should be discussed during prenatal care, especially if movement seems reduced.'.repeat(12),
           topic: 'pregnancy',
           target_stage: ['second-trimester'],
           tags: ['胎动', '孕中期'],

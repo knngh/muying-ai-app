@@ -726,6 +726,84 @@ describe('authority content guards', () => {
     expect(shouldPublishDocument(document)).toBe('rejected');
   });
 
+  it('rejects thin English authority articles by readable word count', () => {
+    const shortBody = [
+      'Maintaining body temperature involves calories and oxygen.',
+      'The more energy your baby uses to keep warm, the less he will have for growing and healing.',
+      'Your baby will progress from the incubator or radiant warmer to an open crib based on his ability to regulate body temperature.',
+      'This ability depends, in part, on gestational age and weight.',
+      'The transition is usually gradual, but your baby may be returned to the warmer environment at the first sign of inability to maintain temperature.',
+      'It is not unusual for a baby weight gain to slow during the weaning process to an open crib.',
+    ].join(' ');
+    const document = {
+      sourceId: 'aap',
+      sourceOrg: 'AAP',
+      sourceUrl: 'https://www.healthychildren.org/English/ages-stages/baby/preemie/Pages/transitioning-to-a-crib.aspx',
+      sourceLanguage: 'en' as const,
+      sourceLocale: 'en-US',
+      title: 'Transitioning to a Crib in the NICU',
+      updatedAt: '2026-04-09T03:01:03.000Z',
+      audience: '婴幼儿家长',
+      topic: 'newborn',
+      region: 'US',
+      riskLevelDefault: 'green' as const,
+      summary: 'The American Academy of Pediatrics discusses transitioning to a crib.',
+      contentText: shortBody,
+      metadataJson: {},
+      publishStatus: 'draft' as const,
+    };
+
+    const quality = evaluateAuthorityDocumentQuality(document);
+    expect(quality.reasons).toContain('english_authority_short_content');
+    expect(shouldPublishDocument(document)).toBe('rejected');
+    expect(getAuthorityKnowledgeDropReason({
+      sourceId: 'aap',
+      sourceLanguage: 'en',
+      title: document.title,
+      summary: document.summary,
+      answer: shortBody,
+      sourceUrl: document.sourceUrl,
+    })).toBe('english_authority_short_content');
+  });
+
+  it('keeps substantive English authority guidance above the thin-content floor', () => {
+    const body = [
+      'Breastfeeding positions can help parents keep the baby close, comfortable, and well supported during feeds.',
+      'Parents can watch for rhythmic sucking, relaxed hands, audible swallowing, and steady wet diapers as signs that milk transfer is going well.',
+      'If nipples hurt, the baby slips off the breast, or feeding sessions feel unusually long, parents can adjust positioning and ask a lactation professional for help.',
+      'Good support also means keeping water nearby, resting the baby on pillows when needed, and switching sides based on the baby cues rather than a fixed clock.',
+      'Families should seek medical care if the baby has too few wet diapers, poor weight gain, fever, unusual sleepiness, or persistent feeding difficulty.',
+    ].join(' ').repeat(2);
+    const document = {
+      sourceId: 'aap',
+      sourceOrg: 'AAP',
+      sourceUrl: 'https://www.healthychildren.org/English/ages-stages/baby/breastfeeding/Pages/breastfeeding-positions.aspx',
+      sourceLanguage: 'en' as const,
+      sourceLocale: 'en-US',
+      title: 'Breastfeeding Positions for Your Baby',
+      updatedAt: '2026-04-09T02:57:35.000Z',
+      audience: '婴幼儿家长',
+      topic: 'feeding',
+      region: 'US',
+      riskLevelDefault: 'green' as const,
+      summary: 'Guidance for breastfeeding parents and babies.',
+      contentText: body,
+      metadataJson: {},
+      publishStatus: 'draft' as const,
+    };
+
+    expect(evaluateAuthorityDocumentQuality(document).decision).toBe('pass');
+    expect(shouldPublishDocument(document)).toBe('published');
+    expect(getAuthorityKnowledgeDropReason({
+      sourceId: 'aap',
+      sourceLanguage: 'en',
+      title: document.title,
+      summary: document.summary,
+      answer: body,
+      sourceUrl: document.sourceUrl,
+    })).toBeNull();
+  });
+
   it('rejects Chinese official training, meeting, and activity pages from guidance sources', () => {
     const lowValueOfficialRecords = [
       {

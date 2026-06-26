@@ -1,5 +1,6 @@
 import type { AuthorityRawDocument, NormalizedAuthorityDocument } from '../authority-sync.service';
 import { OFFICIAL_AUTHORITY_SOURCE_IDS, type AuthoritySourceConfig } from '../../config/authority-sources';
+import { getAuthorityThinContentDropReason } from '../../utils/knowledge-content-guard';
 import { getMedicalPlatformQualityDropReason } from '../../utils/medical-platform-quality';
 import { getOfficialChineseAuthorityQualityDropReason } from '../../utils/official-chinese-authority-quality';
 
@@ -549,6 +550,21 @@ export function evaluateAuthorityDocumentQuality(document: NormalizedAuthorityDo
   });
   if (officialChineseReason) {
     reasons.push(officialChineseReason);
+  }
+
+  const thinContentReason = getAuthorityThinContentDropReason({
+    sourceId: document.sourceId,
+    sourceOrg: document.sourceOrg,
+    sourceUrl: document.sourceUrl,
+    sourceLanguage: document.sourceLanguage,
+    sourceLocale: document.sourceLocale,
+    riskLevelDefault: document.riskLevelDefault,
+    title: document.title,
+    summary: document.summary,
+    contentText: document.contentText,
+  });
+  if (thinContentReason) {
+    reasons.push(thinContentReason);
   }
 
   const sensitivityReason = isHighRiskOrClickbaitTitle(title);
