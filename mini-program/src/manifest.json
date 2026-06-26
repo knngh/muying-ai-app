@@ -37,9 +37,6 @@
     "usingComponents": true,
     "lazyCodeLoading": "requiredComponents",
     "__usePrivacyCheck__": true,
-    "requiredPrivateInfos": [
-      "chooseImage"
-    ],
     "permission": {
       "scope.camera": {
         "desc": "用于拍摄并上传孕育记录照片"

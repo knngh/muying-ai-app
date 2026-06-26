@@ -1,5 +1,11 @@
 export type AuthorityDiscoveryType = 'rss' | 'sitemap' | 'api' | 'index_page' | 'pdf_index';
 
+// Quality tier used for source-level budget allocation and quality gating.
+// A = top international authorities (WHO/CDC/AAP/ACOG/NHS/Mayo/MSD)
+// B = Chinese national-level officials (nhc/chinacdc/ndcpa/govcn/cma)
+// C = remaining official / local sources
+export type AuthorityQualityTier = 'A' | 'B' | 'C';
+
 export interface AuthoritySourceConfig {
   id: string;
   org: string;
@@ -17,6 +23,7 @@ export interface AuthoritySourceConfig {
   maxPagesPerRun: number;
   maxDiscoveryIndexPages?: number;
   parserId: string;
+  qualityTier?: AuthorityQualityTier;
 }
 
 export const AUTHORITY_SOURCES: AuthoritySourceConfig[] = [
@@ -38,6 +45,7 @@ export const AUTHORITY_SOURCES: AuthoritySourceConfig[] = [
     fetchIntervalMinutes: 360,
     maxPagesPerRun: 300,
     parserId: 'who',
+    qualityTier: 'A',
   },
   {
     id: 'cdc',
@@ -57,6 +65,7 @@ export const AUTHORITY_SOURCES: AuthoritySourceConfig[] = [
     fetchIntervalMinutes: 360,
     maxPagesPerRun: 300,
     parserId: 'cdc',
+    qualityTier: 'A',
   },
   {
     id: 'aap',
@@ -76,6 +85,7 @@ export const AUTHORITY_SOURCES: AuthoritySourceConfig[] = [
     fetchIntervalMinutes: 360,
     maxPagesPerRun: 300,
     parserId: 'aap',
+    qualityTier: 'A',
   },
   {
     id: 'acog',
@@ -95,6 +105,7 @@ export const AUTHORITY_SOURCES: AuthoritySourceConfig[] = [
     fetchIntervalMinutes: 360,
     maxPagesPerRun: 300,
     parserId: 'acog',
+    qualityTier: 'A',
   },
   {
     id: 'nhs',
@@ -114,6 +125,7 @@ export const AUTHORITY_SOURCES: AuthoritySourceConfig[] = [
     fetchIntervalMinutes: 360,
     maxPagesPerRun: 300,
     parserId: 'nhs',
+    qualityTier: 'A',
   },
   {
     id: 'mayo-clinic-zh',
@@ -135,6 +147,7 @@ export const AUTHORITY_SOURCES: AuthoritySourceConfig[] = [
     fetchIntervalMinutes: 720,
     maxPagesPerRun: 180,
     parserId: 'mayo',
+    qualityTier: 'A',
   },
   {
     id: 'msd-manuals-cn',
@@ -154,6 +167,7 @@ export const AUTHORITY_SOURCES: AuthoritySourceConfig[] = [
     fetchIntervalMinutes: 720,
     maxPagesPerRun: 180,
     parserId: 'msd-manuals',
+    qualityTier: 'A',
   },
   {
     id: 'nhc-fys',
@@ -182,6 +196,7 @@ export const AUTHORITY_SOURCES: AuthoritySourceConfig[] = [
     fetchIntervalMinutes: 360,
     maxPagesPerRun: 120,
     parserId: 'cn-health',
+    qualityTier: 'B',
   },
   {
     id: 'nhc-rkjt',
@@ -204,6 +219,7 @@ export const AUTHORITY_SOURCES: AuthoritySourceConfig[] = [
     fetchIntervalMinutes: 360,
     maxPagesPerRun: 100,
     parserId: 'cn-health',
+    qualityTier: 'B',
   },
   {
     id: 'chinacdc-immunization',
@@ -225,6 +241,7 @@ export const AUTHORITY_SOURCES: AuthoritySourceConfig[] = [
     fetchIntervalMinutes: 360,
     maxPagesPerRun: 120,
     parserId: 'cn-health',
+    qualityTier: 'B',
   },
   {
     id: 'chinacdc-nutrition',
@@ -247,6 +264,7 @@ export const AUTHORITY_SOURCES: AuthoritySourceConfig[] = [
     fetchIntervalMinutes: 360,
     maxPagesPerRun: 120,
     parserId: 'cn-health',
+    qualityTier: 'B',
   },
   {
     id: 'govcn-muying',
@@ -266,6 +284,7 @@ export const AUTHORITY_SOURCES: AuthoritySourceConfig[] = [
     fetchIntervalMinutes: 360,
     maxPagesPerRun: 100,
     parserId: 'cn-health',
+    qualityTier: 'B',
   },
   {
     id: 'govcn-jiedu-muying',
@@ -285,6 +304,7 @@ export const AUTHORITY_SOURCES: AuthoritySourceConfig[] = [
     fetchIntervalMinutes: 360,
     maxPagesPerRun: 120,
     parserId: 'cn-health',
+    qualityTier: 'B',
   },
   {
     id: 'ndcpa-immunization',
@@ -305,6 +325,7 @@ export const AUTHORITY_SOURCES: AuthoritySourceConfig[] = [
     fetchIntervalMinutes: 360,
     maxPagesPerRun: 120,
     parserId: 'cn-health',
+    qualityTier: 'B',
   },
   {
     id: 'ndcpa-public-health',
@@ -325,6 +346,7 @@ export const AUTHORITY_SOURCES: AuthoritySourceConfig[] = [
     fetchIntervalMinutes: 360,
     maxPagesPerRun: 120,
     parserId: 'cn-health',
+    qualityTier: 'B',
   },
   {
     id: 'ncwch-maternal-child-health',
@@ -348,6 +370,7 @@ export const AUTHORITY_SOURCES: AuthoritySourceConfig[] = [
     maxPagesPerRun: 36,
     maxDiscoveryIndexPages: 4,
     parserId: 'cn-health',
+    qualityTier: 'C',
   },
   {
     id: 'mchscn-monitoring',
@@ -371,6 +394,7 @@ export const AUTHORITY_SOURCES: AuthoritySourceConfig[] = [
     maxPagesPerRun: 36,
     maxDiscoveryIndexPages: 4,
     parserId: 'cn-health',
+    qualityTier: 'C',
   },
   {
     id: 'cnsoc-dietary-guidelines',
@@ -394,6 +418,7 @@ export const AUTHORITY_SOURCES: AuthoritySourceConfig[] = [
     maxPagesPerRun: 24,
     maxDiscoveryIndexPages: 4,
     parserId: 'cn-health',
+    qualityTier: 'C',
   },
   {
     id: 'chinanutri-maternal-child',
@@ -417,6 +442,7 @@ export const AUTHORITY_SOURCES: AuthoritySourceConfig[] = [
     maxPagesPerRun: 36,
     maxDiscoveryIndexPages: 4,
     parserId: 'cn-health',
+    qualityTier: 'C',
   },
   {
     id: 'cma-kepu-maternal-child',
@@ -437,6 +463,7 @@ export const AUTHORITY_SOURCES: AuthoritySourceConfig[] = [
     maxPagesPerRun: 80,
     maxDiscoveryIndexPages: 3,
     parserId: 'cma-kepu',
+    qualityTier: 'B',
   },
   // Third-party medical content platform. Disabled by default because the
   // site's robots policy explicitly forbids large-language-model crawlers.
@@ -486,6 +513,8 @@ export const AUTHORITY_SOURCES: AuthoritySourceConfig[] = [
     maxDiscoveryIndexPages: 10,
     parserId: 'chunyu',
   },
+  // Third-party medical content platform. Disabled from automatic runs for
+  // app-review safety: even educational pages can read like consultations.
   {
     id: 'youlai-pregnancy-guide',
     org: '有来医生',
@@ -500,12 +529,14 @@ export const AUTHORITY_SOURCES: AuthoritySourceConfig[] = [
     locale: 'zh-CN',
     audience: ['备孕家庭', '孕妇'],
     topics: ['pregnancy', 'feeding', 'development'],
-    enabled: true,
+    enabled: false,
     fetchIntervalMinutes: 1440,
     maxPagesPerRun: 60,
     maxDiscoveryIndexPages: 60,
     parserId: 'youlai',
   },
+  // Third-party medical content platform. Disabled from automatic runs for
+  // app-review safety: reviewed Q&A pages are too close to consultations.
   {
     id: 'dayi-maternal-child',
     org: '中国医药信息查询平台',
@@ -525,12 +556,14 @@ export const AUTHORITY_SOURCES: AuthoritySourceConfig[] = [
     locale: 'zh-CN',
     audience: ['备孕家庭', '孕妇', '产后妈妈', '新生儿家长', '婴幼儿家长'],
     topics: ['pregnancy', 'postpartum', 'newborn', 'feeding', 'common-symptoms', 'development'],
-    enabled: true,
+    enabled: false,
     fetchIntervalMinutes: 1440,
     maxPagesPerRun: 80,
     maxDiscoveryIndexPages: 6,
     parserId: 'dayi',
   },
+  // Third-party medical content platform. Disabled from automatic runs for
+  // app-review safety: public search results mix guidance with social/news copy.
   {
     id: 'kepuchina-maternal-child',
     org: '科普中国',
@@ -552,12 +585,14 @@ export const AUTHORITY_SOURCES: AuthoritySourceConfig[] = [
     locale: 'zh-CN',
     audience: ['备孕家庭', '孕妇', '产后妈妈', '新生儿家长', '婴幼儿家长'],
     topics: ['pregnancy', 'postpartum', 'newborn', 'feeding', 'common-symptoms', 'development'],
-    enabled: true,
+    enabled: false,
     fetchIntervalMinutes: 1440,
     maxPagesPerRun: 96,
     maxDiscoveryIndexPages: 8,
     parserId: 'kepuchina',
   },
+  // Third-party medical content platform. Disabled from automatic runs for
+  // app-review safety: doctor-authored pages still resemble clinical advice.
   {
     id: 'haodf-maternal-child',
     org: '好大夫在线',
@@ -575,7 +610,7 @@ export const AUTHORITY_SOURCES: AuthoritySourceConfig[] = [
     locale: 'zh-CN',
     audience: ['孕妇', '产后妈妈', '新生儿家长', '婴幼儿家长'],
     topics: ['pregnancy', 'postpartum', 'newborn', 'feeding', 'common-symptoms', 'development'],
-    enabled: true,
+    enabled: false,
     fetchIntervalMinutes: 1440,
     maxPagesPerRun: 24,
     maxDiscoveryIndexPages: 4,
@@ -666,6 +701,53 @@ export function listEnabledAuthoritySources(): AuthoritySourceConfig[] {
 
 export function listEnabledOfficialAuthoritySources(): AuthoritySourceConfig[] {
   return AUTHORITY_SOURCES.filter((source) => source.enabled && OFFICIAL_AUTHORITY_SOURCE_IDS.has(source.id));
+}
+
+// Per-tier fetch budget consumed from the discovered-URL backlog on each run.
+// Higher tiers get a larger batch so authoritative sources keep a bigger share
+// of the crawl budget even as more sources are added. Budgets are sized to drain
+// the large English-authority backlogs (who/aap/nhs, maxPagesPerRun=300) faster:
+// the per-run draw is min(maxPagesPerRun, budget), so tier A/B budgets are the
+// binding constraint while tier C stays capped by each source's maxPagesPerRun.
+export function getTierFetchBudget(tier?: AuthorityQualityTier): number {
+  switch (tier) {
+    case 'A':
+      return 200;
+    case 'B':
+      return 120;
+    case 'C':
+      return 40;
+    default:
+      return 40;
+  }
+}
+
+// Per-tier minimum quality thresholds. Lower tiers are held to stricter content
+// length / AI-confidence bars; top-tier authorities keep the existing lenient
+// bar to avoid false drops.
+export interface AuthorityTierQualityThreshold {
+  minContentLength: number;
+  minAiConfidence: number;
+}
+
+export function getTierQualityThreshold(tier?: AuthorityQualityTier): AuthorityTierQualityThreshold {
+  switch (tier) {
+    case 'A':
+      return { minContentLength: 160, minAiConfidence: 0.5 };
+    case 'B':
+      return { minContentLength: 220, minAiConfidence: 0.6 };
+    case 'C':
+      return { minContentLength: 320, minAiConfidence: 0.7 };
+    default:
+      return { minContentLength: 320, minAiConfidence: 0.7 };
+  }
+}
+
+export function getAuthoritySourceQualityTier(sourceId?: string): AuthorityQualityTier | undefined {
+  if (!sourceId) {
+    return undefined;
+  }
+  return getAuthoritySourceConfig(sourceId)?.qualityTier;
 }
 
 export function inferAuthorityLocaleDefaults(

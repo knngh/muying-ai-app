@@ -1,3 +1,5 @@
+import { getTierQualityThreshold, type AuthorityQualityTier } from '../config/authority-sources';
+
 const OFFICIAL_CHINESE_GUIDANCE_SOURCE_IDS = new Set([
   'nhc-fys',
   'nhc-rkjt',
@@ -19,6 +21,12 @@ const CHINANUTRI_NEWS_OR_ACTIVITY_PATTERN = /(?:全民营养周|主场活动|启
 const NCWCH_ADMIN_NEWS_PATTERN = /(?:调研|赴.{0,20}开展|座谈|参观|来访|交流)/u;
 const CNSOC_RELEASE_NEWS_PATTERN = /(?:在京发布|发布会|六一国际儿童节之际)/u;
 const CORE_GUIDANCE_TITLE_PATTERN = /(?:核心信息|核心推荐|关键信息|常见问题|指南|指导原则|健康提示|喂养评估|喂养指南|膳食指南|孕妇.{0,8}指南|乳母.{0,8}指南|儿童营养|免疫程序|接种程序|疫苗儿童免疫|配方乳粉)/u;
+// Administrative cover-notices ("XX委关于印发《YY指南》的通知") are the notice
+// wrapper, not the guidance content itself, and routinely carry an empty or
+// near-empty body. They must be dropped even when the title contains 指南/核心信息,
+// so unlike the activity/admin check below this one is NOT rescued by the
+// core-guidance title exemption.
+const OFFICIAL_ADMIN_COVER_NOTICE_PATTERN = /印发|的通知$/u;
 const OFFICIAL_LOW_VALUE_POLICY_PATTERN = /(?:育儿补贴|补贴制度|政策问答|个人所得税|专项附加扣除|医保|生育保险|申领|财政|预算)/u;
 const OFFICIAL_OFFTOPIC_NUTRITION_CULTURE_PATTERN = /(?:民谚|年关|磨豆腐|兜福|都富|家宅兴旺|福气满满)/u;
 const OFFICIAL_BROAD_CHILD_POLICY_PATTERN = /(?:儿童青少年|青少年|五健|儿童友好医院|儿童医疗卫生服务|儿童药品|妇女儿童发展纲要|儿童发展纲要)/u;
@@ -53,6 +61,7 @@ function normalizeText(value: string | null | undefined): string {
 
 export function getOfficialChineseAuthorityQualityDropReason(
   record: OfficialChineseAuthorityQualityRecord,
+  tier?: AuthorityQualityTier,
 ): string | null {
   const sourceId = normalizeSourceId(record);
   if (!OFFICIAL_CHINESE_GUIDANCE_SOURCE_IDS.has(sourceId)) {
@@ -120,8 +129,21 @@ export function getOfficialChineseAuthorityQualityDropReason(
     return 'official_chinese_activity_or_admin';
   }
 
+  if (OFFICIAL_ADMIN_COVER_NOTICE_PATTERN.test(title)) {
+    return 'official_chinese_activity_or_admin';
+  }
+
   if (OFFICIAL_ACTIVITY_OR_ADMIN_PATTERN.test(signalText) && !CORE_GUIDANCE_TITLE_PATTERN.test(signalText)) {
     return 'official_chinese_activity_or_admin';
+  }
+
+  // Tier-aware minimum body length. Lower quality tiers (C) require more
+  // substantive content before publishing; higher tiers loosen the bar.
+  // Only applies when body content is present (URL/title-only filter checks
+  // must stay unaffected) and never drops recognized core-guidance pages.
+  const minContentLength = getTierQualityThreshold(tier).minContentLength;
+  if (body && body.length < minContentLength && !CORE_GUIDANCE_TITLE_PATTERN.test(signalText)) {
+    return 'official_chinese_short_content';
   }
 
   return null;

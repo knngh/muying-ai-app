@@ -34,9 +34,13 @@ function isEligibleAcogUrl(url: string): boolean {
 export const acogAdapter: AuthorityDocumentAdapter = {
   id: 'acog',
   supports(source: AuthoritySourceConfig, raw: AuthorityRawDocument): boolean {
+    // Match only ACOG's own pages. A plain body-text mention of "American
+    // College of Obstetricians and Gynecologists" (a common citation on other
+    // authorities' articles, e.g. Mayo Clinic FAQ pages) must NOT route the
+    // document here, or this adapter hijacks it and then drops it via
+    // isEligibleAcogUrl, losing otherwise-publishable content.
     return source.parserId === 'acog'
-      || /acog\.org/i.test(raw.url)
-      || /American College of Obstetricians and Gynecologists/i.test(raw.rawBody);
+      || /acog\.org/i.test(raw.url);
   },
   normalize(source: AuthoritySourceConfig, raw: AuthorityRawDocument): NormalizedAuthorityDocument | null {
     if (!isEligibleAcogUrl(raw.url)) {

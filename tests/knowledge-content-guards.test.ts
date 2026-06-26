@@ -1408,7 +1408,7 @@ describe('knowledge content guards', () => {
     })).toBe('medical_platform_casual_or_promotional');
   });
 
-  it('keeps high-quality enabled third-party Chinese medical cache records', () => {
+  it('rejects third-party Chinese medical-platform cache records during app review hardening', () => {
     expect(getAuthorityKnowledgeDropReason({
       question: '孕期体重管理和营养建议',
       summary: '孕期体重管理应结合孕前体重、孕周和胎儿发育情况。',
@@ -1418,6 +1418,6 @@ describe('knowledge content guards', () => {
       source_class: 'medical_platform',
       source_url: 'https://m.youlai.cn/special/advisor/dOP09kv7LD.html',
       updated_at: '2025-03-01T00:00:00.000Z',
-    })).toBeNull();
+    })).toBe('medical_platform_app_review_restricted');
   });
 });

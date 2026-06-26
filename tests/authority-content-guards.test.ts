@@ -1,6 +1,11 @@
 import { inferAuthorityStages } from '../src/utils/authority-stage';
 import { shouldFilterAuthoritySourceUrl } from '../src/utils/authority-source-url';
-import { getAuthoritySourceConfig } from '../src/config/authority-sources';
+import {
+  getAuthoritySourceConfig,
+  getTierFetchBudget,
+  getTierQualityThreshold,
+} from '../src/config/authority-sources';
+import { getOfficialChineseAuthorityQualityDropReason } from '../src/utils/official-chinese-authority-quality';
 import {
   containsDeathRelatedTerms,
   detectAudience,
@@ -581,7 +586,7 @@ describe('authority content guards', () => {
     expect(shouldPublishDocument(repostDocument)).toBe('rejected');
   });
 
-  it('allows high-quality third-party medical-platform guidance', () => {
+  it('keeps third-party Chinese medical-platform guidance out of the app-review knowledge cache', () => {
     const document = {
       sourceId: 'youlai-pregnancy-guide',
       sourceOrg: '有来医生',
@@ -600,11 +605,11 @@ describe('authority content guards', () => {
       publishStatus: 'draft' as const,
     };
 
-    expect(evaluateAuthorityDocumentQuality(document).decision).toBe('pass');
-    expect(shouldPublishDocument(document)).toBe('published');
+    expect(evaluateAuthorityDocumentQuality(document).reasons).toContain('medical_platform_app_review_restricted');
+    expect(shouldPublishDocument(document)).toBe('rejected');
   });
 
-  it('keeps short third-party medical-platform guidance in manual review', () => {
+  it('rejects short third-party medical-platform guidance instead of sending it to review', () => {
     const document = {
       sourceId: 'dayi-maternal-child',
       sourceOrg: '中国医药信息查询平台',
@@ -623,11 +628,11 @@ describe('authority content guards', () => {
       publishStatus: 'draft' as const,
     };
 
-    expect(evaluateAuthorityDocumentQuality(document).decision).toBe('pass');
-    expect(shouldPublishDocument(document)).toBe('review');
+    expect(evaluateAuthorityDocumentQuality(document).reasons).toContain('medical_platform_app_review_restricted');
+    expect(shouldPublishDocument(document)).toBe('rejected');
   });
 
-  it('allows Dayi structured guidance that uses normal appointment and hospitalization wording', () => {
+  it('rejects Dayi structured guidance even when appointment and hospitalization wording is normal', () => {
     const document = {
       sourceId: 'dayi-maternal-child',
       sourceOrg: '中国医药信息查询平台',
@@ -646,8 +651,8 @@ describe('authority content guards', () => {
       publishStatus: 'draft' as const,
     };
 
-    expect(evaluateAuthorityDocumentQuality(document).decision).toBe('pass');
-    expect(shouldPublishDocument(document)).toBe('published');
+    expect(evaluateAuthorityDocumentQuality(document).reasons).toContain('medical_platform_app_review_restricted');
+    expect(shouldPublishDocument(document)).toBe('rejected');
   });
 
   it('still rejects promotional Dayi-like pages when promotional wording appears', () => {
@@ -883,7 +888,13 @@ describe('authority content guards', () => {
 
     lowValueOfficialRecords.forEach((record) => {
       expect(shouldFilterAuthoritySourceUrl(record)).toBe(true);
-      expect(getAuthorityKnowledgeDropReason(record)).toMatch(/^official_chinese_/);
+      // These are all low-value official records that must be dropped. Most are
+      // caught by the official_chinese activity/admin/navigation gate, but a few
+      // event-announcement titles (e.g. "...启动仪式在哈尔滨举办") legitimately match
+      // the news/information gate, which runs first. Either is a correct rejection.
+      expect(getAuthorityKnowledgeDropReason(record)).toMatch(
+        /^(official_chinese_|news_or_information_content$)/,
+      );
     });
 
     [
@@ -1014,5 +1025,78 @@ describe('authority content guards', () => {
     };
     expect(evaluateAuthorityDocumentQuality(mchscnFormPage).reasons).toContain('official_chinese_admin_or_form_page');
     expect(shouldPublishDocument(mchscnFormPage)).toBe('rejected');
+  });
+});
+
+describe('authority quality tier configuration', () => {
+  it('allocates a larger per-run fetch budget to higher tiers', () => {
+    expect(getTierFetchBudget('A')).toBe(200);
+    expect(getTierFetchBudget('B')).toBe(120);
+    expect(getTierFetchBudget('C')).toBe(40);
+    // Unknown / missing tiers fall back to the most conservative budget.
+    expect(getTierFetchBudget(undefined)).toBe(40);
+  });
+
+  it('holds lower tiers to a stricter content-length and confidence bar', () => {
+    expect(getTierQualityThreshold('A')).toEqual({ minContentLength: 160, minAiConfidence: 0.5 });
+    expect(getTierQualityThreshold('B')).toEqual({ minContentLength: 220, minAiConfidence: 0.6 });
+    expect(getTierQualityThreshold('C')).toEqual({ minContentLength: 320, minAiConfidence: 0.7 });
+    expect(getTierQualityThreshold(undefined)).toEqual({ minContentLength: 320, minAiConfidence: 0.7 });
+  });
+});
+
+describe('tier-aware official Chinese content gating', () => {
+  // A plain ~192-char guidance body that does not trip any activity/admin or
+  // navigation patterns and whose title is not a recognized core-guidance page.
+  const shortBody = '孕期保持均衡饮食有助于母婴健康，建议合理搭配蔬菜水果与优质蛋白。'.repeat(6);
+
+  const baseRecord = {
+    sourceId: 'nhc-fys',
+    title: '孕期日常饮食安排说明',
+    summary: '孕期日常饮食安排说明。',
+    contentText: shortBody,
+  };
+
+  it('keeps a 192-char body for a top-tier source (threshold 160)', () => {
+    expect(shortBody.length).toBe(192);
+    expect(getOfficialChineseAuthorityQualityDropReason(baseRecord, 'A')).toBeNull();
+  });
+
+  it('drops the same body for mid and low tiers (thresholds 220 / 320)', () => {
+    expect(getOfficialChineseAuthorityQualityDropReason(baseRecord, 'B'))
+      .toBe('official_chinese_short_content');
+    expect(getOfficialChineseAuthorityQualityDropReason(baseRecord, 'C'))
+      .toBe('official_chinese_short_content');
+  });
+
+  it('routes the tier override through getAuthorityKnowledgeDropReason', () => {
+    expect(getAuthorityKnowledgeDropReason({ ...baseRecord, qualityTier: 'A' })).toBeNull();
+    expect(getAuthorityKnowledgeDropReason({ ...baseRecord, qualityTier: 'C' }))
+      .toBe('official_chinese_short_content');
+  });
+
+  it('never lets the tier override bypass the death-related term gate', () => {
+    // Even the most lenient tier (A) and a trusted source must still drop
+    // death/sensitive content so it never reaches the knowledge base.
+    expect(getAuthorityKnowledgeDropReason({
+      sourceId: 'who',
+      qualityTier: 'A',
+      question: '胎死宫内的常见原因',
+      answer: '相关内容。',
+    })).toBe('death_related_term');
+
+    expect(getAuthorityKnowledgeDropReason({
+      sourceId: 'nhc-fys',
+      qualityTier: 'A',
+      question: '孕期营养指南核心信息',
+      answer: '国家行动计划要求降低孕产妇死亡率，'.repeat(10),
+    })).toBe('death_related_term');
+
+    expect(getAuthorityKnowledgeDropReason({
+      sourceId: 'cdc',
+      qualityTier: 'A',
+      question: 'Reducing the risk of sudden infant death syndrome',
+      answer: 'Guidance for caregivers.',
+    })).toBe('death_related_term');
   });
 });

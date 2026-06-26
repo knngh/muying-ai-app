@@ -1,3 +1,5 @@
+import { getTierQualityThreshold, type AuthorityQualityTier } from '../config/authority-sources';
+
 export interface MedicalPlatformQualityRecord {
   title?: string;
   summary?: string;
@@ -14,6 +16,8 @@ export interface MedicalPlatformQualityRecord {
 const MEDICAL_PLATFORM_SOURCE_PATTERN = /dxy-maternal|chunyu-maternal|youlai-pregnancy-guide|dayi-maternal-child|kepuchina-maternal-child|haodf-maternal-child|familydoctor-maternal|yilianmeiti-maternal-child|丁香医生|春雨医生|有来医生|中国医药信息查询平台|科普中国|好大夫在线|家庭医生在线|医联媒体|dxy\.com|chunyuyisheng\.com|youlai\.cn|dayi\.org\.cn|kepuchina\.cn|haodf\.com|familydoctor\.com\.cn|yilianmeiti\.com/u;
 
 const DISABLED_AUTOMATIC_MEDICAL_PLATFORM_SOURCE_PATTERN = /dxy-maternal|chunyu-maternal|familydoctor-maternal|yilianmeiti-maternal-child|丁香医生|春雨医生|家庭医生在线|医联媒体|dxy\.com|chunyuyisheng\.com|familydoctor\.com\.cn|yilianmeiti\.com/u;
+
+const APP_REVIEW_RESTRICTED_MEDICAL_PLATFORM_SOURCE_PATTERN = /youlai-pregnancy-guide|dayi-maternal-child|kepuchina-maternal-child|haodf-maternal-child|有来医生|中国医药信息查询平台|科普中国|好大夫在线|youlai\.cn|dayi\.org\.cn|kepuchina\.cn|haodf\.com/u;
 
 const NOISY_MEDICAL_PLATFORM_TITLE_PATTERN = /(?:合集|科普文章合集|小心|必看|千万|赶紧|速看|速览|揭秘|真相|别慌|怎么破|要知道|这类[^，。！？]{0,8}特别注意|秘籍|攻略|宝典|一文(?:读懂|看懂|了解)|看这一篇|新妈|新手妈妈们?|宝妈必看|妈妈必看|医院哪家|排行|排名|口碑|即时公开|今日公开|医师速览)/u;
 
@@ -72,7 +76,10 @@ function getPublishedYear(value?: string): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-export function getMedicalPlatformQualityDropReason(record: MedicalPlatformQualityRecord): string | null {
+export function getMedicalPlatformQualityDropReason(
+  record: MedicalPlatformQualityRecord,
+  tier?: AuthorityQualityTier,
+): string | null {
   if (!isMedicalPlatformRecord(record)) {
     return null;
   }
@@ -90,7 +97,7 @@ export function getMedicalPlatformQualityDropReason(record: MedicalPlatformQuali
     return 'medical_platform_missing_title';
   }
 
-  if (normalizedText.length < 320) {
+  if (normalizedText.length < getTierQualityThreshold(tier).minContentLength) {
     return 'medical_platform_short_content';
   }
 
@@ -143,6 +150,10 @@ export function getMedicalPlatformQualityDropReason(record: MedicalPlatformQuali
 
   if (isDisabledAutomaticSource) {
     return 'medical_platform_disabled_source';
+  }
+
+  if (record.sourceClass === 'medical_platform' || APP_REVIEW_RESTRICTED_MEDICAL_PLATFORM_SOURCE_PATTERN.test(sourceText)) {
+    return 'medical_platform_app_review_restricted';
   }
 
   return null;

@@ -6,6 +6,7 @@ import {
   isHighRiskOrClickbaitTitle,
   isOffTopicGovPolicyTitle,
 } from '../services/authority-adapters/base.adapter';
+import { getAuthorityKnowledgeDropReason } from '../utils/knowledge-content-guard';
 import { exportPublishedAuthoritySnapshot } from '../services/authority-sync.service';
 
 interface CandidateRow {
@@ -16,6 +17,7 @@ interface CandidateRow {
   title: string;
   summary: string | null;
   content_text: string | null;
+  metadata_json: string | null;
 }
 
 const TARGET_SOURCE_IDS = [
@@ -27,6 +29,9 @@ const TARGET_SOURCE_IDS = [
   'govcn-jiedu-muying',
   'familydoctor-maternal',
   'youlai-pregnancy-guide',
+  'dayi-maternal-child',
+  'kepuchina-maternal-child',
+  'haodf-maternal-child',
   'yilianmeiti-maternal-child',
   'chunyu-maternal',
   'dxy-maternal',
@@ -60,7 +65,33 @@ function isOffTopicChinanutriDocument(row: CandidateRow): boolean {
     && !/(婴幼儿|新生儿|儿童|青少年|孕妇|孕产|乳母|母乳|喂养|辅食|膳食|营养|维生素|生长|发育|五健|健康提示|指南)/u.test(row.title);
 }
 
+function getSourceClass(row: CandidateRow): string | undefined {
+  if (!row.metadata_json) {
+    return undefined;
+  }
+
+  try {
+    const metadata = JSON.parse(row.metadata_json) as { sourceClass?: unknown };
+    return typeof metadata.sourceClass === 'string' ? metadata.sourceClass : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function shouldReject(row: CandidateRow): boolean {
+  if (getAuthorityKnowledgeDropReason({
+    sourceId: row.source_id,
+    sourceOrg: row.source_org,
+    sourceUrl: row.source_url,
+    sourceClass: getSourceClass(row),
+    title: row.title,
+    question: row.title,
+    summary: row.summary || undefined,
+    answer: row.content_text || undefined,
+  })) {
+    return true;
+  }
+
   if (shouldFilterAuthoritySourceUrl({
     source_id: row.source_id,
     source_org: row.source_org,
@@ -80,7 +111,7 @@ function shouldReject(row: CandidateRow): boolean {
 
 async function main() {
   const rows = await prisma.$queryRawUnsafe<CandidateRow[]>(
-    `SELECT id, source_id, source_org, source_url, title, summary, content_text
+    `SELECT id, source_id, source_org, source_url, title, summary, content_text, metadata_json
      FROM authority_normalized_documents
      WHERE publish_status <> 'rejected'
        AND source_id IN (${TARGET_SOURCE_IDS.map(() => '?').join(', ')})`,

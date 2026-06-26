@@ -1,5 +1,6 @@
 import { getMedicalPlatformQualityDropReason } from './medical-platform-quality';
 import { getOfficialChineseAuthorityQualityDropReason } from './official-chinese-authority-quality';
+import { getAuthoritySourceQualityTier, type AuthorityQualityTier } from '../config/authority-sources';
 
 export interface KnowledgeGuardRecord {
   title?: string;
@@ -17,6 +18,7 @@ export interface KnowledgeGuardRecord {
   source_id?: string;
   sourceClass?: string;
   source_class?: string;
+  qualityTier?: AuthorityQualityTier;
   sourceUrl?: string;
   source_url?: string;
   url?: string;
@@ -120,6 +122,105 @@ const PSEUDO_MEDICAL_GENDER_SELECTION_PATTERN = /(?:备孕|怀孕|二胎|三胎|
 
 const PSEUDO_MEDICAL_QUACK_PATTERN = /(?:转骨|穿胎|安胎药偏方)|快速.{0,4}(?:根治|痊愈|康复)|根治.{0,4}(?:湿疹|肾病|白血病|脑瘫)|包治|祖传秘方|神奇.{0,4}(?:配方|方法|偏方)/u;
 
+// English-language maternal/infant relevance signal. Used to gate predominantly
+// English authority records (WHO/NHS/AAP/CDC) whose Chinese-only scope patterns
+// never fire. Word boundaries on short ambiguous tokens (labour/iud/child/baby)
+// avoid false positives such as "Laboratories" matching "labour".
+const MATERNAL_RELEVANCE_HEADER_EN = /pregnan|prenatal|antenatal|postnatal|postpartum|perinatal|maternit|maternal|midwif|obstetric|fertility|conceiv|ectopic|miscarr|\blabou?r\b|childbirth|gestation|trimester|fetal|foetal|amniotic|placenta|morning sickness|folic acid|breast[\s-]?feed|breast milk|infant formula|wean|newborn|neonat|infant|\bbaby\b|babies|toddler|\bchild\b|children|childhood|paediatric|pediatric|contracept|\biud\b|family planning|nappy|nappies|diaper|teething|colic|immunis|immuniz|vaccin|parenting|nursery|breastfeeding/i;
+
+function countChineseChars(text: string): number {
+  return (text.match(/[\u4e00-\u9fff]/gu) || []).length;
+}
+
+// Time-bound news / press-release ("资讯") content. A personal-entity WeChat
+// mini-program is not permitted to operate a news/information category, so this
+// content must be dropped regardless of how maternal-relevant it is. Driven
+// primarily by URL (covers WHO zh/ar/en news items), excluding health-education
+// paths (fact sheets, Q&A) which are NOT news.
+const NEWS_OR_INFORMATION_URL_PATTERN = /\/news\/item\/|\/news-room\/(?:feature-stories|commentaries|events|spotlight)\/|\/feature-stories\/|\/events\/|\/director-general\/(?:speeches|statements)\//i;
+
+const NEWS_EDUCATION_URL_EXEMPTION = /\/fact-sheets\/|\/questions-and-answers\/|\/q-a-detail\//i;
+
+// Conservative title fallback for news where the URL is not decisive. Requires an
+// organisation subject paired with a news verb, or an explicit event/campaign
+// marker, or clear Chinese news vocabulary. Kept tight so 科普 explainer titles
+// (e.g. "Newborn physical examination") are not caught.
+const NEWS_TITLE_ORG_EN = /\b(?:WHO|W\.H\.O|UNICEF|UNFPA|FAO|ILO|CDC)\b/;
+const NEWS_TITLE_VERB_EN = /\b(?:launch(?:es|ed)?|publish(?:es|ed)?|announce[sd]?|release[sd]?|designate[sd]?|convene[sd]?|host(?:s|ed)?|dispatch(?:es|ed)?|sign(?:s|ed)?|outline[sd]?|welcome[sd]?|honou?red|renew(?:s|ed)?|calls? for)\b/i;
+const NEWS_TITLE_EVENT_EN = /\bmeeting of\b|\bwebinar\b|\bworld\b[\w\s]{0,30}\b(?:day|week)\b|press release/i;
+const NEWS_TITLE_ZH = /新闻|资讯|快讯|要闻|新闻发布会|工作动态|工作简报|通讯专栏|新闻中心|论坛(?:举办|召开|在)|峰会|揭牌|启动仪式|签署.{0,8}(?:协议|备忘录|合作)|出席.{0,12}(?:会议|论坛|活动)|赴.{0,10}调研|召开.{0,10}座谈/u;
+
+function isNewsOrInformationContent(record: KnowledgeGuardRecord): boolean {
+  const url = record.sourceUrl || record.source_url || record.url || '';
+  if (NEWS_OR_INFORMATION_URL_PATTERN.test(url) && !NEWS_EDUCATION_URL_EXEMPTION.test(url)) {
+    return true;
+  }
+
+  const title = record.title || record.question || '';
+  if (!title) {
+    return false;
+  }
+
+  if (NEWS_TITLE_ZH.test(title)) {
+    return true;
+  }
+
+  if (NEWS_TITLE_EVENT_EN.test(title)) {
+    return true;
+  }
+
+  return NEWS_TITLE_ORG_EN.test(title) && NEWS_TITLE_VERB_EN.test(title);
+}
+
+// Global-health program/diplomacy news that is off-topic even when it mentions
+// children (e.g. "...treatment of school-age children for schistosomiasis").
+// Scoped tightly to inter-agency diplomacy and neglected-tropical-disease mass
+// treatment programmes so genuine paediatric topics (childhood cancer, child
+// malnutrition estimates, TB in children) are NOT caught.
+const OFF_TOPIC_PROGRAM_NEWS_EN = /memorandum of understanding|\bmou\b|collaboration agreement|cooperation agreement|schistosomiasis|soil-transmitted helminth|helminthiase?[is]s|lymphatic filariasis|\bfilariasis\b|leishmaniasis|echinococcosis|onchocerciasis|\btrachoma\b|mass drug administration|large-scale treatment|preventive chemotherapy/i;
+
+// Drops English authority records that carry no maternal/infant relevance signal
+// in their title/summary/url/category (e.g. WHO road-safety meetings, NHS drug
+// monographs like hydrocortisone, off-topic condition pages like gynaecomastia).
+// Body text is intentionally excluded: medicine/condition pages routinely include
+// a generic "pregnancy and breastfeeding" safety section that would otherwise
+// falsely qualify an off-topic article. Chinese-language records are left to the
+// Chinese scope/quality gates and are never judged here.
+function isEnglishAuthorityOffTopic(record: KnowledgeGuardRecord): boolean {
+  const title = record.title || record.question || '';
+  const summary = record.summary || '';
+  if (countChineseChars(`${title} ${summary}`) >= 6) {
+    return false;
+  }
+
+  const header = [
+    title,
+    summary,
+    record.category || '',
+    ...(record.tags || []),
+    record.sourceUrl || record.source_url || record.url || '',
+  ].join(' ');
+
+  // No detectable language signal at all -> leave it for other gates.
+  if (!/[a-z]/i.test(header)) {
+    return false;
+  }
+
+  // Off-topic global-health programme/diplomacy news is dropped even when it
+  // mentions children; this override runs before the maternal-keyword pass and
+  // the in-scope category exemption.
+  if (OFF_TOPIC_PROGRAM_NEWS_EN.test(header)) {
+    return true;
+  }
+
+  const category = record.category || '';
+  if (/^(pregnancy|parenting|vaccine|fertility|newborn|infant|breastfeeding)/i.test(category)) {
+    return false;
+  }
+
+  return !MATERNAL_RELEVANCE_HEADER_EN.test(header);
+}
+
 function getQuestion(record: KnowledgeGuardRecord): string {
   return (record.question || record.title || '').replace(/\s+/g, ' ').trim();
 }
@@ -198,6 +299,17 @@ export function getAuthorityKnowledgeDropReason(record: KnowledgeGuardRecord): s
     return 'high_sensitivity_topic';
   }
 
+  if (isNewsOrInformationContent(record)) {
+    return 'news_or_information_content';
+  }
+
+  if (isEnglishAuthorityOffTopic(record)) {
+    return 'off_topic_non_maternal';
+  }
+
+  const tier = record.qualityTier
+    ?? getAuthoritySourceQualityTier(record.sourceId || record.source_id);
+
   const medicalPlatformReason = getMedicalPlatformQualityDropReason({
     title: getQuestion(record),
     summary: record.summary,
@@ -209,7 +321,7 @@ export function getAuthorityKnowledgeDropReason(record: KnowledgeGuardRecord): s
     sourceClass: record.sourceClass || record.source_class,
     sourceUrl: record.sourceUrl || record.source_url || record.url,
     updatedAt: record.updatedAt || record.source_updated_at || record.updated_at || record.published_at || record.created_at,
-  });
+  }, tier);
   if (medicalPlatformReason) {
     return medicalPlatformReason;
   }
@@ -223,7 +335,7 @@ export function getAuthorityKnowledgeDropReason(record: KnowledgeGuardRecord): s
     sourceId: record.sourceId || record.source_id,
     sourceOrg: record.sourceOrg || record.source_org,
     source: record.source,
-  });
+  }, tier);
   if (officialChineseReason) {
     return officialChineseReason;
   }

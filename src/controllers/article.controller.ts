@@ -1939,14 +1939,22 @@ async function prewarmAuthorityTranslationsForArticles(
   });
 }
 
+function getAuthorityArticleSortDate(article: ReturnType<typeof mapAuthorityRecordToArticle>): string | undefined {
+  // Align sorting with the date shown in the UI. sourceUpdatedAt is the most
+  // reliable signal, but it is intentionally nulled out for fetch-time noise
+  // (see resolveReliableAuthorityUpdatedAt); fall back to the displayed date so
+  // recency ordering stays consistent with what the user sees.
+  return article.sourceUpdatedAt || article.publishedAt || article.updatedAt || article.createdAt;
+}
+
 function getAuthorityArticleTimestamp(article: ReturnType<typeof mapAuthorityRecordToArticle>): number {
-  const value = article.sourceUpdatedAt;
+  const value = getAuthorityArticleSortDate(article);
   const timestamp = value ? new Date(value).getTime() : 0;
   return Number.isNaN(timestamp) ? 0 : timestamp;
 }
 
 function getAuthorityArticleDateBucket(article: ReturnType<typeof mapAuthorityRecordToArticle>): string {
-  const value = article.sourceUpdatedAt;
+  const value = getAuthorityArticleSortDate(article);
   if (!value) {
     return '';
   }

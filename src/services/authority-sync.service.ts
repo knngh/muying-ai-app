@@ -4,8 +4,11 @@ import zlib from 'zlib';
 import prisma from '../config/database';
 import {
   getAuthoritySourceConfig,
+  getAuthoritySourceQualityTier,
+  getTierFetchBudget,
   inferAuthorityLocaleDefaults,
   listEnabledAuthoritySources,
+  type AuthorityQualityTier,
   type AuthoritySourceConfig,
 } from '../config/authority-sources';
 import { inferAuthorityStages } from '../utils/authority-stage';
@@ -26,6 +29,12 @@ export interface DiscoveredAuthorityUrl {
   sourceId: string;
   discoveredAt: string;
   priority: number;
+  lastModified?: string;
+}
+
+export interface SitemapEntry {
+  url: string;
+  lastmod?: string;
 }
 
 export interface AuthorityDiscoveryEntryDiagnostic {
@@ -56,6 +65,7 @@ export interface AuthorityRawDocument {
   contentHash: string;
   fetchedAt: string;
   rawBody: string;
+  notModified?: boolean;
 }
 
 export interface NormalizedAuthorityDocument {
@@ -84,6 +94,9 @@ export interface AuthoritySyncSummary {
   normalized: number;
   published: number;
   failed: number;
+  notModified?: number;
+  pending?: number;
+  error?: string;
 }
 
 export interface AuthorityReviewDocument {
@@ -127,6 +140,20 @@ const AUTHORITY_VECTOR_PUBLISH_ENABLED = /^true$/i.test(process.env.AUTHORITY_VE
 const NHS_PREGNANCY_MEDICINE_TEMPLATE_LIMIT = Math.max(
   0,
   Number(process.env.AUTHORITY_NHS_PREGNANCY_MEDICINE_TEMPLATE_LIMIT || 5),
+);
+// Discovery enqueues the full candidate backlog; the per-run fetch budget is
+// applied later when consuming pending rows. Keep a generous absolute cap so a
+// single run can still seed a large directory without runaway memory use.
+const AUTHORITY_DISCOVERY_URL_LIMIT = Math.max(
+  50,
+  Number(process.env.AUTHORITY_DISCOVERY_URL_LIMIT || 2000),
+);
+// Optional ceiling on the published snapshot size. When set, higher quality
+// tiers (A > B > C) are retained first so adding low-tier sources cannot push
+// out trusted content. 0 (default) means "no cap".
+const AUTHORITY_SNAPSHOT_MAX_ITEMS = Math.max(
+  0,
+  Number(process.env.AUTHORITY_SNAPSHOT_MAX_ITEMS || 0),
 );
 
 function toMysqlDateTime(input?: string | Date | null): string | null {
@@ -506,17 +533,52 @@ function filterAuthorityUrls(urls: string[], source: AuthoritySourceConfig): str
   });
 }
 
-function extractSitemapLocUrls(xml: string): string[] {
-  const discovered = new Set<string>();
+function extractSitemapEntries(xml: string): SitemapEntry[] {
+  const entries: SitemapEntry[] = [];
+  const seen = new Set<string>();
 
-  for (const match of xml.matchAll(/<loc>(.*?)<\/loc>/gi)) {
-    const candidate = match[1]?.trim();
-    if (candidate) {
-      discovered.add(candidate);
+  // Prefer block-scoped parsing so each <loc> is paired with its sibling
+  // <lastmod> inside the same <url>/<sitemap> element.
+  const blockPattern = /<(url|sitemap)\b[^>]*>([\s\S]*?)<\/\1>/gi;
+  let matchedBlock = false;
+  for (const block of xml.matchAll(blockPattern)) {
+    matchedBlock = true;
+    const inner = block[2] || '';
+    const loc = inner.match(/<loc>(.*?)<\/loc>/i)?.[1]?.trim();
+    if (!loc || seen.has(loc)) {
+      continue;
+    }
+    const lastmod = inner.match(/<lastmod>(.*?)<\/lastmod>/i)?.[1]?.trim();
+    seen.add(loc);
+    entries.push({ url: loc, lastmod: lastmod || undefined });
+  }
+
+  if (!matchedBlock) {
+    // Fallback for sitemaps that expose bare <loc> tags without wrapping blocks.
+    for (const match of xml.matchAll(/<loc>(.*?)<\/loc>/gi)) {
+      const candidate = match[1]?.trim();
+      if (candidate && !seen.has(candidate)) {
+        seen.add(candidate);
+        entries.push({ url: candidate });
+      }
     }
   }
 
-  return Array.from(discovered);
+  return entries;
+}
+
+function extractSitemapLocUrls(xml: string): string[] {
+  return extractSitemapEntries(xml).map((entry) => entry.url);
+}
+
+function buildSitemapLastmodIndex(xml: string): Map<string, string> {
+  const index = new Map<string, string>();
+  for (const entry of extractSitemapEntries(xml)) {
+    if (entry.lastmod) {
+      index.set(entry.url, entry.lastmod);
+    }
+  }
+  return index;
 }
 
 function getAuthorityUrlRelevanceScore(url: string, source: AuthoritySourceConfig): number {
@@ -686,7 +748,13 @@ function getAuthorityUrlDiversityLimit(family: string | null): number {
   return Number.POSITIVE_INFINITY;
 }
 
-function selectDiverseAuthorityUrls(urls: string[], source: AuthoritySourceConfig, limit: number): string[] {
+function selectDiverseAuthorityUrls(
+  urls: string[],
+  source: AuthoritySourceConfig,
+  limit: number,
+  options: { backfillDeferred?: boolean } = {},
+): string[] {
+  const backfillDeferred = options.backfillDeferred !== false;
   const prioritized = prioritizeAuthorityUrls(urls, source);
   const selected: string[] = [];
   const deferred: string[] = [];
@@ -710,11 +778,16 @@ function selectDiverseAuthorityUrls(urls: string[], source: AuthoritySourceConfi
     }
   }
 
-  for (const url of deferred) {
-    if (selected.length >= limit) {
-      break;
+  // When backfilling, over-quota family members are re-added to fill the limit.
+  // Discovery disables this so repetitive template families stay hard-capped
+  // (e.g. NHS medicine pregnancy/breastfeeding boilerplate pages).
+  if (backfillDeferred) {
+    for (const url of deferred) {
+      if (selected.length >= limit) {
+        break;
+      }
+      selected.push(url);
     }
-    selected.push(url);
   }
 
   return selected;
@@ -1164,6 +1237,23 @@ async function readResponseText(response: Response, url: string): Promise<string
   }
 }
 
+async function ensureTableColumn(table: string, column: string, definition: string): Promise<void> {
+  const rows = await prisma.$queryRawUnsafe<Array<{ count: number | bigint }>>(
+    `SELECT COUNT(*) AS count
+     FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = ?
+       AND COLUMN_NAME = ?`,
+    table,
+    column,
+  );
+  const exists = rows.length > 0 && Number(rows[0]?.count) > 0;
+  if (exists) {
+    return;
+  }
+  await prisma.$executeRawUnsafe(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+}
+
 export async function ensureAuthoritySyncTables(): Promise<void> {
   if (!ensureAuthorityTablesPromise) {
     ensureAuthorityTablesPromise = (async () => {
@@ -1220,6 +1310,13 @@ export async function ensureAuthoritySyncTables(): Promise<void> {
           UNIQUE KEY uniq_authority_normalized_url (source_id, source_url(255))
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
       `);
+
+      // Idempotent column additions for backlog rotation + change detection.
+      // Older deployments created the tables above before these columns existed.
+      await ensureTableColumn('authority_discovered_urls', 'last_modified', 'VARCHAR(255) NULL');
+      await ensureTableColumn('authority_discovered_urls', 'last_fetched_at', 'DATETIME NULL');
+      await ensureTableColumn('authority_discovered_urls', 'content_hash', 'VARCHAR(128) NULL');
+      await ensureTableColumn('authority_normalized_documents', 'content_hash', 'VARCHAR(128) NULL');
     })();
   }
 
@@ -1230,20 +1327,24 @@ function buildDiscoveredAuthorityUrls(
   source: AuthoritySourceConfig,
   mode: 'full' | 'incremental',
   urls: string[],
+  lastmodIndex?: Map<string, string>,
 ): DiscoveredAuthorityUrl[] {
   const discovered = new Map<string, DiscoveredAuthorityUrl>();
-  for (const url of selectDiverseAuthorityUrls(urls, source, source.maxPagesPerRun)) {
+  // Discovery seeds the full backlog (capped only by an absolute safety limit);
+  // the per-run fetch budget is enforced later when consuming pending rows.
+  for (const url of selectDiverseAuthorityUrls(urls, source, AUTHORITY_DISCOVERY_URL_LIMIT, { backfillDeferred: false })) {
     if (!discovered.has(url)) {
       discovered.set(url, {
         url,
         sourceId: source.id,
         discoveredAt: new Date().toISOString(),
         priority: mode === 'full' ? 100 : 80,
+        lastModified: lastmodIndex?.get(url),
       });
     }
   }
 
-  return Array.from(discovered.values()).slice(0, source.maxPagesPerRun);
+  return Array.from(discovered.values());
 }
 
 export interface DiagnoseAuthorityUrlDiscoveryOptions {
@@ -1262,6 +1363,7 @@ export async function diagnoseAuthorityUrlDiscovery(
   const strictFetchErrors = options.strictFetchErrors === true;
   const entryDiagnostics: AuthorityDiscoveryEntryDiagnostic[] = [];
   const allCandidates: string[] = [];
+  const lastmodIndex = new Map<string, string>();
 
   async function collectSitemapPageUrls(urls: string[], depth = 0): Promise<string[]> {
     if (depth > 2 || urls.length === 0) {
@@ -1270,7 +1372,7 @@ export async function diagnoseAuthorityUrlDiscovery(
 
     const pageUrls: string[] = [];
     for (const url of urls) {
-      if (pageUrls.length >= source.maxPagesPerRun) {
+      if (pageUrls.length >= AUTHORITY_DISCOVERY_URL_LIMIT) {
         break;
       }
 
@@ -1314,6 +1416,9 @@ export async function diagnoseAuthorityUrlDiscovery(
         continue;
       }
       const locUrls = extractSitemapLocUrls(text);
+      for (const [locUrl, lastmod] of buildSitemapLastmodIndex(text)) {
+        lastmodIndex.set(locUrl, lastmod);
+      }
       diagnostic.locCount = locUrls.length;
       if (locUrls.length === 0) {
         diagnostic.matchedCandidateCount = 0;
@@ -1333,7 +1438,7 @@ export async function diagnoseAuthorityUrlDiscovery(
         diagnostic.sampleMatchedUrls = [];
         entryDiagnostics.push(diagnostic);
         const nestedUrls = await collectSitemapPageUrls(
-          nestedCandidates.slice(0, source.maxPagesPerRun - pageUrls.length),
+          nestedCandidates.slice(0, AUTHORITY_DISCOVERY_URL_LIMIT - pageUrls.length),
           depth + 1,
         );
         pageUrls.push(...nestedUrls);
@@ -1347,11 +1452,11 @@ export async function diagnoseAuthorityUrlDiscovery(
       diagnostic.sampleMatchedUrls = matchedUrls.slice(0, sampleLimit);
       entryDiagnostics.push(diagnostic);
       pageUrls.push(
-        ...matchedUrls.slice(0, source.maxPagesPerRun - pageUrls.length)
+        ...matchedUrls.slice(0, AUTHORITY_DISCOVERY_URL_LIMIT - pageUrls.length)
       );
     }
 
-    return pageUrls.slice(0, source.maxPagesPerRun);
+    return pageUrls.slice(0, AUTHORITY_DISCOVERY_URL_LIMIT);
   }
 
   async function collectIndexPageUrls(urls: string[]): Promise<string[]> {
@@ -1360,7 +1465,7 @@ export async function diagnoseAuthorityUrlDiscovery(
     const queue = [...urls];
     const maxIndexPages = Math.max(1, source.maxDiscoveryIndexPages || 3);
 
-    while (queue.length > 0 && visited.size < maxIndexPages && pageUrls.length < source.maxPagesPerRun) {
+    while (queue.length > 0 && visited.size < maxIndexPages && pageUrls.length < AUTHORITY_DISCOVERY_URL_LIMIT) {
       const currentUrl = queue.shift();
       if (!currentUrl || visited.has(currentUrl)) {
         continue;
@@ -1410,7 +1515,7 @@ export async function diagnoseAuthorityUrlDiscovery(
       const matchedBefore = pageUrls.length;
       if (isAuthorityUrlMatched(currentUrl, source) && !pageUrls.includes(currentUrl)) {
         pageUrls.push(currentUrl);
-        if (pageUrls.length >= source.maxPagesPerRun) {
+        if (pageUrls.length >= AUTHORITY_DISCOVERY_URL_LIMIT) {
           diagnostic.matchedCandidateCount = pageUrls.length - matchedBefore;
           diagnostic.paginationCandidateCount = 0;
           diagnostic.sampleMatchedUrls = pageUrls.slice(matchedBefore, matchedBefore + sampleLimit);
@@ -1424,7 +1529,7 @@ export async function diagnoseAuthorityUrlDiscovery(
         if (!pageUrls.includes(articleUrl)) {
           pageUrls.push(articleUrl);
         }
-        if (pageUrls.length >= source.maxPagesPerRun) {
+        if (pageUrls.length >= AUTHORITY_DISCOVERY_URL_LIMIT) {
           break;
         }
       }
@@ -1432,7 +1537,7 @@ export async function diagnoseAuthorityUrlDiscovery(
       diagnostic.matchedCandidateCount = pageUrls.length - matchedBefore;
       diagnostic.sampleMatchedUrls = pageUrls.slice(matchedBefore, matchedBefore + sampleLimit);
 
-      if (pageUrls.length >= source.maxPagesPerRun) {
+      if (pageUrls.length >= AUTHORITY_DISCOVERY_URL_LIMIT) {
         diagnostic.paginationCandidateCount = 0;
         entryDiagnostics.push(diagnostic);
         break;
@@ -1448,7 +1553,7 @@ export async function diagnoseAuthorityUrlDiscovery(
       }
     }
 
-    return pageUrls.slice(0, source.maxPagesPerRun);
+    return pageUrls.slice(0, AUTHORITY_DISCOVERY_URL_LIMIT);
   }
 
   for (const entryUrl of source.entryUrls) {
@@ -1477,7 +1582,7 @@ export async function diagnoseAuthorityUrlDiscovery(
   }
 
   return {
-    discovered: buildDiscoveredAuthorityUrls(source, mode, allCandidates),
+    discovered: buildDiscoveredAuthorityUrls(source, mode, allCandidates, lastmodIndex),
     entryDiagnostics,
   };
 }
@@ -1497,8 +1602,10 @@ export const __authoritySyncTestUtils = {
   extractEmbeddedIndexLinks,
   extractIndexLinks,
   extractPaginationLinks,
+  extractSitemapEntries,
   extractSitemapLocUrls,
   extractSitemapUrls,
+  buildSitemapLastmodIndex,
   filterNestedSitemapCandidates,
   getAuthorityUrlRelevanceScore,
   buildDiscoveredAuthorityUrls,
@@ -1517,19 +1624,144 @@ export async function persistDiscoveredAuthorityUrls(urls: DiscoveredAuthorityUr
   await ensureAuthoritySyncTables();
 
   for (const item of urls) {
+    const normalizedLastmod = toMysqlDateTime(item.lastModified);
     await prisma.$executeRawUnsafe(
-      `INSERT IGNORE INTO authority_discovered_urls (source_id, url, discovered_at, priority, status)
-       VALUES (?, ?, ?, ?, 'pending')`,
+      `INSERT INTO authority_discovered_urls
+         (source_id, url, discovered_at, priority, status, last_modified)
+       VALUES (?, ?, ?, ?, 'pending', ?)
+       ON DUPLICATE KEY UPDATE
+         priority = VALUES(priority),
+         last_modified = VALUES(last_modified),
+         status = CASE
+           WHEN ? IS NOT NULL
+             AND (last_fetched_at IS NULL OR ? > last_fetched_at)
+           THEN 'pending'
+           ELSE status
+         END`,
       item.sourceId,
       item.url,
       toMysqlDateTime(item.discoveredAt),
       item.priority,
+      item.lastModified || null,
+      normalizedLastmod,
+      normalizedLastmod,
     );
   }
 }
 
+export async function loadPendingDiscoveredUrls(
+  source: AuthoritySourceConfig,
+  budget: number,
+): Promise<DiscoveredAuthorityUrl[]> {
+  await ensureAuthoritySyncTables();
+  const limit = Math.max(1, Math.floor(budget));
+  const rows = await prisma.$queryRawUnsafe<Array<{
+    sourceId: string;
+    url: string;
+    discoveredAt: Date | null;
+    priority: number | bigint;
+    lastModified: string | null;
+  }>>(
+    `SELECT
+       source_id AS sourceId,
+       url,
+       discovered_at AS discoveredAt,
+       priority,
+       last_modified AS lastModified
+     FROM authority_discovered_urls
+     WHERE source_id = ? AND status = 'pending'
+     ORDER BY priority DESC, COALESCE(last_fetched_at, '1970-01-01') ASC, id ASC
+     LIMIT ${limit}`,
+    source.id,
+  );
+
+  return rows.map((row) => ({
+    url: row.url,
+    sourceId: row.sourceId,
+    discoveredAt: row.discoveredAt instanceof Date
+      ? row.discoveredAt.toISOString()
+      : new Date().toISOString(),
+    priority: Number(row.priority),
+    lastModified: row.lastModified || undefined,
+  }));
+}
+
+async function markDiscoveredUrlStatus(
+  sourceId: string,
+  url: string,
+  status: 'done' | 'failed',
+  options: { contentHash?: string | null } = {},
+): Promise<void> {
+  await prisma.$executeRawUnsafe(
+    `UPDATE authority_discovered_urls
+     SET status = ?,
+         last_fetched_at = ?,
+         content_hash = COALESCE(?, content_hash)
+     WHERE source_id = ? AND url = ?`,
+    status,
+    toMysqlDateTime(new Date().toISOString()),
+    options.contentHash ?? null,
+    sourceId,
+    url,
+  );
+}
+
+async function countPendingDiscoveredUrls(sourceId: string): Promise<number> {
+  const rows = await prisma.$queryRawUnsafe<Array<{ count: number | bigint }>>(
+    `SELECT COUNT(*) AS count
+     FROM authority_discovered_urls
+     WHERE source_id = ? AND status = 'pending'`,
+    sourceId,
+  );
+  return rows.length > 0 ? Number(rows[0]?.count) : 0;
+}
+
 export async function fetchAuthorityDocument(source: AuthoritySourceConfig, url: string): Promise<AuthorityRawDocument | null> {
-  const response = await fetchText(url);
+  // Reuse the most recent validators so the origin can answer 304 Not Modified
+  // and we can skip re-normalizing unchanged content.
+  const priorRows = await prisma.$queryRawUnsafe<Array<{
+    etag: string | null;
+    lastModified: string | null;
+  }>>(
+    `SELECT etag, last_modified AS lastModified
+     FROM authority_raw_documents
+     WHERE source_id = ? AND url = ?
+     ORDER BY fetched_at DESC, id DESC
+     LIMIT 1`,
+    source.id,
+    url,
+  );
+  const prior = priorRows[0];
+  const conditionalHeaders: Record<string, string> = {};
+  if (prior?.etag) {
+    conditionalHeaders['If-None-Match'] = prior.etag;
+  }
+  if (prior?.lastModified) {
+    conditionalHeaders['If-Modified-Since'] = prior.lastModified;
+  }
+
+  const response = await fetchText(
+    url,
+    Object.keys(conditionalHeaders).length > 0 ? conditionalHeaders : undefined,
+  );
+
+  if (response.status === 304) {
+    // Drain/abort the body to free the socket, then signal "unchanged".
+    await response.body?.cancel().catch(() => {});
+    return {
+      sourceId: source.id,
+      url,
+      httpStatus: 304,
+      contentType: response.headers.get('content-type') || 'text/html',
+      etag: response.headers.get('etag') || prior?.etag || undefined,
+      lastModified: response.headers.get('last-modified') || prior?.lastModified || undefined,
+      contentHash: '',
+      fetchedAt: new Date().toISOString(),
+      rawBody: '',
+      notModified: true,
+    };
+  }
+
   const rawBody = await readResponseText(response, url);
   const contentType = response.headers.get('content-type') || 'text/html';
   const raw: AuthorityRawDocument = {
@@ -1566,15 +1798,22 @@ export function normalizeAuthorityDocument(source: AuthoritySourceConfig, raw: A
   return normalizeWithAuthorityAdapter(source, raw);
 }
 
-export async function persistNormalizedAuthorityDocument(document: NormalizedAuthorityDocument): Promise<void> {
+export async function persistNormalizedAuthorityDocument(
+  document: NormalizedAuthorityDocument,
+  contentHash?: string | null,
+): Promise<void> {
   await prisma.$executeRawUnsafe(
     `INSERT INTO authority_normalized_documents
-     (source_id, source_org, source_url, title, updated_at, audience, topic, region, risk_level_default, summary, content_text, metadata_json, publish_status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     (source_id, source_org, source_url, title, updated_at, audience, topic, region, risk_level_default, summary, content_text, metadata_json, publish_status, content_hash)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON DUPLICATE KEY UPDATE
        source_org = VALUES(source_org),
        title = VALUES(title),
-       updated_at = VALUES(updated_at),
+       updated_at = CASE
+         WHEN VALUES(content_hash) IS NULL THEN VALUES(updated_at)
+         WHEN content_hash IS NULL OR content_hash <> VALUES(content_hash) THEN VALUES(updated_at)
+         ELSE updated_at
+       END,
        audience = VALUES(audience),
        topic = VALUES(topic),
        region = VALUES(region),
@@ -1582,6 +1821,7 @@ export async function persistNormalizedAuthorityDocument(document: NormalizedAut
        summary = VALUES(summary),
        content_text = VALUES(content_text),
        metadata_json = VALUES(metadata_json),
+       content_hash = VALUES(content_hash),
        publish_status = CASE
          WHEN publish_status IN ('published', 'rejected') THEN publish_status
          ELSE VALUES(publish_status)
@@ -1599,6 +1839,7 @@ export async function persistNormalizedAuthorityDocument(document: NormalizedAut
     document.contentText,
     JSON.stringify(document.metadataJson),
     document.publishStatus,
+    contentHash ?? null,
   );
 }
 
@@ -1738,17 +1979,52 @@ export async function syncAuthoritySource(
     normalized: 0,
     published: 0,
     failed: 0,
+    notModified: 0,
+    pending: 0,
   };
 
-  const discoveredUrls = await discoverAuthorityUrls(source, mode);
-  summary.discovered = discoveredUrls.length;
-  await persistDiscoveredAuthorityUrls(discoveredUrls);
+  // 1) Discovery seeds/refreshes the FULL candidate backlog (status=pending).
+  //    A transient discovery failure (e.g. an upstream index/sitemap timeout)
+  //    must not abort the source: we still drain any backlog persisted by
+  //    earlier runs, which is the whole point of decoupling discovery from
+  //    fetching.
+  try {
+    const discoveredUrls = await discoverAuthorityUrls(source, mode);
+    summary.discovered = discoveredUrls.length;
+    await persistDiscoveredAuthorityUrls(discoveredUrls);
+  } catch (error) {
+    summary.error = error instanceof Error ? error.message : String(error);
+    console.error(`[Authority Sync] Discovery failed, draining existing backlog: ${source.id}`, error);
+  }
 
-  for (const discovered of discoveredUrls) {
+  // 2) Consume one budget-sized batch from the backlog so runs rotate across
+  //    the whole directory instead of re-fetching the same head every time.
+  const budget = Math.max(
+    1,
+    Math.min(source.maxPagesPerRun, getTierFetchBudget(source.qualityTier)),
+  );
+  const batch = await loadPendingDiscoveredUrls(source, budget);
+
+  for (const discovered of batch) {
     try {
       const raw = await fetchAuthorityDocument(source, discovered.url);
-      if (!raw || raw.httpStatus >= 400) {
+      if (!raw) {
         summary.failed += 1;
+        await markDiscoveredUrlStatus(source.id, discovered.url, 'failed');
+        continue;
+      }
+
+      if (raw.notModified) {
+        // Content unchanged at the origin: keep the existing record, just mark
+        // this backlog entry done so the next run advances to fresh URLs.
+        summary.notModified = (summary.notModified || 0) + 1;
+        await markDiscoveredUrlStatus(source.id, discovered.url, 'done');
+        continue;
+      }
+
+      if (raw.httpStatus >= 400) {
+        summary.failed += 1;
+        await markDiscoveredUrlStatus(source.id, discovered.url, 'failed');
         continue;
       }
       summary.fetched += 1;
@@ -1756,12 +2032,19 @@ export async function syncAuthoritySource(
       const normalized = normalizeAuthorityDocument(source, raw);
       if (!normalized) {
         summary.failed += 1;
+        // Fetched fine but unparseable; mark done so we don't loop on it.
+        await markDiscoveredUrlStatus(source.id, discovered.url, 'done', {
+          contentHash: raw.contentHash,
+        });
         continue;
       }
 
       const reviewed = await reviewAuthorityDocumentQualityWithAiIfNeeded(normalized, raw);
-      await persistNormalizedAuthorityDocument(reviewed);
+      await persistNormalizedAuthorityDocument(reviewed, raw.contentHash);
       summary.normalized += 1;
+      await markDiscoveredUrlStatus(source.id, discovered.url, 'done', {
+        contentHash: raw.contentHash,
+      });
       if (
         (reviewed.publishStatus === 'published' || reviewed.publishStatus === 'review')
         && isAuthorityAiQualityReviewExportable(reviewed.metadataJson)
@@ -1770,9 +2053,12 @@ export async function syncAuthoritySource(
       }
     } catch (error) {
       summary.failed += 1;
+      await markDiscoveredUrlStatus(source.id, discovered.url, 'failed').catch(() => {});
       console.error(`[Authority Sync] Failed: ${source.id} -> ${discovered.url}`, error);
     }
   }
+
+  summary.pending = await countPendingDiscoveredUrls(source.id);
 
   await exportPublishedAuthoritySnapshot();
 
@@ -1784,7 +2070,26 @@ export async function syncAllAuthoritySources(
 ): Promise<AuthoritySyncSummary[]> {
   const summaries: AuthoritySyncSummary[] = [];
   for (const source of listEnabledAuthoritySources()) {
-    summaries.push(await syncAuthoritySource(source.id, mode));
+    try {
+      summaries.push(await syncAuthoritySource(source.id, mode));
+    } catch (error) {
+      // Isolate per-source failures (e.g. a discovery-stage network timeout) so
+      // one bad source can never abort the whole cycle or suppress the summary.
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`[Authority Sync] Source cycle failed: ${source.id}`, error);
+      summaries.push({
+        sourceId: source.id,
+        mode,
+        discovered: 0,
+        fetched: 0,
+        normalized: 0,
+        published: 0,
+        failed: 0,
+        notModified: 0,
+        pending: 0,
+        error: message,
+      });
+    }
   }
   return summaries;
 }
@@ -1850,18 +2155,49 @@ export async function exportPublishedAuthoritySnapshot(): Promise<void> {
       title: row.title,
       question: row.title,
     }))
-    .filter((row) => !getAuthorityKnowledgeDropReason({
-      sourceId: row.sourceId,
-      sourceOrg: row.sourceOrg,
-      sourceUrl: row.sourceUrl,
-      title: row.title,
-      question: row.title,
-      summary: row.summary,
-      answer: row.contentText,
-      updatedAt: row.updatedAt?.toISOString() || row.createdAt.toISOString(),
-    }));
+    .filter((row) => {
+      const metadata = row.metadataJson ? JSON.parse(row.metadataJson) : {};
+      return !getAuthorityKnowledgeDropReason({
+        sourceId: row.sourceId,
+        sourceOrg: row.sourceOrg,
+        sourceUrl: row.sourceUrl,
+        sourceClass: typeof metadata.sourceClass === 'string' ? metadata.sourceClass : undefined,
+        title: row.title,
+        question: row.title,
+        summary: row.summary,
+        answer: row.contentText,
+        updatedAt: row.updatedAt?.toISOString() || row.createdAt.toISOString(),
+      });
+    });
 
-  const payload = exportableRows.map((row, index) => {
+  // Prioritize higher quality tiers (A > B > C) before applying any size cap,
+  // so enabling lower-tier sources can never evict trusted content. Within the
+  // same tier preserve the existing recency ordering from the SQL query.
+  const tierRank = (tier?: AuthorityQualityTier): number => {
+    switch (tier) {
+      case 'A': return 0;
+      case 'B': return 1;
+      case 'C': return 2;
+      default: return 3;
+    }
+  };
+  const rankedRows = exportableRows
+    .map((row, originalIndex) => ({ row, originalIndex }))
+    .sort((a, b) => {
+      const tierDiff = tierRank(getAuthoritySourceQualityTier(a.row.sourceId))
+        - tierRank(getAuthoritySourceQualityTier(b.row.sourceId));
+      if (tierDiff !== 0) {
+        return tierDiff;
+      }
+      return a.originalIndex - b.originalIndex;
+    })
+    .map((entry) => entry.row);
+
+  const cappedRows = AUTHORITY_SNAPSHOT_MAX_ITEMS > 0
+    ? rankedRows.slice(0, AUTHORITY_SNAPSHOT_MAX_ITEMS)
+    : rankedRows;
+
+  const payload = cappedRows.map((row, index) => {
     const cleanedTitle = sanitizeAuthorityTitle(row.title);
     const localeDefaults = inferAuthorityLocaleDefaults(row.sourceId, row.region);
     const metadata = row.metadataJson ? JSON.parse(row.metadataJson) : {};
@@ -1944,6 +2280,7 @@ export async function exportPublishedAuthoritySnapshot(): Promise<void> {
       answer: row.contentText,
       summary: row.summary,
       category: inferredTopic,
+      quality_tier: getAuthoritySourceQualityTier(row.sourceId) || 'C',
       tags: buildAuthorityDisplayTags({
         topic: inferredTopic,
         audience: inferredAudience,
@@ -1984,6 +2321,7 @@ export async function exportPublishedAuthoritySnapshot(): Promise<void> {
           : 'official',
         sourceLanguage: localeDefaults.sourceLanguage,
         sourceLocale: localeDefaults.sourceLocale,
+        qualityTier: getAuthoritySourceQualityTier(row.sourceId) || 'C',
         targetStages,
       },
     };

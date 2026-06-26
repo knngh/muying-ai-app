@@ -9,13 +9,13 @@ import { detectAudience, detectTopic, extractTitle, shouldPublishDocument } from
 import { inferAuthorityStages } from '../src/utils/authority-stage';
 
 describe('authority index discovery', () => {
-  test('keeps only high-confidence third-party Chinese sources enabled for automatic runs', () => {
+  test('keeps third-party Chinese medical platforms out of automatic runs', () => {
     const enabledIds = new Set(listEnabledAuthoritySources().map((source) => source.id));
 
-    expect(enabledIds).toContain('youlai-pregnancy-guide');
-    expect(enabledIds).toContain('dayi-maternal-child');
-    expect(enabledIds).toContain('kepuchina-maternal-child');
-    expect(enabledIds).toContain('haodf-maternal-child');
+    expect(enabledIds).not.toContain('youlai-pregnancy-guide');
+    expect(enabledIds).not.toContain('dayi-maternal-child');
+    expect(enabledIds).not.toContain('kepuchina-maternal-child');
+    expect(enabledIds).not.toContain('haodf-maternal-child');
     expect(enabledIds).not.toContain('chunyu-maternal');
     expect(enabledIds).not.toContain('familydoctor-maternal');
     expect(enabledIds).not.toContain('yilianmeiti-maternal-child');
@@ -307,6 +307,47 @@ describe('authority index discovery', () => {
       'https://www.msdmanuals.cn/sitemaps/home-topic.xml.gz',
       'https://www.msdmanuals.cn/sitemaps/home-generic-pages.xml',
     ]);
+  });
+
+  test('extractSitemapEntries pairs each loc with its sibling lastmod and falls back to bare loc tags', () => {
+    const xml = `
+      <urlset>
+        <url><loc>https://example.org/a</loc><lastmod>2024-05-01</lastmod></url>
+        <url><loc>https://example.org/b</loc><lastmod>2025-01-15T10:30:00+00:00</lastmod></url>
+        <url><loc>https://example.org/c</loc></url>
+      </urlset>
+    `;
+
+    const entries = __authoritySyncTestUtils.extractSitemapEntries(xml);
+    expect(entries).toEqual([
+      { url: 'https://example.org/a', lastmod: '2024-05-01' },
+      { url: 'https://example.org/b', lastmod: '2025-01-15T10:30:00+00:00' },
+      { url: 'https://example.org/c', lastmod: undefined },
+    ]);
+
+    expect(__authoritySyncTestUtils.extractSitemapLocUrls(xml)).toEqual([
+      'https://example.org/a',
+      'https://example.org/b',
+      'https://example.org/c',
+    ]);
+
+    const bare = '<loc>https://example.org/x</loc><loc>https://example.org/y</loc>';
+    expect(__authoritySyncTestUtils.extractSitemapEntries(bare)).toEqual([
+      { url: 'https://example.org/x' },
+      { url: 'https://example.org/y' },
+    ]);
+  });
+
+  test('buildSitemapLastmodIndex only indexes locs that carry a lastmod', () => {
+    const xml = `
+      <urlset>
+        <url><loc>https://example.org/a</loc><lastmod>2024-05-01</lastmod></url>
+        <url><loc>https://example.org/c</loc></url>
+      </urlset>
+    `;
+    const index = __authoritySyncTestUtils.buildSitemapLastmodIndex(xml);
+    expect(index.get('https://example.org/a')).toBe('2024-05-01');
+    expect(index.has('https://example.org/c')).toBe(false);
   });
 
   test('matches MSD Chinese child health pages without accepting unrelated immune-system articles', () => {
@@ -844,7 +885,7 @@ describe('authority index discovery', () => {
     expect(document?.title).toBe('孕妇脚痒怎么办');
     expect(document?.audience).toBe('孕妇');
     expect(document?.topic).toBe('pregnancy');
-    expect(document?.publishStatus).toBe('published');
+    expect(document?.publishStatus).toBe('rejected');
     expect(document?.updatedAt).toBe('2025-11-17 22:08');
     expect(document?.contentText).toContain('主任医师');
     expect(document?.metadataJson.sourceClass).toBe('medical_platform');
@@ -900,7 +941,7 @@ describe('authority index discovery', () => {
     expect(document?.title).toBe('新生儿护理须知！');
     expect(document?.audience).toBe('婴幼儿家长');
     expect(document?.topic).toBe('feeding');
-    expect(document?.publishStatus).toBe('published');
+    expect(document?.publishStatus).toBe('rejected');
     expect(document?.updatedAt).toBe('2024-12-17');
     expect(document?.contentText).toContain('母乳是婴儿理想食物');
     expect(document?.contentText).not.toContain('死亡率');
@@ -955,7 +996,7 @@ describe('authority index discovery', () => {
     expect(document?.title).toBe('婴幼儿退热用药原则');
     expect(document?.audience).toBe('婴幼儿家长');
     expect(document?.topic).toBe('common-symptoms');
-    expect(document?.publishStatus).toBe('published');
+    expect(document?.publishStatus).toBe('rejected');
     expect(document?.updatedAt).toBe('2025-05-12');
     expect(document?.contentText).toContain('北京儿童医院');
     expect(document?.contentText).toContain('不要用酒精擦浴');

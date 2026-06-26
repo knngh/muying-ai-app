@@ -4,7 +4,7 @@ import {
 } from '../src/utils/authority-vector-filter';
 
 describe('authority vector filter', () => {
-  it('publishes official and high-quality medical-platform authority documents', () => {
+  it('publishes official authority documents and blocks medical-platform vectors', () => {
     expect(shouldPublishAuthorityVectorDocument({
       title: '孕早期见红怎么办',
       topic: 'pregnancy-early',
@@ -29,7 +29,7 @@ describe('authority vector filter', () => {
       sourceOrg: '有来医生',
       sourceClass: 'medical_platform',
       authoritative: true,
-    })).toBe(true);
+    })).toBe(false);
 
     expect(shouldPublishAuthorityVectorDocument({
       title: '中国政府网政策解读：生育支持措施',
