@@ -126,6 +126,10 @@ const DEATH_RELATED_EN_PATTERN = /\b(?:deaths?|died|dying|deceased|fatal|fatalit
 
 const HIGH_SENSITIVITY_TOPIC_PATTERN = /胎死(?:腹中|宫内)?|胎停(?:育)?|稽留流产|胎儿宫内死亡|胎儿畸形(?:引产|终止妊娠)|引产案例|引产经历|堕胎(?:经历|过程|手术)|药流|打掉(?:孩子|小孩|胎儿)|流掉(?:孩子|小孩|胎儿)|不要(?:这个)?(?:孩子|小孩|胎儿)|遗腹子/u;
 
+// China-facing knowledge articles must not surface foreign local emergency
+// routing such as UK 999/NHS 111/A&E instructions.
+const FOREIGN_EMERGENCY_INSTRUCTION_EN_PATTERN = /\b(?:call|phone|dial|ring)\s+(?:999|111)\b|\b(?:call|phone|contact)\s+NHS\s*111\b|\bNHS\s*111\b|\b111\s+online\b|\bA&E\b|\baccident\s+and\s+emergency\b/i;
+
 const SENSATIONAL_LANGUAGE_PATTERN = /(?:很要命|后患无穷|致命|可怕|惊人|惊悚|惊呆|噩耗|崩溃|惨剧|惨痛|血淋淋|绝症|悲剧|越来越多|不敢相信|高度警惕|都怪|这件事能|赶紧拿|赶紧用|分分钟|惊天|揪心|哭了|崩溃了|无人不知|无人不晓|惊曝|曝光|警惕!|当心!|千万别|太可怕|必看|秒懂|不妨试试|绝招|招数|支招|智力受损|补脑|不防不行|妈妈要早知|值得家长一看)/u;
 
 const PSEUDO_MEDICAL_GENDER_SELECTION_PATTERN = /(?:备孕|怀孕|二胎|三胎|想要|要想|准备)[^，。！？]{0,8}(?:男孩|女孩|男宝|女宝|男娃|女娃|儿子)(?![名个])|(?:生|怀|要)(?:个)?(?:男孩|女孩|男宝|女宝|男娃|女娃)(?:[^，。！？]{0,12}(?:秘诀|偏方|方法|妙招|妙方|技巧|吃什么|怎么吃|食谱|配方|攻略|科学|备孕|攻略|攻略)|$|？|\?)|(?:男孩|女孩|男宝|女宝)[^，。！？]{0,6}(?:秘诀|偏方|妙方)|生男生女(?:秘诀|预测|看|早知道|提前知道)|清宫(?:表|图)预测|(?:酸性体质|碱性体质)[^，。！？]{0,8}(?:生男|生女|男孩|女孩)/u;
@@ -374,6 +378,10 @@ export function getAuthorityKnowledgeDropReason(record: KnowledgeGuardRecord): s
 
   if (HIGH_SENSITIVITY_TOPIC_PATTERN.test(getRecordText(record))) {
     return 'high_sensitivity_topic';
+  }
+
+  if (FOREIGN_EMERGENCY_INSTRUCTION_EN_PATTERN.test(getRecordText(record))) {
+    return 'foreign_emergency_instruction';
   }
 
   if (isNewsOrInformationContent(record)) {

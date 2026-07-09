@@ -15,6 +15,7 @@ import { cnHealthAdapter } from './cn-health.adapter';
 import { dxyAdapter } from './dxy.adapter';
 import { dayiAdapter } from './dayi.adapter';
 import { familydoctorAdapter } from './familydoctor.adapter';
+import { genericEnglishAdapter } from './generic-english.adapter';
 import { haodfAdapter } from './haodf.adapter';
 import { kepuchinaAdapter } from './kepuchina.adapter';
 import { mayoAdapter } from './mayo.adapter';
@@ -30,6 +31,7 @@ const adapters: AuthorityDocumentAdapter[] = [
   aapAdapter,
   acogAdapter,
   nhsAdapter,
+  genericEnglishAdapter,
   mayoAdapter,
   msdManualsAdapter,
   cnHealthAdapter,

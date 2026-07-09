@@ -641,7 +641,7 @@ describe('knowledge ops report', () => {
     expect(report.actionItems.some((item) => item.message.includes('chinacdc-nutrition'))).toBe(false);
   });
 
-  it('watches a broader default official source set for daily low coverage refreshes', () => {
+  it('watches English top-tier sources by default for daily low coverage refreshes', () => {
     const report = buildKnowledgeOpsReport({
       qaRecords: [],
       authorityRecords: [],
@@ -649,14 +649,17 @@ describe('knowledge ops report', () => {
 
     const watchedSourceIds = report.sourceCoverage.watchedSources.map((source) => source.sourceId);
     expect(watchedSourceIds).toEqual(DEFAULT_WATCHED_SOURCE_IDS);
-    expect(watchedSourceIds.length).toBeGreaterThanOrEqual(10);
-    expect(watchedSourceIds).toEqual(expect.arrayContaining([
-      'nhc-fys',
-      'chinacdc-immunization',
-      'ncwch-maternal-child-health',
-      'mchscn-monitoring',
-      'chinanutri-maternal-child',
-    ]));
+    expect(watchedSourceIds).toEqual([
+      'who',
+      'cdc',
+      'aap',
+      'acog',
+      'nhs',
+      'medlineplus',
+      'nichd',
+      'fda-women-health',
+      'lactmed',
+    ]);
   });
 
   it('parses watched source env overrides without empty or duplicate entries', () => {

@@ -64,6 +64,56 @@ describe('authority source url filtering', () => {
     })).toBe(false);
   });
 
+  test('filters added English authority source landing pages but keeps focused topic pages', () => {
+    expect(shouldFilterAuthoritySourceUrl({
+      source_id: 'medlineplus',
+      source_url: 'https://medlineplus.gov/healthtopics.html',
+      title: 'Health Topics',
+    })).toBe(true);
+
+    expect(shouldFilterAuthoritySourceUrl({
+      source_id: 'medlineplus',
+      source_url: 'https://medlineplus.gov/pregnancy.html',
+      title: 'Pregnancy',
+    })).toBe(false);
+
+    expect(shouldFilterAuthoritySourceUrl({
+      source_id: 'nichd',
+      source_url: 'https://www.nichd.nih.gov/about/org/od',
+      title: 'Office of the Director',
+    })).toBe(true);
+
+    expect(shouldFilterAuthoritySourceUrl({
+      source_id: 'nichd',
+      source_url: 'https://www.nichd.nih.gov/health/topics/pregnancy/conditioninfo/signs',
+      title: 'What are some common signs of pregnancy?',
+    })).toBe(false);
+
+    expect(shouldFilterAuthoritySourceUrl({
+      source_id: 'fda-women-health',
+      source_url: 'https://www.fda.gov/consumers/consumer-updates',
+      title: 'Consumer Updates',
+    })).toBe(true);
+
+    expect(shouldFilterAuthoritySourceUrl({
+      source_id: 'fda-women-health',
+      source_url: 'https://www.fda.gov/consumers/womens-health-topics/pregnancy',
+      title: 'Pregnancy',
+    })).toBe(false);
+
+    expect(shouldFilterAuthoritySourceUrl({
+      source_id: 'lactmed',
+      source_url: 'https://www.ncbi.nlm.nih.gov/books/NBK501922/',
+      title: 'Drugs and Lactation Database',
+    })).toBe(true);
+
+    expect(shouldFilterAuthoritySourceUrl({
+      source_id: 'lactmed',
+      source_url: 'https://www.ncbi.nlm.nih.gov/books/NBK500687/',
+      title: 'Tedizolid',
+    })).toBe(false);
+  });
+
   test('filters NHC topic landing pages but keeps topic article pages', () => {
     expect(shouldFilterAuthoritySourceUrl({
       source_id: 'nhc-fys',

@@ -93,9 +93,12 @@ export interface AuthoritySyncSummary {
   fetched: number;
   normalized: number;
   published: number;
+  exportable?: number;
+  droppedByGuard?: number;
   failed: number;
   notModified?: number;
   pending?: number;
+  skippedBeforeFetch?: number;
   error?: string;
 }
 
@@ -126,6 +129,14 @@ export interface ListAuthorityDocumentsOptions {
   publishStatus?: 'draft' | 'review' | 'published' | 'rejected' | 'all';
   sourceId?: string;
   limit?: number;
+}
+
+interface SyncAuthoritySourceOptions {
+  publishVectorSnapshot?: boolean;
+}
+
+interface ExportPublishedAuthoritySnapshotOptions {
+  publishVectors?: boolean;
 }
 
 let ensureAuthorityTablesPromise: Promise<void> | null = null;
@@ -357,6 +368,47 @@ function isHtmlLikeDocumentUrl(url: string): boolean {
   }
 }
 
+function getUrlPathname(url: string): string {
+  try {
+    const pathname = new URL(url).pathname.toLowerCase().replace(/\/+$/g, '');
+    return pathname || '/';
+  } catch {
+    return '/';
+  }
+}
+
+function isNhsMaternalInfantUrlMatched(url: string, anchorText = ''): boolean {
+  const pathname = getUrlPathname(url);
+  const normalized = `${url} ${anchorText}`.toLowerCase();
+  const maternalInfantSignal = /(pregnan|prenatal|antenatal|postnatal|postpartum|maternit|midwif|childbirth|labou?r|morning-sickness|morning sickness|breast[\s-]?feed|breastfeeding|breast milk|newborn|neonat|infant|baby|babies|toddler|child|children|paediatric|pediatric|wean|solid-food|solid foods|fertility)/i;
+
+  if (/^\/(?:pregnancy|baby|conditions|medicines|vaccinations|start-for-life)$/.test(pathname)) {
+    return false;
+  }
+
+  if (/^\/(?:pregnancy|baby|start-for-life)\//.test(pathname)) {
+    return true;
+  }
+
+  if (/^\/conditions\/(?:baby|pregnancy-and-baby)\//.test(pathname)) {
+    return true;
+  }
+
+  if (/^\/medicines\/[^/]+\/pregnancy-breastfeeding-and-fertility-while-[^/]+/.test(pathname)) {
+    return true;
+  }
+
+  if (/^\/medicines\/[^/]*(?:child|children|baby|infant)[^/]*(?:\/|$)/.test(pathname)) {
+    return true;
+  }
+
+  if (/^\/(?:conditions|medicines|vaccinations)\//.test(pathname)) {
+    return maternalInfantSignal.test(normalized);
+  }
+
+  return false;
+}
+
 function isAuthorityUrlMatched(url: string, source: AuthoritySourceConfig, anchorText = ''): boolean {
   if (!isAllowedAuthorityUrl(url, source) || isBlockedAuthorityUrl(url, source)) {
     return false;
@@ -415,6 +467,33 @@ function isAuthorityUrlMatched(url: string, source: AuthoritySourceConfig, ancho
 
   if (source.id === 'who') {
     return /(pregnan|maternal|newborn|infant|child|children|breastfeed|breastfeeding|immuni|vaccin|reproductive|family-planning|contracept|postpartum|antenatal|prenatal|labou?r|birth)/.test(normalized);
+  }
+
+  if (source.id === 'nhs') {
+    return isNhsMaternalInfantUrlMatched(url, anchorText);
+  }
+
+  if (source.id === 'medlineplus') {
+    return /medlineplus\.gov/i.test(url)
+      && /(?:\.html|\.htm)(?:$|[?#])/i.test(url)
+      && !/\/spanish\//i.test(url)
+      && /(pregnan|prenatal|postpartum|breast[\s-]?feed|breastfeeding|breast milk|newborn|infant|baby|child development|immunization|vaccin|fertility)/i.test(normalized);
+  }
+
+  if (source.id === 'nichd') {
+    return /nichd\.nih\.gov\/health\/topics\//i.test(url)
+      && /(pregnan|prenatal|preconception|postpartum|breast[\s-]?feed|breastfeeding|infant|newborn|baby|child development|labou?r|delivery|fertility)/i.test(normalized);
+  }
+
+  if (source.id === 'fda-women-health') {
+    return /fda\.gov/i.test(url)
+      && /\/(?:consumers\/womens-health-topics|food\/people-risk-foodborne-illness|drugs|medical-devices)\//i.test(url)
+      && /(pregnan|prenatal|breast[\s-]?feed|breastfeeding|breast milk|infant|newborn|baby|medication|medicine|food safety)/i.test(normalized);
+  }
+
+  if (source.id === 'lactmed') {
+    return /ncbi\.(?:nlm\.)?nih\.gov\/books\/(?:nbk\d+|n\/lactmed\/[a-z0-9-]+)\/?(?:$|[?#])/i.test(url)
+      && !/\/books\/NBK501922\/?(?:$|[?#])/i.test(url);
   }
 
   if (source.id === 'dxy-maternal') {
@@ -707,6 +786,56 @@ function getAuthorityUrlRelevanceScore(url: string, source: AuthoritySourceConfi
     }
   }
 
+  if (source.id === 'nhs') {
+    if (/\/(?:pregnancy|baby|start-for-life)\//.test(normalized)) {
+      score += 95;
+    }
+
+    if (/\/conditions\/(?:baby|pregnancy-and-baby)\//.test(normalized)) {
+      score += 90;
+    }
+
+    if (/\/medicines\/[^/]+\/pregnancy-breastfeeding-and-fertility-while-/i.test(normalized)) {
+      score += 55;
+    }
+
+    if (/\/medicines\/[^/]*(?:child|children|baby|infant)[^/]*/i.test(normalized)) {
+      score += 70;
+    }
+  }
+
+  if (source.id === 'medlineplus') {
+    if (/(pregnancy|breastfeeding|infantandnewborncare|childdevelopment|immunization)\.html/.test(normalized)) {
+      score += 100;
+    }
+
+    if (/(pregnan|prenatal|postpartum|breastfeed|newborn|infant|baby|childdevelopment|immunization|vaccin)/.test(normalized)) {
+      score += 70;
+    }
+  }
+
+  if (source.id === 'nichd') {
+    if (/\/health\/topics\/(?:pregnancy|breastfeeding|infantcare|preconceptioncare|labor-delivery)\b/.test(normalized)) {
+      score += 100;
+    }
+  }
+
+  if (source.id === 'fda-women-health') {
+    if (/\/consumers\/womens-health-topics\/(?:pregnancy|breastfeeding)\b/.test(normalized)) {
+      score += 100;
+    }
+
+    if (/(pregnan|breastfeed|infant|newborn|baby|medication|medicine|food-safety)/.test(normalized)) {
+      score += 60;
+    }
+  }
+
+  if (source.id === 'lactmed') {
+    if (/\/books\/(?:nbk\d+|n\/lactmed\/[a-z0-9-]+)\/?/.test(normalized)) {
+      score += 100;
+    }
+  }
+
   return score;
 }
 
@@ -791,6 +920,26 @@ function selectDiverseAuthorityUrls(
   }
 
   return selected;
+}
+
+function shouldSkipPendingAuthorityUrlBeforeFetch(source: AuthoritySourceConfig, url: string): boolean {
+  // Some sources require anchor/title text to prove maternal-infant relevance.
+  // NHS URL paths are structured enough to re-evaluate old pending rows safely.
+  if (source.id !== 'nhs') {
+    return false;
+  }
+
+  return !isAuthorityUrlMatched(url, source);
+}
+
+function getPendingAuthorityUrlScanLimit(source: AuthoritySourceConfig, fetchBudget: number): number {
+  const budget = Math.max(1, Math.floor(fetchBudget));
+
+  if (source.id !== 'nhs') {
+    return budget;
+  }
+
+  return Math.min(AUTHORITY_DISCOVERY_URL_LIMIT, budget * 10);
 }
 
 function extractSitemapUrls(xml: string, source: AuthoritySourceConfig): string[] {
@@ -1614,6 +1763,8 @@ export const __authoritySyncTestUtils = {
   isIndexLikeAuthorityUrl,
   prioritizeAuthorityUrls,
   selectDiverseAuthorityUrls,
+  getPendingAuthorityUrlScanLimit,
+  shouldSkipPendingAuthorityUrlBeforeFetch,
 };
 
 export async function persistDiscoveredAuthorityUrls(urls: DiscoveredAuthorityUrl[]): Promise<void> {
@@ -1964,6 +2115,7 @@ export async function updateAuthorityDocumentPublishStatus(
 export async function syncAuthoritySource(
   sourceId: string,
   mode: 'full' | 'incremental' = 'incremental',
+  options: SyncAuthoritySourceOptions = {},
 ): Promise<AuthoritySyncSummary> {
   await ensureAuthoritySyncTables();
   const source = getAuthoritySourceConfig(sourceId);
@@ -1978,9 +2130,12 @@ export async function syncAuthoritySource(
     fetched: 0,
     normalized: 0,
     published: 0,
+    exportable: 0,
+    droppedByGuard: 0,
     failed: 0,
     notModified: 0,
     pending: 0,
+    skippedBeforeFetch: 0,
   };
 
   // 1) Discovery seeds/refreshes the FULL candidate backlog (status=pending).
@@ -2003,10 +2158,22 @@ export async function syncAuthoritySource(
     1,
     Math.min(source.maxPagesPerRun, getTierFetchBudget(source.qualityTier)),
   );
-  const batch = await loadPendingDiscoveredUrls(source, budget);
+  const batch = await loadPendingDiscoveredUrls(source, getPendingAuthorityUrlScanLimit(source, budget));
+  let fetchedOrAttemptedThisRun = 0;
 
   for (const discovered of batch) {
     try {
+      if (shouldSkipPendingAuthorityUrlBeforeFetch(source, discovered.url)) {
+        summary.skippedBeforeFetch = (summary.skippedBeforeFetch || 0) + 1;
+        await markDiscoveredUrlStatus(source.id, discovered.url, 'done');
+        continue;
+      }
+
+      if (fetchedOrAttemptedThisRun >= budget) {
+        break;
+      }
+      fetchedOrAttemptedThisRun += 1;
+
       const raw = await fetchAuthorityDocument(source, discovered.url);
       if (!raw) {
         summary.failed += 1;
@@ -2050,6 +2217,34 @@ export async function syncAuthoritySource(
         && isAuthorityAiQualityReviewExportable(reviewed.metadataJson)
       ) {
         summary.published += 1;
+        const sourceUrlFiltered = shouldFilterAuthoritySourceUrl({
+          source_id: reviewed.sourceId,
+          source_org: reviewed.sourceOrg,
+          source_url: reviewed.sourceUrl,
+          title: reviewed.title,
+          question: reviewed.title,
+        });
+        const knowledgeDropReason = sourceUrlFiltered
+          ? 'source_url_filtered'
+          : getAuthorityKnowledgeDropReason({
+            sourceId: reviewed.sourceId,
+            sourceOrg: reviewed.sourceOrg,
+            sourceUrl: reviewed.sourceUrl,
+            sourceClass: typeof reviewed.metadataJson.sourceClass === 'string'
+              ? reviewed.metadataJson.sourceClass
+              : undefined,
+            title: reviewed.title,
+            question: reviewed.title,
+            summary: reviewed.summary,
+            answer: reviewed.contentText,
+            updatedAt: reviewed.updatedAt,
+          });
+
+        if (knowledgeDropReason) {
+          summary.droppedByGuard = (summary.droppedByGuard || 0) + 1;
+        } else {
+          summary.exportable = (summary.exportable || 0) + 1;
+        }
       }
     } catch (error) {
       summary.failed += 1;
@@ -2060,7 +2255,9 @@ export async function syncAuthoritySource(
 
   summary.pending = await countPendingDiscoveredUrls(source.id);
 
-  await exportPublishedAuthoritySnapshot();
+  await exportPublishedAuthoritySnapshot({
+    publishVectors: options.publishVectorSnapshot ?? true,
+  });
 
   return summary;
 }
@@ -2071,7 +2268,9 @@ export async function syncAllAuthoritySources(
   const summaries: AuthoritySyncSummary[] = [];
   for (const source of listEnabledAuthoritySources()) {
     try {
-      summaries.push(await syncAuthoritySource(source.id, mode));
+      summaries.push(await syncAuthoritySource(source.id, mode, {
+        publishVectorSnapshot: false,
+      }));
     } catch (error) {
       // Isolate per-source failures (e.g. a discovery-stage network timeout) so
       // one bad source can never abort the whole cycle or suppress the summary.
@@ -2084,13 +2283,19 @@ export async function syncAllAuthoritySources(
         fetched: 0,
         normalized: 0,
         published: 0,
+        exportable: 0,
+        droppedByGuard: 0,
         failed: 0,
         notModified: 0,
         pending: 0,
+        skippedBeforeFetch: 0,
         error: message,
       });
     }
   }
+
+  await exportPublishedAuthoritySnapshot({ publishVectors: true });
+
   return summaries;
 }
 
@@ -2104,7 +2309,9 @@ export function shouldExportAuthoritySnapshotDocument(document: Pick<NormalizedA
   return document.publishStatus === 'review' && document.riskLevelDefault !== 'red';
 }
 
-export async function exportPublishedAuthoritySnapshot(): Promise<void> {
+export async function exportPublishedAuthoritySnapshot(
+  options: ExportPublishedAuthoritySnapshotOptions = {},
+): Promise<void> {
   await ensureAuthoritySyncTables();
   const rows = await prisma.$queryRawUnsafe<Array<{
     sourceId: string;
@@ -2330,13 +2537,15 @@ export async function exportPublishedAuthoritySnapshot(): Promise<void> {
   fs.mkdirSync(path.dirname(AUTHORITY_CACHE_PATH), { recursive: true });
   fs.writeFileSync(AUTHORITY_CACHE_PATH, JSON.stringify(payload, null, 2), 'utf-8');
 
-  if (!AUTHORITY_VECTOR_PUBLISH_ENABLED) {
-    console.log('[Authority Sync] AUTHORITY_VECTOR_PUBLISH_ENABLED=false，已跳过向量发布');
+  const publishVectors = options.publishVectors ?? AUTHORITY_VECTOR_PUBLISH_ENABLED;
+
+  if (!publishVectors) {
+    console.log('[Authority Sync] 本轮跳过向量发布');
     return;
   }
 
   try {
-    const { publishAuthorityDocumentsToVectorStore } = await import('./vector.service.js');
+    const { publishAuthorityDocumentsToVectorStore } = require('./vector.service') as typeof import('./vector.service');
     const vectorResult = await publishAuthorityDocumentsToVectorStore(payload.map((item) => ({
       sourceUrl: item.source_url || item.url || item.original_id,
       title: item.question,

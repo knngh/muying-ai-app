@@ -343,6 +343,141 @@ describe('authority content guards', () => {
 
     expect(
       shouldFilterAuthoritySourceUrl({
+        source_id: 'nhs',
+        source_org: 'NHS',
+        question: 'Find a pharmacy that offers free flu vaccinations',
+        source_url: 'https://www.nhs.uk/nhs-services/vaccination-and-booking-services/find-a-pharmacy-that-offers-free-flu-vaccinations/',
+      }),
+    ).toBe(true);
+
+    expect(
+      shouldFilterAuthoritySourceUrl({
+        source_id: 'nhs',
+        source_org: 'NHS',
+        question: 'Molluscum contagiosum',
+        source_url: 'https://www.nhs.uk/conditions/molluscum-contagiosum/',
+      }),
+    ).toBe(true);
+
+    expect(
+      shouldFilterAuthoritySourceUrl({
+        source_id: 'aap',
+        source_org: 'AAP',
+        question: 'Hotel Safety Tips for Parents of Young Children & Hidden Dangers to Watch For',
+        source_url: 'https://www.healthychildren.org/English/safety-prevention/on-the-go/Pages/Hotel-Dangers-that-Put-Baby-Safety-at-Risk.aspx',
+      }),
+    ).toBe(true);
+
+    expect(
+      shouldFilterAuthoritySourceUrl({
+        source_id: 'aap',
+        source_org: 'AAP',
+        question: 'Recipe: Chinese Congee',
+        source_url: 'https://www.healthychildren.org/English/healthy-living/nutrition/chop-chop-magazine/Pages/Chinese-Congee.aspx',
+      }),
+    ).toBe(true);
+
+    expect(
+      shouldFilterAuthoritySourceUrl({
+        source_id: 'aap',
+        source_org: 'AAP',
+        question: 'Why I Vaccinate: Childhood Measles Case Makes Mom an Advocate',
+        source_url: 'https://www.healthychildren.org/English/safety-prevention/immunizations/Pages/Why-I-Vaccinate-Childhood-Measles.aspx',
+      }),
+    ).toBe(true);
+
+    expect(
+      shouldFilterAuthoritySourceUrl({
+        source_id: 'aap',
+        source_org: 'AAP',
+        question: 'Does the HPV Vaccine Prevent Oral Cancer?',
+        source_url: 'https://www.healthychildren.org/English/safety-prevention/immunizations/Pages/does-the-HPV-vaccine-prevent-oral-cancer.aspx',
+      }),
+    ).toBe(true);
+
+    expect(
+      shouldFilterAuthoritySourceUrl({
+        source_id: 'aap',
+        source_org: 'AAP',
+        question: 'How Climate Change Can Make Children Sick: What Parents Need to Know',
+        source_url: 'https://www.healthychildren.org/English/safety-prevention/all-around/Pages/how-climate-change-can-make-children-sick-what-parents-need-to-know.aspx',
+      }),
+    ).toBe(true);
+
+    expect(
+      shouldFilterAuthoritySourceUrl({
+        source_id: 'aap',
+        source_org: 'AAP',
+        question: '5 Water Safety Tips for Kids of All Ages',
+        source_url: 'https://www.healthychildren.org/English/safety-prevention/at-play/Pages/5-Water-Safety-Tips-for-Kids-of-all-Ages.aspx',
+      }),
+    ).toBe(true);
+
+    expect(
+      shouldFilterAuthoritySourceUrl({
+        source_id: 'aap',
+        source_org: 'AAP',
+        question: 'Your Checkup Checklist: 17 Years Old',
+        source_url: 'https://www.healthychildren.org/English/ages-stages/Your-Childs-Checkups/Pages/your-checkup-checklist-17-years-old.aspx',
+      }),
+    ).toBe(true);
+
+    expect(
+      shouldFilterAuthoritySourceUrl({
+        source_id: 'aap',
+        source_org: 'AAP',
+        question: 'Mental Health in Teen Athletes',
+        source_url: 'https://www.healthychildren.org/English/healthy-living/sports/Pages/mental-health-in-teen-athletes.aspx',
+      }),
+    ).toBe(true);
+
+    expect(
+      shouldFilterAuthoritySourceUrl({
+        source_id: 'aap',
+        source_org: 'AAP',
+        question: 'Managing Screen Use During Long, Cold Winters',
+        source_url: 'https://www.healthychildren.org/English/family-life/Media/Pages/managing-screen-use-during-long-cold-winters.aspx',
+      }),
+    ).toBe(true);
+
+    expect(
+      shouldFilterAuthoritySourceUrl({
+        source_id: 'aap',
+        source_org: 'AAP',
+        question: 'Choosing a Child Care Center',
+        source_url: 'https://www.healthychildren.org/English/family-life/work-and-child-care/Pages/choosing-a-child-care-center.aspx',
+      }),
+    ).toBe(true);
+
+    expect(
+      shouldFilterAuthoritySourceUrl({
+        source_id: 'aap',
+        source_org: 'AAP',
+        question: 'Kidney Cysts in Infants, Children & Teens',
+        source_url: 'https://www.healthychildren.org/English/health-issues/conditions/genitourinary-tract/Pages/Kidney-Cysts-in-Infants-Children-Teens.aspx',
+      }),
+    ).toBe(true);
+
+    expect(
+      shouldFilterAuthoritySourceUrl({
+        source_id: 'aap',
+        source_org: 'AAP',
+        question: 'How Vaccines for Children & Teens Work',
+        source_url: 'https://www.healthychildren.org/English/safety-prevention/immunizations/Pages/How-do-Vaccines-Work.aspx',
+      }),
+    ).toBe(true);
+
+    expect(
+      shouldFilterAuthoritySourceUrl({
+        source_id: 'nhs',
+        source_org: 'NHS',
+        question: 'NHS vaccinations and when to have them',
+        source_url: 'https://www.nhs.uk/vaccinations/nhs-vaccinations-and-when-to-have-them/',
+      }),
+    ).toBe(true);
+
+    expect(
+      shouldFilterAuthoritySourceUrl({
         source_id: 'govcn-jiedu-muying',
         source_org: '中国政府网政策解读',
         question: '《婴幼儿早期发展服务指南（试行）》文件解读',
@@ -356,6 +491,42 @@ describe('authority content guards', () => {
         source_org: 'NHS',
         question: 'Pregnancy, breastfeeding and fertility while taking cyclizine',
         source_url: 'https://www.nhs.uk/medicines/cyclizine/pregnancy-breastfeeding-and-fertility-while-taking-cyclizine/',
+      }),
+    ).toBe(false);
+
+    expect(
+      shouldFilterAuthoritySourceUrl({
+        source_id: 'nhs',
+        source_org: 'NHS',
+        question: 'Pregnancy vitamins and supplements',
+        source_url: 'https://www.nhs.uk/pregnancy/keeping-well/pregnancy-vitamins-and-supplements/',
+      }),
+    ).toBe(false);
+
+    expect(
+      shouldFilterAuthoritySourceUrl({
+        source_id: 'nhs',
+        source_org: 'NHS',
+        question: 'Vaccinations in pregnancy',
+        source_url: 'https://www.nhs.uk/pregnancy/keeping-well/vaccinations/',
+      }),
+    ).toBe(false);
+
+    expect(
+      shouldFilterAuthoritySourceUrl({
+        source_id: 'aap',
+        source_org: 'AAP',
+        question: 'Understanding the Benefits of Vaccines: Common Questions',
+        source_url: 'https://www.healthychildren.org/English/safety-prevention/immunizations/Pages/understanding-the-benefits-of-vaccines-common-questions.aspx',
+      }),
+    ).toBe(false);
+
+    expect(
+      shouldFilterAuthoritySourceUrl({
+        source_id: 'aap',
+        source_org: 'AAP',
+        question: 'AAP Guide: Vaccines Your Child Needs by Age 6',
+        source_url: 'https://www.healthychildren.org/English/safety-prevention/immunizations/Pages/Your-Babys-First-Vaccines.aspx',
       }),
     ).toBe(false);
   });
@@ -801,6 +972,40 @@ describe('authority content guards', () => {
       summary: document.summary,
       answer: body,
       sourceUrl: document.sourceUrl,
+    })).toBeNull();
+  });
+
+  it('rejects foreign local emergency instructions from English authority content', () => {
+    const body = [
+      'Jaundice is common in newborn babies and usually improves with feeding and observation.',
+      'Parents should ask for an urgent GP or midwife appointment or call NHS 111 if the baby is over 24 hours old and symptoms are getting worse.',
+      'Call 999 if the baby is difficult to wake, has breathing problems, or seems seriously unwell.',
+    ].join(' ').repeat(6);
+
+    expect(getAuthorityKnowledgeDropReason({
+      sourceId: 'nhs',
+      sourceLanguage: 'en',
+      title: 'Jaundice in babies',
+      summary: 'NHS guidance about jaundice symptoms in newborn babies.',
+      answer: body,
+      sourceUrl: 'https://www.nhs.uk/conditions/jaundice-in-babies/',
+    })).toBe('foreign_emergency_instruction');
+  });
+
+  it('does not reject benign English numbers without emergency-service wording', () => {
+    const body = [
+      'This infant feeding guide compares weight changes across pages 99 and 111 of the local booklet.',
+      'A study table includes values from 9 to 99 and a sample code 999 for indexing records.',
+      'Parents can track wet diapers, feeding frequency, and baby weight gain with their clinician.',
+    ].join(' ').repeat(8);
+
+    expect(getAuthorityKnowledgeDropReason({
+      sourceId: 'aap',
+      sourceLanguage: 'en',
+      title: 'Tracking baby feeding and weight',
+      summary: 'Guidance for parents of newborn babies.',
+      answer: body,
+      sourceUrl: 'https://www.healthychildren.org/English/ages-stages/baby/feeding/Pages/tracking-feeds.aspx',
     })).toBeNull();
   });
 

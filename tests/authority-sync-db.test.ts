@@ -7,6 +7,9 @@
 
 const queryRawUnsafe = jest.fn();
 const executeRawUnsafe = jest.fn();
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 
 jest.mock('../src/config/database', () => ({
   __esModule: true,
@@ -192,5 +195,87 @@ describe('conditional fetch 304 handling', () => {
     expect(executeRawUnsafe.mock.calls.some(
       ([sql]) => typeof sql === 'string' && /INSERT IGNORE INTO authority_raw_documents/i.test(sql),
     )).toBe(false);
+  });
+});
+
+describe('authority snapshot publishing cadence', () => {
+  const originalVectorPublishEnabled = process.env.AUTHORITY_VECTOR_PUBLISH_ENABLED;
+
+  afterEach(() => {
+    process.env.AUTHORITY_VECTOR_PUBLISH_ENABLED = originalVectorPublishEnabled;
+    jest.resetModules();
+    jest.clearAllMocks();
+  });
+
+  it('publishes vectors once after a full-source cycle instead of after each source', async () => {
+    process.env.AUTHORITY_VECTOR_PUBLISH_ENABLED = 'true';
+    jest.resetModules();
+    const originalCwd = process.cwd();
+    const tempCwd = fs.mkdtempSync(path.join(os.tmpdir(), 'authority-sync-db-'));
+
+    const publishAuthorityDocumentsToVectorStore = jest.fn().mockResolvedValue({ published: 0, skipped: 0 });
+    const fetchMock = jest.fn().mockImplementation(() => Promise.resolve(new Response('<urlset></urlset>', {
+      status: 200,
+      headers: { 'content-type': 'application/xml' },
+    })));
+
+    jest.doMock('../src/config/database', () => ({
+      __esModule: true,
+      default: {
+        $queryRawUnsafe: (sql: string) => {
+          if (/information_schema/i.test(sql)) {
+            return Promise.resolve([{ count: 1 }]);
+          }
+          if (/SELECT[\s\S]*FROM authority_normalized_documents/i.test(sql)) {
+            return Promise.resolve([]);
+          }
+          if (/COUNT\(\*\) AS count[\s\S]*FROM authority_discovered_urls/i.test(sql)) {
+            return Promise.resolve([{ count: 0 }]);
+          }
+          return Promise.resolve([]);
+        },
+        $executeRawUnsafe: jest.fn().mockResolvedValue(undefined),
+      },
+    }));
+    jest.doMock('../src/config/authority-sources', () => {
+      const actual = jest.requireActual('../src/config/authority-sources');
+      return {
+        ...actual,
+        listEnabledAuthoritySources: () => [
+          {
+            ...actual.getAuthoritySourceConfig('nhs'),
+            id: 'nhs',
+            entryUrls: ['https://www.nhs.uk/sitemap.xml'],
+            maxPagesPerRun: 1,
+          },
+          {
+            ...actual.getAuthoritySourceConfig('aap'),
+            id: 'aap',
+            entryUrls: ['https://www.healthychildren.org/sitemap.xml'],
+            maxPagesPerRun: 1,
+          },
+        ],
+      };
+    });
+    jest.doMock('../src/services/vector.service', () => ({
+      __esModule: true,
+      publishAuthorityDocumentsToVectorStore,
+    }), { virtual: true });
+
+    const originalFetch = global.fetch;
+    global.fetch = fetchMock as unknown as typeof fetch;
+    process.chdir(tempCwd);
+    try {
+      const { syncAllAuthoritySources } = require('../src/services/authority-sync.service');
+
+      const summaries = await syncAllAuthoritySources('incremental');
+
+      expect(summaries.map((summary: { sourceId: string }) => summary.sourceId)).toEqual(['nhs', 'aap']);
+      expect(publishAuthorityDocumentsToVectorStore).toHaveBeenCalledTimes(1);
+    } finally {
+      global.fetch = originalFetch;
+      process.chdir(originalCwd);
+      fs.rmSync(tempCwd, { recursive: true, force: true });
+    }
   });
 });

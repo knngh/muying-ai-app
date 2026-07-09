@@ -130,25 +130,19 @@ export interface KnowledgeOpsPromotionQuestionCandidate {
 }
 
 export const DEFAULT_WATCHED_SOURCE_IDS = [
-  'mayo-clinic-zh',
-  'msd-manuals-cn',
-  'nhc-fys',
-  'nhc-rkjt',
-  'chinacdc-immunization',
-  'chinacdc-nutrition',
-  'govcn-muying',
-  'govcn-jiedu-muying',
-  'ndcpa-immunization',
-  'ndcpa-public-health',
-  'ncwch-maternal-child-health',
-  'mchscn-monitoring',
-  'cnsoc-dietary-guidelines',
-  'chinanutri-maternal-child',
-  'cma-kepu-maternal-child',
+  'who',
+  'cdc',
+  'aap',
+  'acog',
+  'nhs',
+  'medlineplus',
+  'nichd',
+  'fda-women-health',
+  'lactmed',
 ];
 const DEFAULT_WATCHED_SOURCE_MINIMUM_RECORDS = 10;
 const DEFAULT_PROMOTION_CANDIDATE_LIMIT = 100;
-const AUTHORITY_SOURCE_PATTERN = /who\.int|cdc\.gov|healthychildren\.org|acog\.org|mayoclinic\.org|msdmanuals\.cn|nhs\.uk|nih\.gov|fda\.gov|nhc\.gov\.cn|chinacdc\.cn|ndcpa\.gov\.cn|gov\.cn|who|cdc|aap|acog|mayo|nhs|卫健委|疾控|中国政府网|国家疾病预防控制局/iu;
+const AUTHORITY_SOURCE_PATTERN = /who\.int|cdc\.gov|healthychildren\.org|acog\.org|medlineplus\.gov|nichd\.nih\.gov|ncbi\.nlm\.nih\.gov|ncbi\.nih\.gov|mayoclinic\.org|msdmanuals\.cn|nhs\.uk|nih\.gov|fda\.gov|nhc\.gov\.cn|chinacdc\.cn|ndcpa\.gov\.cn|gov\.cn|who|cdc|aap|acog|medlineplus|nichd|lactmed|mayo|nhs|卫健委|疾控|中国政府网|国家疾病预防控制局/iu;
 const PROMOTION_CASE_FORM_PATTERN = /全部症状|发病时间|治疗情况|患者性别|患者年龄|病情描述|想得到怎样的帮助/u;
 const PROMOTION_URGENT_RISK_PATTERN = /高烧|高热|发烧|发热|咳嗽|腹泻|呕吐|便秘|红疹|皮疹|湿疹|黄疸|出血|见红|疼|痛|呼吸困难|喘不过气|抽搐|惊厥|意识异常|昏迷|大出血|脱水|胎动消失|胎动明显减少|拒奶.*精神差|精神差.*拒奶|吃什么药|用什么药/u;
 const PROMOTION_PERSONAL_CASE_PATTERN = /(?:^|[，。？！\s])(我|我的|本人|老婆|老公|亲戚|男朋友|女朋友)|上个月|这个月|今天|昨天|这几天|最近|前几天|医生|医院|检查|B超|彩超|输液|打针|退烧药|治疗情况|我应该怎么办|该怎么办|怎么办|怎么回事|不胖|硬疙瘩|不吃奶|不吃奶粉|没怎么吃奶/u;

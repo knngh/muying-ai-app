@@ -1,3 +1,5 @@
+import { getAuthoritySourceConfig } from '../config/authority-sources';
+
 export type AuthoritySourceRefreshStatus = 'missing' | 'low' | 'healthy';
 
 export interface AuthoritySourceCoverageEntry {
@@ -82,6 +84,16 @@ function normalizeRefreshStatus(value: unknown): AuthoritySourceRefreshStatus | 
   return value === 'missing' || value === 'low' || value === 'healthy' ? value : null;
 }
 
+function isDefaultRefreshableAuthoritySource(sourceId: string): boolean {
+  const source = getAuthoritySourceConfig(sourceId);
+  return Boolean(
+    source?.enabled
+    && source.language === 'en'
+    && source.region !== 'CN'
+    && source.qualityTier === 'A',
+  );
+}
+
 export function parseAuthoritySourceIdList(value?: string): string[] {
   if (!value) {
     return [];
@@ -109,6 +121,10 @@ export function selectAuthoritySourcesForRefresh(
     const sourceId = normalizeSourceId(source.sourceId);
     const status = normalizeRefreshStatus(source.status);
     if (!sourceId || !status || !allowedStatuses.has(status) || seen.has(sourceId)) {
+      continue;
+    }
+
+    if (!isDefaultRefreshableAuthoritySource(sourceId)) {
       continue;
     }
 

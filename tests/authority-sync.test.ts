@@ -1,4 +1,8 @@
-import { getAuthoritySourceConfig, listEnabledAuthoritySources } from '../src/config/authority-sources';
+import {
+  getAuthoritySourceConfig,
+  listEnabledAuthoritySources,
+  listEnabledOfficialAuthoritySources,
+} from '../src/config/authority-sources';
 import {
   __authoritySyncTestUtils,
   diagnoseAuthorityUrlDiscovery,
@@ -9,6 +13,130 @@ import { detectAudience, detectTopic, extractTitle, shouldPublishDocument } from
 import { inferAuthorityStages } from '../src/utils/authority-stage';
 
 describe('authority index discovery', () => {
+  test('uses only English top-tier sources for automatic authority sync', () => {
+    const enabled = listEnabledAuthoritySources();
+    const enabledIds = enabled.map((source) => source.id);
+
+    expect(enabledIds).toEqual([
+      'who',
+      'cdc',
+      'aap',
+      'acog',
+      'nhs',
+      'medlineplus',
+      'nichd',
+      'fda-women-health',
+      'lactmed',
+    ]);
+    expect(enabled.every((source) => source.language === 'en')).toBe(true);
+    expect(enabled.every((source) => source.region !== 'CN')).toBe(true);
+    expect(enabled.every((source) => source.qualityTier === 'A')).toBe(true);
+    expect(listEnabledOfficialAuthoritySources().map((source) => source.id)).toEqual(enabledIds);
+  });
+
+  test('keeps new English source discovery focused on maternal-infant pages', () => {
+    const medline = getAuthoritySourceConfig('medlineplus');
+    const nichd = getAuthoritySourceConfig('nichd');
+    const fda = getAuthoritySourceConfig('fda-women-health');
+    const lactmed = getAuthoritySourceConfig('lactmed');
+    expect(medline).toBeDefined();
+    expect(nichd).toBeDefined();
+    expect(fda).toBeDefined();
+    expect(lactmed).toBeDefined();
+
+    expect(__authoritySyncTestUtils.isAuthorityUrlMatched(
+      'https://medlineplus.gov/pregnancy.html',
+      medline!,
+      'Pregnancy',
+    )).toBe(true);
+    expect(__authoritySyncTestUtils.isAuthorityUrlMatched(
+      'https://medlineplus.gov/ency/article/000141.htm',
+      medline!,
+      'Chronic obstructive pulmonary disease',
+    )).toBe(false);
+
+    expect(__authoritySyncTestUtils.isAuthorityUrlMatched(
+      'https://www.nichd.nih.gov/health/topics/pregnancy/conditioninfo/signs',
+      nichd!,
+      'What are some common signs of pregnancy?',
+    )).toBe(true);
+    expect(__authoritySyncTestUtils.isAuthorityUrlMatched(
+      'https://www.nichd.nih.gov/about/org/od',
+      nichd!,
+      'Office of the Director',
+    )).toBe(false);
+
+    expect(__authoritySyncTestUtils.isAuthorityUrlMatched(
+      'https://www.fda.gov/consumers/womens-health-topics/pregnancy',
+      fda!,
+      'Pregnancy',
+    )).toBe(true);
+    expect(__authoritySyncTestUtils.isAuthorityUrlMatched(
+      'https://www.fda.gov/food/food-additives-petitions',
+      fda!,
+      'Food Additives Petitions',
+    )).toBe(false);
+
+    expect(__authoritySyncTestUtils.isAuthorityUrlMatched(
+      'https://www.ncbi.nlm.nih.gov/books/NBK500687/',
+      lactmed!,
+      'Tedizolid',
+    )).toBe(true);
+    expect(__authoritySyncTestUtils.isAuthorityUrlMatched(
+      'https://www.ncbi.nlm.nih.gov/books/NBK501922/',
+      lactmed!,
+      'Drugs and Lactation Database',
+    )).toBe(false);
+  });
+
+  test('normalizes generic English pages from added authority sources', () => {
+    const source = getAuthoritySourceConfig('medlineplus');
+    expect(source).toBeDefined();
+
+    const body = `
+      <html>
+        <head>
+          <title>Pregnancy - MedlinePlus</title>
+          <meta name="description" content="Trusted health information about pregnancy and newborn care.">
+        </head>
+        <body>
+          <main>
+          <h1>Pregnancy</h1>
+          <p>Pregnancy is the time when a baby grows before birth. This guide explains prenatal care, breastfeeding, and newborn health for families.</p>
+          <p>Parents can use the information to prepare for birth, infant feeding, and follow-up care with a clinician.</p>
+          <p>During pregnancy, routine prenatal visits help families understand nutrition, vaccines, common symptoms, and when to ask a clinician for personalized care.</p>
+          <p>After birth, newborn care includes feeding support, safe sleep routines, follow-up visits, and watching infant growth and development over time.</p>
+          <p>Good prenatal care covers nutrition, physical activity, medicines, vaccines, mental health, and planning for labor and delivery. Families should use this information as general education and discuss individual risks with their own health care professional.</p>
+          <p>Newborn care topics include breastfeeding support, formula feeding when needed, diaper counts, skin care, jaundice observation, safe sleep, regular checkups, and vaccines recommended during infancy.</p>
+          <p>Infant development changes quickly during the first year. Families can track feeding, sleep, growth, hearing, vision, movement, and social development, while asking clinicians about symptoms that need prompt attention.</p>
+          <p>This page is written for patients and families. It explains health topics in plain language, points readers to reliable care, and avoids replacing diagnosis or personalized treatment from a licensed clinician.</p>
+        </main>
+        </body>
+      </html>
+    `;
+
+    const normalized = normalizeAuthorityDocument(source!, {
+      sourceId: source!.id,
+      url: 'https://medlineplus.gov/pregnancy.html',
+      httpStatus: 200,
+      contentType: 'text/html',
+      contentHash: 'hash-medlineplus-pregnancy',
+      fetchedAt: '2026-07-09T00:00:00.000Z',
+      rawBody: body,
+    });
+
+    expect(normalized).toMatchObject({
+      sourceId: 'medlineplus',
+      sourceOrg: 'MedlinePlus',
+      sourceUrl: 'https://medlineplus.gov/pregnancy.html',
+      sourceLanguage: 'en',
+      sourceLocale: 'en-US',
+      title: 'Pregnancy',
+      topic: 'pregnancy',
+      publishStatus: 'published',
+    });
+  });
+
   test('keeps third-party Chinese medical platforms out of automatic runs', () => {
     const enabledIds = new Set(listEnabledAuthoritySources().map((source) => source.id));
 
@@ -412,6 +540,96 @@ describe('authority index discovery', () => {
       'https://www.nhs.uk/conditions/baby/babys-development/',
       'https://www.nhs.uk/conditions/baby/breastfeeding-and-bottle-feeding/',
     ]));
+  });
+
+  test('keeps NHS discovery focused on maternal-infant URLs', () => {
+    const source = getAuthoritySourceConfig('nhs');
+    expect(source).toBeDefined();
+
+    expect(__authoritySyncTestUtils.isAuthorityUrlMatched(
+      'https://www.nhs.uk/medicines/atorvastatin/',
+      source!,
+      'Atorvastatin',
+    )).toBe(false);
+    expect(__authoritySyncTestUtils.isAuthorityUrlMatched(
+      'https://www.nhs.uk/conditions/ulcerative-colitis/',
+      source!,
+      'Ulcerative colitis',
+    )).toBe(false);
+    expect(__authoritySyncTestUtils.isAuthorityUrlMatched(
+      'https://www.nhs.uk/nhs-app/nhs-app-help-and-support/privacy/',
+      source!,
+      'NHS App privacy',
+    )).toBe(false);
+
+    expect(__authoritySyncTestUtils.isAuthorityUrlMatched(
+      'https://www.nhs.uk/pregnancy/common-symptoms/vomiting-and-morning-sickness/',
+      source!,
+    )).toBe(true);
+    expect(__authoritySyncTestUtils.isAuthorityUrlMatched(
+      'https://www.nhs.uk/baby/weaning-and-feeding/babys-first-solid-foods/',
+      source!,
+    )).toBe(true);
+    expect(__authoritySyncTestUtils.isAuthorityUrlMatched(
+      'https://www.nhs.uk/medicines/ibuprofen-for-children/',
+      source!,
+    )).toBe(true);
+    expect(__authoritySyncTestUtils.isAuthorityUrlMatched(
+      'https://www.nhs.uk/medicines/cyclizine/pregnancy-breastfeeding-and-fertility-while-taking-cyclizine/',
+      source!,
+    )).toBe(true);
+  });
+
+  test('filters generic NHS sitemap URLs before they enter the discovery backlog', () => {
+    const source = getAuthoritySourceConfig('nhs');
+    expect(source).toBeDefined();
+
+    const xml = `
+      <urlset>
+        <url><loc>https://www.nhs.uk/medicines/atorvastatin/</loc></url>
+        <url><loc>https://www.nhs.uk/conditions/ulcerative-colitis/</loc></url>
+        <url><loc>https://www.nhs.uk/pregnancy/common-symptoms/vomiting-and-morning-sickness/</loc></url>
+        <url><loc>https://www.nhs.uk/baby/weaning-and-feeding/babys-first-solid-foods/</loc></url>
+      </urlset>
+    `;
+
+    const links = __authoritySyncTestUtils.extractSitemapUrls(xml, source!);
+
+    expect(links).toEqual([
+      'https://www.nhs.uk/pregnancy/common-symptoms/vomiting-and-morning-sickness/',
+      'https://www.nhs.uk/baby/weaning-and-feeding/babys-first-solid-foods/',
+    ]);
+  });
+
+  test('skips stale NHS pending URLs that no longer match strict discovery rules', () => {
+    const source = getAuthoritySourceConfig('nhs');
+    expect(source).toBeDefined();
+
+    expect(__authoritySyncTestUtils.shouldSkipPendingAuthorityUrlBeforeFetch(
+      source!,
+      'https://www.nhs.uk/medicines/atorvastatin/',
+    )).toBe(true);
+    expect(__authoritySyncTestUtils.shouldSkipPendingAuthorityUrlBeforeFetch(
+      source!,
+      'https://www.nhs.uk/pregnancy/keeping-well/vaccinations/',
+    )).toBe(false);
+
+    const chineseSource = getAuthoritySourceConfig('chinacdc-nutrition');
+    expect(chineseSource).toBeDefined();
+    expect(__authoritySyncTestUtils.shouldSkipPendingAuthorityUrlBeforeFetch(
+      chineseSource!,
+      'https://www.chinacdc.cn/jkkp/yyjk/rqyy/202408/t20240825_295584.html',
+    )).toBe(false);
+  });
+
+  test('scans a wider NHS pending window while preserving the fetch budget', () => {
+    const nhsSource = getAuthoritySourceConfig('nhs');
+    const chineseSource = getAuthoritySourceConfig('chinacdc-nutrition');
+    expect(nhsSource).toBeDefined();
+    expect(chineseSource).toBeDefined();
+
+    expect(__authoritySyncTestUtils.getPendingAuthorityUrlScanLimit(nhsSource!, 200)).toBe(2000);
+    expect(__authoritySyncTestUtils.getPendingAuthorityUrlScanLimit(chineseSource!, 120)).toBe(120);
   });
 
   test('extracts pagination links from category pages without following other channel tabs', () => {

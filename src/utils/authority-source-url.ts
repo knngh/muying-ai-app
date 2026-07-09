@@ -123,9 +123,33 @@ function isOutOfScopeEnglishAuthority(record: AuthoritySourceUrlRecord, url: str
   const pathname = normalizePathname(url);
 
   if (isAapSource(record, url)) {
-    if (/\/english\/ages-stages\/(?:gradeschool|teen|young-adult|preschool)\//i.test(pathname)
+    const aapMaternalInfantSignal = /pregnan|prenatal|postnatal|postpartum|newborn|neonat|infant|baby|babies|toddler|preterm|premature|breast[\s-]?feed|breastfeeding|breast milk/i;
+    if (/\bteens?\b/i.test(text)) {
+      return true;
+    }
+
+    if (/\/english\/ages-stages\//i.test(pathname)
+      && !/\/english\/ages-stages\/(?:baby|toddler)\//i.test(pathname)) {
+      return true;
+    }
+
+    if (/\/english\/health-issues\//i.test(pathname) && !aapMaternalInfantSignal.test(text)) {
+      return true;
+    }
+
+    if (/\/english\/healthy-living\//i.test(pathname)
+      || /\/english\/ages-stages\/your-childs-checkups\//i.test(pathname)
+      || /\/english\/family-life\//i.test(pathname)
+      || /\/english\/safety-prevention\/on-the-go\//i.test(pathname)
+      || /\/english\/safety-prevention\/(?:all-around|at-home)\//i.test(pathname)
+      || /\/english\/safety-prevention\/at-play\//i.test(pathname)
       || /\/(?:school|puberty|fitness)\//i.test(pathname)
       || /\/pages\/default\.aspx$/i.test(pathname)) {
+      return true;
+    }
+
+    if (/\/english\/safety-prevention\/immunizations\//i.test(pathname)
+      && /why-i-vaccinate|pediatrician-remembers|hpv|dengue|american-indian|alaska-native|oral-cancer/i.test(`${pathname} ${title}`)) {
       return true;
     }
   }
@@ -143,12 +167,54 @@ function isOutOfScopeEnglishAuthority(record: AuthoritySourceUrlRecord, url: str
 
   if (isNhsSource(record, url)) {
     if (/\/contraception\//i.test(pathname)
+      || /\/nhs-services\//i.test(pathname)
+      || (/^\/vaccinations\//i.test(pathname) && !/(pregnan|baby|babies|child|children|infant|newborn|toddler|paediatric|pediatric)/i.test(text))
       || /\/mental-health\/children-and-young-adults\//i.test(pathname)
       || /\/social-care-and-support\/caring-for-children-and-young-people/i.test(pathname)
       || /\/conditions\/ectopic-pregnancy\//i.test(pathname)
       || /\/pregnancy\/your-pregnancy-care\/termination-for-fetal-anomaly/i.test(pathname)) {
       return true;
     }
+
+    if (/^\/conditions\//i.test(pathname)) {
+      return !/^\/conditions\/(?:baby|pregnancy-and-baby)\//i.test(pathname)
+        && !/pregnan|prenatal|antenatal|postnatal|postpartum|maternit|midwif|childbirth|labou?r|breast[\s-]?feed|breastfeeding|breast milk|newborn|neonat|infant|baby|babies|toddler|paediatric|pediatric|fertility|fetus|fetal|foetal|childbirth|rhesus-disease-hdfn/i.test(text);
+    }
+  }
+
+  if (isMedlinePlusSource(record, url)) {
+    if (/\/spanish\//i.test(pathname)
+      || /\/(?:healthtopics|druginfo|lab-tests|genetics|encyclopedia)\.html$/i.test(pathname)
+      || /\/(?:about|connect|libraries|organizations)\//i.test(pathname)) {
+      return true;
+    }
+
+    return !/pregnan|prenatal|postpartum|breast[\s-]?feed|breastfeeding|breast milk|newborn|infant|baby|child development|immunization|vaccin|fertility/i.test(text);
+  }
+
+  if (isNichdSource(record, url)) {
+    if (!/^\/health\/topics\//i.test(pathname)) {
+      return true;
+    }
+
+    return !/pregnan|prenatal|preconception|postpartum|breast[\s-]?feed|breastfeeding|infant|newborn|baby|child development|labou?r|delivery|fertility/i.test(text);
+  }
+
+  if (isFdaWomenHealthSource(record, url)) {
+    if (!/(\/consumers\/womens-health-topics\/|\/food\/people-risk-foodborne-illness\/|\/drugs\/|\/medical-devices\/)/i.test(pathname)) {
+      return true;
+    }
+
+    return !/pregnan|prenatal|breast[\s-]?feed|breastfeeding|breast milk|infant|newborn|baby|medication|medicine|food safety/i.test(text);
+  }
+
+  if (isLactmedSource(record, url)) {
+    if (pathname === '/books/nbk501922'
+      || /record format|database creation|peer review|fact sheet|glossary|selected references|about dietary supplements|breastfeeding links/i.test(title)) {
+      return true;
+    }
+
+    return !(/^\/books\/nbk\d+$/i.test(pathname) || /^\/books\/n\/lactmed\/[a-z0-9-]+$/i.test(pathname));
   }
 
   if (isAcogSource(record, url)) {
@@ -318,6 +384,26 @@ function isNhsSource(record: AuthoritySourceUrlRecord, url: string): boolean {
   return /\bnhs\b|nhs\.uk/.test(sourceText);
 }
 
+function isMedlinePlusSource(record: AuthoritySourceUrlRecord, url: string): boolean {
+  const sourceText = `${record.source_id || ''} ${record.source_org || ''} ${record.source || ''} ${url}`.toLowerCase();
+  return /medlineplus|medlineplus\.gov/.test(sourceText);
+}
+
+function isNichdSource(record: AuthoritySourceUrlRecord, url: string): boolean {
+  const sourceText = `${record.source_id || ''} ${record.source_org || ''} ${record.source || ''} ${url}`.toLowerCase();
+  return /\bnichd\b|nichd\.nih\.gov/.test(sourceText);
+}
+
+function isFdaWomenHealthSource(record: AuthoritySourceUrlRecord, url: string): boolean {
+  const sourceText = `${record.source_id || ''} ${record.source_org || ''} ${record.source || ''} ${url}`.toLowerCase();
+  return /fda-women-health|fda office of women's health|fda\.gov/.test(sourceText);
+}
+
+function isLactmedSource(record: AuthoritySourceUrlRecord, url: string): boolean {
+  const sourceText = `${record.source_id || ''} ${record.source_org || ''} ${record.source || ''} ${url}`.toLowerCase();
+  return /\blactmed\b|ncbi\.nlm\.nih\.gov|ncbi\.nih\.gov\/books/.test(sourceText);
+}
+
 function isMayoSource(record: AuthoritySourceUrlRecord, url: string): boolean {
   const sourceText = `${record.source_id || ''} ${record.source_org || ''} ${record.source || ''} ${url}`.toLowerCase();
   return /mayo-clinic-zh|\bmayo\b|mayoclinic\.org/.test(sourceText);
@@ -472,6 +558,29 @@ export function shouldFilterAuthoritySourceUrl(record: AuthoritySourceUrlRecord)
       '/opioid-use-during-pregnancy',
       '/pregnancy-hiv-std-tb-hepatitis',
     ]);
+  }
+
+  if (isMedlinePlusSource(record, url)) {
+    return matchesExactLandingPath(url, [
+      '/',
+      '/healthtopics.html',
+      '/druginfo.html',
+      '/lab-tests',
+    ]);
+  }
+
+  if (isNichdSource(record, url)) {
+    return !/^\/health\/topics\/[^/]+(?:\/[^/]+)*$/i.test(normalizePathname(url));
+  }
+
+  if (isFdaWomenHealthSource(record, url)) {
+    return !/(\/consumers\/womens-health-topics\/|\/food\/people-risk-foodborne-illness\/|\/drugs\/|\/medical-devices\/)/i.test(normalizePathname(url));
+  }
+
+  if (isLactmedSource(record, url)) {
+    const pathname = normalizePathname(url);
+    return pathname === '/books/nbk501922'
+      || !(/^\/books\/nbk\d+$/i.test(pathname) || /^\/books\/n\/lactmed\/[a-z0-9-]+$/i.test(pathname));
   }
 
   if (isAapSource(record, url)) {
