@@ -25,12 +25,48 @@ describe('article paragraph formatting', () => {
   });
 
   test('renders segmented text as paragraph html', () => {
-    const html = textToRichParagraphHtml('建议先观察精神状态。若持续加重，应及时就医。');
+    const html = textToRichParagraphHtml('建议先观察精神状态。若持续加重，应及时就医。继续记录症状变化。');
 
     expect(html).toContain('<p style=');
     expect(html.match(/<p style=/g)?.length).toBeGreaterThan(1);
     expect(html).toContain('text-align:justify');
     expect(html).toContain('text-align-last:left');
+  });
+
+  test('formats English authority copy into sentences and section headings', () => {
+    const input = 'Vaccines help protect children from serious diseases. HOW VACCINES WORK Vaccines teach the body how to defend itself. The immune system learns to recognize germs. A third sentence confirms the body response. WHY WE NEED VACCINES Babies have some protection after birth.';
+    const segments = segmentArticleText(input);
+    const html = textToRichParagraphHtml(input);
+
+    expect(segments).toEqual(expect.arrayContaining([
+      'Vaccines help protect children from serious diseases.',
+      'HOW VACCINES WORK',
+      'WHY WE NEED VACCINES',
+    ]));
+    expect(html).toContain('<h2');
+    expect(html).toContain('HOW VACCINES WORK');
+    expect(html).toContain('WHY WE NEED VACCINES');
+    expect(html.match(/<p /g)?.length).toBeGreaterThan(1);
+    expect(segments).toContain('Vaccines teach the body how to defend itself.');
+    expect(segments).toContain('The immune system learns to recognize germs.');
+    expect(segments).toContain('A third sentence confirms the body response.');
+  });
+
+  test('recognizes single-word English headings and avoids splitting abbreviations', () => {
+    const segments = segmentArticleText('VACCINE SCHEDULE The A.D.A.M. editorial team reviewed this page. TRAVELERS Bring your record when you travel.');
+
+    expect(segments).toEqual(expect.arrayContaining([
+      'VACCINE SCHEDULE',
+      'The A.D.A.M. editorial team reviewed this page.',
+      'TRAVELERS',
+    ]));
+  });
+
+  test('keeps plain-text bullet points as a readable list', () => {
+    const html = textToRichParagraphHtml('- Keep the area clean\n- Watch for warning signs');
+
+    expect(html).toContain('<ul');
+    expect(html.match(/<li /g)?.length).toBe(2);
   });
 
   test('preserves table html instead of flattening it to plain text', () => {
