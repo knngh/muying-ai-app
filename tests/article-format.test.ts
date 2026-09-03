@@ -62,6 +62,19 @@ describe('article paragraph formatting', () => {
     ]));
   });
 
+  test('recognizes stable Chinese headings embedded in translated authority copy', () => {
+    const input = '疫苗用于增强免疫系统。疫苗如何工作 疫苗模拟感染以触发自然防御。为什么我们需要疫苗 出生后几周内，婴儿有一些保护。疫苗的安全性 疫苗的益处超过风险。';
+    const segments = segmentArticleText(input);
+    const html = textToRichParagraphHtml(input);
+
+    expect(segments).toEqual(expect.arrayContaining([
+      '疫苗如何工作',
+      '为什么我们需要疫苗',
+      '疫苗的安全性',
+    ]));
+    expect((html.match(/<h2 /g) || []).length).toBe(3);
+  });
+
   test('keeps plain-text bullet points as a readable list', () => {
     const html = textToRichParagraphHtml('- Keep the area clean\n- Watch for warning signs');
 

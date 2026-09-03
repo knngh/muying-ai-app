@@ -18,6 +18,7 @@ const INLINE_TITLE_HEADING_PATTERNS = [
   /\bReferences\b/g,
   /\bRelated [A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+){1,5}\b/g,
 ];
+const INLINE_CHINESE_HEADING_PATTERN = /(?:疫苗如何工作|为什么我们需要疫苗|疫苗的安全性|疫苗接种(?:时间表|计划)|常见免疫接种|替代名称|参考(?:资料|来源)|相关(?:健康)?主题)/g;
 
 export type ArticleOutlineItem = {
   id: string;
@@ -133,6 +134,10 @@ function isLikelyTitleHeading(line: string): boolean {
   return /^(?:Alternative Names|References|Related [A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+){1,5})$/u.test(trimmed);
 }
 
+function isLikelyChineseHeading(line: string): boolean {
+  return /^(?:疫苗如何工作|为什么我们需要疫苗|疫苗的安全性|疫苗接种(?:时间表|计划)|常见免疫接种|替代名称|参考(?:资料|来源)|相关(?:健康)?主题)$/u.test(line.trim());
+}
+
 function isListItem(line: string): boolean {
   return /^[-*•·]\s+/.test(line.trim()) || /^\d+[.)、]\s+/.test(line.trim());
 }
@@ -146,13 +151,14 @@ function splitInlineHeadings(input: string): string {
       const start = match.index ?? -1;
       if (!value || start < 0) continue;
       const end = start + match[0].length;
-      if ((isLikelyEnglishHeading(value) || isLikelyTitleHeading(value)) && !candidates.some((item) => item.start === start)) {
+      if ((isLikelyEnglishHeading(value) || isLikelyTitleHeading(value) || isLikelyChineseHeading(value)) && !candidates.some((item) => item.start === start)) {
         candidates.push({ start, end, value });
       }
     }
   };
   collect(INLINE_ENGLISH_HEADING_PATTERN);
   INLINE_TITLE_HEADING_PATTERNS.forEach(collect);
+  collect(INLINE_CHINESE_HEADING_PATTERN);
   candidates.sort((left, right) => left.start - right.start);
   let result = '';
   let cursor = 0;
@@ -219,7 +225,7 @@ function isLikelyHeading(line: string): boolean {
     return false;
   }
 
-  if (isLikelyEnglishHeading(trimmed) || isLikelyTitleHeading(trimmed)) {
+  if (isLikelyEnglishHeading(trimmed) || isLikelyTitleHeading(trimmed) || isLikelyChineseHeading(trimmed)) {
     return true;
   }
 
