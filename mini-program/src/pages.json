@@ -37,6 +37,12 @@
         "navigationBarTitleText": "内容可信说明"
       }
     },
+    {
+      "path": "pages/privacy-policy/index",
+      "style": {
+        "navigationBarTitleText": "用户隐私保护指引"
+      }
+    },
     { "path": "pages/profile/index", "style": { "navigationBarTitleText": "我的" } },
     { "path": "pages/profile/favorites", "style": { "navigationBarTitleText": "我的收藏" } }
   ],

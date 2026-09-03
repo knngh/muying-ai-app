@@ -13,7 +13,7 @@ import { detectAudience, detectTopic, extractTitle, shouldPublishDocument } from
 import { inferAuthorityStages } from '../src/utils/authority-stage';
 
 describe('authority index discovery', () => {
-  test('uses only English top-tier sources for automatic authority sync', () => {
+  test('includes controlled official Chinese sources in automatic authority sync', () => {
     const enabled = listEnabledAuthoritySources();
     const enabledIds = enabled.map((source) => source.id);
 
@@ -24,13 +24,17 @@ describe('authority index discovery', () => {
       'acog',
       'nhs',
       'medlineplus',
-      'nichd',
       'fda-women-health',
       'lactmed',
+      'msd-manuals-cn',
+      'ndcpa-immunization',
+      'cma-kepu-maternal-child',
     ]);
-    expect(enabled.every((source) => source.language === 'en')).toBe(true);
-    expect(enabled.every((source) => source.region !== 'CN')).toBe(true);
-    expect(enabled.every((source) => source.qualityTier === 'A')).toBe(true);
+    expect(enabled.slice(0, 8).every((source) => source.language === 'en')).toBe(true);
+    expect(enabled.slice(0, 8).every((source) => source.region !== 'CN')).toBe(true);
+    expect(enabled.slice(0, 8).every((source) => source.qualityTier === 'A')).toBe(true);
+    expect(enabled.slice(8).every((source) => source.language === 'zh')).toBe(true);
+    expect(enabled.slice(8).every((source) => source.qualityTier === 'A' || source.qualityTier === 'B')).toBe(true);
     expect(listEnabledOfficialAuthoritySources().map((source) => source.id)).toEqual(enabledIds);
   });
 
@@ -87,6 +91,15 @@ describe('authority index discovery', () => {
       lactmed!,
       'Drugs and Lactation Database',
     )).toBe(false);
+  });
+
+  test('keeps NICHD disabled after its crawl is retired', () => {
+    const nichd = getAuthoritySourceConfig('nichd');
+    expect(nichd).toMatchObject({
+      id: 'nichd',
+      enabled: false,
+    });
+    expect(listEnabledAuthoritySources().map((source) => source.id)).not.toContain('nichd');
   });
 
   test('normalizes generic English pages from added authority sources', () => {

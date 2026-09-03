@@ -641,7 +641,7 @@ describe('knowledge ops report', () => {
     expect(report.actionItems.some((item) => item.message.includes('chinacdc-nutrition'))).toBe(false);
   });
 
-  it('watches English top-tier sources by default for daily low coverage refreshes', () => {
+  it('watches English and controlled Chinese sources by default for daily low coverage refreshes', () => {
     const report = buildKnowledgeOpsReport({
       qaRecords: [],
       authorityRecords: [],
@@ -656,9 +656,11 @@ describe('knowledge ops report', () => {
       'acog',
       'nhs',
       'medlineplus',
-      'nichd',
       'fda-women-health',
       'lactmed',
+      'msd-manuals-cn',
+      'ndcpa-immunization',
+      'cma-kepu-maternal-child',
     ]);
   });
 

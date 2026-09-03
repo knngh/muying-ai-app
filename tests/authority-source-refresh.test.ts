@@ -51,6 +51,25 @@ describe('authority source refresh planning', () => {
     ]);
   });
 
+  it('allows only the explicitly controlled Chinese sources into automatic refreshes', () => {
+    const selected = selectAuthoritySourcesForRefresh({
+      sourceCoverage: {
+        watchedSources: [
+          { sourceId: 'msd-manuals-cn', count: 0, minimumPublishedRecords: 10, status: 'missing' },
+          { sourceId: 'ndcpa-immunization', count: 2, minimumPublishedRecords: 10, status: 'low' },
+          { sourceId: 'cma-kepu-maternal-child', count: 1, minimumPublishedRecords: 10, status: 'low' },
+          { sourceId: 'chinacdc-nutrition', count: 2, minimumPublishedRecords: 10, status: 'low' },
+        ],
+      },
+    });
+
+    expect(selected).toEqual([
+      { sourceId: 'msd-manuals-cn', count: 0, minimumPublishedRecords: 10, status: 'missing' },
+      { sourceId: 'ndcpa-immunization', count: 2, minimumPublishedRecords: 10, status: 'low' },
+      { sourceId: 'cma-kepu-maternal-child', count: 1, minimumPublishedRecords: 10, status: 'low' },
+    ]);
+  });
+
   it('keeps dry-run summaries cheap unless discovery probing is enabled', async () => {
     const discover = jest.fn();
 

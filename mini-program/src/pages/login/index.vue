@@ -15,6 +15,9 @@
           <view class="visitor-chip" @tap="navigateGuest('/pages/calendar/index')">
             <text class="visitor-chip-text">孕周日历</text>
           </view>
+          <view class="visitor-chip" @tap="navigateGuest('/pages/privacy-policy/index')">
+            <text class="visitor-chip-text">隐私指引</text>
+          </view>
         </view>
       </view>
 
@@ -378,12 +381,14 @@ onMounted(async () => {
 
 .visitor-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 14rpx;
   margin-top: 18rpx;
 }
 
 .visitor-chip {
-  flex: 1;
+  flex: 1 1 30%;
+  min-width: 0;
   padding: 18rpx 16rpx;
   border-radius: 18rpx;
   background: #fffcf8;

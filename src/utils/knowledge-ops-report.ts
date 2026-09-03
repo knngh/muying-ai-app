@@ -136,9 +136,11 @@ export const DEFAULT_WATCHED_SOURCE_IDS = [
   'acog',
   'nhs',
   'medlineplus',
-  'nichd',
   'fda-women-health',
   'lactmed',
+  'msd-manuals-cn',
+  'ndcpa-immunization',
+  'cma-kepu-maternal-child',
 ];
 const DEFAULT_WATCHED_SOURCE_MINIMUM_RECORDS = 10;
 const DEFAULT_PROMOTION_CANDIDATE_LIMIT = 100;

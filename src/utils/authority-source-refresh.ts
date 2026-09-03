@@ -76,6 +76,15 @@ export interface BuildAuthoritySourceDryRunSummariesOptions {
 const DEFAULT_REFRESH_STATUSES: AuthoritySourceRefreshStatus[] = ['missing', 'low'];
 export const DEFAULT_AUTHORITY_SOURCE_MIN_DISCOVERY_CANDIDATES = 3;
 
+// Chinese sources are opt-in here because the daily refresh previously
+// watched only English A-tier sources. Keep this list explicit so enabling a
+// new Chinese source cannot silently expand the crawl surface.
+export const CONTROLLED_CHINESE_AUTHORITY_SOURCE_IDS = new Set([
+  'msd-manuals-cn',
+  'ndcpa-immunization',
+  'cma-kepu-maternal-child',
+]);
+
 function normalizeSourceId(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
@@ -88,9 +97,18 @@ function isDefaultRefreshableAuthoritySource(sourceId: string): boolean {
   const source = getAuthoritySourceConfig(sourceId);
   return Boolean(
     source?.enabled
-    && source.language === 'en'
-    && source.region !== 'CN'
-    && source.qualityTier === 'A',
+    && (
+      (
+        source.language === 'en'
+        && source.region !== 'CN'
+        && source.qualityTier === 'A'
+      )
+      || (
+        CONTROLLED_CHINESE_AUTHORITY_SOURCE_IDS.has(sourceId)
+        && source.language === 'zh'
+        && (source.qualityTier === 'A' || source.qualityTier === 'B')
+      )
+    ),
   );
 }
 

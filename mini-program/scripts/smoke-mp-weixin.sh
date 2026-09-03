@@ -24,7 +24,7 @@ echo "[2/5] build mp-weixin"
 npm --prefix "${PROJECT_DIR}" run build:mp-weixin
 
 echo "[3/5] assert privacy config"
-node -e 'const fs = require("fs"); const app = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); const hasChooseImage = Array.isArray(app.requiredPrivateInfos) && app.requiredPrivateInfos.includes("chooseImage"); if (app.__usePrivacyCheck__ !== true || !hasChooseImage) { console.error("Missing mp-weixin privacy config: expected __usePrivacyCheck__ and requiredPrivateInfos.chooseImage"); process.exit(1); }' "${APP_JSON}"
+node -e 'const fs = require("fs"); const app = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); const allowed = new Set(["chooseAddress", "chooseLocation", "choosePoi", "getFuzzyLocation", "getLocation", "onLocationChange", "startLocationUpdate", "startLocationUpdateBackground"]); const invalid = Array.isArray(app.requiredPrivateInfos) ? app.requiredPrivateInfos.filter((item) => !allowed.has(item)) : []; if (app.__usePrivacyCheck__ !== true || invalid.length > 0) { console.error(`Invalid mp-weixin privacy config: expected __usePrivacyCheck__ and no unsupported requiredPrivateInfos entries. Invalid entries: ${invalid.join(", ") || "none"}`); process.exit(1); }' "${APP_JSON}"
 
 echo "[4/5] open project in WeChat DevTools"
 "${DEVTOOLS_CLI}" open --project "${PROJECT_DIR}"

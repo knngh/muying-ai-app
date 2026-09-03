@@ -68,6 +68,9 @@
         <view class="trust-btn" @tap="openTrustCenter">
           <text class="trust-btn-text">内容可信说明</text>
         </view>
+        <view class="privacy-btn" @tap="openPrivacyPolicy">
+          <text class="privacy-btn-text">用户隐私保护指引</text>
+        </view>
         <view class="logout-btn" @tap="onLogout">
           <text class="logout-btn-text">退出登录</text>
         </view>
@@ -353,6 +356,10 @@ const goLogin = () => {
 
 const openTrustCenter = () => {
   uni.navigateTo({ url: '/pages/trust-center/index' })
+}
+
+const openPrivacyPolicy = () => {
+  uni.navigateTo({ url: '/pages/privacy-policy/index' })
 }
 
 const closeEditModal = () => {

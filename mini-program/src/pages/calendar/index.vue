@@ -367,6 +367,25 @@
       </view>
     </view>
 
+    <!-- #ifdef MP-WEIXIN -->
+    <view v-if="showPrivacyAuthorizationModal" class="privacy-auth-mask" @tap="rejectPrivacyAuthorization">
+      <view class="privacy-auth-dialog" @tap.stop>
+        <text class="privacy-auth-title">使用照片前需要你的同意</text>
+        <text class="privacy-auth-desc">我们只会处理你主动选择或拍摄的照片，用于保存孕育记录。拒绝授权不影响知识库和日历浏览。</text>
+        <text class="privacy-auth-link" @tap="openPrivacyPolicyFromAuthorization">查看隐私指引</text>
+        <view class="privacy-auth-actions">
+          <button class="privacy-auth-reject" @tap="rejectPrivacyAuthorization">暂不同意</button>
+          <button
+            id="agree-btn"
+            class="privacy-auth-agree"
+            open-type="agreePrivacyAuthorization"
+            @agreeprivacyauthorization="handleAgreePrivacyAuthorization"
+          >同意并继续</button>
+        </view>
+      </view>
+    </view>
+    <!-- #endif -->
+
     <!-- 添加待办弹窗 -->
     <view class="modal-mask" v-if="showCustomTodoModal" @tap="closeCustomTodoModal">
       <view class="modal-content" @tap.stop>
@@ -503,6 +522,8 @@ const showDiaryModal = ref(false)
 const diaryInput = ref('')
 const diaryImageUrls = ref<string[]>([])
 const isUploadingDiaryImage = ref(false)
+const showPrivacyAuthorizationModal = ref(false)
+let privacyAuthorizationResolver: ((authorized: boolean) => void) | null = null
 const showCustomTodoModal = ref(false)
 const customTodoInput = ref('')
 const editingCustomTodoId = ref('')
@@ -1022,9 +1043,56 @@ const chooseImageFallback = (source: ChooseMediaSource, count: number) => {
   })
 }
 
-const chooseDiaryImages = (source: 'camera' | 'album') => {
+const finishPrivacyAuthorization = (authorized: boolean) => {
+  showPrivacyAuthorizationModal.value = false
+  const resolver = privacyAuthorizationResolver
+  privacyAuthorizationResolver = null
+  resolver?.(authorized)
+}
+
+const handleAgreePrivacyAuthorization = () => {
+  finishPrivacyAuthorization(true)
+}
+
+const rejectPrivacyAuthorization = () => {
+  finishPrivacyAuthorization(false)
+}
+
+const openPrivacyPolicyFromAuthorization = () => {
+  rejectPrivacyAuthorization()
+  uni.navigateTo({ url: '/pages/privacy-policy/index' })
+}
+
+const ensurePrivacyAuthorization = (): Promise<boolean> => {
+  const privacyApi = (uni as any).getPrivacySetting
+  if (typeof privacyApi !== 'function') return Promise.resolve(true)
+
+  return new Promise((resolve) => {
+    privacyAuthorizationResolver = resolve
+    privacyApi({
+      success: (result: { needAuthorization?: boolean }) => {
+        if (!result?.needAuthorization) {
+          privacyAuthorizationResolver = null
+          resolve(true)
+          return
+        }
+        showPrivacyAuthorizationModal.value = true
+      },
+      fail: (error: unknown) => {
+        privacyAuthorizationResolver = null
+        console.error('[Calendar] 获取微信隐私授权状态失败:', error)
+        uni.showToast({ title: '暂时无法确认隐私授权，请稍后重试', icon: 'none' })
+        resolve(false)
+      },
+    })
+  })
+}
+
+const chooseDiaryImages = async (source: 'camera' | 'album') => {
   if (!checkLogin('请先登录后上传照片', false)) return
   if (isUploadingDiaryImage.value) return
+
+  if (!await ensurePrivacyAuthorization()) return
 
   const remaining = MAX_DIARY_IMAGES - diaryImageUrls.value.length
   if (remaining <= 0) {
@@ -1921,4 +1989,67 @@ onShareTimeline(() => {
   color: #59697c;
 }
 .save-btn { background: linear-gradient(135deg, #16806a 0%, #2f7cf6 100%); color: white; border-radius: 40rpx; height: 80rpx; line-height: 80rpx; font-size: 32rpx; }
+.privacy-auth-mask {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40rpx;
+  background: rgba(0, 0, 0, 0.5);
+}
+.privacy-auth-dialog {
+  width: 100%;
+  max-width: 620rpx;
+  padding: 40rpx;
+  background: #ffffff;
+  border-radius: 24rpx;
+  box-sizing: border-box;
+}
+.privacy-auth-title,
+.privacy-auth-desc,
+.privacy-auth-link {
+  display: block;
+}
+.privacy-auth-title {
+  color: #25313c;
+  font-size: 32rpx;
+  font-weight: 700;
+}
+.privacy-auth-desc {
+  margin-top: 20rpx;
+  color: #647181;
+  font-size: 26rpx;
+  line-height: 1.65;
+}
+.privacy-auth-link {
+  margin-top: 18rpx;
+  color: #16806a;
+  font-size: 25rpx;
+}
+.privacy-auth-actions {
+  display: flex;
+  gap: 18rpx;
+  margin-top: 32rpx;
+}
+.privacy-auth-actions button {
+  flex: 1;
+  height: 76rpx;
+  margin: 0;
+  border-radius: 12rpx;
+  font-size: 26rpx;
+  line-height: 76rpx;
+}
+.privacy-auth-reject {
+  color: #647181;
+  background: #f3f5f7;
+}
+.privacy-auth-agree {
+  color: #ffffff;
+  background: #16806a;
+}
 </style>
