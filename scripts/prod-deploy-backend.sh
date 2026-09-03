@@ -88,6 +88,7 @@ REMOTE_COMMANDS=(
   "cd ${APP_DIR}"
   "pwd"
   "if [ -f .env ]; then set -a; source ./.env; set +a; fi"
+  "if sudo -n pm2 describe ${PM2_APP_NAME} >/dev/null 2>&1; then PM2_CMD='sudo -n pm2'; else PM2_CMD='pm2'; fi"
 )
 
 if [[ "${WITH_INSTALL}" == "true" ]]; then
@@ -100,20 +101,20 @@ fi
 
 REMOTE_COMMANDS+=(
   "npm run build"
-  "if pm2 describe ${PM2_APP_NAME} >/dev/null 2>&1; then pm2 restart ${PM2_APP_NAME} --update-env; else pm2 start dist/app.js --name ${PM2_APP_NAME} --time; fi"
+  "if \${PM2_CMD} describe ${PM2_APP_NAME} >/dev/null 2>&1; then \${PM2_CMD} restart ${PM2_APP_NAME} --update-env; else \${PM2_CMD} start dist/app.js --name ${PM2_APP_NAME} --time; fi"
   "echo '[health] waiting for ${PM2_APP_NAME} at ${LOCAL_HEALTH_URL} (timeout ${HEALTH_TIMEOUT_SECONDS}s)'"
-  "for i in \$(seq 1 ${HEALTH_TIMEOUT_SECONDS}); do if curl -fsS --max-time 2 ${LOCAL_HEALTH_URL} >/dev/null 2>&1; then echo \"[health] ${PM2_APP_NAME} healthy after \${i}s\"; break; fi; if [ \$i -eq ${HEALTH_TIMEOUT_SECONDS} ]; then echo '[health] ${PM2_APP_NAME} did not become healthy within ${HEALTH_TIMEOUT_SECONDS}s' >&2; pm2 logs ${PM2_APP_NAME} --lines 40 --nostream || true; exit 1; fi; sleep 1; done"
-  "pm2 show ${PM2_APP_NAME} | sed -n '1,40p'"
+  "for i in \$(seq 1 ${HEALTH_TIMEOUT_SECONDS}); do if curl -fsS --max-time 2 ${LOCAL_HEALTH_URL} >/dev/null 2>&1; then echo \"[health] ${PM2_APP_NAME} healthy after \${i}s\"; break; fi; if [ \$i -eq ${HEALTH_TIMEOUT_SECONDS} ]; then echo '[health] ${PM2_APP_NAME} did not become healthy within ${HEALTH_TIMEOUT_SECONDS}s' >&2; \${PM2_CMD} logs ${PM2_APP_NAME} --lines 40 --nostream || true; exit 1; fi; sleep 1; done"
+  "\${PM2_CMD} show ${PM2_APP_NAME} | sed -n '1,40p'"
 )
 
 if [[ "${WITH_AUTHORITY_WORKER}" == "true" ]]; then
   REMOTE_COMMANDS+=(
-    "if pm2 describe ${AUTHORITY_PM2_APP_NAME} >/dev/null 2>&1; then AUTHORITY_SYNC_INTERVAL_MINUTES=${AUTHORITY_SYNC_INTERVAL_MINUTES} AUTHORITY_SYNC_MODE=${AUTHORITY_SYNC_MODE} AUTHORITY_SYNC_RUN_ONCE=false pm2 restart ${AUTHORITY_PM2_APP_NAME} --update-env; else AUTHORITY_SYNC_INTERVAL_MINUTES=${AUTHORITY_SYNC_INTERVAL_MINUTES} AUTHORITY_SYNC_MODE=${AUTHORITY_SYNC_MODE} AUTHORITY_SYNC_RUN_ONCE=false pm2 start dist/workers/authority-sync.worker.js --name ${AUTHORITY_PM2_APP_NAME} --time; fi"
-    "pm2 show ${AUTHORITY_PM2_APP_NAME} | sed -n '1,60p'"
+    "if \${PM2_CMD} describe ${AUTHORITY_PM2_APP_NAME} >/dev/null 2>&1; then AUTHORITY_SYNC_INTERVAL_MINUTES=${AUTHORITY_SYNC_INTERVAL_MINUTES} AUTHORITY_SYNC_MODE=${AUTHORITY_SYNC_MODE} AUTHORITY_SYNC_RUN_ONCE=false \${PM2_CMD} restart ${AUTHORITY_PM2_APP_NAME} --update-env; else AUTHORITY_SYNC_INTERVAL_MINUTES=${AUTHORITY_SYNC_INTERVAL_MINUTES} AUTHORITY_SYNC_MODE=${AUTHORITY_SYNC_MODE} AUTHORITY_SYNC_RUN_ONCE=false \${PM2_CMD} start dist/workers/authority-sync.worker.js --name ${AUTHORITY_PM2_APP_NAME} --time; fi"
+    "\${PM2_CMD} show ${AUTHORITY_PM2_APP_NAME} | sed -n '1,60p'"
   )
 fi
 
-REMOTE_COMMANDS+=("pm2 save")
+REMOTE_COMMANDS+=("\${PM2_CMD} save")
 
 REMOTE_SCRIPT=$(printf '%s\n' "set -euo pipefail" "${REMOTE_COMMANDS[@]}")
 
