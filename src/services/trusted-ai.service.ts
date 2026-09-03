@@ -578,6 +578,20 @@ function getEquivalentTaskKey(
   return `${binding.provider}::${binding.model}`;
 }
 
+export function buildTrustedTaskModelOptions(taskRole: AITaskModelRole): {
+  temperature: number;
+  maxTokens: number;
+  responseFormat: 'json_object';
+  thinking?: 'enabled' | 'disabled';
+} {
+  return {
+    temperature: taskRole === 'minimax_render' ? 0.35 : 0.15,
+    maxTokens: taskRole === 'glm_classify' ? 900 : 1200,
+    responseFormat: 'json_object',
+    ...(taskRole === 'minimax_render' ? { thinking: 'disabled' as const } : {}),
+  };
+}
+
 export function compactEquivalentExecutionPlan(
   executionPlan: ExecutionStep[],
   bindings: AITaskModelBinding[] = getTaskModelBindings(),
@@ -645,10 +659,7 @@ async function executePlannedGeneration(params: {
           fallbackStructured: params.fallbackStructured,
           currentDraft,
         }),
-        {
-          temperature: step === 'minimax_render' ? 0.35 : 0.15,
-          maxTokens: step === 'glm_classify' ? 900 : 1200,
-        },
+        buildTrustedTaskModelOptions(step),
       );
 
       currentDraft = sanitizeStructuredAnswer(

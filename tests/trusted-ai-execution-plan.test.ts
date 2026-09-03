@@ -1,4 +1,7 @@
-import { compactEquivalentExecutionPlan } from '../src/services/trusted-ai.service';
+import {
+  buildTrustedTaskModelOptions,
+  compactEquivalentExecutionPlan,
+} from '../src/services/trusted-ai.service';
 import type { AITaskModelBinding } from '../src/services/ai-gateway.service';
 import type { ExecutionStep } from '../src/services/ai-route-planner.service';
 
@@ -17,6 +20,23 @@ function binding(
 }
 
 describe('trusted AI execution plan compaction', () => {
+  it('uses structured non-thinking output for the final render task', () => {
+    expect(buildTrustedTaskModelOptions('minimax_render')).toEqual({
+      temperature: 0.35,
+      maxTokens: 1200,
+      responseFormat: 'json_object',
+      thinking: 'disabled',
+    });
+  });
+
+  it('requests structured output for non-render task steps', () => {
+    expect(buildTrustedTaskModelOptions('kimi_reason')).toEqual({
+      temperature: 0.15,
+      maxTokens: 1200,
+      responseFormat: 'json_object',
+    });
+  });
+
   it('keeps only the last task step when task roles point to the same provider and model', () => {
     const plan: ExecutionStep[] = ['kimi_reason', 'minimax_render'];
     const result = compactEquivalentExecutionPlan(plan, [
