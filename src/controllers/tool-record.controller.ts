@@ -1,9 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import prisma from '../config/database';
 import { AppError, ErrorCodes, successResponse } from '../middlewares/error.middleware';
-import fs from 'fs';
-import path from 'path';
-import { resolvePrivateUploadPath } from '../middlewares/upload.middleware';
 
 const requireUserId = (req: Request): bigint => {
   if (!req.userId) throw new AppError('未授权', ErrorCodes.TOKEN_INVALID, 401);
@@ -86,28 +83,6 @@ const serializePacking = (record: {
 }) => ({
   id: record.id.toString(), name: record.name, category: record.category, quantity: record.quantity, isDone: record.isDone,
   createdAt: record.createdAt.toISOString(), updatedAt: record.updatedAt.toISOString(),
-});
-
-const serializeReportField = (record: {
-  id: bigint; pageNumber: number; fieldKey: string; label: string | null; candidateValue: string;
-  normalizedValue: string | null; confidence: unknown; source: string; confirmedAt: Date | null;
-}) => ({
-  id: record.id.toString(), pageNumber: record.pageNumber, fieldKey: record.fieldKey, label: record.label,
-  candidateValue: record.candidateValue, normalizedValue: record.normalizedValue,
-  confidence: record.confidence === null ? null : Number(record.confidence), source: record.source,
-  confirmedAt: record.confirmedAt?.toISOString() || null,
-});
-
-const serializeReport = (record: {
-  id: bigint; reportDate: Date; name: string; note: string | null; status: string; ocrStatus: string;
-  originalFilename: string | null; mimeType: string | null; byteSize: number | null; pageCount: number;
-  createdAt: Date; updatedAt: Date; fields?: Array<Parameters<typeof serializeReportField>[0]>;
-}) => ({
-  id: record.id.toString(), reportDate: record.reportDate.toISOString().slice(0, 10), name: record.name,
-  note: record.note, status: record.status, ocrStatus: record.ocrStatus,
-  originalFilename: record.originalFilename, mimeType: record.mimeType, byteSize: record.byteSize,
-  pageCount: record.pageCount, createdAt: record.createdAt.toISOString(), updatedAt: record.updatedAt.toISOString(),
-  fields: (record.fields || []).map(serializeReportField),
 });
 
 function parseDatePair(startedAt: string, endedAt: string): { start: Date; end: Date } {
@@ -363,83 +338,5 @@ export const upsertPackingItem = async (req: Request, res: Response, next: NextF
       update: { category, quantity, isDone, ...(clientOperationId ? { clientOperationId } : {}) },
     });
     res.json(successResponse(serializePacking(item)));
-  } catch (error) { next(error); }
-};
-
-export const getReportDocuments = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const userId = requireUserId(req);
-    const limit = Math.min(100, Math.max(1, Number(req.query.limit || 30)));
-    const list = await prisma.reportDocument.findMany({
-      where: { userId }, orderBy: { reportDate: 'desc' }, take: limit,
-      include: { fields: { orderBy: [{ pageNumber: 'asc' }, { fieldKey: 'asc' }] } },
-    });
-    res.json(successResponse(list.map(serializeReport)));
-  } catch (error) { next(error); }
-};
-
-export const createReportDocument = async (req: Request, res: Response, next: NextFunction) => {
-  const file = req.file;
-  try {
-    const userId = requireUserId(req);
-    const { reportDate, name, note } = req.body;
-    const created = await prisma.reportDocument.create({ data: {
-      userId,
-      reportDate: new Date(`${reportDate}T00:00:00.000Z`),
-      name,
-      note: note || null,
-      storageKey: file ? path.relative(process.cwd(), file.path).replaceAll(path.sep, '/') : null,
-      originalFilename: file?.originalname || null,
-      mimeType: file?.mimetype || null,
-      byteSize: file?.size || null,
-      pageCount: 1,
-    }, include: { fields: true } });
-    res.status(201).json(successResponse(serializeReport(created)));
-  } catch (error) {
-    if (file?.path) void fs.promises.unlink(file.path).catch(() => undefined);
-    next(error);
-  }
-};
-
-export const addReportField = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const userId = requireUserId(req);
-    const documentId = BigInt(req.params.id);
-    const document = await prisma.reportDocument.findFirst({ where: { id: documentId, userId } });
-    if (!document) throw new AppError('报告不存在', ErrorCodes.PARAM_ERROR, 404);
-    const { pageNumber, fieldKey, label, candidateValue, normalizedValue, confidence, source } = req.body;
-    const field = await prisma.reportField.upsert({
-      where: { reportDocumentId_pageNumber_fieldKey: { reportDocumentId: documentId, pageNumber, fieldKey } },
-      create: { reportDocumentId: documentId, pageNumber, fieldKey, label: label || null, candidateValue, normalizedValue: normalizedValue || null, confidence: confidence ?? null, source },
-      update: { label: label || null, candidateValue, normalizedValue: normalizedValue || null, confidence: confidence ?? null, source, confirmedAt: null },
-    });
-    res.status(201).json(successResponse(serializeReportField(field)));
-  } catch (error) { next(error); }
-};
-
-export const confirmReportField = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const userId = requireUserId(req);
-    const fieldId = BigInt(req.params.fieldId);
-    const field = await prisma.reportField.findFirst({ where: { id: fieldId, reportDocument: { userId } } });
-    if (!field) throw new AppError('报告字段不存在', ErrorCodes.PARAM_ERROR, 404);
-    const normalizedValue = req.body.normalizedValue === undefined ? field.normalizedValue : req.body.normalizedValue;
-    const updated = await prisma.reportField.update({ where: { id: fieldId }, data: { normalizedValue: normalizedValue || null, confirmedAt: new Date() } });
-    res.json(successResponse(serializeReportField(updated)));
-  } catch (error) { next(error); }
-};
-
-export const downloadReportDocument = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const userId = requireUserId(req);
-    const document = await prisma.reportDocument.findFirst({ where: { id: BigInt(req.params.id), userId } });
-    if (!document?.storageKey) throw new AppError('报告原图不存在', ErrorCodes.PARAM_ERROR, 404);
-    const relativeKey = document.storageKey.replace(/^private-uploads\//u, '');
-    const filePath = resolvePrivateUploadPath(relativeKey);
-    if (!filePath || !fs.existsSync(filePath)) throw new AppError('报告原图不存在', ErrorCodes.PARAM_ERROR, 404);
-    res.setHeader('Cache-Control', 'private, no-store');
-    res.setHeader('Content-Type', document.mimeType || 'application/octet-stream');
-    res.setHeader('Content-Disposition', `inline; filename="report-${document.id.toString()}"`);
-    fs.createReadStream(filePath).on('error', next).pipe(res);
   } catch (error) { next(error); }
 };

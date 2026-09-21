@@ -96,23 +96,3 @@ export const packingItemBody = z.object({
   isDone: z.boolean(),
   clientOperationId: operationId,
 });
-
-export const reportDocumentBody = z.object({
-  reportDate: dateOnly,
-  name: z.string().trim().min(1, '报告名称不能为空').max(100),
-  note: z.string().trim().max(500).nullable().optional(),
-});
-
-export const reportFieldBody = z.object({
-  pageNumber: z.coerce.number().int().min(1).max(200).default(1),
-  fieldKey: z.string().trim().min(1).max(50),
-  label: z.string().trim().max(100).nullable().optional(),
-  candidateValue: z.string().trim().min(1).max(500),
-  normalizedValue: z.string().trim().max(500).nullable().optional(),
-  confidence: z.coerce.number().finite().min(0).max(1).nullable().optional(),
-  source: z.enum(['manual', 'ocr', 'jev']).default('manual'),
-});
-
-export const confirmReportFieldBody = z.object({
-  normalizedValue: z.string().trim().max(500).nullable().optional(),
-});

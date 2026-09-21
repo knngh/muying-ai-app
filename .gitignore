@@ -63,3 +63,4 @@ mobile/ios/*.xcworkspace/xcuserdata/
 # Mini-program
 mini-program/unpackage/
 uploads/
+private-uploads/

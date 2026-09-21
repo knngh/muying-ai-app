@@ -27,3 +27,4 @@ dist
 tmp
 data/*.bak-*
 uploads
+private-uploads/
