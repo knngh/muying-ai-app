@@ -8,7 +8,7 @@ export interface LocalToolRecord {
   recordType: string
   createdAt: string
   updatedAt: string
-  syncStatus: 'local'
+  syncStatus: 'local' | 'synced'
   payload: ToolRecordPayload
 }
 
@@ -26,7 +26,7 @@ function isRecord(value: unknown): value is LocalToolRecord {
     && typeof item.recordType === 'string'
     && typeof item.createdAt === 'string'
     && typeof item.updatedAt === 'string'
-    && item.syncStatus === 'local'
+    && (item.syncStatus === 'local' || item.syncStatus === 'synced')
     && !!item.payload && typeof item.payload === 'object'
 }
 
@@ -49,7 +49,7 @@ export function saveToolRecord(toolId: ToolId, recordType: string, payload: Tool
   return record
 }
 
-export function updateToolRecord(id: string, patch: Partial<Pick<LocalToolRecord, 'payload' | 'updatedAt'>>): LocalToolRecord | null {
+export function updateToolRecord(id: string, patch: Partial<Pick<LocalToolRecord, 'payload' | 'updatedAt' | 'syncStatus'>>): LocalToolRecord | null {
   const records = readToolRecords()
   const index = records.findIndex(item => item.id === id)
   if (index < 0) return null
@@ -57,6 +57,31 @@ export function updateToolRecord(id: string, patch: Partial<Pick<LocalToolRecord
   records[index] = updated
   uni.setStorageSync(STORAGE_KEY, records)
   return updated
+}
+
+export function importToolRecord(
+  toolId: ToolId,
+  recordType: string,
+  serverId: string,
+  payload: ToolRecordPayload,
+  createdAt?: string,
+  updatedAt?: string,
+): LocalToolRecord {
+  const records = readToolRecords()
+  const existingIndex = records.findIndex(item => item.payload.serverId === serverId || item.id === `server-${serverId}`)
+  const imported: LocalToolRecord = {
+    id: existingIndex >= 0 ? records[existingIndex].id : `server-${serverId}`,
+    toolId,
+    recordType,
+    createdAt: createdAt || new Date().toISOString(),
+    updatedAt: updatedAt || createdAt || new Date().toISOString(),
+    syncStatus: 'synced',
+    payload: { ...payload, serverId },
+  }
+  if (existingIndex >= 0) records[existingIndex] = imported
+  else records.unshift(imported)
+  uni.setStorageSync(STORAGE_KEY, records.slice(0, 500))
+  return imported
 }
 
 export function deleteToolRecord(id: string): void {

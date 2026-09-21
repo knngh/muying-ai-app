@@ -162,7 +162,7 @@ import { useAppStore } from '@/stores/app'
 import { calculatePregnancyWeekFromDueDate } from '@/utils'
 import { toolRecordApi } from '@/api/modules'
 import { getToolDefinition, getToneClass, type ToolId, type ToolStatus } from '@/data/tool-catalog'
-import { deleteToolRecord, listToolRecords, readToolRecords, saveToolRecord, type LocalToolRecord } from '@/utils/tool-records'
+import { deleteToolRecord, importToolRecord, listToolRecords, readToolRecords, saveToolRecord, updateToolRecord, type LocalToolRecord } from '@/utils/tool-records'
 
 const appStore = useAppStore()
 const toolId = ref<ToolId>('calendar')
@@ -233,47 +233,56 @@ function save(recordType: string, payload: Record<string, string | number | bool
   return record
 }
 
+function markSynced(record: LocalToolRecord, serverId: string) {
+  updateToolRecord(record.id, { syncStatus: 'synced', payload: { ...record.payload, serverId } })
+  reload()
+}
+
 async function syncServer(record: LocalToolRecord): Promise<void> {
   if (!uni.getStorageSync('token')) return
   try {
     const payload = record.payload
     if (record.toolId === 'contractions' && record.recordType === 'session'
       && typeof payload.startAt === 'string' && typeof payload.endAt === 'string' && typeof payload.durationSeconds === 'number') {
-      await toolRecordApi.createContraction({
+      const remote = await toolRecordApi.createContraction({
         startedAt: payload.startAt,
         endedAt: payload.endAt,
         durationSeconds: payload.durationSeconds,
         intervalSeconds: typeof payload.intervalSeconds === 'number' ? payload.intervalSeconds : null,
         clientOperationId: record.id,
       })
+      markSynced(record, remote.id)
     } else if (record.toolId === 'movement' && record.recordType === 'session'
       && typeof payload.startedAt === 'string' && typeof payload.endedAt === 'string' && typeof payload.count === 'number') {
-      await toolRecordApi.createMovement({
+      const remote = await toolRecordApi.createMovement({
         startedAt: payload.startedAt,
         endedAt: payload.endedAt,
         count: payload.count,
         method: typeof payload.method === 'string' ? payload.method : 'free',
         clientOperationId: record.id,
       })
+      markSynced(record, remote.id)
     } else if (record.toolId === 'weight' && record.recordType === 'measurement'
       && typeof payload.measuredAt === 'string' && typeof payload.value === 'number') {
-      await toolRecordApi.createWeight({
+      const remote = await toolRecordApi.createWeight({
         measuredAt: payload.measuredAt,
         weightKg: payload.value,
         source: 'manual',
         clientOperationId: record.id,
       })
+      markSynced(record, remote.id)
     } else if (record.toolId === 'diary' && record.recordType === 'entry'
       && typeof payload.date === 'string' && typeof payload.content === 'string') {
-      await toolRecordApi.createDiaryEntry({
+      const remote = await toolRecordApi.createDiaryEntry({
         entryDate: payload.date,
         mood: typeof payload.mood === 'string' ? payload.mood : null,
         content: payload.content,
         clientOperationId: record.id,
       })
+      markSynced(record, remote.id)
     } else if (record.toolId === 'expenses' && record.recordType === 'entry'
       && typeof payload.date === 'string' && typeof payload.amount === 'number' && typeof payload.category === 'string') {
-      await toolRecordApi.createExpenseEntry({
+      const remote = await toolRecordApi.createExpenseEntry({
         occurredAt: payload.date,
         amountCents: Math.round(payload.amount * 100),
         direction: 'expense',
@@ -281,9 +290,10 @@ async function syncServer(record: LocalToolRecord): Promise<void> {
         note: typeof payload.note === 'string' ? payload.note : null,
         clientOperationId: record.id,
       })
+      markSynced(record, remote.id)
     } else if (record.toolId === 'care' && record.recordType === 'log'
       && typeof payload.recordedAt === 'string' && typeof payload.kind === 'string') {
-      await toolRecordApi.createCareLog({
+      const remote = await toolRecordApi.createCareLog({
         kind: payload.kind as 'feeding' | 'diaper' | 'sleep',
         recordedAt: payload.recordedAt,
         endedAt: null,
@@ -293,9 +303,10 @@ async function syncServer(record: LocalToolRecord): Promise<void> {
         note: typeof payload.note === 'string' ? payload.note : null,
         clientOperationId: record.id,
       })
+      markSynced(record, remote.id)
     } else if (record.toolId === 'growth' && record.recordType === 'measurement'
       && typeof payload.measuredAt === 'string' && typeof payload.metric === 'string' && typeof payload.value === 'number') {
-      await toolRecordApi.createBabyMeasurement({
+      const remote = await toolRecordApi.createBabyMeasurement({
         measuredAt: payload.measuredAt,
         metric: payload.metric as 'height' | 'weight' | 'head',
         value: payload.value,
@@ -303,9 +314,10 @@ async function syncServer(record: LocalToolRecord): Promise<void> {
         method: null,
         clientOperationId: record.id,
       })
+      markSynced(record, remote.id)
     } else if (record.toolId === 'vaccines' && record.recordType === 'record'
       && typeof payload.date === 'string' && typeof payload.name === 'string' && typeof payload.status === 'string') {
-      await toolRecordApi.createVaccination({
+      const remote = await toolRecordApi.createVaccination({
         vaccineName: payload.name,
         administeredAt: payload.date,
         status: payload.status as 'planned' | 'scheduled' | 'administered' | 'unconfirmed',
@@ -313,27 +325,89 @@ async function syncServer(record: LocalToolRecord): Promise<void> {
         note: null,
         clientOperationId: record.id,
       })
+      markSynced(record, remote.id)
     } else if (record.toolId === 'foods' && record.recordType === 'trial'
       && typeof payload.date === 'string' && typeof payload.name === 'string') {
-      await toolRecordApi.createFoodTrial({
+      const remote = await toolRecordApi.createFoodTrial({
         foodName: payload.name,
         triedAt: payload.date,
         observation: typeof payload.note === 'string' ? payload.note : null,
         responseStatus: 'unconfirmed',
         clientOperationId: record.id,
       })
+      markSynced(record, remote.id)
     } else if (record.toolId === 'packing' && record.recordType === 'item'
       && typeof payload.item === 'string' && typeof payload.done === 'boolean') {
-      await toolRecordApi.upsertPackingItem({
+      const remote = await toolRecordApi.upsertPackingItem({
         name: payload.item,
         category: '待产包',
         quantity: 1,
         isDone: payload.done,
         clientOperationId: record.id,
       })
+      markSynced(record, remote.id)
     }
   } catch {
     showNotice('已保存在本机，网络恢复后可重新同步')
+  }
+}
+
+async function loadRemoteRecords(): Promise<void> {
+  if (!uni.getStorageSync('token')) return
+  try {
+    if (toolId.value === 'contractions') {
+      const list = await toolRecordApi.getContractions()
+      list.forEach(item => importToolRecord('contractions', 'session', item.id, {
+        startAt: item.startedAt, endAt: item.endedAt, durationSeconds: item.durationSeconds,
+        intervalSeconds: item.intervalSeconds, summary: `宫缩 ${item.durationSeconds} 秒`,
+      }, item.createdAt, item.updatedAt))
+    } else if (toolId.value === 'movement') {
+      const list = await toolRecordApi.getMovements()
+      list.forEach(item => importToolRecord('movement', 'session', item.id, {
+        startedAt: item.startedAt, endedAt: item.endedAt, count: item.count, method: item.method, summary: `胎动 ${item.count} 次`,
+      }, item.createdAt, item.updatedAt))
+    } else if (toolId.value === 'weight') {
+      const list = await toolRecordApi.getWeights()
+      list.forEach(item => importToolRecord('weight', 'measurement', item.id, {
+        value: item.weightKg, unit: 'kg', measuredAt: item.measuredAt, summary: `${item.weightKg} kg`,
+      }, item.createdAt, item.updatedAt))
+    } else if (toolId.value === 'diary') {
+      const list = await toolRecordApi.getDiaryEntries()
+      list.forEach(item => importToolRecord('diary', 'entry', item.id, {
+        mood: item.mood, content: item.content, date: item.entryDate, summary: `${item.mood || '未标心情'} · ${item.content.slice(0, 18)}`,
+      }, item.createdAt, item.updatedAt))
+    } else if (toolId.value === 'expenses') {
+      const list = await toolRecordApi.getExpenseEntries()
+      list.forEach(item => importToolRecord('expenses', 'entry', item.id, {
+        amount: item.amountCents / 100, category: item.category, note: item.note, date: item.occurredAt, summary: `${item.category} ${(item.amountCents / 100).toFixed(2)} 元`,
+      }, item.createdAt, item.updatedAt))
+    } else if (toolId.value === 'care') {
+      const list = await toolRecordApi.getCareLogs()
+      list.forEach(item => importToolRecord('care', 'log', item.id, {
+        kind: item.kind, amount: item.amountMl, note: item.note, recordedAt: item.recordedAt, summary: `${item.kind}${item.amountMl === null ? '' : ` ${item.amountMl}ml`}`,
+      }, item.createdAt, item.updatedAt))
+    } else if (toolId.value === 'growth') {
+      const list = await toolRecordApi.getBabyMeasurements()
+      list.forEach(item => importToolRecord('growth', 'measurement', item.id, {
+        metric: item.metric, value: item.value, unit: item.unit, measuredAt: item.measuredAt, summary: `${item.metric} ${item.value}${item.unit}`,
+      }, item.createdAt, item.updatedAt))
+    } else if (toolId.value === 'vaccines') {
+      const list = await toolRecordApi.getVaccinations()
+      list.forEach(item => importToolRecord('vaccines', 'record', item.id, { name: item.vaccineName, date: item.administeredAt, status: item.status, summary: `${item.vaccineName} · ${item.status}` }, item.createdAt, item.updatedAt))
+    } else if (toolId.value === 'foods') {
+      const list = await toolRecordApi.getFoodTrials()
+      list.forEach(item => importToolRecord('foods', 'trial', item.id, {
+        name: item.foodName, note: item.observation, date: item.triedAt, summary: `${item.foodName} · 已记录观察`,
+      }, item.createdAt, item.updatedAt))
+    } else if (toolId.value === 'packing') {
+      const list = await toolRecordApi.getPackingItems()
+      list.forEach(item => importToolRecord('packing', 'item', item.id, {
+        item: item.name, done: item.isDone, summary: `${item.isDone ? '已准备' : '待准备'}：${item.name}`,
+      }, item.createdAt, item.updatedAt))
+    }
+    reload()
+  } catch {
+    // 本机记录优先，远端暂时不可用时不打断页面。
   }
 }
 function openCalendar() { uni.switchTab({ url: '/pages/calendar/index' }) }
@@ -384,6 +458,7 @@ function weightBarHeight(record: LocalToolRecord) { const values = weightRecords
 onLoad((options) => {
   toolId.value = String(options?.id || 'calendar') as ToolId
   reload()
+  void loadRemoteRecords()
   contractionStart.value = uni.getStorageSync('beihu:contraction-start') || null
   if (contractionStart.value) contractionTimer = setInterval(() => { contractionNow.value = Date.now() }, 1000)
 })

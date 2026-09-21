@@ -2,7 +2,11 @@ import { z } from 'zod';
 
 const dateTime = z.string().trim().refine(value => !Number.isNaN(Date.parse(value)), '时间格式无效');
 const dateOnly = z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式无效，请使用 YYYY-MM-DD')
-  .refine(value => !Number.isNaN(Date.parse(`${value}T00:00:00Z`)), '日期格式无效');
+  .refine(value => {
+    const [year, month, day] = value.split('-').map(Number);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+  }, '日期格式无效');
 const operationId = z.string().trim().min(8, '操作标识无效').max(100, '操作标识过长').optional();
 
 export const toolRecordsQuery = z.object({
