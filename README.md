@@ -371,6 +371,10 @@ Prisma 定义了 16 张核心表：
 - ESLint + Prettier 代码规范
 - 函数式组件 + Hooks + Zustand
 
+
 ## License
 
-MIT
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
+
+本项目采用 [AGPL-3.0](./LICENSE) 许可协议开源。基于本项目的修改版本及通过网络提供服务的衍生服务，须以相同协议开源。
+
