@@ -17,6 +17,7 @@ const AI_PROVIDER_KEYS = [
   'AI_GLM_KEY',
   'AI_MEDICAL_PRIMARY_KEY',
   'AI_GATEWAY_KEY',
+  'TYPESAFE_API_KEY',
 ] as const;
 
 const JWT_SECRET_PLACEHOLDERS = new Set([

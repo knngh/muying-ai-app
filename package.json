@@ -32,6 +32,7 @@
     "ops:wechat:search:submit": "node --import tsx src/scripts/submit-wechat-search-pages.ts",
     "ops:ai:health": "node --import tsx src/scripts/check-ai-provider-health.ts",
     "ops:ai:report": "node --import tsx src/scripts/generate-ai-ops-report.ts",
+    "ops:smoke:typesafe": "node --import tsx src/scripts/check-typesafe-tools.ts",
     "ops:authority:refresh-low-coverage": "node --import tsx src/scripts/refresh-low-coverage-authority-sources.ts",
     "ops:verify:workspace": "bash scripts/verify-workspace.sh",
     "ops:verify:payment-callback:prod": "bash scripts/prod-verify-payment-callback.sh",
