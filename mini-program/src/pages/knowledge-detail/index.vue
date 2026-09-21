@@ -704,7 +704,7 @@ function handleMissingKnowledgeArticle(slug: string) {
     uni.showToast({ title: '内容已更新，正在刷新知识库', icon: 'none' })
     void knowledgeStore.fetchArticles({ reset: true, page: 1 })
     setTimeout(() => {
-      uni.switchTab({ url: '/pages/knowledge/index' })
+      uni.navigateTo({ url: '/pages/knowledge/index' })
     }, 800)
   }
 }
@@ -943,7 +943,7 @@ function openContinueReading(slug: string) {
 }
 
 function goBackToKnowledge() {
-  uni.switchTab({ url: '/pages/knowledge/index' })
+  uni.navigateTo({ url: '/pages/knowledge/index' })
 }
 
 function buildSharePayload() {

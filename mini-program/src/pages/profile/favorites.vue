@@ -62,7 +62,7 @@ function openArticle(slug: string) {
 }
 
 function goKnowledge() {
-  uni.switchTab({ url: '/pages/knowledge/index' })
+  uni.navigateTo({ url: '/pages/knowledge/index' })
 }
 
 onShow(() => { loadFavorites() })

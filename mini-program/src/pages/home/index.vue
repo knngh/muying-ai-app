@@ -90,7 +90,6 @@ const TAB_PAGES = new Set([
   '/pages/home/index',
   '/pages/calendar/index',
   '/pages/tools/index',
-  '/pages/knowledge/index',
   '/pages/profile/index',
 ])
 

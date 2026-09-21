@@ -152,7 +152,7 @@ const setAuthMode = (mode: 'login' | 'register') => {
 }
 
 const navigateGuest = (url: string) => {
-  const tabPages = new Set(['/pages/home/index', '/pages/calendar/index', '/pages/knowledge/index', '/pages/profile/index'])
+  const tabPages = new Set(['/pages/home/index', '/pages/calendar/index', '/pages/tools/index', '/pages/profile/index'])
   if (tabPages.has(url)) {
     uni.switchTab({ url })
     return
