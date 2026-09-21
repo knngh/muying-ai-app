@@ -1,5 +1,6 @@
 <template>
-  <view class="knowledge-page">
+  <KnowledgePaused v-if="!KNOWLEDGE_ENABLED" />
+  <view v-else class="knowledge-page">
     <view class="knowledge-header">
       <text class="knowledge-title">孕育资料库</text>
       <text class="knowledge-subtitle">优先展示中国公开机构资料，适合按主题查阅来源、更新时间和基础说明。</text>
@@ -212,6 +213,8 @@
 </template>
 
 <script setup lang="ts">
+import { KNOWLEDGE_ENABLED } from '@/config/features'
+import KnowledgePaused from '@/components/KnowledgePaused.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { onLoad, onReachBottom, onShareAppMessage, onShareTimeline, onShow } from '@dcloudio/uni-app'
 import { useKnowledgeStore } from '@/stores/knowledge'
@@ -329,6 +332,7 @@ function syncLocalFiltersFromStore() {
 }
 
 async function loadArticles(reset = true) {
+  if (!KNOWLEDGE_ENABLED) return
   await knowledgeStore.fetchArticles({ reset, page: reset ? 1 : knowledgeStore.page + 1 })
 }
 
@@ -338,6 +342,7 @@ onMounted(async () => {
 })
 
 onLoad((options) => {
+  if (!KNOWLEDGE_ENABLED) return
   recordAcquisitionContext(options)
 })
 
@@ -518,6 +523,7 @@ function getVariantDifference(representative: Article, variant: Article) {
 }
 
 function buildSharePayload() {
+  if (!KNOWLEDGE_ENABLED) return { title: '贝护 · 孕育记录与实用工具', path: '/pages/tools/index', query: '' }
   const keyword = searchText.value.trim()
   const title = keyword
     ? `贝护妈妈孕育资料库：${keyword}`

@@ -1,5 +1,6 @@
 <template>
-  <view class="favorites-page">
+  <KnowledgePaused v-if="!KNOWLEDGE_ENABLED" />
+  <view v-else class="favorites-page">
     <SkeletonCard v-if="loading && !favorites.length" v-for="i in 3" :key="i" :rows="2" />
 
     <view v-if="!loading && !favorites.length" class="empty-state">
@@ -24,6 +25,8 @@
 </template>
 
 <script setup lang="ts">
+import { KNOWLEDGE_ENABLED } from '@/config/features'
+import KnowledgePaused from '@/components/KnowledgePaused.vue'
 import { ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { userApi } from '@/api/modules'
@@ -46,6 +49,7 @@ function formatTime(dateStr: string) {
 }
 
 async function loadFavorites() {
+  if (!KNOWLEDGE_ENABLED) return
   loading.value = true
   try {
     const res = await userApi.getFavorites()

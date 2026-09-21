@@ -371,7 +371,7 @@
     <view v-if="showPrivacyAuthorizationModal" class="privacy-auth-mask" @tap="rejectPrivacyAuthorization">
       <view class="privacy-auth-dialog" @tap.stop>
         <text class="privacy-auth-title">使用照片前需要你的同意</text>
-        <text class="privacy-auth-desc">我们只会处理你主动选择或拍摄的照片，用于保存孕育记录。拒绝授权不影响知识库和日历浏览。</text>
+        <text class="privacy-auth-desc">我们只会处理你主动选择或拍摄的照片，用于保存孕育记录。拒绝授权不影响工具和日历使用。</text>
         <text class="privacy-auth-link" @tap="openPrivacyPolicyFromAuthorization">查看隐私指引</text>
         <view class="privacy-auth-actions">
           <button class="privacy-auth-reject" @tap="rejectPrivacyAuthorization">暂不同意</button>
@@ -531,7 +531,7 @@ const todoPendingKey = ref('')
 
 const fallbackData = {
   title: '数据未收录',
-  summary: '当前周内容暂未完整收录，可先使用待办、日记和知识库继续记录本周重点。',
+  summary: '当前周内容暂未完整收录，可先使用待办、日记和记录工具继续记录本周重点。',
   babySizeEmoji: '✨',
   babySizeText: '不断成长中',
   babyWeight: '',

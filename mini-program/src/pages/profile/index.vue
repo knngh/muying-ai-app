@@ -62,7 +62,7 @@
         <view class="edit-btn" @tap="openEditModal">
           <text class="edit-btn-text">编辑资料</text>
         </view>
-        <view class="nav-btn" @tap="openFavorites">
+        <view v-if="KNOWLEDGE_ENABLED" class="nav-btn" @tap="openFavorites">
           <text class="nav-btn-text">我的收藏</text>
         </view>
         <view class="trust-btn" @tap="openTrustCenter">
@@ -148,6 +148,7 @@
 </template>
 
 <script setup lang="ts">
+import { KNOWLEDGE_ENABLED } from '@/config/features'
 import { ref, computed, onMounted, reactive } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useAppStore } from '@/stores/app'
