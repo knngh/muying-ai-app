@@ -55,6 +55,8 @@ model User {
   contractionSessions ContractionSession[]
   movementSessions    MovementSession[]
   pregnancyWeights    PregnancyWeightRecord[]
+  diaryEntries        DiaryEntry[]
+  expenseEntries      ExpenseEntry[]
   todoProgresses     UserPregnancyTodoProgress[]
   customTodos        UserPregnancyCustomTodo[]
   pregnancyDiaries   UserPregnancyDiary[]
@@ -359,6 +361,42 @@ model PregnancyWeightRecord {
 
   @@index([userId, measuredAt])
   @@map("pregnancy_weight_records")
+}
+
+model DiaryEntry {
+  id                 BigInt   @id @default(autoincrement())
+  userId             BigInt
+  entryDate          DateTime @db.Date
+  mood               String?  @db.VarChar(20)
+  content            String   @db.Text
+  imageUrls          Json?
+  clientOperationId  String?  @unique @db.VarChar(100)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, entryDate])
+  @@map("diary_entries")
+}
+
+model ExpenseEntry {
+  id                 BigInt   @id @default(autoincrement())
+  userId             BigInt
+  occurredAt         DateTime @db.Date
+  amountCents        Int
+  direction          String   @default("expense") @db.VarChar(20)
+  category           String   @db.VarChar(40)
+  note               String?  @db.VarChar(200)
+  clientOperationId  String?  @unique @db.VarChar(100)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, occurredAt])
+  @@index([userId, category])
+  @@map("expense_entries")
 }
 
 // ============================================

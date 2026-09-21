@@ -31,3 +31,19 @@ export const pregnancyWeightRecordBody = z.object({
   source: z.string().trim().min(1).max(30).default('manual'),
   clientOperationId: operationId,
 });
+
+export const diaryEntryBody = z.object({
+  entryDate: dateOnly,
+  mood: z.string().trim().max(20).nullable().optional(),
+  content: z.string().trim().min(1, '日记内容不能为空').max(2000, '日记内容不能超过2000字'),
+  clientOperationId: operationId,
+});
+
+export const expenseEntryBody = z.object({
+  occurredAt: dateOnly,
+  amountCents: z.coerce.number().int().min(1).max(100_000_000),
+  direction: z.enum(['expense', 'refund', 'transfer']).default('expense'),
+  category: z.string().trim().min(1).max(40),
+  note: z.string().trim().max(200).nullable().optional(),
+  clientOperationId: operationId,
+});

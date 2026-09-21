@@ -30,6 +30,22 @@ const serializeWeight = (record: {
   createdAt: record.createdAt.toISOString(), updatedAt: record.updatedAt.toISOString(),
 });
 
+const serializeDiary = (record: {
+  id: bigint; entryDate: Date; mood: string | null; content: string; imageUrls: unknown; createdAt: Date; updatedAt: Date;
+}) => ({
+  id: record.id.toString(), entryDate: record.entryDate.toISOString().slice(0, 10), mood: record.mood,
+  content: record.content, imageUrls: Array.isArray(record.imageUrls) ? record.imageUrls : [],
+  createdAt: record.createdAt.toISOString(), updatedAt: record.updatedAt.toISOString(),
+});
+
+const serializeExpense = (record: {
+  id: bigint; occurredAt: Date; amountCents: number; direction: string; category: string; note: string | null; createdAt: Date; updatedAt: Date;
+}) => ({
+  id: record.id.toString(), occurredAt: record.occurredAt.toISOString().slice(0, 10), amountCents: record.amountCents,
+  direction: record.direction, category: record.category, note: record.note,
+  createdAt: record.createdAt.toISOString(), updatedAt: record.updatedAt.toISOString(),
+});
+
 function parseDatePair(startedAt: string, endedAt: string): { start: Date; end: Date } {
   const start = new Date(startedAt);
   const end = new Date(endedAt);
@@ -108,5 +124,53 @@ export const createWeight = async (req: Request, res: Response, next: NextFuncti
       userId, measuredAt: new Date(`${measuredAt}T00:00:00.000Z`), weightKg, source, clientOperationId: clientOperationId || null,
     } });
     res.json(successResponse(serializeWeight(created)));
+  } catch (error) { next(error); }
+};
+
+export const getDiaryEntries = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = requireUserId(req);
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit || 30)));
+    const list = await prisma.diaryEntry.findMany({ where: { userId }, orderBy: { entryDate: 'desc' }, take: limit });
+    res.json(successResponse(list.map(serializeDiary)));
+  } catch (error) { next(error); }
+};
+
+export const createDiaryEntry = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = requireUserId(req);
+    const { entryDate, mood, content, clientOperationId } = req.body;
+    if (clientOperationId) {
+      const existing = await prisma.diaryEntry.findFirst({ where: { userId, clientOperationId } });
+      if (existing) { res.json(successResponse(serializeDiary(existing))); return; }
+    }
+    const created = await prisma.diaryEntry.create({ data: {
+      userId, entryDate: new Date(`${entryDate}T00:00:00.000Z`), mood: mood || null, content, imageUrls: [], clientOperationId: clientOperationId || null,
+    } });
+    res.json(successResponse(serializeDiary(created)));
+  } catch (error) { next(error); }
+};
+
+export const getExpenseEntries = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = requireUserId(req);
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit || 30)));
+    const list = await prisma.expenseEntry.findMany({ where: { userId }, orderBy: { occurredAt: 'desc' }, take: limit });
+    res.json(successResponse(list.map(serializeExpense)));
+  } catch (error) { next(error); }
+};
+
+export const createExpenseEntry = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = requireUserId(req);
+    const { occurredAt, amountCents, direction, category, note, clientOperationId } = req.body;
+    if (clientOperationId) {
+      const existing = await prisma.expenseEntry.findFirst({ where: { userId, clientOperationId } });
+      if (existing) { res.json(successResponse(serializeExpense(existing))); return; }
+    }
+    const created = await prisma.expenseEntry.create({ data: {
+      userId, occurredAt: new Date(`${occurredAt}T00:00:00.000Z`), amountCents, direction, category, note: note || null, clientOperationId: clientOperationId || null,
+    } });
+    res.json(successResponse(serializeExpense(created)));
   } catch (error) { next(error); }
 };

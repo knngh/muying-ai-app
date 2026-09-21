@@ -77,6 +77,27 @@ export interface PregnancyWeightRecord {
   updatedAt: string
 }
 
+export interface DiaryEntryRecord {
+  id: string
+  entryDate: string
+  mood: string | null
+  content: string
+  imageUrls: string[]
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ExpenseEntryRecord {
+  id: string
+  occurredAt: string
+  amountCents: number
+  direction: 'expense' | 'refund' | 'transfer'
+  category: string
+  note: string | null
+  createdAt: string
+  updatedAt: string
+}
+
 export const toolRecordApi = {
   getContractions: (limit = 30) => api.get<ContractionRecord[]>('/tool-records/contractions', { limit }),
   createContraction: (data: Omit<ContractionRecord, 'id' | 'createdAt' | 'updatedAt'> & { clientOperationId?: string }) =>
@@ -87,6 +108,12 @@ export const toolRecordApi = {
   getWeights: (limit = 30) => api.get<PregnancyWeightRecord[]>('/tool-records/weights', { limit }),
   createWeight: (data: Omit<PregnancyWeightRecord, 'id' | 'createdAt' | 'updatedAt'> & { clientOperationId?: string }) =>
     api.post<PregnancyWeightRecord>('/tool-records/weights', data),
+  getDiaryEntries: (limit = 30) => api.get<DiaryEntryRecord[]>('/tool-records/diary', { limit }),
+  createDiaryEntry: (data: Omit<DiaryEntryRecord, 'id' | 'createdAt' | 'updatedAt' | 'imageUrls'> & { clientOperationId?: string }) =>
+    api.post<DiaryEntryRecord>('/tool-records/diary', data),
+  getExpenseEntries: (limit = 30) => api.get<ExpenseEntryRecord[]>('/tool-records/expenses', { limit }),
+  createExpenseEntry: (data: Omit<ExpenseEntryRecord, 'id' | 'createdAt' | 'updatedAt'> & { clientOperationId?: string }) =>
+    api.post<ExpenseEntryRecord>('/tool-records/expenses', data),
 }
 
 // ==================== 分类 API ====================

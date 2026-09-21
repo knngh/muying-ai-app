@@ -263,6 +263,24 @@ async function syncServer(record: LocalToolRecord): Promise<void> {
         source: 'manual',
         clientOperationId: record.id,
       })
+    } else if (record.toolId === 'diary' && record.recordType === 'entry'
+      && typeof payload.date === 'string' && typeof payload.content === 'string') {
+      await toolRecordApi.createDiaryEntry({
+        entryDate: payload.date,
+        mood: typeof payload.mood === 'string' ? payload.mood : null,
+        content: payload.content,
+        clientOperationId: record.id,
+      })
+    } else if (record.toolId === 'expenses' && record.recordType === 'entry'
+      && typeof payload.date === 'string' && typeof payload.amount === 'number' && typeof payload.category === 'string') {
+      await toolRecordApi.createExpenseEntry({
+        occurredAt: payload.date,
+        amountCents: Math.round(payload.amount * 100),
+        direction: 'expense',
+        category: payload.category,
+        note: typeof payload.note === 'string' ? payload.note : null,
+        clientOperationId: record.id,
+      })
     }
   } catch {
     showNotice('已保存在本机，网络恢复后可重新同步')
@@ -306,10 +324,10 @@ function saveVaccine() { if (!vaccineName.value.trim()) { showNotice('请填写�
 function saveFood() { if (!foodName.value.trim()) { showNotice('请填写食材名称'); return }; save('trial', { name: foodName.value.trim(), note: foodNote.value || null, date: recordDate.value }, `${foodName.value.trim()} · 已记录观察`); foodName.value = ''; foodNote.value = '' }
 function saveReport() { if (!reportName.value.trim()) { showNotice('请填写报告名称'); return }; save('draft', { name: reportName.value.trim(), date: recordDate.value, note: reportNote.value || null, confirmed: false }, `${reportName.value.trim()} · 待核对`); reportName.value = ''; reportNote.value = '' }
 function savePoster() { save('card', { week: currentWeek.value, template: 'stage-card' }, currentWeek.value ? `第 ${currentWeek.value} 周阶段卡` : '阶段卡预览') }
-function saveDiary() { if (!diaryText.value.trim()) { showNotice('先写下一点内容'); return }; save('entry', { mood: diaryMood.value, content: diaryText.value.trim(), date: recordDate.value }, `${diaryMood.value} · ${diaryText.value.trim().slice(0, 18)}`); diaryText.value = '' }
+function saveDiary() { if (!diaryText.value.trim()) { showNotice('先写下一点内容'); return }; const record = save('entry', { mood: diaryMood.value, content: diaryText.value.trim(), date: recordDate.value }, `${diaryMood.value} · ${diaryText.value.trim().slice(0, 18)}`); void syncServer(record); diaryText.value = '' }
 function chooseAlbumImage() { uni.chooseImage({ count: 1, sourceType: ['album', 'camera'], success: result => { albumPreview.value = result.tempFilePaths[0] || '' } }) }
 function saveAlbum() { if (!albumPreview.value) return; save('photo', { path: albumPreview.value, date: recordDate.value }, `照片 · ${recordDate.value}`); albumPreview.value = '' }
-function saveExpense() { const amount = Number(expenseAmount.value); if (!Number.isFinite(amount) || amount <= 0) { showNotice('请输入有效金额'); return }; const label = expenseCategories.find(item => item.value === expenseCategory.value)?.label || '其它'; save('entry', { amount: Math.round(amount * 100) / 100, category: expenseCategory.value, note: expenseNote.value || null, date: recordDate.value }, `${label} ${amount.toFixed(2)} 元`); expenseAmount.value = ''; expenseNote.value = '' }
+function saveExpense() { const amount = Number(expenseAmount.value); if (!Number.isFinite(amount) || amount <= 0) { showNotice('请输入有效金额'); return }; const label = expenseCategories.find(item => item.value === expenseCategory.value)?.label || '其它'; const record = save('entry', { amount: Math.round(amount * 100) / 100, category: expenseCategory.value, note: expenseNote.value || null, date: recordDate.value }, `${label} ${amount.toFixed(2)} 元`); void syncServer(record); expenseAmount.value = ''; expenseNote.value = '' }
 function saveGenericNote() { save('note', { note: '已打开并准备使用' }, '已建立工具记录入口') }
 function weightBarHeight(record: LocalToolRecord) { const values = weightRecords.value.map(item => Number(item.payload.value)); const min = Math.min(...values); const max = Math.max(...values); const current = Number(record.payload.value); return max === min ? 74 : Math.round(42 + ((current - min) / (max - min)) * 64) }
 
