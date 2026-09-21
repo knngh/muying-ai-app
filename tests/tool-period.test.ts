@@ -1,4 +1,5 @@
 import { currentToolPeriod, parseToolPeriod, periodTools } from '../mini-program/src/utils/tool-period';
+import { getToolStage } from '../mini-program/src/data/tool-catalog';
 
 const ids = (week: number, stage: 'pregnancy' | 'postpartum' = 'pregnancy') => periodTools({ stage, week }).map(tool => tool.id);
 
@@ -36,6 +37,12 @@ it('uses birthday ahead of a stale pregnancy week and counts calendar days', () 
   const today = new Date(2026, 8, 21, 9);
   expect(currentToolPeriod(38, '2026-09-21', today)).toEqual({ stage: 'postpartum', week: 1 });
   expect(currentToolPeriod(38, '2026-09-14', today)).toEqual({ stage: 'postpartum', week: 2 });
+  expect(currentToolPeriod(38, '2026-09-14T00:00:00.000Z', today)).toEqual({ stage: 'postpartum', week: 2 });
   expect(currentToolPeriod(28, null, today)).toEqual({ stage: 'pregnancy', week: 28 });
   for (const birthday of ['invalid', '2026-02-30', '2026-09-22']) expect(currentToolPeriod(38, birthday, today)).toBeNull();
+});
+it('accepts the API birthday timestamp when choosing baby stages and rejects invalid birthdays', () => {
+  expect(getToolStage(38, '2020-01-01T00:00:00.000Z')).toBe('feeding');
+  expect(getToolStage(38, 'not-a-date')).toBe('preparing');
+  expect(getToolStage(38, '2099-01-01')).toBe('preparing');
 });

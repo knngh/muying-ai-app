@@ -1,14 +1,16 @@
 <template>
   <view class="tool-detail-page">
     <view class="detail-hero" :class="getToneClass(tool.tone)">
-      <view class="hero-back" @tap="goBack">‹ 工具箱</view>
-      <view class="hero-icon"><text>{{ tool.icon }}</text></view>
+      <button class="hero-back" @tap="goBack">‹ {{ sourcePeriod ? `返回${toolPeriodLabel(sourcePeriod)}` : '返回' }}</button>
+      <view class="hero-icon"><ToolIcon :id="tool.id" /></view>
       <text class="hero-kicker">{{ tool.kicker }} · {{ statusLabel(tool.status) }}</text>
       <text class="hero-title">{{ tool.title }}</text>
       <text class="hero-description">{{ tool.description }}</text>
       <text class="hero-helper">{{ tool.helper }}</text>
       <button class="home-pin-button" @tap="toggleHomeTool">{{ isOnHome ? '已添加到首页 ✓' : '＋ 添加到首页' }}</button>
     </view>
+
+    <view v-if="sourcePeriod" class="source-context"><text>{{ toolPeriodLabel(sourcePeriod) }} · {{ sourceReason || '从孕育日历打开' }}</text><text class="source-context-note">新记录按实际填写日期保存。</text></view>
 
     <view v-if="tool.id === 'calendar'" class="content-card">
       <text class="card-title">孕育日历是记录底座</text>
@@ -153,6 +155,8 @@ import { calculatePregnancyWeekFromDueDate } from '@/utils'
 import { toolRecordApi } from '@/api/modules'
 import ReportArchive from '@/components/tools/ReportArchive.vue'
 import StagePoster from '@/components/tools/StagePoster.vue'
+import ToolIcon from '@/components/tools/ToolIcon.vue'
+import { currentToolPeriod, parseToolPeriod, periodTools, toolPeriodLabel, type ToolPeriod } from '@/utils/tool-period'
 import { reportOwner } from '@/utils/report-drafts'
 import { getToolDefinition, getToneClass, type ToolId, type ToolStatus } from '@/data/tool-catalog'
 import { deleteToolRecord, importToolRecord, readToolRecords, saveToolRecord, updateToolRecord, type LocalToolRecord } from '@/utils/tool-records'
@@ -202,7 +206,9 @@ const packingItems = [
 ]
 
 const pinnedIds = ref(readHomeTools())
-const selectedHomeIds = computed(() => pinnedIds.value ?? recommendedHomeTools(getToolStage(currentWeek.value, appStore.user?.babyBirthday)))
+const sourcePeriod = ref<ToolPeriod | null>(null)
+const sourceReason = computed(() => periodTools(sourcePeriod.value).find(item => item.id === toolId.value)?.reason)
+const selectedHomeIds = computed(() => pinnedIds.value ?? recommendedHomeTools(getToolStage(currentWeek.value, appStore.user?.babyBirthday), currentToolPeriod(currentWeek.value, appStore.user?.babyBirthday)))
 const isOnHome = computed(() => selectedHomeIds.value.includes(toolId.value))
 function toggleHomeTool() {
   if (!isOnHome.value && selectedHomeIds.value.length >= MAX_HOME_TOOLS) { uni.showToast({ title: '首页已满，请在工具页管理', icon: 'none' }); return }
@@ -210,7 +216,7 @@ function toggleHomeTool() {
   try { saveHomeTools(next); pinnedIds.value = next } catch { showNotice('设置未能保存，请重试') }
 }
 const tool = computed(() => getToolDefinition(toolId.value))
-const currentWeek = computed(() => appStore.user?.dueDate ? calculatePregnancyWeekFromDueDate(appStore.user.dueDate) : storedWeek.value)
+const currentWeek = computed(() => appStore.user?.babyBirthday ? null : appStore.user?.dueDate ? calculatePregnancyWeekFromDueDate(appStore.user.dueDate) : storedWeek.value)
 const displayRecords = computed(() => records.value.filter(item => item.toolId === toolId.value).slice(0, 8))
 const weightRecords = computed(() => records.value.filter(item => item.toolId === 'weight' && item.recordType === 'measurement').filter(item => typeof item.payload.value === 'number'))
 const packingRecords = computed(() => records.value.filter(item => item.toolId === 'packing' && item.recordType === 'item'))
@@ -460,6 +466,7 @@ function weightBarHeight(record: LocalToolRecord) { const values = weightRecords
 
 onLoad((options) => {
   toolId.value = String(options?.id || 'calendar') as ToolId
+  sourcePeriod.value = parseToolPeriod(options?.fromStage, options?.fromWeek)
   reload()
   void loadRemoteRecords()
   contractionStart.value = uni.getStorageSync('beihu:contraction-start') || null
@@ -475,7 +482,9 @@ onShareTimeline(() => ({ title: `贝护 · ${tool.value.title}` }))
 .tool-detail-page { min-height: 100vh; padding-bottom: 70rpx; background: #fcf9f8; }
 .home-pin-button { margin: 20rpx 0 0; width: auto; display: inline-block; padding: 18rpx 24rpx; min-height: 88rpx; background: #edf5f1; color: #166c5b; border-radius: 16rpx; font-size: 25rpx; line-height: 1.8; }
 .detail-hero { padding: 28rpx 28rpx 24rpx; box-sizing: border-box; }
-.hero-back { color: currentColor; opacity: .72; font-size: 24rpx; }
+.hero-back { display: block; width: fit-content; color: #655a57; font-size: 24rpx; background: transparent; margin: 0; padding: 20rpx 16rpx 20rpx 0; min-height: 88rpx; line-height: 1.8; text-align: left; }
+.source-context { margin: 20rpx 28rpx 0; padding: 20rpx 24rpx; border-radius: 20rpx; background: #edf5f1; color: #34584d; font-size: 24rpx; line-height: 1.6; }
+.source-context-note { display: block; color: #66766e; margin-top: 8rpx; font-size: 22rpx; }
 .hero-icon { display: flex; align-items: center; justify-content: center; width: 82rpx; height: 82rpx; margin-top: 24rpx; border-radius: 26rpx; background: rgba(255, 255, 255, .72); font-size: 34rpx; font-weight: 900; }
 .hero-kicker { display: block; margin-top: 22rpx; color: currentColor; opacity: .72; font-size: 22rpx; font-weight: 800; }
 .hero-title { display: block; margin-top: 8rpx; color: #443c3a; font-size: 48rpx; font-weight: 900; }

@@ -1,8 +1,11 @@
-import { findTools, MAX_HOME_TOOLS, moveHomeTool, normalizeHomeTools, readHomeTools, recommendedHomeTools, saveHomeTools } from '../mini-program/src/utils/home-tools';
+import { findTools, MAX_HOME_TOOLS, moveHomeTool, normalizeHomeTools, openToolPage, readHomeTools, recommendedHomeTools, resetHomeTools, saveHomeTools } from '../mini-program/src/utils/home-tools';
 const storage = new Map<string, unknown>();
+const navigateTo = jest.fn();
 (globalThis as unknown as { uni: unknown }).uni = {
   getStorageSync: (key: string) => storage.get(key),
   setStorageSync: (key: string, value: unknown) => storage.set(key, value),
+  removeStorageSync: (key: string) => storage.delete(key),
+  navigateTo,
 };
 beforeEach(() => storage.clear());
 it('uses stage recommendations only before customization and preserves an intentionally empty home', () => {
@@ -34,4 +37,21 @@ it('finds all 15 tools once and supports synonyms together with category filters
   expect(findTools('化验单').map(tool => tool.id)).toEqual(['reports']);
   expect(findTools('报告', 'baby')).toEqual([]);
   expect(findTools('  报告  原图 ').map(tool => tool.id)).toEqual(['reports']);
+});
+it('follows weeks until customized, and resumes automatic recommendations after reset', () => {
+  const early = { stage: 'pregnancy' as const, week: 12 };
+  const late = { stage: 'pregnancy' as const, week: 38 };
+  expect(recommendedHomeTools('early', early)).not.toContain('movement');
+  expect(recommendedHomeTools('late', late)).toEqual(['calendar', 'contractions', 'movement', 'packing', 'poster']);
+  saveHomeTools(['names', 'poster']);
+  expect(readHomeTools() ?? recommendedHomeTools('late', late)).toEqual(['names', 'poster']);
+  resetHomeTools();
+  expect(readHomeTools()).toBeNull();
+  expect(readHomeTools() ?? recommendedHomeTools('early', early)).toContain('reports');
+});
+it('carries the browsed week in navigation without changing the actual pregnancy week', () => {
+  storage.set('userPregnancyWeek', 38);
+  openToolPage('weight', { stage: 'pregnancy', week: 12 });
+  expect(navigateTo).toHaveBeenLastCalledWith({ url: '/pages/tool-detail/index?id=weight&fromStage=pregnancy&fromWeek=12' });
+  expect(storage.get('userPregnancyWeek')).toBe(38);
 });

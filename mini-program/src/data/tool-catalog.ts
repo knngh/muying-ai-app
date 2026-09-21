@@ -1,3 +1,5 @@
+import { currentToolPeriod } from '../utils/tool-period'
+
 export type ToolId =
   | 'calendar'
   | 'contractions'
@@ -112,9 +114,8 @@ export function getToolDefinition(value: unknown): ToolDefinition {
 
 export function getToolStage(week: number | null, babyBirthday?: string | null): ToolStage {
   if (babyBirthday) {
-    const birthday = new Date(`${babyBirthday}T00:00:00`)
-    const months = Number.isNaN(birthday.getTime()) ? 0 : Math.max(0, (Date.now() - birthday.getTime()) / (30.44 * 24 * 60 * 60 * 1000))
-    return months >= 6 ? 'feeding' : 'newborn'
+    const period = currentToolPeriod(week, babyBirthday)
+    return period?.stage === 'postpartum' ? (period.week >= 27 ? 'feeding' : 'newborn') : 'preparing'
   }
   if (!week) return 'preparing'
   if (week <= 12) return 'early'

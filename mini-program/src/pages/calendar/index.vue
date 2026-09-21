@@ -62,7 +62,7 @@
           :key="item.key"
           class="week-command-item"
           :class="{ 'week-command-item--active': activeTab === item.key }"
-          @tap="activeTab = item.key"
+          @tap="openWeekSection(item.key)"
         >
           <text class="week-command-item-label">{{ item.label }}</text>
           <text class="week-command-item-value">{{ item.value }}</text>
@@ -101,6 +101,7 @@
 
     <!-- 时间线内容 -->
     <view class="content-section" v-if="activeTab === 'guide'">
+      <view id="week-tools"><PeriodTools :period="selectedToolPeriod" @open="openWeekTool" /></view>
       <!-- 总体总结 -->
       <view class="summary-card">
         <text class="quote-mark">“</text>
@@ -416,6 +417,10 @@ import { resolveUploadUrl } from '@/api/request'
 import { calculatePregnancyWeekFromDueDate, syncPregnancyWeekStorage } from '@/utils'
 import { buildAcquisitionPath, buildAcquisitionQuery, recordAcquisitionContext } from '@/utils/acquisition'
 import { buildWeekPriorityPlan } from '@/utils/record-assist'
+import PeriodTools from '@/components/tools/PeriodTools.vue'
+import { openToolPage } from '@/utils/home-tools'
+import type { ToolId } from '@/data/tool-catalog'
+import type { ToolPeriod } from '@/utils/tool-period'
 
 type TimelineStage = 'pregnancy' | 'postpartum'
 
@@ -613,6 +618,19 @@ const getTimelineItemFromStorageWeek = (storageWeek: number): TimelineListItem =
 }
 
 const selectedTimelineItem = computed(() => getTimelineItemFromStorageWeek(currentSelectedWeek.value))
+const selectedToolPeriod = computed<ToolPeriod>(() => ({ stage: selectedTimelineItem.value.stage, week: selectedTimelineItem.value.displayWeek }))
+let toolReturnContext: { week: number; userId: string } | null = null
+function openWeekTool(id: ToolId) {
+  toolReturnContext = { week: currentSelectedWeek.value, userId: loginUserId.value }
+  openToolPage(id, selectedToolPeriod.value)
+}
+async function openWeekSection(key: string) {
+  activeTab.value = key
+  if (key === 'guide') {
+    await nextTick()
+    uni.pageScrollTo({ selector: '#week-tools', duration: 200 })
+  }
+}
 const selectedTimelineKey = computed(() => selectedTimelineItem.value.timelineKey)
 const isPostpartumTimeline = computed(() => (
   timelineContext.value?.lifecycleStage === 'postpartum' || selectedTimelineItem.value.stage === 'postpartum'
@@ -872,7 +890,7 @@ const weekPriority = computed(() => buildWeekPriorityPlan({
 }))
 const weekCommandDescription = computed(() => (
   activeTab.value === 'guide'
-    ? (selectedTimelineItem.value.stage === 'postpartum' ? '先扫一眼本周成长与照护重点，再决定要不要补待办或记录。' : '先扫一眼本周发育与注意事项，再决定要不要补待办或记录。')
+    ? '看看本周变化，也可以直接打开适合这一周的工具。'
     : activeTab.value === 'todo'
       ? (canUseTodoActions.value ? '把这一周要做的事集中处理，完成进度会实时保存。' : '先看本周待办结构，登录后再保存完成状态。')
       : (canUseTodoActions.value ? '把这一周的变化和提醒记下来，后面回看更省力。' : '登录后可以把这周感受、线下提醒和待办留下来。')
@@ -887,11 +905,9 @@ const weekCommandBadge = computed(() => (
 const tabQuickActions = computed(() => [
   {
     key: 'guide',
-    label: guideTabLabel.value,
-    value: currentWeekData.value.babySizeText || '查看重点',
-    meta: parsedContent.value.tips?.length
-      ? `${parsedContent.value.tips.length} 条${tipsSectionTitle.value}`
-      : (selectedTimelineItem.value.stage === 'postpartum' ? '先看宝宝成长和照护重点' : '先看宝宝发育和妈妈变化'),
+    label: '本周工具',
+    value: '3 项随手用',
+    meta: '随浏览周数更新，点这里查看',
   },
   {
     key: 'todo',
@@ -1328,6 +1344,9 @@ onLoad((options) => {
 })
 
 onShow(() => {
+  // Capture before fetching: an earlier page-show request must not consume a later tool return.
+  const returning = toolReturnContext
+  toolReturnContext = null
   void (async () => {
     const sharedWeek = initialSharedWeek.value
     const hasSharedWeek = sharedWeek !== null
@@ -1337,6 +1356,12 @@ onShow(() => {
       await appStore.fetchUser()
     }
     loginUserId.value = resolveLoginUserId()
+
+    if (returning && returning.userId === loginUserId.value) {
+      await selectStorageWeek(returning.week)
+      await Promise.all([syncTodoContext(), syncDiaryContext(), syncCustomTodoContext(), syncTimelineTodos()])
+      return
+    }
 
     const selectedFromUserDueDate = loginUserId.value
       ? await selectPregnancyWeekFromDueDate(appStore.user?.dueDate)
@@ -1572,7 +1597,7 @@ onShareTimeline(() => {
   padding: 18rpx 16rpx;
   border-radius: 24rpx;
   text-align: center;
-  background: linear-gradient(135deg, #16806a 0%, #2f7cf6 100%);
+  background: #16806a;
 }
 
 .week-command-badge-text {
@@ -1592,7 +1617,7 @@ onShareTimeline(() => {
   min-height: 150rpx;
   padding: 20rpx 18rpx;
   border-radius: 24rpx;
-  background: #f4f7fb;
+  background: #f7f2ee;
   border: 2rpx solid transparent;
   box-sizing: border-box;
 }
@@ -1606,7 +1631,7 @@ onShareTimeline(() => {
   display: block;
   font-size: 22rpx;
   font-weight: 700;
-  color: #8a96a3;
+  color: #766b67;
 }
 
 .week-command-item-value {
@@ -1623,7 +1648,7 @@ onShareTimeline(() => {
   margin-top: 8rpx;
   font-size: 20rpx;
   line-height: 1.45;
-  color: #788595;
+  color: #766b67;
 }
 
 /* Tabs */

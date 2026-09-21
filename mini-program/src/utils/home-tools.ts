@@ -1,4 +1,5 @@
 import { TOOL_BY_ID, TOOL_DEFINITIONS, type ToolId, type ToolStage, type ToolGroup } from '../data/tool-catalog'
+import { parseToolPeriod, periodTools, type ToolPeriod } from './tool-period'
 
 const KEY = 'beihu:home-tools:v1'
 export const MAX_HOME_TOOLS = 8
@@ -14,9 +15,13 @@ export function normalizeHomeTools(value: unknown): ToolId[] | null {
   if (!Array.isArray(value)) return null
   return [...new Set(value.filter((id): id is ToolId => typeof id === 'string' && Object.prototype.hasOwnProperty.call(TOOL_BY_ID, id)))].slice(0, MAX_HOME_TOOLS)
 }
-export function recommendedHomeTools(stage: ToolStage): ToolId[] { return [...recommendations[stage], 'poster'] }
+export function recommendedHomeTools(stage: ToolStage, period?: ToolPeriod | null): ToolId[] {
+  const contextual = periodTools(period ?? null)
+  return contextual.length ? [...new Set<ToolId>(['calendar', ...contextual.map(tool => tool.id), 'poster'])] : [...recommendations[stage], 'poster']
+}
 export function readHomeTools(): ToolId[] | null { return normalizeHomeTools(uni.getStorageSync(KEY)) }
 export function saveHomeTools(ids: ToolId[]) { uni.setStorageSync(KEY, normalizeHomeTools(ids) || []) }
+export function resetHomeTools() { uni.removeStorageSync(KEY) }
 export function moveHomeTool(ids: ToolId[], index: number, direction: -1 | 1): ToolId[] {
   const next = [...ids], target = index + direction
   if (index < 0 || index >= next.length || target < 0 || target >= next.length) return next
@@ -35,7 +40,11 @@ export function findTools(query: string, group: ToolGroup | 'all' = 'all') {
   return TOOL_DEFINITIONS.filter(tool => (group === 'all' || group === tool.group)
     && words.every(word => `${tool.title} ${tool.description} ${aliases[tool.id] || ''}`.toLowerCase().includes(word)))
 }
-export function openToolPage(id: ToolId) {
+export function openToolPage(id: ToolId, period?: ToolPeriod | null) {
   if (id === 'calendar') uni.switchTab({ url: '/pages/calendar/index' })
-  else uni.navigateTo({ url: id === 'names' ? '/pages/name-library/index' : `/pages/tool-detail/index?id=${id}` })
+  else {
+    const context = period && parseToolPeriod(period.stage, period.week)
+    const query = context ? `&fromStage=${context.stage}&fromWeek=${context.week}` : ''
+    uni.navigateTo({ url: id === 'names' ? '/pages/name-library/index' : `/pages/tool-detail/index?id=${id}${query}` })
+  }
 }

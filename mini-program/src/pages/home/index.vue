@@ -2,15 +2,15 @@
   <view class="home-page">
     <view class="home-header">
       <view class="hero-topline"><text class="hero-eyebrow">贝护 · 每天一点记录</text><text class="hero-state">{{ loggedIn ? '已登录' : '游客使用' }}</text></view>
-      <text class="hero-title">{{ currentWeek ? `第 ${currentWeek} 周，陪你记下每一天` : '把常用工具，放在手边' }}</text>
+      <text class="hero-title">{{ period?.stage === 'postpartum' ? `宝宝第 ${period.week} 周，一起慢慢长大` : currentWeek ? `第 ${currentWeek} 周，陪你记下每一天` : '把常用工具，放在手边' }}</text>
       <text class="hero-subtitle">{{ currentWeek ? '照顾好当下，也留下值得回看的日常。' : '先开始记录，随时按自己的习惯调整首页。' }}</text>
     </view>
     <view class="home-tools-panel">
-      <view class="tools-panel-head"><view><text class="tools-panel-title">我的常用</text><text class="tools-panel-subtitle">{{ customIds === null ? '已按阶段推荐，可自由调整' : `已添加 ${homeIds.length} 项 · 按你的顺序` }}</text></view><button class="text-button" @tap="editing = !editing">{{ editing ? '完成' : '管理' }}</button></view>
-      <HomeToolEditor v-if="editing" :ids="homeIds" :stage="stage" @change="updateHome" />
-      <view v-else class="home-quick-list">
+      <view class="tools-panel-head"><view><text class="tools-panel-title">我的常用</text><text class="tools-panel-subtitle">{{ customIds === null ? (period ? `${toolPeriodLabel(period)}推荐 · 可自由调整` : '已按阶段推荐，可自由调整') : `已添加 ${homeIds.length} 项 · 按你的顺序` }}</text></view><button class="text-button" @tap="editing = !editing">{{ editing ? '完成' : '管理' }}</button></view>
+      <HomeToolEditor v-if="editing" :ids="homeIds" @change="updateHome" @reset="restoreHome" />
+      <view v-else class="home-quick-list" :class="{ 'home-quick-list--many': homeIds.length > 5 }">
         <button v-for="tool in homeTools" :key="tool.id" class="home-quick-item" :aria-label="`打开${tool.title}`" @tap="openTool(tool.id)">
-          <view class="home-quick-icon" :class="`tone-${tool.tone}`"><text>{{ tool.icon }}</text></view>
+          <view class="home-quick-icon" :class="`tone-${tool.tone}`"><ToolIcon :id="tool.id" /></view>
           <text class="home-quick-title">{{ tool.title }}</text>
         </button>
         <button v-if="homeIds.length < MAX_HOME_TOOLS" class="home-quick-item home-add" @tap="openTools"><view class="home-quick-icon"><text>＋</text></view><text class="home-quick-title">添加工具</text></button>
@@ -18,14 +18,14 @@
       <button class="all-tools-button" @tap="openTools">查看全部 15 项工具 ›</button>
     </view>
     <view class="home-card-list">
-      <view class="home-card home-card--calendar" role="button" aria-label="打开孕周记录" @tap="openTool('calendar')">
+      <view class="home-card home-card--calendar" role="button" :aria-label="period?.stage === 'postpartum' ? '打开成长记录' : '打开孕周记录'" @tap="openTool('calendar')">
         <view class="home-card-head">
           <view class="home-card-icon"><text class="home-card-icon-text">期</text></view>
-          <view class="home-card-meta"><text class="home-card-kicker">{{ currentWeek ? stageLabel : '开启孕育之旅' }}</text><text class="home-card-title">孕周记录</text></view>
+          <view class="home-card-meta"><text class="home-card-kicker">{{ period ? stageLabel : '开启孕育之旅' }}</text><text class="home-card-title">{{ period?.stage === 'postpartum' ? '成长记录' : '孕周记录' }}</text></view>
           <text class="home-card-action">查看</text>
         </view>
-        <text class="home-card-desc">{{ currentWeek ? '按周查看常见变化和记录提醒，方便整理下一次产检要点。' : '了解每周常见变化，登录后可保存您的孕期日历。' }}</text>
-        <view class="home-card-foot"><text class="home-card-foot-label">当前阶段</text><text class="home-card-foot-value">{{ currentWeek ? `W${currentWeek}` : '日历' }}</text></view>
+        <text class="home-card-desc">{{ calendarDescription }}</text>
+        <view class="home-card-foot"><text class="home-card-foot-label">当前阶段</text><text class="home-card-foot-value">{{ period ? toolPeriodLabel(period) : '日历' }}</text></view>
       </view>
       <view class="home-card home-card--archive" role="button" aria-label="打开时光档案" @tap="openProfile">
         <view class="home-card-head">
@@ -47,8 +47,10 @@ import { useAppStore } from '@/stores/app'
 import { calculatePregnancyWeekFromDueDate } from '@/utils'
 import { buildAcquisitionPath, buildAcquisitionQuery, recordAcquisitionContext } from '@/utils/acquisition'
 import { getStageLabel, getToolDefinition, getToolStage, type ToolId } from '@/data/tool-catalog'
-import { MAX_HOME_TOOLS, openToolPage, readHomeTools, recommendedHomeTools, saveHomeTools } from '@/utils/home-tools'
+import { MAX_HOME_TOOLS, openToolPage, readHomeTools, recommendedHomeTools, resetHomeTools, saveHomeTools } from '@/utils/home-tools'
 import HomeToolEditor from '@/components/tools/HomeToolEditor.vue'
+import ToolIcon from '@/components/tools/ToolIcon.vue'
+import { currentToolPeriod, periodTools, toolPeriodLabel } from '@/utils/tool-period'
 import { trackMiniEvent } from '@/utils/analytics'
 const appStore = useAppStore()
 const loggedIn = ref(false), storedWeek = ref<number | null>(null), editing = ref(false)
@@ -59,11 +61,19 @@ const currentWeek = computed(() => {
 })
 const stage = computed(() => getToolStage(currentWeek.value, appStore.user?.babyBirthday))
 const stageLabel = computed(() => getStageLabel(stage.value))
-const homeIds = computed(() => customIds.value ?? recommendedHomeTools(stage.value))
+const period = computed(() => currentToolPeriod(currentWeek.value, appStore.user?.babyBirthday))
+const calendarDescription = computed(() => period.value
+  ? `这一周可用：${periodTools(period.value).map(item => getToolDefinition(item.id).title).join('、')}。打开日历，按周查看。`
+  : '了解每周常见变化，在对应孕周找到记录工具与待办。')
+const homeIds = computed(() => customIds.value ?? recommendedHomeTools(stage.value, period.value))
 const homeTools = computed(() => homeIds.value.map(getToolDefinition))
 function updateHome(ids: ToolId[]) {
   try { saveHomeTools(ids); customIds.value = [...ids] }
   catch { uni.showToast({ title: '未能保存设置，请重试', icon: 'none' }) }
+}
+function restoreHome() {
+  try { resetHomeTools(); customIds.value = null }
+  catch { uni.showToast({ title: '未能恢复推荐，请重试', icon: 'none' }) }
 }
 function openTools() { uni.switchTab({ url: '/pages/tools/index' }) }
 function openTool(id: ToolId) { trackMiniEvent('app_tool_open', { page: 'Home', properties: { toolId: id, stage: stage.value } }); openToolPage(id) }
@@ -88,7 +98,7 @@ onShareTimeline(() => ({ title: '贝护 · 孕育记录与实用工具', query: 
 .hero-topline, .tools-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; }
 .hero-eyebrow { color: #a5525e; font-size: 24rpx; font-weight: 800; }
 .hero-state { color: #756761; padding: 10rpx 16rpx; background: #fffdfb; border-radius: 16rpx; font-size: 22rpx; }
-.hero-title { display: block; margin-top: 20rpx; font-size: 44rpx; font-weight: 900; color: #443c3a; line-height: 1.4; }
+.hero-title { display: block; margin-top: 20rpx; font-size: 40rpx; font-weight: 700; color: #443c3a; line-height: 1.4; }
 .hero-subtitle { display: block; margin-top: 12rpx; font-size: 26rpx; line-height: 1.6; color: #756761; }
 .home-tools-panel { padding: 22rpx; border-radius: 28rpx; background: #fffcf8; box-shadow: 0 12rpx 30rpx rgba(58,48,44,.045); }
 .tools-panel-title, .tools-panel-subtitle { display: block; }
@@ -96,9 +106,10 @@ onShareTimeline(() => ({ title: '贝护 · 孕育记录与实用工具', query: 
 .tools-panel-subtitle { color: #766b67; font-size: 23rpx; margin-top: 6rpx; }
 .text-button { padding: 20rpx 8rpx; margin: 0; min-height: 88rpx; background: transparent; color: #166c5b; font-size: 26rpx; line-height: 1.8; }
 button::after { border: 0; }
-.home-quick-list { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18rpx 8rpx; margin-top: 24rpx; }
+.home-quick-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16rpx 8rpx; margin-top: 16rpx; }
+.home-quick-list--many { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .home-quick-item { min-width: 0; width: 100%; margin: 0; padding: 12rpx 0; background: transparent; text-align: center; line-height: 1.5; }
-.home-quick-icon { display: flex; justify-content: center; align-items: center; width: 80rpx; height: 80rpx; margin: 0 auto; border-radius: 24rpx; color: #166c5b; font-size: 34rpx; font-weight: 800; background: #edf5f1; }
+.home-quick-icon { display: flex; justify-content: center; align-items: center; width: 76rpx; height: 76rpx; margin: 0 auto; border-radius: 24rpx; color: #166c5b; font-size: 34rpx; font-weight: 800; background: #edf5f1; }
 .home-quick-title { display: block; margin-top: 12rpx; font-size: 24rpx; color: #514641; white-space: normal; }
 .tone-rose { background: #fff0f1; color: #a44e5c; }
 .tone-orange { background: #fff1e7; color: #a55a32; }
