@@ -160,6 +160,7 @@ import { computed, onBeforeUnmount, ref } from 'vue'
 import { onLoad, onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app'
 import { useAppStore } from '@/stores/app'
 import { calculatePregnancyWeekFromDueDate } from '@/utils'
+import { toolRecordApi } from '@/api/modules'
 import { getToolDefinition, getToneClass, type ToolId, type ToolStatus } from '@/data/tool-catalog'
 import { deleteToolRecord, listToolRecords, readToolRecords, saveToolRecord, type LocalToolRecord } from '@/utils/tool-records'
 
@@ -225,10 +226,47 @@ function reload() {
 }
 function statusLabel(status: ToolStatus) { return ({ ready: '已上线', preview: '预览', planned: '逐步开放' }[status]) }
 function showNotice(message: string) { notice.value = message; setTimeout(() => { if (notice.value === message) notice.value = '' }, 2400) }
-function save(recordType: string, payload: Record<string, string | number | boolean | null | undefined>, summary: string) {
-  saveToolRecord(toolId.value, recordType, { ...payload, summary })
+function save(recordType: string, payload: Record<string, string | number | boolean | null | undefined>, summary: string): LocalToolRecord {
+  const record = saveToolRecord(toolId.value, recordType, { ...payload, summary })
   reload()
   showNotice('已保存到本机记录')
+  return record
+}
+
+async function syncServer(record: LocalToolRecord): Promise<void> {
+  if (!uni.getStorageSync('token')) return
+  try {
+    const payload = record.payload
+    if (record.toolId === 'contractions' && record.recordType === 'session'
+      && typeof payload.startAt === 'string' && typeof payload.endAt === 'string' && typeof payload.durationSeconds === 'number') {
+      await toolRecordApi.createContraction({
+        startedAt: payload.startAt,
+        endedAt: payload.endAt,
+        durationSeconds: payload.durationSeconds,
+        intervalSeconds: typeof payload.intervalSeconds === 'number' ? payload.intervalSeconds : null,
+        clientOperationId: record.id,
+      })
+    } else if (record.toolId === 'movement' && record.recordType === 'session'
+      && typeof payload.startedAt === 'string' && typeof payload.endedAt === 'string' && typeof payload.count === 'number') {
+      await toolRecordApi.createMovement({
+        startedAt: payload.startedAt,
+        endedAt: payload.endedAt,
+        count: payload.count,
+        method: typeof payload.method === 'string' ? payload.method : 'free',
+        clientOperationId: record.id,
+      })
+    } else if (record.toolId === 'weight' && record.recordType === 'measurement'
+      && typeof payload.measuredAt === 'string' && typeof payload.value === 'number') {
+      await toolRecordApi.createWeight({
+        measuredAt: payload.measuredAt,
+        weightKg: payload.value,
+        source: 'manual',
+        clientOperationId: record.id,
+      })
+    }
+  } catch {
+    showNotice('已保存在本机，网络恢复后可重新同步')
+  }
 }
 function openCalendar() { uni.switchTab({ url: '/pages/calendar/index' }) }
 function goBack() { uni.navigateBack({ fail: () => uni.switchTab({ url: '/pages/tools/index' }) }) }
@@ -242,7 +280,8 @@ function toggleContraction() {
   if (contractionStart.value) {
     const start = new Date(contractionStart.value).getTime()
     const end = Date.now()
-    save('session', { startAt: contractionStart.value, endAt: new Date(end).toISOString(), durationSeconds: Math.max(0, Math.round((end - start) / 1000)) }, `宫缩 ${Math.max(0, Math.round((end - start) / 1000))} 秒`)
+    const record = save('session', { startAt: contractionStart.value, endAt: new Date(end).toISOString(), durationSeconds: Math.max(0, Math.round((end - start) / 1000)) }, `宫缩 ${Math.max(0, Math.round((end - start) / 1000))} 秒`)
+    void syncServer(record)
     contractionStart.value = null
     if (contractionTimer) clearInterval(contractionTimer)
     uni.removeStorageSync('beihu:contraction-start')
@@ -256,8 +295,8 @@ function toggleContraction() {
 
 function addMovement() { movementCount.value += 1 }
 function undoMovement() { movementCount.value = Math.max(0, movementCount.value - 1) }
-function finishMovement() { if (!movementCount.value) { showNotice('先记录至少一次胎动'); return }; save('session', { count: movementCount.value, measuredAt: new Date().toISOString() }, `胎动 ${movementCount.value} 次`); movementCount.value = 0 }
-function saveWeight() { const value = Number(weightValue.value); if (!Number.isFinite(value) || value <= 0 || value > 300) { showNotice('请输入有效体重'); return }; save('measurement', { value, unit: 'kg', measuredAt: recordDate.value }, `${value} kg`); weightValue.value = '' }
+function finishMovement() { if (!movementCount.value) { showNotice('先记录至少一次胎动'); return }; const now = new Date(); const startedAt = new Date(now.getTime() - 60 * 60 * 1000).toISOString(); const record = save('session', { count: movementCount.value, startedAt, endedAt: now.toISOString(), method: 'free' }, `胎动 ${movementCount.value} 次`); void syncServer(record); movementCount.value = 0 }
+function saveWeight() { const value = Number(weightValue.value); if (!Number.isFinite(value) || value <= 0 || value > 300) { showNotice('请输入有效体重'); return }; const record = save('measurement', { value, unit: 'kg', measuredAt: recordDate.value }, `${value} kg`); void syncServer(record); weightValue.value = '' }
 function saveCare() { const amount = careAmount.value ? Number(careAmount.value) : null; if (careType.value === 'feeding' && amount !== null && (!Number.isFinite(amount) || amount < 0)) { showNotice('奶量格式不正确'); return }; const label = careTypes.find(item => item.value === careType.value)?.label || '照护'; save('log', { kind: careType.value, amount, note: careNote.value || null, recordedAt: new Date().toISOString() }, `${label}${amount === null ? '' : ` ${amount}ml`}`); careAmount.value = ''; careNote.value = '' }
 function saveGrowth() { const value = Number(growthValue.value); if (!Number.isFinite(value) || value <= 0) { showNotice('请输入有效测量值'); return }; const label = growthTypes.find(item => item.value === growthType.value)?.label || '测量'; save('measurement', { metric: growthType.value, value, unit: growthUnit.value, measuredAt: recordDate.value }, `${label} ${value}${growthUnit.value}`); growthValue.value = '' }
 function isPackingDone(name: string) { const item = packingRecords.value.find(record => record.payload.item === name); return item?.payload.done === true }

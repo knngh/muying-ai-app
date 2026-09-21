@@ -47,6 +47,48 @@ export const nameLibraryApi = {
   getNames: (params?: NameLibraryQuery) => api.get<NameLibraryResponse>('/names', params as Record<string, unknown>, { timeout: 15000 }),
 }
 
+// ==================== 工具记录 API ====================
+export interface ContractionRecord {
+  id: string
+  startedAt: string
+  endedAt: string
+  durationSeconds: number
+  intervalSeconds: number | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface MovementRecord {
+  id: string
+  startedAt: string
+  endedAt: string
+  count: number
+  method: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface PregnancyWeightRecord {
+  id: string
+  measuredAt: string
+  weightKg: number
+  source: string
+  createdAt: string
+  updatedAt: string
+}
+
+export const toolRecordApi = {
+  getContractions: (limit = 30) => api.get<ContractionRecord[]>('/tool-records/contractions', { limit }),
+  createContraction: (data: Omit<ContractionRecord, 'id' | 'createdAt' | 'updatedAt'> & { clientOperationId?: string }) =>
+    api.post<ContractionRecord>('/tool-records/contractions', data),
+  getMovements: (limit = 30) => api.get<MovementRecord[]>('/tool-records/movements', { limit }),
+  createMovement: (data: Omit<MovementRecord, 'id' | 'createdAt' | 'updatedAt'> & { clientOperationId?: string }) =>
+    api.post<MovementRecord>('/tool-records/movements', data),
+  getWeights: (limit = 30) => api.get<PregnancyWeightRecord[]>('/tool-records/weights', { limit }),
+  createWeight: (data: Omit<PregnancyWeightRecord, 'id' | 'createdAt' | 'updatedAt'> & { clientOperationId?: string }) =>
+    api.post<PregnancyWeightRecord>('/tool-records/weights', data),
+}
+
 // ==================== 分类 API ====================
 export const categoryApi = {
   getAll: (params?: ParentCategoryParams) =>
