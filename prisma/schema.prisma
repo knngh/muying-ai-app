@@ -57,6 +57,11 @@ model User {
   pregnancyWeights    PregnancyWeightRecord[]
   diaryEntries        DiaryEntry[]
   expenseEntries      ExpenseEntry[]
+  careLogs            CareLog[]
+  babyMeasurements    BabyMeasurement[]
+  vaccinationRecords  VaccinationRecord[]
+  foodTrials          FoodTrial[]
+  packingItems        PackingItem[]
   todoProgresses     UserPregnancyTodoProgress[]
   customTodos        UserPregnancyCustomTodo[]
   pregnancyDiaries   UserPregnancyDiary[]
@@ -399,6 +404,103 @@ model ExpenseEntry {
   @@map("expense_entries")
 }
 
+model CareLog {
+  id                 BigInt   @id @default(autoincrement())
+  userId             BigInt
+  kind               String   @db.VarChar(20)
+  recordedAt         DateTime
+  endedAt            DateTime?
+  amountMl           Int?
+  side               String?  @db.VarChar(20)
+  diaperType         String?  @db.VarChar(30)
+  note               String?  @db.VarChar(200)
+  clientOperationId  String?  @unique @db.VarChar(100)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, recordedAt])
+  @@index([userId, kind])
+  @@map("care_logs")
+}
+
+model BabyMeasurement {
+  id                 BigInt   @id @default(autoincrement())
+  userId             BigInt
+  measuredAt         DateTime @db.Date
+  metric             String   @db.VarChar(20)
+  value              Decimal  @db.Decimal(8, 2)
+  unit               String   @db.VarChar(10)
+  method             String?  @db.VarChar(30)
+  clientOperationId  String?  @unique @db.VarChar(100)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, measuredAt])
+  @@index([userId, metric])
+  @@map("baby_measurements")
+}
+
+model VaccinationRecord {
+  id                 BigInt   @id @default(autoincrement())
+  userId             BigInt
+  vaccineId          BigInt?
+  vaccineName        String   @db.VarChar(100)
+  administeredAt     DateTime @db.Date
+  status             String   @default("planned") @db.VarChar(20)
+  doseNumber         Int?
+  note               String?  @db.VarChar(300)
+  clientOperationId  String?  @unique @db.VarChar(100)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vaccine            Vaccine? @relation(fields: [vaccineId], references: [id], onDelete: SetNull)
+
+  @@index([userId, administeredAt])
+  @@index([userId, vaccineName])
+  @@map("vaccination_records")
+}
+
+model FoodTrial {
+  id                 BigInt   @id @default(autoincrement())
+  userId             BigInt
+  foodName           String   @db.VarChar(100)
+  triedAt            DateTime @db.Date
+  observation        String?  @db.VarChar(500)
+  responseStatus     String   @default("unconfirmed") @db.VarChar(30)
+  clientOperationId  String?  @unique @db.VarChar(100)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, triedAt])
+  @@index([userId, foodName])
+  @@map("food_trials")
+}
+
+model PackingItem {
+  id                 BigInt   @id @default(autoincrement())
+  userId             BigInt
+  name               String   @db.VarChar(100)
+  category           String   @db.VarChar(30)
+  quantity           Int      @default(1)
+  isDone             Boolean  @default(false)
+  clientOperationId  String?  @unique @db.VarChar(100)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, name])
+  @@index([userId, category])
+  @@map("packing_items")
+}
+
 // ============================================
 // 用户孕周待办进度表
 // ============================================
@@ -483,6 +585,8 @@ model Vaccine {
   status          Int      @default(1)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  vaccinationRecords VaccinationRecord[]
 
   @@index([category])
   @@index([minMonth])

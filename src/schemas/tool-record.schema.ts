@@ -47,3 +47,48 @@ export const expenseEntryBody = z.object({
   note: z.string().trim().max(200).nullable().optional(),
   clientOperationId: operationId,
 });
+
+export const careLogBody = z.object({
+  kind: z.enum(['feeding', 'diaper', 'sleep']),
+  recordedAt: dateTime,
+  endedAt: dateTime.optional(),
+  amountMl: z.coerce.number().int().min(0).max(20_000).nullable().optional(),
+  side: z.string().trim().max(20).nullable().optional(),
+  diaperType: z.string().trim().max(30).nullable().optional(),
+  note: z.string().trim().max(200).nullable().optional(),
+  clientOperationId: operationId,
+});
+
+export const babyMeasurementBody = z.object({
+  measuredAt: dateOnly,
+  metric: z.enum(['height', 'weight', 'head']),
+  value: z.coerce.number().finite().min(0.1).max(300),
+  unit: z.string().trim().min(1).max(10),
+  method: z.string().trim().max(30).nullable().optional(),
+  clientOperationId: operationId,
+});
+
+export const vaccinationRecordBody = z.object({
+  vaccineName: z.string().trim().min(1).max(100),
+  administeredAt: dateOnly,
+  status: z.enum(['planned', 'scheduled', 'administered', 'unconfirmed']).default('planned'),
+  doseNumber: z.coerce.number().int().min(1).max(20).nullable().optional(),
+  note: z.string().trim().max(300).nullable().optional(),
+  clientOperationId: operationId,
+});
+
+export const foodTrialBody = z.object({
+  foodName: z.string().trim().min(1).max(100),
+  triedAt: dateOnly,
+  observation: z.string().trim().max(500).nullable().optional(),
+  responseStatus: z.enum(['unconfirmed', 'no-note', 'needs-review']).default('unconfirmed'),
+  clientOperationId: operationId,
+});
+
+export const packingItemBody = z.object({
+  name: z.string().trim().min(1).max(100),
+  category: z.string().trim().min(1).max(30),
+  quantity: z.coerce.number().int().min(1).max(99).default(1),
+  isDone: z.boolean(),
+  clientOperationId: operationId,
+});

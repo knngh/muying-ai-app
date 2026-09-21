@@ -98,6 +98,61 @@ export interface ExpenseEntryRecord {
   updatedAt: string
 }
 
+export interface CareLogRecord {
+  id: string
+  kind: 'feeding' | 'diaper' | 'sleep'
+  recordedAt: string
+  endedAt: string | null
+  amountMl: number | null
+  side: string | null
+  diaperType: string | null
+  note: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface BabyMeasurementRecord {
+  id: string
+  measuredAt: string
+  metric: 'height' | 'weight' | 'head'
+  value: number
+  unit: string
+  method: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface VaccinationRecord {
+  id: string
+  vaccineName: string
+  administeredAt: string
+  status: 'planned' | 'scheduled' | 'administered' | 'unconfirmed'
+  doseNumber: number | null
+  note: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface FoodTrialRecord {
+  id: string
+  foodName: string
+  triedAt: string
+  observation: string | null
+  responseStatus: 'unconfirmed' | 'no-note' | 'needs-review'
+  createdAt: string
+  updatedAt: string
+}
+
+export interface PackingItemRecord {
+  id: string
+  name: string
+  category: string
+  quantity: number
+  isDone: boolean
+  createdAt: string
+  updatedAt: string
+}
+
 export const toolRecordApi = {
   getContractions: (limit = 30) => api.get<ContractionRecord[]>('/tool-records/contractions', { limit }),
   createContraction: (data: Omit<ContractionRecord, 'id' | 'createdAt' | 'updatedAt'> & { clientOperationId?: string }) =>
@@ -114,6 +169,21 @@ export const toolRecordApi = {
   getExpenseEntries: (limit = 30) => api.get<ExpenseEntryRecord[]>('/tool-records/expenses', { limit }),
   createExpenseEntry: (data: Omit<ExpenseEntryRecord, 'id' | 'createdAt' | 'updatedAt'> & { clientOperationId?: string }) =>
     api.post<ExpenseEntryRecord>('/tool-records/expenses', data),
+  getCareLogs: (limit = 30) => api.get<CareLogRecord[]>('/tool-records/care', { limit }),
+  createCareLog: (data: Omit<CareLogRecord, 'id' | 'createdAt' | 'updatedAt'> & { clientOperationId?: string }) =>
+    api.post<CareLogRecord>('/tool-records/care', data),
+  getBabyMeasurements: (limit = 30) => api.get<BabyMeasurementRecord[]>('/tool-records/growth', { limit }),
+  createBabyMeasurement: (data: Omit<BabyMeasurementRecord, 'id' | 'createdAt' | 'updatedAt'> & { clientOperationId?: string }) =>
+    api.post<BabyMeasurementRecord>('/tool-records/growth', data),
+  getVaccinations: (limit = 30) => api.get<VaccinationRecord[]>('/tool-records/vaccinations', { limit }),
+  createVaccination: (data: Omit<VaccinationRecord, 'id' | 'createdAt' | 'updatedAt'> & { clientOperationId?: string }) =>
+    api.post<VaccinationRecord>('/tool-records/vaccinations', data),
+  getFoodTrials: (limit = 30) => api.get<FoodTrialRecord[]>('/tool-records/foods', { limit }),
+  createFoodTrial: (data: Omit<FoodTrialRecord, 'id' | 'createdAt' | 'updatedAt'> & { clientOperationId?: string }) =>
+    api.post<FoodTrialRecord>('/tool-records/foods', data),
+  getPackingItems: () => api.get<PackingItemRecord[]>('/tool-records/packing'),
+  upsertPackingItem: (data: Omit<PackingItemRecord, 'id' | 'createdAt' | 'updatedAt'> & { clientOperationId?: string }) =>
+    api.post<PackingItemRecord>('/tool-records/packing', data),
 }
 
 // ==================== 分类 API ====================

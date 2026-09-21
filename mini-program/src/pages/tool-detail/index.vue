@@ -281,6 +281,56 @@ async function syncServer(record: LocalToolRecord): Promise<void> {
         note: typeof payload.note === 'string' ? payload.note : null,
         clientOperationId: record.id,
       })
+    } else if (record.toolId === 'care' && record.recordType === 'log'
+      && typeof payload.recordedAt === 'string' && typeof payload.kind === 'string') {
+      await toolRecordApi.createCareLog({
+        kind: payload.kind as 'feeding' | 'diaper' | 'sleep',
+        recordedAt: payload.recordedAt,
+        endedAt: null,
+        amountMl: typeof payload.amount === 'number' ? payload.amount : null,
+        side: null,
+        diaperType: null,
+        note: typeof payload.note === 'string' ? payload.note : null,
+        clientOperationId: record.id,
+      })
+    } else if (record.toolId === 'growth' && record.recordType === 'measurement'
+      && typeof payload.measuredAt === 'string' && typeof payload.metric === 'string' && typeof payload.value === 'number') {
+      await toolRecordApi.createBabyMeasurement({
+        measuredAt: payload.measuredAt,
+        metric: payload.metric as 'height' | 'weight' | 'head',
+        value: payload.value,
+        unit: typeof payload.unit === 'string' ? payload.unit : 'cm',
+        method: null,
+        clientOperationId: record.id,
+      })
+    } else if (record.toolId === 'vaccines' && record.recordType === 'record'
+      && typeof payload.date === 'string' && typeof payload.name === 'string' && typeof payload.status === 'string') {
+      await toolRecordApi.createVaccination({
+        vaccineName: payload.name,
+        administeredAt: payload.date,
+        status: payload.status as 'planned' | 'scheduled' | 'administered' | 'unconfirmed',
+        doseNumber: null,
+        note: null,
+        clientOperationId: record.id,
+      })
+    } else if (record.toolId === 'foods' && record.recordType === 'trial'
+      && typeof payload.date === 'string' && typeof payload.name === 'string') {
+      await toolRecordApi.createFoodTrial({
+        foodName: payload.name,
+        triedAt: payload.date,
+        observation: typeof payload.note === 'string' ? payload.note : null,
+        responseStatus: 'unconfirmed',
+        clientOperationId: record.id,
+      })
+    } else if (record.toolId === 'packing' && record.recordType === 'item'
+      && typeof payload.item === 'string' && typeof payload.done === 'boolean') {
+      await toolRecordApi.upsertPackingItem({
+        name: payload.item,
+        category: '待产包',
+        quantity: 1,
+        isDone: payload.done,
+        clientOperationId: record.id,
+      })
     }
   } catch {
     showNotice('已保存在本机，网络恢复后可重新同步')
@@ -315,13 +365,13 @@ function addMovement() { movementCount.value += 1 }
 function undoMovement() { movementCount.value = Math.max(0, movementCount.value - 1) }
 function finishMovement() { if (!movementCount.value) { showNotice('先记录至少一次胎动'); return }; const now = new Date(); const startedAt = new Date(now.getTime() - 60 * 60 * 1000).toISOString(); const record = save('session', { count: movementCount.value, startedAt, endedAt: now.toISOString(), method: 'free' }, `胎动 ${movementCount.value} 次`); void syncServer(record); movementCount.value = 0 }
 function saveWeight() { const value = Number(weightValue.value); if (!Number.isFinite(value) || value <= 0 || value > 300) { showNotice('请输入有效体重'); return }; const record = save('measurement', { value, unit: 'kg', measuredAt: recordDate.value }, `${value} kg`); void syncServer(record); weightValue.value = '' }
-function saveCare() { const amount = careAmount.value ? Number(careAmount.value) : null; if (careType.value === 'feeding' && amount !== null && (!Number.isFinite(amount) || amount < 0)) { showNotice('奶量格式不正确'); return }; const label = careTypes.find(item => item.value === careType.value)?.label || '照护'; save('log', { kind: careType.value, amount, note: careNote.value || null, recordedAt: new Date().toISOString() }, `${label}${amount === null ? '' : ` ${amount}ml`}`); careAmount.value = ''; careNote.value = '' }
-function saveGrowth() { const value = Number(growthValue.value); if (!Number.isFinite(value) || value <= 0) { showNotice('请输入有效测量值'); return }; const label = growthTypes.find(item => item.value === growthType.value)?.label || '测量'; save('measurement', { metric: growthType.value, value, unit: growthUnit.value, measuredAt: recordDate.value }, `${label} ${value}${growthUnit.value}`); growthValue.value = '' }
+function saveCare() { const amount = careAmount.value ? Number(careAmount.value) : null; if (careType.value === 'feeding' && amount !== null && (!Number.isFinite(amount) || amount < 0)) { showNotice('奶量格式不正确'); return }; const label = careTypes.find(item => item.value === careType.value)?.label || '照护'; const record = save('log', { kind: careType.value, amount, note: careNote.value || null, recordedAt: new Date().toISOString() }, `${label}${amount === null ? '' : ` ${amount}ml`}`); void syncServer(record); careAmount.value = ''; careNote.value = '' }
+function saveGrowth() { const value = Number(growthValue.value); if (!Number.isFinite(value) || value <= 0) { showNotice('请输入有效测量值'); return }; const label = growthTypes.find(item => item.value === growthType.value)?.label || '测量'; const record = save('measurement', { metric: growthType.value, value, unit: growthUnit.value, measuredAt: recordDate.value }, `${label} ${value}${growthUnit.value}`); void syncServer(record); growthValue.value = '' }
 function isPackingDone(name: string) { const item = packingRecords.value.find(record => record.payload.item === name); return item?.payload.done === true }
-function togglePacking(name: string) { const next = !isPackingDone(name); save('item', { item: name, done: next }, `${next ? '已准备' : '取消'}：${name}`) }
+function togglePacking(name: string) { const next = !isPackingDone(name); const record = save('item', { item: name, done: next }, `${next ? '已准备' : '取消'}：${name}`); void syncServer(record) }
 function onVaccineStatusChange(event: { detail: { value: string } }) { vaccineStatusIndex.value = Number(event.detail.value) }
-function saveVaccine() { if (!vaccineName.value.trim()) { showNotice('请填写疫苗名称'); return }; save('record', { name: vaccineName.value.trim(), date: recordDate.value, status: vaccineStatuses[vaccineStatusIndex.value] }, `${vaccineName.value.trim()} · ${vaccineStatuses[vaccineStatusIndex.value]}`); vaccineName.value = '' }
-function saveFood() { if (!foodName.value.trim()) { showNotice('请填写食材名称'); return }; save('trial', { name: foodName.value.trim(), note: foodNote.value || null, date: recordDate.value }, `${foodName.value.trim()} · 已记录观察`); foodName.value = ''; foodNote.value = '' }
+function saveVaccine() { if (!vaccineName.value.trim()) { showNotice('请填写疫苗名称'); return }; const record = save('record', { name: vaccineName.value.trim(), date: recordDate.value, status: vaccineStatuses[vaccineStatusIndex.value] }, `${vaccineName.value.trim()} · ${vaccineStatuses[vaccineStatusIndex.value]}`); void syncServer(record); vaccineName.value = '' }
+function saveFood() { if (!foodName.value.trim()) { showNotice('请填写食材名称'); return }; const record = save('trial', { name: foodName.value.trim(), note: foodNote.value || null, date: recordDate.value }, `${foodName.value.trim()} · 已记录观察`); void syncServer(record); foodName.value = ''; foodNote.value = '' }
 function saveReport() { if (!reportName.value.trim()) { showNotice('请填写报告名称'); return }; save('draft', { name: reportName.value.trim(), date: recordDate.value, note: reportNote.value || null, confirmed: false }, `${reportName.value.trim()} · 待核对`); reportName.value = ''; reportNote.value = '' }
 function savePoster() { save('card', { week: currentWeek.value, template: 'stage-card' }, currentWeek.value ? `第 ${currentWeek.value} 周阶段卡` : '阶段卡预览') }
 function saveDiary() { if (!diaryText.value.trim()) { showNotice('先写下一点内容'); return }; const record = save('entry', { mood: diaryMood.value, content: diaryText.value.trim(), date: recordDate.value }, `${diaryMood.value} · ${diaryText.value.trim().slice(0, 18)}`); void syncServer(record); diaryText.value = '' }
