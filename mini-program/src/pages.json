@@ -91,8 +91,8 @@
       {
         "pagePath": "pages/tools/index",
         "text": "工具",
-        "iconPath": "static/tab-book.png",
-        "selectedIconPath": "static/tab-book-active.png"
+        "iconPath": "static/tab-tools.png",
+        "selectedIconPath": "static/tab-tools-active.png"
       },
       {
         "pagePath": "pages/profile/index",

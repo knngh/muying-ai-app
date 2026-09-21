@@ -7,6 +7,7 @@
       <text class="hero-title">{{ tool.title }}</text>
       <text class="hero-description">{{ tool.description }}</text>
       <text class="hero-helper">{{ tool.helper }}</text>
+      <button class="home-pin-button" @tap="toggleHomeTool">{{ isOnHome ? '已添加到首页 ✓' : '＋ 添加到首页' }}</button>
     </view>
 
     <view v-if="tool.id === 'calendar'" class="content-card">
@@ -93,20 +94,9 @@
       <text class="safety-note">没有观察记录不等于没有反应；需要判断时请咨询专业人员。</text>
     </view>
 
-    <view v-else-if="tool.id === 'reports'" class="content-card">
-      <text class="card-title">先建立一条报告归档</text>
-      <view class="field-row"><text class="field-label">报告日期</text><picker mode="date" :value="recordDate" @change="onDateChange"><view class="field-value">{{ recordDate }}</view></picker></view>
-      <view class="field-row"><text class="field-label">名称</text><input v-model="reportName" class="field-input" maxlength="50" placeholder="例如 28 周产检" /></view>
-      <view class="field-row field-row--top"><text class="field-label">备注</text><textarea v-model="reportNote" class="field-textarea" maxlength="240" placeholder="先手动记录或说明待核对字段" /></view>
-      <button class="primary-button" @tap="saveReport">保存归档草稿</button>
-      <text class="safety-note">OCR 和 Jev 只会从文字候选中整理；没有用户确认前不会写入正式数值。</text>
-    </view>
+    <ReportArchive v-else-if="tool.id === 'reports'" :key="reportScope" ref="reportPanel" :owner="reportScope" />
 
-    <view v-else-if="tool.id === 'poster'" class="content-card poster-card">
-      <view class="poster-preview"><text class="poster-label">{{ currentWeek ? `孕期第 ${currentWeek} 周` : '贝护阶段卡' }}</text><text class="poster-main">今天也在好好记录</text><text class="poster-small">把真实的日子，留给未来的自己。</text></view>
-      <button class="primary-button" @tap="savePoster">保存这张阶段卡</button>
-      <text class="safety-note">正式版本会接入 Canvas 和真实小程序码；当前先把预览和保存链路跑通。</text>
-    </view>
+    <StagePoster v-else-if="tool.id === 'poster'" :week="currentWeek" />
 
     <view v-else-if="tool.id === 'diary'" class="content-card">
       <text class="card-title">写下今天的一小段</text>
@@ -142,7 +132,7 @@
 
     <view v-if="notice" class="notice-card"><text>{{ notice }}</text></view>
 
-    <view v-if="displayRecords.length" class="history-section">
+    <view v-if="tool.id !== 'reports' && displayRecords.length" class="history-section">
       <view class="history-head"><text class="card-title">最近记录</text><text class="history-meta">本机 {{ displayRecords.length }} 条</text></view>
       <view v-for="record in displayRecords" :key="record.id" class="history-row">
         <view class="history-dot" :class="getToneClass(tool.tone)"></view>
@@ -151,19 +141,24 @@
       </view>
     </view>
 
-    <view class="detail-footer"><text>本机记录 · 登录后再决定是否同步</text></view>
+    <view v-if="tool.id !== 'reports'" class="detail-footer"><text>本机记录 · 登录后保存时尝试同步</text></view>
   </view>
 </template>
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref } from 'vue'
-import { onLoad, onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app'
+import { onLoad, onShow, onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app'
 import { useAppStore } from '@/stores/app'
 import { calculatePregnancyWeekFromDueDate } from '@/utils'
 import { toolRecordApi } from '@/api/modules'
+import ReportArchive from '@/components/tools/ReportArchive.vue'
+import StagePoster from '@/components/tools/StagePoster.vue'
+import { reportOwner } from '@/utils/report-drafts'
 import { getToolDefinition, getToneClass, type ToolId, type ToolStatus } from '@/data/tool-catalog'
-import { deleteToolRecord, importToolRecord, listToolRecords, readToolRecords, saveToolRecord, updateToolRecord, type LocalToolRecord } from '@/utils/tool-records'
+import { deleteToolRecord, importToolRecord, readToolRecords, saveToolRecord, updateToolRecord, type LocalToolRecord } from '@/utils/tool-records'
 import { trackMiniEvent } from '@/utils/analytics'
+import { MAX_HOME_TOOLS, readHomeTools, recommendedHomeTools, saveHomeTools } from '@/utils/home-tools'
+import { getToolStage } from '@/data/tool-catalog'
 
 const appStore = useAppStore()
 const toolId = ref<ToolId>('calendar')
@@ -187,8 +182,8 @@ const vaccineName = ref('')
 const vaccineStatusIndex = ref(0)
 const foodName = ref('')
 const foodNote = ref('')
-const reportName = ref('')
-const reportNote = ref('')
+const reportScope = ref(reportOwner())
+const reportPanel = ref<InstanceType<typeof ReportArchive> | null>(null)
 const diaryMood = ref('平稳')
 const diaryText = ref('')
 const albumPreview = ref('')
@@ -206,11 +201,19 @@ const packingItems = [
   { name: '新生儿衣物', group: '宝宝' }, { name: '纸尿裤', group: '宝宝' }, { name: '包被', group: '宝宝' },
 ]
 
+const pinnedIds = ref(readHomeTools())
+const selectedHomeIds = computed(() => pinnedIds.value ?? recommendedHomeTools(getToolStage(currentWeek.value, appStore.user?.babyBirthday)))
+const isOnHome = computed(() => selectedHomeIds.value.includes(toolId.value))
+function toggleHomeTool() {
+  if (!isOnHome.value && selectedHomeIds.value.length >= MAX_HOME_TOOLS) { uni.showToast({ title: '首页已满，请在工具页管理', icon: 'none' }); return }
+  const next = isOnHome.value ? selectedHomeIds.value.filter(id => id !== toolId.value) : [...selectedHomeIds.value, toolId.value]
+  try { saveHomeTools(next); pinnedIds.value = next } catch { showNotice('设置未能保存，请重试') }
+}
 const tool = computed(() => getToolDefinition(toolId.value))
 const currentWeek = computed(() => appStore.user?.dueDate ? calculatePregnancyWeekFromDueDate(appStore.user.dueDate) : storedWeek.value)
-const displayRecords = computed(() => listToolRecords(toolId.value).slice(0, 8))
-const weightRecords = computed(() => listToolRecords('weight', 'measurement').filter(item => typeof item.payload.value === 'number'))
-const packingRecords = computed(() => listToolRecords('packing', 'item'))
+const displayRecords = computed(() => records.value.filter(item => item.toolId === toolId.value).slice(0, 8))
+const weightRecords = computed(() => records.value.filter(item => item.toolId === 'weight' && item.recordType === 'measurement').filter(item => typeof item.payload.value === 'number'))
+const packingRecords = computed(() => records.value.filter(item => item.toolId === 'packing' && item.recordType === 'item'))
 const packingDoneCount = computed(() => packingItems.filter(item => isPackingDone(item.name)).length)
 const growthUnit = computed(() => growthType.value === 'head' ? 'cm' : growthType.value === 'weight' ? 'kg' : 'cm')
 const contractionElapsedText = computed(() => {
@@ -225,7 +228,7 @@ function reload() {
   storedWeek.value = Number.isFinite(value) && value >= 1 && value <= 40 ? value : null
   records.value = readToolRecords()
 }
-function statusLabel(status: ToolStatus) { return ({ ready: '已上线', preview: '预览', planned: '逐步开放' }[status]) }
+function statusLabel(status: ToolStatus) { return ({ ready: '已上线', preview: '基础版', planned: '基础版' }[status]) }
 function showNotice(message: string) { notice.value = message; setTimeout(() => { if (notice.value === message) notice.value = '' }, 2400) }
 function save(recordType: string, payload: Record<string, string | number | boolean | null | undefined>, summary: string): LocalToolRecord {
   const record = saveToolRecord(toolId.value, recordType, { ...payload, summary })
@@ -298,7 +301,7 @@ async function syncServer(record: LocalToolRecord): Promise<void> {
       const remote = await toolRecordApi.createCareLog({
         kind: payload.kind as 'feeding' | 'diaper' | 'sleep',
         recordedAt: payload.recordedAt,
-        endedAt: null,
+        endedAt: undefined,
         amountMl: typeof payload.amount === 'number' ? payload.amount : null,
         side: null,
         diaperType: null,
@@ -446,10 +449,8 @@ function saveGrowth() { const value = Number(growthValue.value); if (!Number.isF
 function isPackingDone(name: string) { const item = packingRecords.value.find(record => record.payload.item === name); return item?.payload.done === true }
 function togglePacking(name: string) { const next = !isPackingDone(name); const record = save('item', { item: name, done: next }, `${next ? '已准备' : '取消'}：${name}`); void syncServer(record) }
 function onVaccineStatusChange(event: { detail: { value: string } }) { vaccineStatusIndex.value = Number(event.detail.value) }
-function saveVaccine() { if (!vaccineName.value.trim()) { showNotice('请填写疫苗名称'); return }; const record = save('record', { name: vaccineName.value.trim(), date: recordDate.value, status: vaccineStatuses[vaccineStatusIndex.value] }, `${vaccineName.value.trim()} · ${vaccineStatuses[vaccineStatusIndex.value]}`); void syncServer(record); vaccineName.value = '' }
+function saveVaccine() { if (!vaccineName.value.trim()) { showNotice('请填写疫苗名称'); return }; const record = save('record', { name: vaccineName.value.trim(), date: recordDate.value, status: ['administered', 'scheduled', 'unconfirmed'][vaccineStatusIndex.value] }, `${vaccineName.value.trim()} · ${vaccineStatuses[vaccineStatusIndex.value]}`); void syncServer(record); vaccineName.value = '' }
 function saveFood() { if (!foodName.value.trim()) { showNotice('请填写食材名称'); return }; const record = save('trial', { name: foodName.value.trim(), note: foodNote.value || null, date: recordDate.value }, `${foodName.value.trim()} · 已记录观察`); void syncServer(record); foodName.value = ''; foodNote.value = '' }
-function saveReport() { if (!reportName.value.trim()) { showNotice('请填写报告名称'); return }; save('draft', { name: reportName.value.trim(), date: recordDate.value, note: reportNote.value || null, confirmed: false }, `${reportName.value.trim()} · 待核对`); reportName.value = ''; reportNote.value = '' }
-function savePoster() { save('card', { week: currentWeek.value, template: 'stage-card' }, currentWeek.value ? `第 ${currentWeek.value} 周阶段卡` : '阶段卡预览') }
 function saveDiary() { if (!diaryText.value.trim()) { showNotice('先写下一点内容'); return }; const record = save('entry', { mood: diaryMood.value, content: diaryText.value.trim(), date: recordDate.value }, `${diaryMood.value} · ${diaryText.value.trim().slice(0, 18)}`); void syncServer(record); diaryText.value = '' }
 function chooseAlbumImage() { uni.chooseImage({ count: 1, sourceType: ['album', 'camera'], success: result => { albumPreview.value = result.tempFilePaths[0] || '' } }) }
 function saveAlbum() { if (!albumPreview.value) return; save('photo', { path: albumPreview.value, date: recordDate.value }, `照片 · ${recordDate.value}`); albumPreview.value = '' }
@@ -464,6 +465,7 @@ onLoad((options) => {
   contractionStart.value = uni.getStorageSync('beihu:contraction-start') || null
   if (contractionStart.value) contractionTimer = setInterval(() => { contractionNow.value = Date.now() }, 1000)
 })
+onShow(() => { pinnedIds.value = readHomeTools(); reportScope.value = reportOwner(); reportPanel.value?.refresh() })
 onBeforeUnmount(() => { if (contractionTimer) clearInterval(contractionTimer) })
 onShareAppMessage(() => ({ title: `贝护 · ${tool.value.title}`, path: `/pages/tool-detail/index?id=${toolId.value}` }))
 onShareTimeline(() => ({ title: `贝护 · ${tool.value.title}` }))
@@ -471,7 +473,8 @@ onShareTimeline(() => ({ title: `贝护 · ${tool.value.title}` }))
 
 <style scoped>
 .tool-detail-page { min-height: 100vh; padding-bottom: 70rpx; background: #fcf9f8; }
-.detail-hero { padding: 28rpx 28rpx 34rpx; min-height: 310rpx; box-sizing: border-box; }
+.home-pin-button { margin: 20rpx 0 0; width: auto; display: inline-block; padding: 18rpx 24rpx; min-height: 88rpx; background: #edf5f1; color: #166c5b; border-radius: 16rpx; font-size: 25rpx; line-height: 1.8; }
+.detail-hero { padding: 28rpx 28rpx 24rpx; box-sizing: border-box; }
 .hero-back { color: currentColor; opacity: .72; font-size: 24rpx; }
 .hero-icon { display: flex; align-items: center; justify-content: center; width: 82rpx; height: 82rpx; margin-top: 24rpx; border-radius: 26rpx; background: rgba(255, 255, 255, .72); font-size: 34rpx; font-weight: 900; }
 .hero-kicker { display: block; margin-top: 22rpx; color: currentColor; opacity: .72; font-size: 22rpx; font-weight: 800; }
@@ -520,11 +523,6 @@ button::after { border: 0; }
 .check-name { color: #4f4744; font-size: 26rpx; }
 .check-group { margin-top: 4rpx; color: #a19792; font-size: 20rpx; }
 .large-textarea { width: 100%; min-height: 260rpx; margin-top: 20rpx; padding: 20rpx; border-radius: 18rpx; background: #faf6f3; color: #4b4441; font-size: 27rpx; line-height: 1.7; box-sizing: border-box; }
-.poster-card { text-align: center; }
-.poster-preview { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 390rpx; padding: 28rpx; border-radius: 24rpx; background: linear-gradient(150deg, #f8c5c3, #f3ded0 58%, #fff5e9); box-sizing: border-box; }
-.poster-label { color: #ad5d64; font-size: 25rpx; font-weight: 800; }
-.poster-main { margin-top: 28rpx; color: #5a3e40; font-size: 42rpx; font-weight: 900; }
-.poster-small { margin-top: 16rpx; color: #846d68; font-size: 23rpx; }
 .album-preview { display: block; width: 100%; height: 420rpx; margin-top: 22rpx; border-radius: 22rpx; background: #f4efed; }
 .notice-card { margin: 20rpx 28rpx 0; padding: 18rpx 22rpx; border-radius: 18rpx; background: #edf7f2; color: #16806a; font-size: 23rpx; text-align: center; }
 .history-section { padding-bottom: 14rpx; }

@@ -1,250 +1,113 @@
 <template>
   <view class="tools-page">
-    <view class="tools-hero">
-      <view class="hero-topline">
-        <text class="hero-eyebrow">贝护 · 工具箱</text>
-        <text class="hero-state">{{ stageLabel }}</text>
-      </view>
-      <text class="hero-title">把每天要做的事，放在顺手的位置</text>
-      <text class="hero-subtitle">记录、回看、提醒和分享各自清楚；需要 AI 时，只整理成你可以核对的草稿。</text>
-      <view class="hero-summary">
-        <view class="hero-summary-item">
-          <text class="hero-summary-value">{{ quickTools.length }}</text>
-          <text class="hero-summary-label">今日快捷</text>
-        </view>
-        <view class="hero-summary-divider"></view>
-        <view class="hero-summary-item">
-          <text class="hero-summary-value">{{ localRecordCount }}</text>
-          <text class="hero-summary-label">本机记录</text>
-        </view>
-        <view class="hero-summary-divider"></view>
-        <view class="hero-summary-item">
-          <text class="hero-summary-value">15</text>
-          <text class="hero-summary-label">工具总数</text>
-        </view>
-      </view>
+    <view class="tools-heading"><text class="page-title">全部工具</text><text class="stage-label">{{ stageLabel }}</text></view>
+    <text class="page-subtitle">找到要用的工具，添加到首页更顺手。</text>
+    <view class="search-box">
+      <text class="search-label">搜索</text>
+      <input v-model="query" class="search-input" placeholder="试试喂奶、胎动、报告…" confirm-type="search" maxlength="60" aria-label="搜索工具名称或用途" />
+      <button v-if="query" class="text-button" @tap="query = ''">清除</button>
     </view>
-
-    <view class="section-head">
-      <view>
-        <text class="section-title">今日快捷工具</text>
-        <text class="section-subtitle">按当前阶段优先显示，最多四项</text>
-      </view>
-      <text class="section-link" @tap="scrollToAll">全部工具</text>
+    <view class="home-summary">
+      <view class="summary-head"><text class="summary-title">首页工具 · {{ homeIds.length }}/{{ MAX_HOME_TOOLS }}</text><button class="text-button" @tap="editing = !editing">{{ editing ? '完成' : '管理排序' }}</button></view>
+      <text v-if="!editing" class="summary-hint">{{ homeIds.length ? homeIds.map(id => getToolDefinition(id).title).join(' · ') : '点击下方“添加首页”选择常用工具' }}</text>
+      <HomeToolEditor v-if="editing" :ids="homeIds" :stage="stage" @change="updateHome" />
     </view>
-
-    <view class="quick-grid">
-      <view
-        v-for="tool in quickTools"
-        :key="tool.id"
-        class="quick-card"
-        :class="getToneClass(tool.tone)"
-        @tap="openTool(tool.id)"
-      >
-        <view class="quick-icon"><text>{{ tool.icon }}</text></view>
-        <text class="quick-kicker">{{ tool.kicker }}</text>
-        <text class="quick-title">{{ tool.title }}</text>
-        <text class="quick-action">{{ tool.primaryAction }} ›</text>
+    <scroll-view class="filter-scroll" scroll-x>
+      <view class="filter-list">
+        <button v-for="group in filters" :key="group.id" class="filter-button" :class="{ active: selectedGroup === group.id }" @tap="selectedGroup = group.id">{{ group.title }}</button>
       </view>
-    </view>
-
-    <view v-if="recentRecords.length" class="recent-card">
-      <view class="section-head section-head--compact">
-        <view>
-          <text class="section-title">最近记录</text>
-          <text class="section-subtitle">保存在本机，登录后再决定是否同步</text>
-        </view>
-      </view>
-      <view v-for="record in recentRecords" :key="record.id" class="recent-row" @tap="openTool(record.toolId)">
-        <view class="recent-icon" :class="getToneClass(getTool(record.toolId).tone)"><text>{{ getTool(record.toolId).icon }}</text></view>
-        <view class="recent-copy">
-          <text class="recent-title">{{ getTool(record.toolId).title }}</text>
-          <text class="recent-meta">{{ recordSummary(record) }} · {{ formatTime(record.createdAt) }}</text>
-        </view>
-        <text class="recent-arrow">›</text>
-      </view>
-    </view>
-
-    <view id="all-tools" class="all-tools-anchor"></view>
-    <view v-for="group in groupedTools" :key="group.id" class="tool-group">
-      <view class="section-head section-head--group">
-        <view>
-          <text class="section-title">{{ group.title }}</text>
-          <text class="section-subtitle">{{ group.description }}</text>
-        </view>
-      </view>
+    </scroll-view>
+    <text v-if="query.trim()" class="results-label">找到 {{ results.length }} 项工具</text>
+    <view v-if="!results.length" class="empty-card"><text class="empty-title">没有找到匹配工具</text><text class="summary-hint">试试更短的名称，或切回“全部”。</text><button class="text-button" @tap="query = ''; selectedGroup = 'all'">查看全部工具</button></view>
+    <view v-for="group in visibleGroups" :key="group.id" class="tool-group">
+      <text class="group-title">{{ group.title }} <text class="group-count">{{ group.tools.length }}</text></text>
       <view class="tool-list">
-        <view
-          v-for="tool in group.tools"
-          :key="tool.id"
-          class="tool-row"
-          :class="getToneClass(tool.tone)"
-          @tap="openTool(tool.id)"
-        >
-          <view class="tool-row-icon"><text>{{ tool.icon }}</text></view>
-          <view class="tool-row-copy">
-            <view class="tool-row-title-line">
-              <text class="tool-row-title">{{ tool.title }}</text>
-              <text class="tool-status" :class="`tool-status--${tool.status}`">{{ statusLabel(tool.status) }}</text>
-            </view>
-            <text class="tool-row-kicker">{{ tool.kicker }}</text>
-            <text class="tool-row-description">{{ tool.description }}</text>
-          </view>
-          <text class="tool-row-arrow">›</text>
+        <view v-for="tool in group.tools" :key="tool.id" class="tool-row">
+          <button class="open-tool" :aria-label="`打开${tool.title}`" @tap="openTool(tool.id)">
+            <view class="tool-icon" :class="getToneClass(tool.tone)"><text>{{ tool.icon }}</text></view>
+            <view class="tool-copy"><text class="tool-title">{{ tool.title }}</text><text class="tool-description">{{ tool.description }}</text><text v-if="tool.status !== 'ready'" class="tool-status">基础版 · 持续完善</text></view>
+            <text class="tool-arrow">›</text>
+          </button>
+          <button class="pin-button" :class="{ pinned: homeIds.includes(tool.id) }" :aria-label="`${homeIds.includes(tool.id) ? '从首页移除' : '添加到首页'}${tool.title}`" @tap="toggleHome(tool.id)">{{ homeIds.includes(tool.id) ? '已添加 ✓' : '添加首页' }}</button>
         </view>
       </view>
     </view>
-
-    <view class="tools-footnote">
-      <text class="footnote-title">记录先由你确认</text>
-      <text class="footnote-text">计时、金额、日期、曲线和报表由程序计算。Jev 只从已有候选中整理，不会替你做医学判断。</text>
-    </view>
+    <text class="tools-note">工具仅作记录与整理，医疗安排请遵医嘱。</text>
   </view>
 </template>
-
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useAppStore } from '@/stores/app'
 import { calculatePregnancyWeekFromDueDate } from '@/utils'
-import {
-  getStageLabel,
-  getToolDefinition,
-  getToolStage,
-  getToneClass,
-  TOOL_DEFINITIONS,
-  TOOL_GROUPS,
-  type ToolGroup,
-  type ToolId,
-  type ToolStatus,
-} from '@/data/tool-catalog'
-import { readToolRecords, type LocalToolRecord } from '@/utils/tool-records'
+import { getStageLabel, getToolDefinition, getToolStage, getToneClass, TOOL_GROUPS, type ToolGroup, type ToolId } from '@/data/tool-catalog'
+import { findTools, MAX_HOME_TOOLS, openToolPage, readHomeTools, recommendedHomeTools, saveHomeTools } from '@/utils/home-tools'
+import HomeToolEditor from '@/components/tools/HomeToolEditor.vue'
 import { trackMiniEvent } from '@/utils/analytics'
-
 const appStore = useAppStore()
-const storedWeek = ref<number | null>(null)
-const records = ref<LocalToolRecord[]>([])
-
-const syncPage = () => {
-  const value = Number.parseInt(String(uni.getStorageSync('userPregnancyWeek') || ''), 10)
-  storedWeek.value = Number.isFinite(value) && value >= 1 && value <= 40 ? value : null
-  records.value = readToolRecords()
-}
-
-syncPage()
-onShow(() => {
-  syncPage()
-  if (uni.getStorageSync('token') && !appStore.user) void appStore.fetchUser()
-})
-
-const currentWeek = computed(() => {
-  if (appStore.user?.dueDate) return calculatePregnancyWeekFromDueDate(appStore.user.dueDate)
-  return storedWeek.value
-})
+const storedWeek = ref<number | null>(null), query = ref(''), editing = ref(false)
+const selectedGroup = ref<ToolGroup | 'all'>('all'), customIds = ref<ToolId[] | null>(readHomeTools())
+const currentWeek = computed(() => appStore.user?.dueDate ? calculatePregnancyWeekFromDueDate(appStore.user.dueDate) : storedWeek.value)
 const stage = computed(() => getToolStage(currentWeek.value, appStore.user?.babyBirthday))
 const stageLabel = computed(() => getStageLabel(stage.value))
-
-const quickToolIds: Record<typeof stage.value, ToolId[]> = {
-  preparing: ['calendar', 'diary', 'expenses', 'names'],
-  early: ['calendar', 'diary', 'reports', 'weight'],
-  middle: ['movement', 'weight', 'calendar', 'packing'],
-  late: ['contractions', 'movement', 'packing', 'calendar'],
-  newborn: ['care', 'diary', 'growth', 'vaccines'],
-  feeding: ['care', 'foods', 'growth', 'vaccines'],
+const homeIds = computed(() => customIds.value ?? recommendedHomeTools(stage.value))
+const filters: { id: ToolGroup | 'all'; title: string }[] = [{ id: 'all', title: '全部' }, ...TOOL_GROUPS]
+const results = computed(() => findTools(query.value, selectedGroup.value))
+const visibleGroups = computed(() => TOOL_GROUPS.map(group => ({ ...group, tools: results.value.filter(tool => tool.group === group.id) })).filter(group => group.tools.length))
+function updateHome(ids: ToolId[]) {
+  try { saveHomeTools(ids); customIds.value = [...ids] }
+  catch { uni.showToast({ title: '未能保存设置，请重试', icon: 'none' }) }
 }
-
-const quickTools = computed(() => quickToolIds[stage.value].map(id => getToolDefinition(id)))
-const groupedTools = computed(() => TOOL_GROUPS.map(group => ({
-  ...group,
-  tools: TOOL_DEFINITIONS.filter(tool => tool.group === group.id),
-})))
-const localRecordCount = computed(() => records.value.length)
-const recentRecords = computed(() => records.value.slice(0, 3))
-
-const getTool = (id: ToolId) => getToolDefinition(id)
-const statusLabel = (status: ToolStatus) => ({ ready: '已上线', preview: '预览', planned: '逐步开放' }[status])
-const recordSummary = (record: LocalToolRecord) => {
-  const payload = record.payload
-  if (typeof payload.summary === 'string' && payload.summary) return payload.summary
-  if (typeof payload.value === 'string' && payload.value) return payload.value
-  if (typeof payload.amount === 'number') return `${payload.amount} 元`
-  return '已保存一条记录'
+function toggleHome(id: ToolId) {
+  const exists = homeIds.value.includes(id)
+  if (!exists && homeIds.value.length >= MAX_HOME_TOOLS) { editing.value = true; uni.showToast({ title: '首页已满，可先移除一项', icon: 'none' }); uni.pageScrollTo({ scrollTop: 0, duration: 200 }); return }
+  updateHome(exists ? homeIds.value.filter(item => item !== id) : [...homeIds.value, id])
 }
-const formatTime = (value: string) => {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '刚刚'
-  return `${date.getMonth() + 1}月${date.getDate()}日 ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
-}
-
-const openTool = (id: ToolId) => {
-  trackMiniEvent('app_tool_open', { page: 'Tools', properties: { toolId: id, stage: stage.value } })
-  if (id === 'calendar') {
-    uni.switchTab({ url: '/pages/calendar/index' })
-    return
-  }
-  if (id === 'names') {
-    uni.navigateTo({ url: '/pages/name-library/index' })
-    return
-  }
-  uni.navigateTo({ url: `/pages/tool-detail/index?id=${id}` })
-}
-
-const scrollToAll = () => {
-  uni.pageScrollTo({ selector: '#all-tools', duration: 260 })
-}
+function openTool(id: ToolId) { trackMiniEvent('app_tool_open', { page: 'Tools', properties: { toolId: id, stage: stage.value } }); openToolPage(id) }
+onShow(() => {
+  const week = Number(uni.getStorageSync('userPregnancyWeek'))
+  storedWeek.value = Number.isInteger(week) && week >= 1 && week <= 40 ? week : null
+  customIds.value = readHomeTools()
+  if (uni.getStorageSync('token') && !appStore.user) void appStore.fetchUser()
+})
 </script>
-
 <style scoped>
-.tools-page { min-height: 100vh; padding: 42rpx 28rpx 64rpx; background: linear-gradient(180deg, #fff6f2 0%, #fcf9f8 36%, #fbfaf8 100%); box-sizing: border-box; }
-.tools-hero { padding: 12rpx 4rpx 34rpx; }
-.hero-topline, .section-head, .tool-row-title-line, .recent-row { display: flex; align-items: center; justify-content: space-between; gap: 18rpx; }
-.hero-eyebrow { color: #d88188; font-size: 24rpx; font-weight: 800; }
-.hero-state { padding: 10rpx 18rpx; border-radius: 999rpx; background: rgba(216, 129, 136, .12); color: #c56d77; font-size: 22rpx; font-weight: 800; }
-.hero-title { display: block; margin-top: 22rpx; color: #443c3a; font-size: 46rpx; line-height: 1.35; font-weight: 900; }
-.hero-subtitle { display: block; margin-top: 16rpx; color: #756b69; font-size: 26rpx; line-height: 1.7; }
-.hero-summary { display: flex; align-items: center; margin-top: 28rpx; padding: 22rpx 18rpx; border-radius: 24rpx; background: rgba(255, 252, 248, .9); border: 1rpx solid rgba(216, 129, 136, .13); }
-.hero-summary-item { flex: 1; text-align: center; }
-.hero-summary-value { display: block; color: #16806a; font-size: 34rpx; font-weight: 900; }
-.hero-summary-label { display: block; margin-top: 6rpx; color: #8a817d; font-size: 21rpx; }
-.hero-summary-divider { width: 1rpx; height: 42rpx; background: #eee1dd; }
-.section-head { margin: 26rpx 4rpx 16rpx; align-items: end; }
-.section-head--compact { margin-top: 0; }
-.section-head--group { margin-top: 34rpx; }
-.section-title { display: block; color: #4a4240; font-size: 32rpx; font-weight: 900; }
-.section-subtitle { display: block; margin-top: 5rpx; color: #948b88; font-size: 21rpx; line-height: 1.5; }
-.section-link { color: #16806a; font-size: 23rpx; font-weight: 800; }
-.quick-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16rpx; }
-.quick-card { min-height: 190rpx; padding: 22rpx; border-radius: 26rpx; box-sizing: border-box; box-shadow: 0 12rpx 30rpx rgba(58, 48, 44, .05); }
-.tool-tone--rose { background: #fff0f1; color: #b65e68; }
-.tool-tone--orange { background: #fff1e7; color: #c36c43; }
-.tool-tone--green { background: #edf8f2; color: #16806a; }
-.tool-tone--lilac { background: #f5eef7; color: #8c6896; }
-.quick-icon, .tool-row-icon, .recent-icon { display: flex; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 18rpx; font-weight: 900; }
-.quick-icon { width: 54rpx; height: 54rpx; background: rgba(255, 255, 255, .68); font-size: 25rpx; }
-.quick-kicker { display: block; margin-top: 18rpx; color: currentColor; opacity: .72; font-size: 20rpx; }
-.quick-title { display: block; margin-top: 5rpx; color: #4c4542; font-size: 29rpx; font-weight: 900; }
-.quick-action { display: block; margin-top: 12rpx; color: currentColor; font-size: 21rpx; font-weight: 800; }
-.recent-card { margin-top: 28rpx; padding: 24rpx; border-radius: 28rpx; background: #fffcf8; box-shadow: 0 12rpx 30rpx rgba(58, 48, 44, .04); }
-.recent-row { justify-content: flex-start; padding: 18rpx 0; border-top: 1rpx solid #f3ebe7; }
-.recent-icon { width: 56rpx; height: 56rpx; font-size: 24rpx; }
-.recent-copy { flex: 1; min-width: 0; }
-.recent-title { display: block; color: #504744; font-size: 26rpx; font-weight: 800; }
-.recent-meta { display: block; margin-top: 6rpx; overflow: hidden; color: #978d88; font-size: 21rpx; text-overflow: ellipsis; white-space: nowrap; }
-.recent-arrow, .tool-row-arrow { color: #b5aaa5; font-size: 42rpx; line-height: 1; }
-.tool-list { display: flex; flex-direction: column; gap: 12rpx; }
-.tool-row { display: flex; align-items: center; gap: 18rpx; padding: 20rpx; border-radius: 24rpx; background: #fffdfb; box-shadow: 0 8rpx 22rpx rgba(58, 48, 44, .035); }
-.tool-row-icon { width: 64rpx; height: 64rpx; font-size: 26rpx; }
-.tool-row-copy { flex: 1; min-width: 0; }
-.tool-row-title { color: #4b4441; font-size: 29rpx; font-weight: 900; }
-.tool-row-kicker { display: block; margin-top: 4rpx; color: currentColor; font-size: 20rpx; opacity: .76; }
-.tool-row-description { display: block; margin-top: 8rpx; color: #817874; font-size: 23rpx; line-height: 1.5; }
-.tool-status { flex-shrink: 0; padding: 5rpx 10rpx; border-radius: 999rpx; font-size: 18rpx; }
-.tool-status--ready { color: #16806a; background: #eaf7f1; }
-.tool-status--preview { color: #a46b47; background: #fff0e6; }
-.tool-status--planned { color: #8b7d77; background: #f5f0ed; }
-.tools-footnote { margin-top: 34rpx; padding: 22rpx 24rpx; border-radius: 24rpx; background: #f4f8f6; }
-.footnote-title, .footnote-text { display: block; }
-.footnote-title { color: #16806a; font-size: 25rpx; font-weight: 800; }
-.footnote-text { margin-top: 8rpx; color: #6d7e77; font-size: 22rpx; line-height: 1.6; }
-.all-tools-anchor { height: 1rpx; }
+.tools-page { min-height: 100vh; padding: 32rpx 28rpx 64rpx; background: #fcf9f8; box-sizing: border-box; }
+.tools-heading, .summary-head { display: flex; justify-content: space-between; align-items: center; gap: 16rpx; }
+.page-title { color: #443c3a; font-size: 44rpx; font-weight: 900; }
+.stage-label { color: #9d535e; background: #fff0f1; padding: 10rpx 16rpx; border-radius: 16rpx; font-size: 23rpx; }
+.page-subtitle { display: block; margin-top: 12rpx; color: #766b67; font-size: 26rpx; }
+.search-box { display: flex; align-items: center; gap: 18rpx; min-height: 96rpx; margin-top: 26rpx; padding: 0 22rpx; border: 1rpx solid #e4ddd7; border-radius: 20rpx; background: #fffdfb; }
+.search-label { color: #166c5b; font-size: 25rpx; font-weight: 700; }
+.search-input { flex: 1; min-width: 0; font-size: 27rpx; color: #443c3a; height: 88rpx; }
+.text-button { margin: 0; padding: 20rpx 8rpx; min-height: 88rpx; font-size: 25rpx; line-height: 1.8; color: #166c5b; background: transparent; flex-shrink: 0; }
+button::after { border: 0; }
+.home-summary { margin-top: 22rpx; padding: 10rpx 22rpx 22rpx; border-radius: 24rpx; background: #edf5f1; }
+.summary-title { color: #34584d; font-size: 28rpx; font-weight: 800; }
+.summary-hint { display: block; color: #5f6e67; font-size: 24rpx; line-height: 1.65; }
+.filter-scroll { margin: 26rpx 0 12rpx; white-space: nowrap; }
+.filter-list { display: flex; width: max-content; gap: 12rpx; }
+.filter-button { margin: 0; padding: 20rpx 22rpx; min-height: 88rpx; border-radius: 18rpx; color: #766b67; background: #f2ede9; font-size: 25rpx; line-height: 1.8; }
+.filter-button.active { color: #fff; background: #16806a; }
+.group-title { display: block; padding: 22rpx 4rpx 16rpx; color: #514641; font-size: 30rpx; font-weight: 800; }
+.group-count, .results-label { color: #786e68; font-size: 24rpx; font-weight: 400; margin-left: 8rpx; }
+.tool-list { background: #fffdfb; border-radius: 24rpx; padding: 0 18rpx; box-shadow: 0 8rpx 22rpx rgba(58,48,44,.035); }
+.tool-row { display: flex; align-items: center; gap: 6rpx; border-bottom: 1rpx solid #eee7e1; }
+.tool-row:last-child { border-bottom: 0; }
+.open-tool { flex: 1; min-width: 0; display: flex; align-items: center; gap: 16rpx; margin: 0; padding: 24rpx 0; background: transparent; text-align: left; line-height: 1.5; }
+.tool-icon { flex-shrink: 0; width: 64rpx; height: 64rpx; display: flex; align-items: center; justify-content: center; border-radius: 18rpx; font-size: 27rpx; font-weight: 800; }
+.tool-tone--rose { background: #fff0f1; color: #a44e5c; }
+.tool-tone--orange { background: #fff1e7; color: #a55a32; }
+.tool-tone--green { background: #edf8f2; color: #166c5b; }
+.tool-tone--lilac { background: #f5eef7; color: #785784; }
+.tool-copy { flex: 1; min-width: 0; }
+.tool-title { display: block; color: #443c3a; font-size: 28rpx; font-weight: 800; }
+.tool-description { display: block; color: #786e68; font-size: 23rpx; margin-top: 6rpx; }
+.tool-status { display: block; color: #876549; font-size: 20rpx; margin-top: 6rpx; }
+.tool-arrow { color: #968780; font-size: 32rpx; }
+.pin-button { width: 130rpx; padding: 22rpx 8rpx; margin: 0; min-height: 88rpx; border-radius: 16rpx; background: #edf5f1; color: #166c5b; font-size: 23rpx; line-height: 1.8; flex-shrink: 0; }
+.pin-button.pinned { color: #74685f; background: #f6f1ed; }
+.empty-card { padding: 44rpx 24rpx; text-align: center; background: #fffdfb; border-radius: 24rpx; }
+.empty-title { display: block; font-size: 30rpx; color: #514641; margin-bottom: 16rpx; }
+.tools-note { display: block; margin-top: 30rpx; color: #786e68; text-align: center; font-size: 23rpx; }
 </style>

@@ -2,15 +2,15 @@
   <view class="login-page">
     <view class="login-header">
       <text class="login-logo">贝护妈妈</text>
-      <text class="login-subtitle">先浏览公开资料，需要保存进度时再进入登录</text>
+      <text class="login-subtitle">先使用记录工具，需要云端保存时再登录</text>
     </view>
 
     <view class="login-form">
       <view class="visitor-box">
         <text class="visitor-title">不登录也可以先看</text>
         <view class="visitor-actions">
-          <view class="visitor-chip" @tap="navigateGuest('/pages/knowledge/index')">
-            <text class="visitor-chip-text">孕育资料库</text>
+          <view class="visitor-chip" @tap="navigateGuest('/pages/tools/index')">
+            <text class="visitor-chip-text">全部工具</text>
           </view>
           <view class="visitor-chip" @tap="navigateGuest('/pages/calendar/index')">
             <text class="visitor-chip-text">孕周日历</text>
@@ -26,7 +26,7 @@
       </view>
 
       <text class="form-desc">
-        {{ loginStep === 'auth' ? '当前版本仅使用微信会话或账号凭证完成登录，不要求上传身份证件、真实姓名或手机号。' : '仅需选择一次孕周，用于生成更贴近当前阶段的知识库、日历和提醒。' }}
+        {{ loginStep === 'auth' ? '当前版本仅使用微信会话或账号凭证完成登录，不要求上传身份证件、真实姓名或手机号。' : '仅需选择一次孕周，用于生成更贴近当前阶段的工具、日历和提醒。' }}
       </text>
 
       <template v-if="loginStep === 'auth'">
@@ -118,7 +118,7 @@
 
       <view class="safety-note">
         <text class="safety-note-title">使用说明</text>
-        <text class="safety-note-text">知识库与孕周日历支持先浏览；只有在你需要保存记录、待办或个性化阶段信息时，才会用到登录状态。</text>
+        <text class="safety-note-text">工具与孕育日历支持先浏览；本机记录无需登录，云端归档和个人档案需要登录。</text>
       </view>
     </view>
   </view>
@@ -126,6 +126,7 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { onLoad } from '@dcloudio/uni-app'
 import { authApi } from '@/api/modules'
 import { useAppStore } from '@/stores/app'
 import type { User } from '@/api/modules'
@@ -160,11 +161,23 @@ const navigateGuest = (url: string) => {
   uni.navigateTo({ url })
 }
 
+const returnTarget = ref('/pages/home/index')
+onLoad(options => {
+  const raw = typeof options?.redirect === 'string' ? options.redirect : ''
+  let candidate = raw
+  try { candidate = decodeURIComponent(raw) } catch { return }
+  if (/^\/pages\/(pregnancy-profile|name-library)\/index$/.test(candidate)
+    || /^\/pages\/tool-detail\/index\?id=(reports|poster|diary|expenses|care|growth|movement|weight|packing|vaccines|foods|album|contractions)$/.test(candidate)) {
+    returnTarget.value = candidate
+  }
+})
+const returnAfterLogin = () => {
+  if (returnTarget.value === '/pages/home/index') uni.switchTab({ url: returnTarget.value })
+  else uni.redirectTo({ url: returnTarget.value })
+}
 const navigateHome = () => {
   uni.showToast({ title: '登录成功', icon: 'success' })
-  setTimeout(() => {
-    uni.switchTab({ url: '/pages/home/index' })
-  }, 500)
+  setTimeout(returnAfterLogin, 500)
 }
 
 const normalizePregnancyStatus = (value: unknown) => {
@@ -326,7 +339,7 @@ onMounted(async () => {
   }
 
   syncPregnancyWeekStorage(latestUser.dueDate)
-  uni.switchTab({ url: '/pages/home/index' })
+  returnAfterLogin()
 })
 </script>
 

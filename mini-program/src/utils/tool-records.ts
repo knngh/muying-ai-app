@@ -68,9 +68,9 @@ export function importToolRecord(
   updatedAt?: string,
 ): LocalToolRecord {
   const records = readToolRecords()
-  const existingIndex = records.findIndex(item => item.payload.serverId === serverId || item.id === `server-${serverId}`)
+  const existingIndex = records.findIndex(item => item.toolId === toolId && (item.payload.serverId === serverId || item.id === `server-${toolId}-${serverId}` || item.id === `server-${serverId}`))
   const imported: LocalToolRecord = {
-    id: existingIndex >= 0 ? records[existingIndex].id : `server-${serverId}`,
+    id: existingIndex >= 0 ? records[existingIndex].id : `server-${toolId}-${serverId}`,
     toolId,
     recordType,
     createdAt: createdAt || new Date().toISOString(),

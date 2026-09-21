@@ -162,6 +162,7 @@ export interface ReportFieldRecord {
   normalizedValue: string | null
   confidence: number | null
   source: 'manual' | 'ocr' | 'jev'
+  version: number
   confirmedAt: string | null
 }
 
@@ -170,12 +171,10 @@ export interface ReportDocumentRecord {
   reportDate: string
   name: string
   note: string | null
-  status: string
+  hasImage: boolean
   ocrStatus: string
-  originalFilename: string | null
-  mimeType: string | null
-  byteSize: number | null
   pageCount: number
+  clientOperationId: string
   createdAt: string
   updatedAt: string
   fields: ReportFieldRecord[]
@@ -198,7 +197,7 @@ export const toolRecordApi = {
   createExpenseEntry: (data: Omit<ExpenseEntryRecord, 'id' | 'createdAt' | 'updatedAt'> & { clientOperationId?: string }) =>
     api.post<ExpenseEntryRecord>('/tool-records/expenses', data),
   getCareLogs: (limit = 30) => api.get<CareLogRecord[]>('/tool-records/care', { limit }),
-  createCareLog: (data: Omit<CareLogRecord, 'id' | 'createdAt' | 'updatedAt'> & { clientOperationId?: string }) =>
+  createCareLog: (data: Omit<CareLogRecord, 'id' | 'createdAt' | 'updatedAt' | 'endedAt'> & { endedAt?: string; clientOperationId?: string }) =>
     api.post<CareLogRecord>('/tool-records/care', data),
   getBabyMeasurements: (limit = 30) => api.get<BabyMeasurementRecord[]>('/tool-records/growth', { limit }),
   createBabyMeasurement: (data: Omit<BabyMeasurementRecord, 'id' | 'createdAt' | 'updatedAt'> & { clientOperationId?: string }) =>
@@ -212,16 +211,17 @@ export const toolRecordApi = {
   getPackingItems: () => api.get<PackingItemRecord[]>('/tool-records/packing'),
   upsertPackingItem: (data: Omit<PackingItemRecord, 'id' | 'createdAt' | 'updatedAt'> & { clientOperationId?: string }) =>
     api.post<PackingItemRecord>('/tool-records/packing', data),
-  getReports: (limit = 30) => api.get<ReportDocumentRecord[]>('/tool-records/reports', { limit }),
-  createReport: (filePath: string | null, data: { reportDate: string; name: string; note?: string | null }) => (
+  getReports: (beforeId?: string) => api.get<{ list: ReportDocumentRecord[]; nextCursor: string | null }>('/tool-records/reports', { beforeId }),
+  createReport: (filePath: string | null, data: { reportDate: string; name: string; note: string; clientOperationId: string }) => (
     filePath
       ? api.upload<ReportDocumentRecord>('/tool-records/reports', filePath, 'file', data)
       : api.post<ReportDocumentRecord>('/tool-records/reports', data)
   ),
-  addReportField: (reportId: string, data: Omit<ReportFieldRecord, 'id' | 'confirmedAt'>) =>
+  deleteReport: (reportId: string) => api.delete<{ id: string }>(`/tool-records/reports/${reportId}`),
+  addReportField: (reportId: string, data: { fieldKey: string; label: string; candidateValue: string }) =>
     api.post<ReportFieldRecord>(`/tool-records/reports/${reportId}/fields`, data),
-  confirmReportField: (reportId: string, fieldId: string, normalizedValue?: string | null) =>
-    api.post<ReportFieldRecord>(`/tool-records/reports/${reportId}/fields/${fieldId}/confirm`, { normalizedValue }),
+  confirmReportField: (reportId: string, fieldId: string, normalizedValue: string, version: number) =>
+    api.post<ReportFieldRecord>(`/tool-records/reports/${reportId}/fields/${fieldId}/confirm`, { normalizedValue, version }),
   getReportFileUrl: (reportId: string) => `${BASE_URL}/tool-records/reports/${reportId}/file`,
 }
 

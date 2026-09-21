@@ -2,7 +2,7 @@
   <view class="privacy-policy-page">
     <view class="policy-header">
       <text class="policy-title">贝护妈妈用户隐私保护指引</text>
-      <text class="policy-subtitle">最后更新日期：2026年09月02日</text>
+      <text class="policy-subtitle">最后更新日期：2026年09月21日</text>
     </view>
 
     <scroll-view class="policy-content" scroll-y>
@@ -22,7 +22,7 @@
         </view>
         <view class="policy-item">
           <text class="item-label">4. 孕育记录与使用记录</text>
-          <text class="item-desc">您主动保存的日记文字、待办、完成状态、时间线、收藏和阅读历史会与账号关联。使用拍照或相册功能时，我们仅处理您主动选择或拍摄并上传的照片，用于保存孕育记录。</text>
+          <text class="item-desc">您主动保存的日记文字、待办、完成状态、时间线、收藏和阅读历史会与账号关联。使用拍照或相册功能时，我们仅处理您主动选择或拍摄的照片。产检报告草稿默认保存在本机，您选择私有归档后，才会上传报告原图、日期、备注及手动填写和确认的字段，用于本人查看与整理，不进行医疗解读。</text>
         </view>
         <view class="policy-item">
           <text class="item-label">5. 日志与埋点信息</text>
@@ -33,7 +33,7 @@
       <view class="policy-section">
         <text class="section-title">二、信息的使用目的</text>
         <view class="policy-item">
-          <text class="item-desc">我们使用上述信息提供微信登录、孕育日历、知识库浏览、阶段提醒、记录保存、收藏与阅读历史等功能，并用于账号安全、反滥用、故障排查和服务质量分析。孕育或健康信息不会用于医疗诊断，也不会用于与本服务无关的广告画像。</text>
+          <text class="item-desc">我们使用上述信息提供微信登录、孕育日历、工具使用、阶段提醒、记录保存、收藏与阅读历史等功能，并用于账号安全、反滥用、故障排查和服务质量分析。孕育或健康信息不会用于医疗诊断，也不会用于与本服务无关的广告画像。</text>
         </view>
       </view>
 
@@ -50,10 +50,10 @@
       <view class="policy-section">
         <text class="section-title">四、信息的存储与保护</text>
         <view class="policy-item">
-          <text class="item-desc">账号、档案、记录和收藏保存在服务端数据库；照片默认保存在服务端上传目录，生产环境也可能保存在腾讯云 COS。生产环境接口使用 HTTPS 传输，账号密码使用哈希保存，并通过访问控制、上传类型和数量限制等措施降低风险。我们仅在实现服务、履行法定义务或处理争议所需期间保留信息。</text>
+          <text class="item-desc">账号、档案、记录和收藏保存在服务端数据库；照片默认保存在服务端上传目录，生产环境也可能保存在腾讯云 COS。报告原图单独存入非公开目录，查看和下载均校验本人身份；当前报告功能不将原图或字段发送给 AI 服务商。首页工具排序保存在此设备。生产环境接口使用 HTTPS 传输，账号密码使用哈希保存，并通过访问控制、上传类型和数量限制等措施降低风险。我们仅在实现服务、履行法定义务或处理争议所需期间保留信息。</text>
         </view>
         <view class="policy-item">
-          <text class="item-desc">您删除孕育记录时，关联照片会进入清理流程；注销账号后，我们会按法律要求和业务清理流程删除或匿名化可删除的信息，依法需要留存的日志除外。</text>
+          <text class="item-desc">在产检报告的“私有归档”中删除报告，会清理原图与字段；仅删除本机草稿不会删除云端资料。清理本机小程序数据会丢失未归档的草稿。您删除其他孕育记录时，关联照片会进入清理流程；注销账号后，我们会按法律要求和业务清理流程删除或匿名化可删除的信息，依法需要留存的日志除外。</text>
         </view>
       </view>
 
@@ -65,7 +65,7 @@
         </view>
         <view class="policy-item">
           <text class="item-label">撤回同意</text>
-          <text class="item-desc">您可以拒绝照片上传授权、停止填写档案或删除已保存的记录。撤回同意不影响撤回前基于同意处理的合法性；拒绝照片授权不影响知识库和日历浏览。</text>
+          <text class="item-desc">您可以拒绝照片上传授权、停止填写档案或删除已保存的记录。撤回同意不影响撤回前基于同意处理的合法性；拒绝照片授权不影响工具和日历使用。</text>
         </view>
         <view class="policy-item">
           <text class="item-label">投诉与联系</text>
@@ -83,7 +83,7 @@
       <view class="policy-section">
         <text class="section-title">七、指引更新与生效</text>
         <view class="policy-item">
-          <text class="item-desc">业务或法律要求发生变化时，我们会在本页面更新指引并标注更新日期。重大变化会在使用相关功能前以适当方式提示。本指引最后更新于 2026 年 9 月 2 日。</text>
+          <text class="item-desc">业务或法律要求发生变化时，我们会在本页面更新指引并标注更新日期。重大变化会在使用相关功能前以适当方式提示。本指引最后更新于 2026 年 9 月 21 日。</text>
         </view>
       </view>
 
