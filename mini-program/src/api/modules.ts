@@ -1,4 +1,4 @@
-import api from './request'
+import api, { BASE_URL } from './request'
 import type {
   ArticleListParams,
   ArticleTranslationOptions,
@@ -153,6 +153,34 @@ export interface PackingItemRecord {
   updatedAt: string
 }
 
+export interface ReportFieldRecord {
+  id: string
+  pageNumber: number
+  fieldKey: string
+  label: string | null
+  candidateValue: string
+  normalizedValue: string | null
+  confidence: number | null
+  source: 'manual' | 'ocr' | 'jev'
+  confirmedAt: string | null
+}
+
+export interface ReportDocumentRecord {
+  id: string
+  reportDate: string
+  name: string
+  note: string | null
+  status: string
+  ocrStatus: string
+  originalFilename: string | null
+  mimeType: string | null
+  byteSize: number | null
+  pageCount: number
+  createdAt: string
+  updatedAt: string
+  fields: ReportFieldRecord[]
+}
+
 export const toolRecordApi = {
   getContractions: (limit = 30) => api.get<ContractionRecord[]>('/tool-records/contractions', { limit }),
   createContraction: (data: Omit<ContractionRecord, 'id' | 'createdAt' | 'updatedAt'> & { clientOperationId?: string }) =>
@@ -184,6 +212,17 @@ export const toolRecordApi = {
   getPackingItems: () => api.get<PackingItemRecord[]>('/tool-records/packing'),
   upsertPackingItem: (data: Omit<PackingItemRecord, 'id' | 'createdAt' | 'updatedAt'> & { clientOperationId?: string }) =>
     api.post<PackingItemRecord>('/tool-records/packing', data),
+  getReports: (limit = 30) => api.get<ReportDocumentRecord[]>('/tool-records/reports', { limit }),
+  createReport: (filePath: string | null, data: { reportDate: string; name: string; note?: string | null }) => (
+    filePath
+      ? api.upload<ReportDocumentRecord>('/tool-records/reports', filePath, 'file', data)
+      : api.post<ReportDocumentRecord>('/tool-records/reports', data)
+  ),
+  addReportField: (reportId: string, data: Omit<ReportFieldRecord, 'id' | 'confirmedAt'>) =>
+    api.post<ReportFieldRecord>(`/tool-records/reports/${reportId}/fields`, data),
+  confirmReportField: (reportId: string, fieldId: string, normalizedValue?: string | null) =>
+    api.post<ReportFieldRecord>(`/tool-records/reports/${reportId}/fields/${fieldId}/confirm`, { normalizedValue }),
+  getReportFileUrl: (reportId: string) => `${BASE_URL}/tool-records/reports/${reportId}/file`,
 }
 
 // ==================== 分类 API ====================

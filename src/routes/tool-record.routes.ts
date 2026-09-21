@@ -1,18 +1,45 @@
 import { Router } from 'express';
+import fs from 'fs';
+import { ZodError } from 'zod';
 import { authMiddleware } from '../middlewares/auth.middleware';
+import { AppError, ErrorCodes } from '../middlewares/error.middleware';
 import { queryRateLimiter, writeRateLimiter } from '../middlewares/rateLimiter.middleware';
 import { validate } from '../middlewares/validate.middleware';
 import {
   createBabyMeasurement, createCareLog, createContraction, createDiaryEntry, createExpenseEntry,
   createFoodTrial, createMovement, createVaccinationRecord, createWeight, getBabyMeasurements,
   getCareLogs, getContractions, getDiaryEntries, getExpenseEntries, getFoodTrials, getMovements,
-  getPackingItems, getVaccinationRecords, getWeights, upsertPackingItem,
+  getPackingItems, getReportDocuments, getVaccinationRecords, getWeights, upsertPackingItem,
+  addReportField, confirmReportField, createReportDocument, downloadReportDocument,
 } from '../controllers/tool-record.controller';
 import {
   babyMeasurementBody, careLogBody, contractionRecordBody, diaryEntryBody, expenseEntryBody,
   foodTrialBody, movementRecordBody, packingItemBody, pregnancyWeightRecordBody,
-  toolRecordsQuery, vaccinationRecordBody,
+  reportDocumentBody, reportFieldBody, confirmReportFieldBody, toolRecordsQuery, vaccinationRecordBody,
 } from '../schemas/tool-record.schema';
+import { privateUploadImage } from '../middlewares/upload.middleware';
+
+const uploadReportDocument = (req: Parameters<typeof privateUploadImage>[0], res: Parameters<typeof privateUploadImage>[1], next: Parameters<typeof privateUploadImage>[2]) => {
+  privateUploadImage(req, res, (error?: unknown) => {
+    if (error) {
+      next(error);
+      return;
+    }
+
+    try {
+      req.body = reportDocumentBody.parse(req.body);
+      next();
+    } catch (error) {
+      if (req.file?.path) void fs.promises.unlink(req.file.path).catch(() => undefined);
+      if (error instanceof ZodError) {
+        const messages = error.errors.map(item => `${item.path.join('.') || 'body'}: ${item.message}`);
+        next(new AppError(messages.join('; '), ErrorCodes.PARAM_ERROR, 400));
+        return;
+      }
+      next(error);
+    }
+  });
+};
 
 const router = Router();
 router.use(authMiddleware);
@@ -37,5 +64,10 @@ router.get('/foods', queryRateLimiter, validate({ query: toolRecordsQuery }), ge
 router.post('/foods', writeRateLimiter, validate({ body: foodTrialBody }), createFoodTrial);
 router.get('/packing', queryRateLimiter, getPackingItems);
 router.post('/packing', writeRateLimiter, validate({ body: packingItemBody }), upsertPackingItem);
+router.get('/reports', queryRateLimiter, validate({ query: toolRecordsQuery }), getReportDocuments);
+router.post('/reports', writeRateLimiter, uploadReportDocument, createReportDocument);
+router.get('/reports/:id/file', queryRateLimiter, downloadReportDocument);
+router.post('/reports/:id/fields', writeRateLimiter, validate({ body: reportFieldBody }), addReportField);
+router.post('/reports/:id/fields/:fieldId/confirm', writeRateLimiter, validate({ body: confirmReportFieldBody }), confirmReportField);
 
 export default router;
