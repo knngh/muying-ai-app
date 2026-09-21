@@ -7,16 +7,10 @@ import styles from './Home.module.css'
 
 const featureCards = [
   {
-    badge: '名',
-    title: '宝宝起名 · 预览',
-    description: '按姓氏和避讳字挑选名字，收藏喜欢的候选名。',
-    path: '/names',
-  },
-  {
-    badge: '计',
-    title: '记录工具',
-    description: '从孕育日历开始，逐步承载提醒、计时和打卡记录。',
-    path: '/calendar',
+    badge: 'AI',
+    title: 'AI智能问答',
+    description: '快速获得结构化建议、常见问题解法和下一步行动提示。',
+    path: '/chat',
   },
   {
     badge: 'CAL',
@@ -66,13 +60,13 @@ export function Home() {
       <section className={styles.hero}>
         <div className={styles.heroContent}>
           <span className={styles.heroEyebrow}>Mother & Baby Intelligence</span>
-          <h1 className={styles.heroTitle}>欢迎使用贝护妈妈</h1>
+          <h1 className={styles.heroTitle}>欢迎使用母婴AI助手</h1>
           <p className={styles.heroDescription}>
-            用工具、资料和记录串起孕期日常，把实时生成能力收在可验证的边界内。
+            用一个更清晰的入口，串起孕期提问、权威知识、日历记录和阶段化内容。
           </p>
           <div className={styles.heroActions}>
-            <button type="button" className={styles.primaryButton} onClick={() => navigate('/names')}>
-              试试宝宝起名
+            <button type="button" className={styles.primaryButton} onClick={() => navigate('/chat')}>
+              开始咨询
             </button>
             <button type="button" className={styles.secondaryButton} onClick={() => navigate('/knowledge')}>
               浏览知识库
@@ -82,7 +76,7 @@ export function Home() {
         <div className={styles.heroPanel}>
           <div className={styles.metricCard}>
             <span className={styles.metricLabel}>入口聚合</span>
-            <strong>工具 / 资料 / 日历</strong>
+            <strong>问答 / 知识 / 日历</strong>
             <p>减少页面跳转成本，把高频操作尽量收束到同一条使用路径。</p>
           </div>
           <div className={styles.metricGrid}>

@@ -5,7 +5,6 @@ import { ErrorBoundary } from './components/ErrorBoundary'
 import { storage } from './utils/storage'
 
 const Home = lazy(() => import('./pages/Home').then((module) => ({ default: module.Home })))
-const Names = lazy(() => import('./pages/Names').then((module) => ({ default: module.Names })))
 const Knowledge = lazy(() => import('./pages/Knowledge').then((module) => ({ default: module.Knowledge })))
 const KnowledgeDetail = lazy(() => import('./pages/KnowledgeDetail').then((module) => ({ default: module.KnowledgeDetail })))
 const Calendar = lazy(() => import('./pages/Calendar').then((module) => ({ default: module.Calendar })))
@@ -45,7 +44,6 @@ function App() {
           <Route element={<LayoutRoute />}>
             {/* 公开页面 */}
             <Route index element={<Home />} />
-            <Route path="names" element={<Names />} />
             <Route path="knowledge" element={<Knowledge />} />
             <Route path="knowledge/:id" element={<KnowledgeDetail />} />
             <Route path="chat" element={<Chat />} />
