@@ -44,6 +44,16 @@
         </view>
       </view>
     </view>
+
+    <button class="tool-entry" @tap="navigateTo('/pages/name-library/index')">
+      <view class="tool-entry-icon"><text>名</text></view>
+      <view class="tool-entry-copy">
+        <text class="tool-entry-kicker">起名灵感 · 预览</text>
+        <text class="tool-entry-title">宝宝起名</text>
+        <text class="tool-entry-desc">按姓氏和避讳字挑选，收藏喜欢的名字，复制给家人讨论。</text>
+      </view>
+      <text class="tool-entry-arrow">›</text>
+    </button>
   </view>
 </template>
 
@@ -70,6 +80,7 @@ const PUBLIC_PAGES = new Set([
   '/pages/home/index',
   '/pages/calendar/index',
   '/pages/knowledge/index',
+  '/pages/name-library/index',
 ])
 
 const sessionLoggedIn = ref(Boolean(uni.getStorageSync('token')))
@@ -456,5 +467,73 @@ onShareTimeline(() => {
 
 .home-card--primary .recent-inline-title {
   color: rgba(255, 255, 255, 0.92);
+}
+
+.tool-entry {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+  margin-top: 22rpx;
+  width: 100%;
+  text-align: left;
+  line-height: 1.5;
+  padding: 24rpx;
+  border: 1rpx solid rgba(214, 142, 115, 0.18);
+  border-radius: 28rpx;
+  background: #fffaf5;
+  box-shadow: 0 12rpx 36rpx rgba(145, 91, 62, 0.08);
+}
+
+.tool-entry::after { border: none; }
+
+.tool-entry-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 76rpx;
+  height: 76rpx;
+  border-radius: 24rpx;
+  background: #f3d8c4;
+  color: #a95d42;
+  font-size: 34rpx;
+  font-weight: 900;
+}
+
+.tool-entry-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.tool-entry-kicker,
+.tool-entry-title,
+.tool-entry-desc {
+  display: block;
+}
+
+.tool-entry-kicker {
+  color: #bd7a5e;
+  font-size: 21rpx;
+  font-weight: 700;
+}
+
+.tool-entry-title {
+  margin-top: 6rpx;
+  color: #46312a;
+  font-size: 32rpx;
+  font-weight: 900;
+}
+
+.tool-entry-desc {
+  margin-top: 8rpx;
+  color: #75645c;
+  font-size: 24rpx;
+  line-height: 1.55;
+}
+
+.tool-entry-arrow {
+  color: #bd7a5e;
+  font-size: 44rpx;
+  line-height: 1;
 }
 </style>

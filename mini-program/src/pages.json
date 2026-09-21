@@ -32,6 +32,12 @@
       }
     },
     {
+      "path": "pages/name-library/index",
+      "style": {
+        "navigationBarTitleText": "宝宝起名"
+      }
+    },
+    {
       "path": "pages/trust-center/index",
       "style": {
         "navigationBarTitleText": "内容可信说明"

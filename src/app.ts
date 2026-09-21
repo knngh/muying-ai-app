@@ -32,6 +32,7 @@ import reportRoutes from './routes/report.routes';
 import analyticsRoutes from './routes/analytics.routes';
 import checkinRoutes from './routes/checkin.routes';
 import growthRoutes from './routes/growth.routes';
+import nameLibraryRoutes from './routes/name-library.routes';
 
 // 中间件导入
 import { ErrorCodes, errorHandler, notFoundHandler } from './middlewares/error.middleware';
@@ -163,6 +164,7 @@ app.use(`${API_PREFIX}/report`, reportRoutes);
 app.use(`${API_PREFIX}/analytics`, analyticsRoutes);
 app.use(`${API_PREFIX}/checkin`, checkinRoutes);
 app.use(`${API_PREFIX}/growth`, growthRoutes);
+app.use(`${API_PREFIX}/names`, nameLibraryRoutes);
 
 // ============================================
 // 错误处理

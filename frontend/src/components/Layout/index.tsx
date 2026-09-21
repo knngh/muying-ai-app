@@ -1,6 +1,5 @@
 import { ReactNode } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { useAppStore } from '@/stores/appStore'
 import styles from './Layout.module.css'
 
 interface LayoutProps {
@@ -20,16 +19,10 @@ function getActiveMenuKey(pathname: string, items: Array<{ key: string }>) {
 export function Layout({ children }: LayoutProps) {
   const navigate = useNavigate()
   const location = useLocation()
-  const user = useAppStore((state) => state.user)
-
   const menuItems = [
     { key: '/', label: '首页', hint: 'Home' },
-    { key: '/chat', label: 'AI问答', hint: 'Chat' },
+    { key: '/names', label: '宝宝起名', hint: 'Names' },
     { key: '/knowledge', label: '知识库', hint: 'Knowledge' },
-    { key: '/community', label: '社区', hint: 'Community' },
-    ...(user?.username === 'admin'
-      ? [{ key: '/community/reports', label: '举报处理', hint: 'Reports' }]
-      : []),
     { key: '/calendar', label: '日历', hint: 'Calendar' },
     { key: '/profile', label: '我的', hint: 'Profile' },
   ]

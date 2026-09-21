@@ -38,6 +38,11 @@ export const ANALYTICS_CLIENT_EVENT_NAMES = [
   'app_knowledge_detail_open',
   'app_knowledge_detail_ask_ai_click',
   'app_knowledge_detail_share',
+  'app_name_library_open',
+  'app_name_library_filter',
+  'app_name_library_favorite',
+  'app_name_library_copy',
+  'app_name_library_share',
 ] as const;
 
 export const ANALYTICS_SERVER_EVENT_NAMES = [
@@ -62,6 +67,8 @@ export const ANALYTICS_CLIENT_SOURCES = ['app', 'mini_program'] as const;
 export const ANALYTICS_RETENTION_BEHAVIOR_EVENT_NAMES = [
   'app_growth_archive_share',
   'app_knowledge_detail_share',
+  'app_name_library_favorite',
+  'app_name_library_share',
   'server_article_favorite',
   'server_community_post_create',
   'server_community_comment_create',

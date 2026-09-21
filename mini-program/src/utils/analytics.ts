@@ -21,7 +21,12 @@ export function trackMiniEvent(
   eventName:
     | 'mini_program_app_download_click'
     | 'app_knowledge_detail_open'
-    | 'app_knowledge_detail_share',
+    | 'app_knowledge_detail_share'
+    | 'app_name_library_open'
+    | 'app_name_library_filter'
+    | 'app_name_library_favorite'
+    | 'app_name_library_copy'
+    | 'app_name_library_share',
   input: {
     page: string
     properties?: Record<string, unknown>

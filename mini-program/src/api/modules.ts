@@ -40,6 +40,13 @@ export type {
 }
 export { isTranslationPendingError } from '../../../shared/utils/translation-request'
 
+import type { NameLibraryQuery, NameLibraryResponse } from '../../../shared/types/name-library'
+export type { NameGender, NameLibraryItem } from '../../../shared/types/name-library'
+
+export const nameLibraryApi = {
+  getNames: (params?: NameLibraryQuery) => api.get<NameLibraryResponse>('/names', params as Record<string, unknown>, { timeout: 15000 }),
+}
+
 // ==================== 分类 API ====================
 export const categoryApi = {
   getAll: (params?: ParentCategoryParams) =>
