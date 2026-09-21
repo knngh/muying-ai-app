@@ -163,6 +163,7 @@ import { calculatePregnancyWeekFromDueDate } from '@/utils'
 import { toolRecordApi } from '@/api/modules'
 import { getToolDefinition, getToneClass, type ToolId, type ToolStatus } from '@/data/tool-catalog'
 import { deleteToolRecord, importToolRecord, listToolRecords, readToolRecords, saveToolRecord, updateToolRecord, type LocalToolRecord } from '@/utils/tool-records'
+import { trackMiniEvent } from '@/utils/analytics'
 
 const appStore = useAppStore()
 const toolId = ref<ToolId>('calendar')
@@ -228,6 +229,7 @@ function statusLabel(status: ToolStatus) { return ({ ready: '已上线', preview
 function showNotice(message: string) { notice.value = message; setTimeout(() => { if (notice.value === message) notice.value = '' }, 2400) }
 function save(recordType: string, payload: Record<string, string | number | boolean | null | undefined>, summary: string): LocalToolRecord {
   const record = saveToolRecord(toolId.value, recordType, { ...payload, summary })
+  trackMiniEvent('app_tool_record_save', { page: 'ToolDetail', properties: { toolId: toolId.value, recordType } })
   reload()
   showNotice('已保存到本机记录')
   return record
@@ -416,7 +418,7 @@ function onDateChange(event: { detail: { value: string } }) { recordDate.value =
 function shortDate(value: string) { return value.slice(5, 10) }
 function formatDateTime(value: string) { const date = new Date(value); return Number.isNaN(date.getTime()) ? '刚刚' : `${date.getMonth() + 1}月${date.getDate()}日 ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}` }
 function recordSummary(record: LocalToolRecord) { return typeof record.payload.summary === 'string' ? record.payload.summary : '已保存一条记录' }
-function removeRecord(id: string) { deleteToolRecord(id); reload(); showNotice('已删除本机记录') }
+function removeRecord(id: string) { deleteToolRecord(id); trackMiniEvent('app_tool_record_delete', { page: 'ToolDetail', properties: { toolId: toolId.value } }); reload(); showNotice('已删除本机记录') }
 
 function toggleContraction() {
   if (contractionStart.value) {

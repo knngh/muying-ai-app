@@ -26,7 +26,10 @@ export function trackMiniEvent(
     | 'app_name_library_filter'
     | 'app_name_library_favorite'
     | 'app_name_library_copy'
-    | 'app_name_library_share',
+    | 'app_name_library_share'
+    | 'app_tool_open'
+    | 'app_tool_record_save'
+    | 'app_tool_record_delete',
   input: {
     page: string
     properties?: Record<string, unknown>

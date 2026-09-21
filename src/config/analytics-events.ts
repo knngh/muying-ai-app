@@ -43,6 +43,9 @@ export const ANALYTICS_CLIENT_EVENT_NAMES = [
   'app_name_library_favorite',
   'app_name_library_copy',
   'app_name_library_share',
+  'app_tool_open',
+  'app_tool_record_save',
+  'app_tool_record_delete',
 ] as const;
 
 export const ANALYTICS_SERVER_EVENT_NAMES = [

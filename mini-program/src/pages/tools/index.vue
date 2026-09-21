@@ -119,6 +119,7 @@ import {
   type ToolStatus,
 } from '@/data/tool-catalog'
 import { readToolRecords, type LocalToolRecord } from '@/utils/tool-records'
+import { trackMiniEvent } from '@/utils/analytics'
 
 const appStore = useAppStore()
 const storedWeek = ref<number | null>(null)
@@ -176,6 +177,7 @@ const formatTime = (value: string) => {
 }
 
 const openTool = (id: ToolId) => {
+  trackMiniEvent('app_tool_open', { page: 'Tools', properties: { toolId: id, stage: stage.value } })
   if (id === 'calendar') {
     uni.switchTab({ url: '/pages/calendar/index' })
     return
