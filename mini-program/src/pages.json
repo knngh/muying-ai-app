@@ -14,6 +14,18 @@
       }
     },
     {
+      "path": "pages/tools/index",
+      "style": {
+        "navigationBarTitleText": "贝护工具箱"
+      }
+    },
+    {
+      "path": "pages/tool-detail/index",
+      "style": {
+        "navigationBarTitleText": "工具详情"
+      }
+    },
+    {
       "path": "pages/pregnancy-profile/index",
       "style": {
         "navigationBarTitleText": "孕期档案"
@@ -77,8 +89,8 @@
         "selectedIconPath": "static/tab-calendar-active.png"
       },
       {
-        "pagePath": "pages/knowledge/index",
-        "text": "知识库",
+        "pagePath": "pages/tools/index",
+        "text": "工具",
         "iconPath": "static/tab-book.png",
         "selectedIconPath": "static/tab-book-active.png"
       },

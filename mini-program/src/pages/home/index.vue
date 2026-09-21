@@ -45,15 +45,31 @@
       </view>
     </view>
 
-    <button class="tool-entry" @tap="navigateTo('/pages/name-library/index')">
-      <view class="tool-entry-icon"><text>名</text></view>
-      <view class="tool-entry-copy">
-        <text class="tool-entry-kicker">起名灵感 · 预览</text>
-        <text class="tool-entry-title">宝宝起名</text>
-        <text class="tool-entry-desc">按姓氏和避讳字挑选，收藏喜欢的名字，复制给家人讨论。</text>
+    <view class="stage-share-card">
+      <view class="stage-share-copy">
+        <text class="stage-share-kicker">{{ stageLabel }} · 今日入口</text>
+        <text class="stage-share-title">{{ stageCardTitle }}</text>
+        <text class="stage-share-desc">{{ stageCardDescription }}</text>
       </view>
-      <text class="tool-entry-arrow">›</text>
-    </button>
+      <view class="stage-share-badge"><text>{{ currentWeek ? `W${currentWeek}` : '记' }}</text></view>
+    </view>
+
+    <view class="home-tools-panel">
+      <view class="tools-panel-head">
+        <view>
+          <text class="tools-panel-title">今日快捷工具</text>
+          <text class="tools-panel-subtitle">按阶段整理，最多四项</text>
+        </view>
+        <text class="tools-panel-link" @tap="navigateTo('/pages/tools/index')">全部工具 ›</text>
+      </view>
+      <view class="home-quick-list">
+        <view v-for="tool in quickTools" :key="tool.id" class="home-quick-item" :class="`home-quick-item--${tool.tone}`" @tap="openTool(tool.id)">
+          <view class="home-quick-icon"><text>{{ tool.icon }}</text></view>
+          <text class="home-quick-title">{{ tool.title }}</text>
+          <text class="home-quick-action">{{ tool.primaryAction }}</text>
+        </view>
+      </view>
+    </view>
   </view>
 </template>
 
@@ -64,6 +80,7 @@ import { useAppStore } from '@/stores/app'
 import { calculatePregnancyWeekFromDueDate } from '@/utils'
 import { buildAcquisitionPath, buildAcquisitionQuery, recordAcquisitionContext } from '@/utils/acquisition'
 import { getKnowledgeDisplayTitle } from '@/utils/knowledge-format'
+import { getStageLabel, getToolDefinition, getToolStage, type ToolId, type ToolStage } from '@/data/tool-catalog'
 import type { RecentKnowledgeItem } from '@/utils/home-helpers'
 
 const appStore = useAppStore()
@@ -72,6 +89,7 @@ const RECENT_KNOWLEDGE_STORAGE_KEY = 'recentKnowledgeArticles'
 const TAB_PAGES = new Set([
   '/pages/home/index',
   '/pages/calendar/index',
+  '/pages/tools/index',
   '/pages/knowledge/index',
   '/pages/profile/index',
 ])
@@ -79,6 +97,7 @@ const TAB_PAGES = new Set([
 const PUBLIC_PAGES = new Set([
   '/pages/home/index',
   '/pages/calendar/index',
+  '/pages/tools/index',
   '/pages/knowledge/index',
   '/pages/name-library/index',
 ])
@@ -127,6 +146,22 @@ const heroSubtitle = computed(() => (
     ? '查看公开资料、孕周提醒与时光档案，记录您与宝宝的重要变化。'
     : '先浏览公开资料和孕周日历，登录后可保存个人记录与提醒。'
 ))
+
+const toolStage = computed<ToolStage>(() => getToolStage(currentWeek.value, appStore.user?.babyBirthday))
+const stageLabel = computed(() => getStageLabel(toolStage.value))
+const stageCardTitle = computed(() => currentWeek.value ? `第 ${currentWeek.value} 周，先把今天记下来` : '先选一个顺手的记录入口')
+const stageCardDescription = computed(() => currentWeek.value
+  ? '计时、记录和分享都从真实数据开始，随时可以回到工具箱继续。'
+  : '没有设置孕周也可以浏览工具；登录后保存自己的记录。')
+const quickToolIds: Record<ToolStage, ToolId[]> = {
+  preparing: ['calendar', 'diary', 'expenses', 'names'],
+  early: ['calendar', 'diary', 'reports', 'weight'],
+  middle: ['movement', 'weight', 'calendar', 'packing'],
+  late: ['contractions', 'movement', 'packing', 'calendar'],
+  newborn: ['care', 'diary', 'growth', 'vaccines'],
+  feeding: ['care', 'foods', 'growth', 'vaccines'],
+}
+const quickTools = computed(() => quickToolIds[toolStage.value].map(id => getToolDefinition(id)))
 
 const primaryEntries = computed(() => [
   {
@@ -180,6 +215,18 @@ const navigateTo = (url: string) => {
   if (!PUBLIC_PAGES.has(url) && !checkLogin()) return
   if (TAB_PAGES.has(url)) { uni.switchTab({ url }); return }
   uni.navigateTo({ url: buildAcquisitionPath(url) })
+}
+
+const openTool = (id: ToolId) => {
+  if (id === 'calendar') {
+    uni.switchTab({ url: '/pages/calendar/index' })
+    return
+  }
+  if (id === 'names') {
+    uni.navigateTo({ url: '/pages/name-library/index' })
+    return
+  }
+  uni.navigateTo({ url: `/pages/tool-detail/index?id=${id}` })
 }
 
 onLoad((options) => {
@@ -469,24 +516,23 @@ onShareTimeline(() => {
   color: rgba(255, 255, 255, 0.92);
 }
 
-.tool-entry {
+.stage-share-card {
   display: flex;
   align-items: center;
-  gap: 20rpx;
+  gap: 22rpx;
   margin-top: 22rpx;
-  width: 100%;
-  text-align: left;
-  line-height: 1.5;
-  padding: 24rpx;
-  border: 1rpx solid rgba(214, 142, 115, 0.18);
+  padding: 26rpx;
+  border: 1rpx solid rgba(22, 128, 106, .13);
   border-radius: 28rpx;
-  background: #fffaf5;
-  box-shadow: 0 12rpx 36rpx rgba(145, 91, 62, 0.08);
+  background: linear-gradient(135deg, #edf8f2, #f8f1e9);
 }
 
-.tool-entry::after { border: none; }
-
-.tool-entry-icon {
+.stage-share-copy { flex: 1; min-width: 0; }
+.stage-share-kicker, .stage-share-title, .stage-share-desc { display: block; }
+.stage-share-kicker { color: #16806a; font-size: 21rpx; font-weight: 800; }
+.stage-share-title { margin-top: 8rpx; color: #43564f; font-size: 32rpx; font-weight: 900; }
+.stage-share-desc { margin-top: 8rpx; color: #6e7d77; font-size: 23rpx; line-height: 1.55; }
+.stage-share-badge {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -494,46 +540,36 @@ onShareTimeline(() => {
   width: 76rpx;
   height: 76rpx;
   border-radius: 24rpx;
-  background: #f3d8c4;
-  color: #a95d42;
+  background: rgba(255, 255, 255, .7);
+  color: #16806a;
   font-size: 34rpx;
   font-weight: 900;
 }
 
-.tool-entry-copy {
-  flex: 1;
-  min-width: 0;
+.home-tools-panel {
+  margin-top: 22rpx;
+  padding: 24rpx;
+  border-radius: 28rpx;
+  background: #fffcf8;
+  box-shadow: 0 12rpx 36rpx rgba(77, 63, 56, .05);
 }
 
-.tool-entry-kicker,
-.tool-entry-title,
-.tool-entry-desc {
-  display: block;
-}
+.tools-panel-head { display: flex; align-items: end; justify-content: space-between; gap: 16rpx; }
+.tools-panel-title, .tools-panel-subtitle { display: block; }
+.tools-panel-title { color: #4a4240; font-size: 31rpx; font-weight: 900; }
+.tools-panel-subtitle { margin-top: 5rpx; color: #978c87; font-size: 21rpx; }
+.tools-panel-link { color: #16806a; font-size: 22rpx; font-weight: 800; }
+.home-quick-list { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12rpx; margin-top: 20rpx; }
+.home-quick-item { min-width: 0; padding: 16rpx 8rpx; border-radius: 18rpx; text-align: center; }
+.home-quick-item--rose { background: #fff0f1; color: #b65e68; }
+.home-quick-item--orange { background: #fff1e7; color: #c36c43; }
+.home-quick-item--green { background: #edf8f2; color: #16806a; }
+.home-quick-item--lilac { background: #f5eef7; color: #8c6896; }
+.home-quick-icon { display: flex; align-items: center; justify-content: center; width: 48rpx; height: 48rpx; margin: 0 auto; border-radius: 16rpx; background: rgba(255,255,255,.72); font-size: 23rpx; font-weight: 900; }
+.home-quick-title { display: block; margin-top: 10rpx; overflow: hidden; color: #544a46; font-size: 21rpx; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+.home-quick-action { display: block; margin-top: 5rpx; color: currentColor; font-size: 18rpx; opacity: .75; }
 
-.tool-entry-kicker {
-  color: #bd7a5e;
-  font-size: 21rpx;
-  font-weight: 700;
-}
-
-.tool-entry-title {
-  margin-top: 6rpx;
-  color: #46312a;
-  font-size: 32rpx;
-  font-weight: 900;
-}
-
-.tool-entry-desc {
-  margin-top: 8rpx;
-  color: #75645c;
-  font-size: 24rpx;
-  line-height: 1.55;
-}
-
-.tool-entry-arrow {
-  color: #bd7a5e;
-  font-size: 44rpx;
-  line-height: 1;
+@media (max-width: 350px) {
+  .home-quick-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 </style>
