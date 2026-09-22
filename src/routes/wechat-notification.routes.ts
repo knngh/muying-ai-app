@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authMiddleware } from '../middlewares/auth.middleware';
-import { queryRateLimiter, writeRateLimiter } from '../middlewares/rateLimiter.middleware';
+import { writeRateLimiter } from '../middlewares/rateLimiter.middleware';
 import { validate } from '../middlewares/validate.middleware';
 import { successResponse } from '../middlewares/error.middleware';
 import { createWechatReminderBody, wechatReminderClientIdParam } from '../schemas/wechat-reminder.schema';
@@ -17,7 +17,7 @@ router.post('/reminders', writeRateLimiter, validate({ body: createWechatReminde
   }
 });
 
-router.delete('/reminders/:clientReminderId', queryRateLimiter, validate({ params: wechatReminderClientIdParam }), async (req, res, next) => {
+router.delete('/reminders/:clientReminderId', writeRateLimiter, validate({ params: wechatReminderClientIdParam }), async (req, res, next) => {
   try {
     res.json(successResponse(await cancelWechatReminder(req.userId!, req.params.clientReminderId), '微信提醒已取消'));
   } catch (error) {

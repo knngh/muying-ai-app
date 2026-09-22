@@ -2,6 +2,7 @@ import prisma from '../config/database';
 import { env } from '../config/env';
 import { AppError, ErrorCodes } from '../middlewares/error.middleware';
 import type { CreateWechatReminderInput } from '../schemas/wechat-reminder.schema';
+import { Prisma } from '@prisma/client';
 
 export type WechatReminderStatus = 'pending' | 'sending' | 'sent' | 'failed' | 'cancelled';
 
@@ -38,10 +39,12 @@ export function getWechatSubscribeConfig(): WechatSubscribeConfig {
   const titleField = env.WECHAT_SUBSCRIBE_TITLE_FIELD;
   const timeField = env.WECHAT_SUBSCRIBE_TIME_FIELD;
   const leadField = env.WECHAT_SUBSCRIBE_LEAD_FIELD;
+  const fieldNamesValid = [titleField, timeField, leadField].every(value => /^[A-Za-z][A-Za-z0-9_]{0,31}$/.test(value));
+  const fieldNamesUnique = new Set([titleField, timeField, leadField]).size === 3;
 
   return {
     enabled: env.WECHAT_SUBSCRIBE_ENABLED,
-    configured: Boolean(appId && appSecret && templateId && titleField && timeField && leadField),
+    configured: Boolean(appId && appSecret && templateId && fieldNamesValid && fieldNamesUnique),
     appId,
     appSecret,
     templateId,
@@ -187,6 +190,7 @@ export async function enqueueWechatReminder(userId: string, input: CreateWechatR
   } catch (error) {
     // A concurrent first request may win the unique key. Return its row so the
     // client does not enqueue a second message or surface a spurious failure.
+    if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') throw error;
     const raced = await prisma.wechatReminderDelivery.findUnique({
       where: { userId_clientReminderId: { userId: numericUserId, clientReminderId: input.clientReminderId } },
     });

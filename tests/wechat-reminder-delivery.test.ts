@@ -60,7 +60,8 @@ afterAll(() => {
 it('领取到期任务后发送并标记 sent，且不在日志或记录中写 openid', async () => {
   mockDeliveryUpdateMany
     .mockResolvedValueOnce({ count: 0 }) // stale recovery
-    .mockResolvedValueOnce({ count: 1 }); // lease
+    .mockResolvedValueOnce({ count: 1 }) // lease
+    .mockResolvedValueOnce({ count: 1 }); // sent transition
   mockDeliveryFindMany.mockResolvedValue([record]);
   mockAxiosGet.mockResolvedValue({ data: { access_token: 'access-token', expires_in: 7200 } });
   mockAxiosPost.mockResolvedValue({ data: { errcode: 0 } });
@@ -72,12 +73,13 @@ it('领取到期任务后发送并标记 sent，且不在日志或记录中写 o
     expect.objectContaining({ touser: 'openid-test', template_id: 'template-test' }),
     expect.any(Object),
   );
-  expect(mockDeliveryUpdate).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: 'sent' }) }));
+  expect(mockDeliveryUpdateMany).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: 'sent' }) }));
 });
 
 it('临时接口失败时重新排队，并在达到最大次数后标记 failed', async () => {
   mockDeliveryUpdateMany
     .mockResolvedValueOnce({ count: 0 })
+    .mockResolvedValueOnce({ count: 1 })
     .mockResolvedValueOnce({ count: 1 });
   mockDeliveryFindMany.mockResolvedValue([{ ...record, attempts: 2 }]);
   mockAxiosGet.mockResolvedValue({ data: { access_token: 'access-token', expires_in: 7200 } });
@@ -85,12 +87,13 @@ it('临时接口失败时重新排队，并在达到最大次数后标记 failed
 
   const result = await processDueWechatReminders(new Date('2030-01-01T09:01:00.000Z'));
   expect(result).toMatchObject({ scanned: 1, sent: 0, retried: 0, failed: 1 });
-  expect(mockDeliveryUpdate).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: 'failed', lastError: '微信接口请求失败' }) }));
+  expect(mockDeliveryUpdateMany).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: 'failed', lastError: '微信接口请求失败' }) }));
 });
 
 it('微信明确拒绝订阅时不重试', async () => {
   mockDeliveryUpdateMany
     .mockResolvedValueOnce({ count: 0 })
+    .mockResolvedValueOnce({ count: 1 })
     .mockResolvedValueOnce({ count: 1 });
   mockDeliveryFindMany.mockResolvedValue([record]);
   mockAxiosGet.mockResolvedValue({ data: { access_token: 'access-token', expires_in: 7200 } });
@@ -98,7 +101,7 @@ it('微信明确拒绝订阅时不重试', async () => {
 
   const result = await processDueWechatReminders(new Date('2030-01-01T09:01:00.000Z'));
   expect(result).toMatchObject({ retried: 0, failed: 1 });
-  expect(mockDeliveryUpdate).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: 'failed', lastError: '微信接口错误 43101' }) }));
+  expect(mockDeliveryUpdateMany).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: 'failed', lastError: '微信接口错误 43101' }) }));
 });
 
 it('配置未打开时 worker 不触碰数据库', async () => {

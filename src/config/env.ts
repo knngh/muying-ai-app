@@ -136,10 +136,12 @@ export const env = {
     return process.env.WECHAT_SUBSCRIBE_PAGE || 'pages/calendar/index';
   },
   get WECHAT_REMINDER_INTERVAL_SECONDS(): number {
-    return Math.max(10, Number(process.env.WECHAT_REMINDER_INTERVAL_SECONDS || 60));
+    const value = Number(process.env.WECHAT_REMINDER_INTERVAL_SECONDS || 60);
+    return Number.isFinite(value) ? Math.max(10, value) : 60;
   },
   get WECHAT_REMINDER_MAX_ATTEMPTS(): number {
-    return Math.max(1, Math.min(10, Number(process.env.WECHAT_REMINDER_MAX_ATTEMPTS || 3)));
+    const value = Number(process.env.WECHAT_REMINDER_MAX_ATTEMPTS || 3);
+    return Number.isFinite(value) ? Math.max(1, Math.min(10, value)) : 3;
   },
   get WECHAT_APPID(): string {
     return process.env.WECHAT_APPID || '';

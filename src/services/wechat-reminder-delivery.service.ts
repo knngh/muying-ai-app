@@ -56,7 +56,11 @@ function truncate(value: string, maxLength: number): string {
 
 function formatEventTime(value: Date): string {
   const pad = (part: number) => String(part).padStart(2, '0');
-  return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())} ${pad(value.getHours())}:${pad(value.getMinutes())}`;
+  // Reminder times are created from the user's China-local picker. Format the
+  // absolute instant explicitly as China time instead of relying on the
+  // worker host's timezone (containers commonly run in UTC).
+  const local = new Date(value.getTime() + 8 * 60 * 60 * 1000);
+  return `${local.getUTCFullYear()}-${pad(local.getUTCMonth() + 1)}-${pad(local.getUTCDate())} ${pad(local.getUTCHours())}:${pad(local.getUTCMinutes())}`;
 }
 
 function formatLeadMinutes(minutes: number): string {
@@ -185,16 +189,16 @@ export async function processDueWechatReminders(now = new Date(), limit = 50): P
     const attempts = record.attempts + 1;
     try {
       await sendWechatReminder(record);
-      await prisma.wechatReminderDelivery.update({
-        where: { id: record.id },
+      const sentUpdate = await prisma.wechatReminderDelivery.updateMany({
+        where: { id: record.id, status: 'sending' },
         data: { status: 'sent', sentAt: new Date(), lastError: null },
       });
-      sent += 1;
+      if (sentUpdate.count === 1) sent += 1;
     } catch (error) {
       const retryable = error instanceof WechatDeliveryError ? error.retryable : true;
       const shouldRetry = retryable && attempts < env.WECHAT_REMINDER_MAX_ATTEMPTS;
-      await prisma.wechatReminderDelivery.update({
-        where: { id: record.id },
+      await prisma.wechatReminderDelivery.updateMany({
+        where: { id: record.id, status: 'sending' },
         data: {
           status: shouldRetry ? 'pending' : 'failed',
           lastError: deliveryErrorMessage(error),
