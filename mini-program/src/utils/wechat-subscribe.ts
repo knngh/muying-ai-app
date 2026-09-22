@@ -9,7 +9,6 @@ interface SubscribeApi {
     tmplIds: string[]
     success?: (result: Record<string, unknown>) => void
     fail?: () => void
-    complete?: () => void
   }) => void
 }
 
@@ -40,7 +39,6 @@ export function requestWechatReminderSubscription(templateId: string): Promise<W
           else finish('reject')
         },
         fail: () => finish('unsupported'),
-        complete: () => { if (!settled) finish('unsupported') },
       })
     } catch {
       finish('unsupported')

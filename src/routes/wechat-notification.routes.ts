@@ -19,7 +19,8 @@ router.post('/reminders', writeRateLimiter, validate({ body: createWechatReminde
 
 router.delete('/reminders/:clientReminderId', writeRateLimiter, validate({ params: wechatReminderClientIdParam }), async (req, res, next) => {
   try {
-    res.json(successResponse(await cancelWechatReminder(req.userId!, req.params.clientReminderId), '微信提醒已取消'));
+    const result = await cancelWechatReminder(req.userId!, req.params.clientReminderId);
+    res.json(successResponse(result, result.status === 'sent' ? '该微信提醒已发送，保留发送记录' : '微信提醒已取消'));
   } catch (error) {
     next(error);
   }

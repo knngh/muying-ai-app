@@ -22,6 +22,8 @@
 
 发送 worker 为独立进程 `npm run worker:wechat-reminders`，只有 `WECHAT_SUBSCRIBE_ENABLED=true`、微信应用凭证、模板 ID 和三个模板字段都齐全时才启动。worker 领取任务时使用条件更新避免重复发送；成功标记 `sent`，临时失败按 `WECHAT_REMINDER_MAX_ATTEMPTS` 重试，明确的模板/拒绝错误直接标记 `failed`，超时的 `sending` 会回收。`src/scripts/run-wechat-reminder-worker.ts` 不会由 Web API 进程自动启动。
 
+上线前还需要由运维按当前数据库流程应用 `WechatReminderDelivery` 对应的 schema 变更；本次开发没有执行 `db push`、生产迁移或启动 worker。
+
 ## 存储与隐私
 
 本机储存键：`beihu:reminders:v1:<owner>`。本机工具记录使用 `beihu:tool-records:v2:<owner>`，旧全局记录只留在游客空间，不自动迁移到登录账号。微信队列只保存当前账号的提醒标题、时间、提前量和状态；openid 只用于发送，不写入日志或返回小程序。提醒标题、日期和提前量只有用户主动授权微信订阅或加入手机日历时才离开设备，不读取其他日程。隐私指引已同步补充用途与取消边界。
