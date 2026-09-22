@@ -1,5 +1,5 @@
 import { env } from '../config/env';
-import { getWechatSubscribeConfig, } from '../services/wechat-reminder.service';
+import { getWechatSubscribeConfig } from '../services/wechat-reminder.service';
 import { processDueWechatReminders } from '../services/wechat-reminder-delivery.service';
 
 export function startWechatReminderWorker(): NodeJS.Timeout | null {
