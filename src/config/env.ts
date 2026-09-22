@@ -117,6 +117,36 @@ export const env = {
   get ALIPAY_PAYMENT_CALLBACK_SECRET(): string {
     return process.env.ALIPAY_PAYMENT_CALLBACK_SECRET || '';
   },
+  get WECHAT_SUBSCRIBE_ENABLED(): boolean {
+    return process.env.WECHAT_SUBSCRIBE_ENABLED === 'true';
+  },
+  get WECHAT_SUBSCRIBE_TEMPLATE_ID(): string {
+    return process.env.WECHAT_SUBSCRIBE_TEMPLATE_ID || '';
+  },
+  get WECHAT_SUBSCRIBE_TITLE_FIELD(): string {
+    return process.env.WECHAT_SUBSCRIBE_TITLE_FIELD || '';
+  },
+  get WECHAT_SUBSCRIBE_TIME_FIELD(): string {
+    return process.env.WECHAT_SUBSCRIBE_TIME_FIELD || '';
+  },
+  get WECHAT_SUBSCRIBE_LEAD_FIELD(): string {
+    return process.env.WECHAT_SUBSCRIBE_LEAD_FIELD || '';
+  },
+  get WECHAT_SUBSCRIBE_PAGE(): string {
+    return process.env.WECHAT_SUBSCRIBE_PAGE || 'pages/calendar/index';
+  },
+  get WECHAT_REMINDER_INTERVAL_SECONDS(): number {
+    return Math.max(10, Number(process.env.WECHAT_REMINDER_INTERVAL_SECONDS || 60));
+  },
+  get WECHAT_REMINDER_MAX_ATTEMPTS(): number {
+    return Math.max(1, Math.min(10, Number(process.env.WECHAT_REMINDER_MAX_ATTEMPTS || 3)));
+  },
+  get WECHAT_APPID(): string {
+    return process.env.WECHAT_APPID || '';
+  },
+  get WECHAT_APPSECRET(): string {
+    return process.env.WECHAT_APPSECRET || process.env.WECHAT_APP_SECRET || '';
+  },
   get PAYMENT_CALLBACK_ALLOW_AUTH_FALLBACK(): boolean {
     return this.isDev && process.env.PAYMENT_CALLBACK_ALLOW_AUTH_FALLBACK === 'true';
   },
