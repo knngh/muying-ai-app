@@ -160,7 +160,7 @@ export async function enqueueWechatReminder(userId: string, input: CreateWechatR
     scheduledAt,
     leadMinutes: input.leadMinutes,
   };
-  let existing = await prisma.wechatReminderDelivery.findUnique({
+  const existing = await prisma.wechatReminderDelivery.findUnique({
     where: { userId_clientReminderId: { userId: numericUserId, clientReminderId: input.clientReminderId } },
   });
 
