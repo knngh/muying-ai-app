@@ -27,3 +27,5 @@ export interface NameLibraryResponse {
   list: NameLibraryItem[]
   pagination: { page: number; pageSize: number; total: number; totalPages: number }
 }
+
+export * from '../../src/data/name-evaluation'

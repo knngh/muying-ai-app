@@ -6,6 +6,7 @@ import {
   foodTrialBody,
   packingItemBody,
   pregnancyWeightRecordBody,
+  toolAIReviewBody,
 } from '../src/schemas/tool-record.schema';
 
 describe('tool record contracts', () => {
@@ -35,5 +36,11 @@ describe('tool record contracts', () => {
     expect(babyMeasurementBody.safeParse({ measuredAt: '2026-09-21', metric: 'height', value: 62, unit: 'cm' }).success).toBe(true);
     expect(foodTrialBody.safeParse({ foodName: '高铁米粉', triedAt: '2026-09-21' }).success).toBe(true);
     expect(packingItemBody.safeParse({ name: '纸尿裤', category: '宝宝', isDone: false }).success).toBe(true);
+  });
+
+  it('requires explicit consent and bounded records for AI review', () => {
+    const base = { toolId: 'weight', records: [{ date: '2026-09-21', content: '体重 62.4 kg' }] };
+    expect(toolAIReviewBody.safeParse({ ...base, consent: true }).success).toBe(true);
+    expect(toolAIReviewBody.safeParse({ ...base, consent: false }).success).toBe(false);
   });
 });

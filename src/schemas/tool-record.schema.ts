@@ -13,6 +13,8 @@ export const toolRecordsQuery = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(30),
 });
 
+export { toolAIReviewBody } from './tool-ai-review.schema';
+
 export const contractionRecordBody = z.object({
   startedAt: dateTime,
   endedAt: dateTime,
