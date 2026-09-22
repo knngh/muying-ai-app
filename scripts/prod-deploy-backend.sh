@@ -88,7 +88,7 @@ REMOTE_COMMANDS=(
   "cd ${APP_DIR}"
   "pwd"
   "if [ -f .env ]; then set -a; source ./.env; set +a; fi"
-  "if sudo -n pm2 describe ${PM2_APP_NAME} >/dev/null 2>&1; then PM2_CMD='sudo -n pm2'; NPM_CMD='sudo -n npm'; else PM2_CMD='pm2'; NPM_CMD='npm'; fi"
+  "if sudo -n pm2 describe ${PM2_APP_NAME} >/dev/null 2>&1; then PM2_CMD='sudo -n --preserve-env=NAME_EVALUATION_AI_ENABLED,TOOL_AI_REVIEW_ENABLED pm2'; NPM_CMD='sudo -n npm'; else PM2_CMD='pm2'; NPM_CMD='npm'; fi"
 )
 
 if [[ "${WITH_INSTALL}" == "true" ]]; then
