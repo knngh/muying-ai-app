@@ -84,11 +84,14 @@ function edit(seed: ReminderSeed) {
 }
 async function syncWechatReminder(item: LocalReminder): Promise<'queued' | 'local' | 'failed'> {
   if (!WECHAT_SUBSCRIBE_ENABLED || !WECHAT_SUBSCRIBE_TEMPLATE_ID || owner.value === 'guest') return 'local'
+  const scope = owner.value
+  if (scope !== reportOwner()) return 'local'
   const eventAtMs = eventTime(item.date, item.time)
   const scheduledAtMs = reminderTime(item)
   if (!Number.isFinite(eventAtMs) || !Number.isFinite(scheduledAtMs)) return 'local'
   const result = await requestWechatReminderSubscription(WECHAT_SUBSCRIBE_TEMPLATE_ID)
   if (result !== 'accept') return 'local'
+  if (scope !== owner.value || scope !== reportOwner()) return 'local'
   try {
     await wechatNotificationApi.enqueueReminder({
       clientReminderId: item.id,
