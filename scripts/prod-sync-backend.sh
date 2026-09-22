@@ -105,8 +105,13 @@ echo "[3/3] extract archive into ${APP_DIR}"
 REMOTE_SCRIPT=$(cat <<EOF
 set -euo pipefail
 mkdir -p "${APP_DIR}" "${REMOTE_TMP_DIR}"
-tar --no-same-owner --no-same-permissions -xzf "${REMOTE_ARCHIVE}" -C "${APP_DIR}"
-rm -f "${REMOTE_ARCHIVE}"
+if sudo -n -v >/dev/null 2>&1; then
+  sudo -n tar --no-same-owner --no-same-permissions -xzf "${REMOTE_ARCHIVE}" -C "${APP_DIR}"
+  sudo -n rm -f "${REMOTE_ARCHIVE}"
+else
+  tar --no-same-owner --no-same-permissions -xzf "${REMOTE_ARCHIVE}" -C "${APP_DIR}"
+  rm -f "${REMOTE_ARCHIVE}"
+fi
 cd "${APP_DIR}"
 pwd
 EOF

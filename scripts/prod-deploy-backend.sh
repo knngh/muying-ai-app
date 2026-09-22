@@ -88,19 +88,19 @@ REMOTE_COMMANDS=(
   "cd ${APP_DIR}"
   "pwd"
   "if [ -f .env ]; then set -a; source ./.env; set +a; fi"
-  "if sudo -n pm2 describe ${PM2_APP_NAME} >/dev/null 2>&1; then PM2_CMD='sudo -n pm2'; else PM2_CMD='pm2'; fi"
+  "if sudo -n pm2 describe ${PM2_APP_NAME} >/dev/null 2>&1; then PM2_CMD='sudo -n pm2'; NPM_CMD='sudo -n npm'; else PM2_CMD='pm2'; NPM_CMD='npm'; fi"
 )
 
 if [[ "${WITH_INSTALL}" == "true" ]]; then
-  REMOTE_COMMANDS+=("npm install --include=dev")
+  REMOTE_COMMANDS+=("\${NPM_CMD} install --include=dev")
 fi
 
 if [[ "${WITH_DB_PUSH}" == "true" ]]; then
-  REMOTE_COMMANDS+=("npm run db:push")
+  REMOTE_COMMANDS+=("\${NPM_CMD} run db:push")
 fi
 
 REMOTE_COMMANDS+=(
-  "npm run build"
+  "\${NPM_CMD} run build"
   "if \${PM2_CMD} describe ${PM2_APP_NAME} >/dev/null 2>&1; then \${PM2_CMD} restart ${PM2_APP_NAME} --update-env; else \${PM2_CMD} start dist/app.js --name ${PM2_APP_NAME} --time; fi"
   "echo '[health] waiting for ${PM2_APP_NAME} at ${LOCAL_HEALTH_URL} (timeout ${HEALTH_TIMEOUT_SECONDS}s)'"
   "for i in \$(seq 1 ${HEALTH_TIMEOUT_SECONDS}); do if curl -fsS --max-time 2 ${LOCAL_HEALTH_URL} >/dev/null 2>&1; then echo \"[health] ${PM2_APP_NAME} healthy after \${i}s\"; break; fi; if [ \$i -eq ${HEALTH_TIMEOUT_SECONDS} ]; then echo '[health] ${PM2_APP_NAME} did not become healthy within ${HEALTH_TIMEOUT_SECONDS}s' >&2; \${PM2_CMD} logs ${PM2_APP_NAME} --lines 40 --nostream || true; exit 1; fi; sleep 1; done"
