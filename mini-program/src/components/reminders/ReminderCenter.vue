@@ -1,7 +1,7 @@
 <template>
   <view class="tool-panel reminder-panel">
     <view class="panel-head"><view><text class="panel-title">{{ kind === 'vaccines' ? '接种提醒' : '我的提醒' }}</text><text class="panel-hint">{{ activeCount }} 项待处理 · {{ owner === 'guest' ? '游客本机' : '当前账号本机' }}</text></view><button class="panel-button panel-button--secondary" @tap="edit({ kind: kind || 'calendar', title: '' })">＋ 新建</button></view>
-    <text class="panel-hint">在这里查看安排；加入手机日历后，由手机系统到点提醒。微信消息提醒尚未开启。</text>
+    <text class="panel-hint">在这里查看安排；加入手机日历后，由手机系统到点提醒。{{ wechatHint }}</text>
     <view v-if="reminderPrompt" class="reminder-prompt">
       <view class="reminder-prompt-copy">
         <text class="reminder-prompt-title">{{ reminderPrompt.kind === 'due' ? '有提醒到时间了' : '24 小时内有安排' }}</text>
@@ -42,7 +42,10 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { reportOwner } from '@/utils/report-drafts'
 import { localToolDate } from '@/utils/tool-history'
-import { buildReminderPrompt, defaultReminderDate, deleteReminder, markPhoneCalendarAdded, markReminderPromptRead, phoneCalendarPayload, readReminderPromptSignature, readReminders, REMINDER_LEADS, REMINDER_LEAD_LABELS, REMINDERS_CHANGED, reminderSignature, reminderTime, saveReminder, setReminderState, type LocalReminder, type ReminderPrompt, type ReminderSeed } from '@/utils/reminders'
+import { WECHAT_SUBSCRIBE_ENABLED, WECHAT_SUBSCRIBE_TEMPLATE_ID } from '@/config/features'
+import { wechatNotificationApi } from '@/api/modules'
+import { buildReminderPrompt, defaultReminderDate, deleteReminder, eventTime, markPhoneCalendarAdded, markReminderPromptRead, phoneCalendarPayload, readReminderPromptSignature, readReminders, REMINDER_LEADS, REMINDER_LEAD_LABELS, REMINDERS_CHANGED, reminderSignature, reminderTime, saveReminder, setReminderState, type LocalReminder, type ReminderPrompt, type ReminderSeed } from '@/utils/reminders'
+import { cancelWechatReminderRemote, requestWechatReminderSubscription } from '@/utils/wechat-subscribe'
 const props = defineProps<{ kind?: 'vaccines' }>()
 const owner = ref(reportOwner()), all = ref<LocalReminder[]>([]), showClosed = ref(false), busy = ref(false), message = ref('')
 const promptRead = ref(readReminderPromptSignature(owner.value))
@@ -50,6 +53,11 @@ const editor = ref<ReminderSeed | null>(null), title = ref(''), date = ref(''), 
 const items = computed(() => all.value.filter(item => !props.kind || item.kind === props.kind))
 const activeCount = computed(() => items.value.filter(item => item.state === 'active').length)
 const visible = computed(() => items.value.filter(item => showClosed.value ? item.state !== 'active' : item.state === 'active'))
+const wechatHint = computed(() => {
+  if (!WECHAT_SUBSCRIBE_ENABLED || !WECHAT_SUBSCRIBE_TEMPLATE_ID) return '微信消息提醒暂未开启。'
+  if (owner.value === 'guest') return '登录微信账号后，保存提醒时可授权微信消息提醒。'
+  return '保存提醒时可授权微信消息提醒；是否发送以服务端队列状态为准。'
+})
 const reminderPrompt = computed<ReminderPrompt | null>(() => {
   const prompt = buildReminderPrompt(all.value)
   if (!prompt || prompt.signature === promptRead.value) return null
@@ -74,13 +82,47 @@ function edit(seed: ReminderSeed) {
   editor.value = existing || seed; title.value = existing?.title || seed.title.slice(0, 100); date.value = existing?.date || seed.date?.slice(0, 10) || defaultReminderDate()
   time.value = existing?.time || '09:00'; leadIndex.value = existing ? REMINDER_LEADS.findIndex(value => value === existing.leadMinutes) : 0; message.value = ''; showClosed.value = false
 }
-function save() {
+async function syncWechatReminder(item: LocalReminder): Promise<'queued' | 'local' | 'failed'> {
+  if (!WECHAT_SUBSCRIBE_ENABLED || !WECHAT_SUBSCRIBE_TEMPLATE_ID || owner.value === 'guest') return 'local'
+  const eventAtMs = eventTime(item.date, item.time)
+  const scheduledAtMs = reminderTime(item)
+  if (!Number.isFinite(eventAtMs) || !Number.isFinite(scheduledAtMs)) return 'local'
+  const result = await requestWechatReminderSubscription(WECHAT_SUBSCRIBE_TEMPLATE_ID)
+  if (result !== 'accept') return 'local'
+  try {
+    await wechatNotificationApi.enqueueReminder({
+      clientReminderId: item.id,
+      ...(item.sourceKey ? { sourceKey: item.sourceKey } : {}),
+      templateId: WECHAT_SUBSCRIBE_TEMPLATE_ID,
+      title: item.title,
+      eventAt: new Date(eventAtMs).toISOString(),
+      scheduledAt: new Date(scheduledAtMs).toISOString(),
+      leadMinutes: item.leadMinutes,
+      subscriptionResult: 'accept',
+    })
+    return 'queued'
+  } catch {
+    return 'failed'
+  }
+}
+async function save() {
   if (!editor.value) return
   if (owner.value !== reportOwner()) { refresh(); return }
+  if (busy.value) return
+  busy.value = true
   try {
+    const currentId = editor.value.id
+    if (currentId) await cancelWechatReminderRemote(currentId, owner.value)
     const saved = saveReminder(owner.value, { sourceKey: editor.value.sourceKey || '', kind: editor.value.kind, title: title.value, date: date.value, time: time.value, leadMinutes: REMINDER_LEADS[leadIndex.value] }, editor.value.id)
-    editor.value = null; message.value = saved.phoneSignature ? '小程序内已更新；请到手机日历修改原来的安排。' : '已保存提醒；如需离开小程序后收到通知，请再加入手机日历。'; refresh()
+    editor.value = null
+    const remote = await syncWechatReminder(saved)
+    if (remote === 'queued') message.value = saved.phoneSignature ? '已更新本机提醒并提交微信提醒队列；手机日历中的旧安排请同步修改。' : '已保存，并提交微信提醒队列；到点发送状态以服务端为准。'
+    else if (remote === 'failed') message.value = '本机提醒已保存，但微信提醒未排队；可在网络恢复后重新保存。'
+    else if (saved.phoneSignature) message.value = '小程序内已更新；请到手机日历修改原来的安排。'
+    else message.value = '已保存提醒；如需离开小程序后收到通知，请再加入手机日历。'
+    refresh()
   } catch (error) { message.value = error instanceof Error ? error.message : '保存失败，请重试' }
+  finally { busy.value = false }
 }
 function formatTime(value: number) { if (!Number.isFinite(value)) return '请选择有效时间'; const date = new Date(value); return `${localToolDate(date)} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}` }
 function stateLabel(item: LocalReminder) { return item.state === 'completed' ? '事项已完成' : item.state === 'cancelled' ? '已停止' : reminderTime(item) <= now.value ? '已到提醒时间' : '待提醒' }
@@ -88,14 +130,14 @@ function close(item: LocalReminder, state: 'completed' | 'cancelled' = 'cancelle
   const scope = owner.value
   uni.showModal({ title: state === 'completed' ? '标记事项已完成？' : '停止这条提醒？', content: item.phoneSignature ? '小程序内会停止提醒。手机日历中已有的事项，请同时手动删除或关闭通知。' : '结束后会保留在“已结束”，需要时可重新安排。', success: res => {
     if (!res.confirm || scope !== reportOwner()) return
-    try { setReminderState(scope, item.id, state) } catch { message.value = '操作失败，请重试' }
+    try { setReminderState(scope, item.id, state); void cancelWechatReminderRemote(item.id, scope) } catch { message.value = '操作失败，请重试' }
   } })
 }
 function remove(item: LocalReminder) {
   const scope = owner.value
   uni.showModal({ title: '删除提醒记录？', content: item.phoneSignature ? '仅删除本机记录，手机日历的事项仍需手动删除。' : '只删除提醒，不影响原始待办或接种记录。', success: res => {
     if (!res.confirm || scope !== reportOwner()) return
-    try { deleteReminder(scope, item.id) } catch { message.value = '删除失败，请重试' }
+    try { deleteReminder(scope, item.id); void cancelWechatReminderRemote(item.id, scope) } catch { message.value = '删除失败，请重试' }
   } })
 }
 function addToPhone(item: LocalReminder) {

@@ -2,7 +2,7 @@
   <view class="privacy-policy-page">
     <view class="policy-header">
       <text class="policy-title">贝护妈妈用户隐私保护指引</text>
-      <text class="policy-subtitle">最后更新日期：2026年09月21日</text>
+      <text class="policy-subtitle">最后更新日期：2026年09月22日</text>
     </view>
 
     <scroll-view class="policy-content" scroll-y>
@@ -28,19 +28,27 @@
           <text class="item-label">5. 日志与埋点信息</text>
           <text class="item-desc">为保障安全、排查故障和改进服务，服务端可能记录请求时间、IP 地址、用户代理、接口访问结果和错误日志；小程序还会生成本地客户端 ID、会话 ID 和页面事件。我们不以这些信息推断您的精确位置。</text>
         </view>
+        <view class="policy-item">
+          <text class="item-label">6. 事项提醒与手机日历</text>
+          <text class="item-desc">您设置的事项标题、日期、时间、提前量和完成状态保存在此设备，游客与不同账号分别保存，当前不会自动上传。仅在您主动点击“加入手机日历”并授权后，才向手机系统日历写入所选事项及提醒设置，不读取已有日程。手机日历可能受您自己的系统同步和通知设置影响。小程序内改期、完成、停止或删除提醒，不会自动修改手机日历中的副本，请在手机日历同步处理。拒绝日历授权不影响其他记录功能。</text>
+        </view>
+        <view class="policy-item">
+          <text class="item-label">7. 微信订阅消息</text>
+          <text class="item-desc">微信消息提醒默认关闭。只有在功能开放、您登录微信账号并主动同意对应订阅模板后，我们才会将该条提醒的标题、事项时间、提前量和账号对应的 OpenID 交给微信开放平台发送；服务端仅保存发送状态和必要的重试信息。改期、完成、停止或删除会取消尚未发送的队列项。您可以在微信设置中关闭订阅消息，关闭后本机提醒和手机日历功能仍可使用。</text>
+        </view>
       </view>
 
       <view class="policy-section">
         <text class="section-title">二、信息的使用目的</text>
         <view class="policy-item">
-          <text class="item-desc">我们使用上述信息提供微信登录、孕育日历、工具使用、阶段提醒、记录保存、收藏与阅读历史等功能，并用于账号安全、反滥用、故障排查和服务质量分析。孕育或健康信息不会用于医疗诊断，也不会用于与本服务无关的广告画像。</text>
+          <text class="item-desc">我们使用上述信息提供微信登录、孕育日历、工具使用、阶段提醒、记录保存、收藏与阅读历史等功能；在您主动订阅且功能已开放时，用于发送您指定的事项提醒，并用于账号安全、反滥用、故障排查和服务质量分析。孕育或健康信息不会用于医疗诊断，也不会用于与本服务无关的广告画像。</text>
         </view>
       </view>
 
       <view class="policy-section">
         <text class="section-title">三、信息的共享与委托处理</text>
         <view class="policy-item">
-          <text class="item-desc">我们不会出售或出租个人信息。为完成登录和基础设施服务，必要信息可能由以下服务商按我们的指示处理：微信开放平台用于登录凭证换取 OpenID；生产环境启用对象存储时，腾讯云 COS 用于孕育记录照片的存储和访问。我们仅提供实现功能所需的最少信息，并要求服务商履行保密和安全义务。</text>
+          <text class="item-desc">我们不会出售或出租个人信息。为完成登录和基础设施服务，必要信息可能由以下服务商按我们的指示处理：微信开放平台用于登录凭证换取 OpenID，并在您主动订阅后发送提醒；生产环境启用对象存储时，腾讯云 COS 用于孕育记录照片的存储和访问。我们仅提供实现功能所需的最少信息，并要求服务商履行保密和安全义务。</text>
         </view>
         <view class="policy-item">
           <text class="item-desc">如法律法规、司法机关或监管机构依法要求，我们可能在必要范围内披露相关信息，并在法律允许范围内告知您。</text>
@@ -65,7 +73,7 @@
         </view>
         <view class="policy-item">
           <text class="item-label">撤回同意</text>
-          <text class="item-desc">您可以拒绝照片上传授权、停止填写档案或删除已保存的记录。撤回同意不影响撤回前基于同意处理的合法性；拒绝照片授权不影响工具和日历使用。</text>
+          <text class="item-desc">您可以拒绝照片上传授权、停止填写档案、拒绝微信订阅或删除已保存的记录。撤回同意不影响撤回前基于同意处理的合法性；拒绝照片授权或订阅消息授权不影响工具和日历使用。</text>
         </view>
         <view class="policy-item">
           <text class="item-label">投诉与联系</text>
@@ -83,7 +91,7 @@
       <view class="policy-section">
         <text class="section-title">七、指引更新与生效</text>
         <view class="policy-item">
-          <text class="item-desc">业务或法律要求发生变化时，我们会在本页面更新指引并标注更新日期。重大变化会在使用相关功能前以适当方式提示。本指引最后更新于 2026 年 9 月 21 日。</text>
+          <text class="item-desc">业务或法律要求发生变化时，我们会在本页面更新指引并标注更新日期。重大变化会在使用相关功能前以适当方式提示。本指引最后更新于 2026 年 9 月 22 日。</text>
         </view>
       </view>
 

@@ -425,7 +425,8 @@ import { buildAcquisitionPath, buildAcquisitionQuery, recordAcquisitionContext }
 import { buildWeekPriorityPlan } from '@/utils/record-assist'
 import PeriodTools from '@/components/tools/PeriodTools.vue'
 import ReminderCenter from '@/components/reminders/ReminderCenter.vue'
-import { closeReminderSource } from '@/utils/reminders'
+import { closeReminderSource, readReminders } from '@/utils/reminders'
+import { cancelWechatReminderRemote } from '@/utils/wechat-subscribe'
 import { reportOwner } from '@/utils/report-drafts'
 import { openToolPage } from '@/utils/home-tools'
 import type { ToolId } from '@/data/tool-catalog'
@@ -439,7 +440,10 @@ function openTodoReminder(todo: { stateKey: string; title: string; type: string;
 }
 function closeTodoReminder(stateKey: string, state: 'completed' | 'cancelled', owner: string) {
   try {
-    if (closeReminderSource(owner, `todo:${stateKey}`, state)) uni.showModal({ title: '请同步手机日历', content: '小程序内提醒已结束。此前加入手机日历的事项，请手动修改或删除。', showCancel: false })
+    const sourceKey = `todo:${stateKey}`
+    const ids = readReminders(owner).filter(item => item.sourceKey === sourceKey && item.state === 'active').map(item => item.id)
+    if (closeReminderSource(owner, sourceKey, state)) uni.showModal({ title: '请同步手机日历', content: '小程序内提醒已结束。此前加入手机日历的事项，请手动修改或删除。', showCancel: false })
+    ids.forEach(id => { void cancelWechatReminderRemote(id, owner) })
   } catch { uni.showToast({ title: '待办已保存，请在提醒页手动停止提醒', icon: 'none' }) }
 }
 

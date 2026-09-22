@@ -40,11 +40,40 @@ export type {
 }
 export { isTranslationPendingError } from '../../../shared/utils/translation-request'
 
-import type { NameLibraryQuery, NameLibraryResponse } from '../../../shared/types/name-library'
+import type { NameLibraryQuery, NameLibraryResponse, NameEvaluationRequest, NameEvaluationResponse } from '../../../shared/types/name-library'
 export type { NameGender, NameLibraryItem } from '../../../shared/types/name-library'
 
 export const nameLibraryApi = {
   getNames: (params?: NameLibraryQuery) => api.get<NameLibraryResponse>('/names', params as Record<string, unknown>, { timeout: 15000 }),
+  evaluate: (data: NameEvaluationRequest) => api.post<NameEvaluationResponse>('/names/evaluate', data, { timeout: 20000 }),
+}
+
+export interface WechatReminderDelivery {
+  id: string
+  clientReminderId: string
+  sourceKey: string | null
+  templateId: string
+  title: string
+  eventAt: string
+  scheduledAt: string
+  leadMinutes: number
+  status: 'pending' | 'sending' | 'sent' | 'failed' | 'cancelled'
+  attempts: number
+  sentAt: string | null
+}
+
+export const wechatNotificationApi = {
+  enqueueReminder: (data: {
+    clientReminderId: string
+    sourceKey?: string
+    templateId: string
+    title: string
+    eventAt: string
+    scheduledAt: string
+    leadMinutes: number
+    subscriptionResult: 'accept'
+  }) => api.post<WechatReminderDelivery>('/notifications/reminders', data, { timeout: 15000 }),
+  cancelReminder: (clientReminderId: string) => api.delete<{ clientReminderId: string; status: string }>(`/notifications/reminders/${encodeURIComponent(clientReminderId)}`),
 }
 
 // ==================== 工具记录 API ====================
@@ -153,6 +182,23 @@ export interface PackingItemRecord {
   updatedAt: string
 }
 
+export interface ToolAIReviewRecordInput {
+  date: string
+  content: string
+}
+
+export interface ToolAIReviewResponse {
+  source: 'ai' | 'rules'
+  title: string
+  summary: string
+  highlights: string[]
+  nextSteps: string[]
+  focus: string
+  model: string | null
+  provider: string | null
+  disclaimer: string
+}
+
 export interface ReportFieldRecord {
   id: string
   pageNumber: number
@@ -181,6 +227,12 @@ export interface ReportDocumentRecord {
 }
 
 export const toolRecordApi = {
+  reviewRecords: (data: {
+    toolId: 'contractions' | 'movement' | 'weight' | 'care' | 'growth' | 'packing' | 'vaccines' | 'foods' | 'diary' | 'expenses'
+    stage?: string
+    records: ToolAIReviewRecordInput[]
+    consent: true
+  }) => api.post<ToolAIReviewResponse>('/tool-records/ai-review', data, { timeout: 30000 }),
   getContractions: (limit = 30) => api.get<ContractionRecord[]>('/tool-records/contractions', { limit }),
   createContraction: (data: Omit<ContractionRecord, 'id' | 'createdAt' | 'updatedAt'> & { clientOperationId?: string }) =>
     api.post<ContractionRecord>('/tool-records/contractions', data),
