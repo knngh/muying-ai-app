@@ -4,7 +4,7 @@
     <text class="panel-hint">固定文案，记录今天。预览与保存的是同一张图片。</text>
     <image v-if="imagePath" class="poster-image" :src="imagePath" mode="widthFix" show-menu-by-longpress @tap="preview" />
     <view v-else class="poster-empty"><text>{{ generating ? '正在制作阶段卡…' : '准备好后，生成一张预览' }}</text></view>
-    <canvas canvas-id="stage-poster" class="poster-canvas" style="width: 375px; height: 450px" />
+    <canvas canvas-id="stage-poster" class="poster-canvas" width="375" height="450" style="width: 375px; height: 450px" />
     <view class="panel-actions">
       <button class="panel-button" :loading="generating || saving" :disabled="generating || saving" @tap="imagePath ? saveImage() : generate()">{{ imagePath ? '保存到相册' : '生成预览' }}</button>
       <button v-if="imagePath" class="panel-button panel-button--secondary" :disabled="generating || saving" @tap="preview">放大预览</button>
@@ -18,7 +18,11 @@
 <script setup lang="ts">
 import { getCurrentInstance, ref, watch } from 'vue'
 import { BASE_URL } from '@/api/request'
+import { TOOL_CLOUD_ENABLED } from '@/config/features'
+import { saveToolImage } from '@/utils/tool-media'
+import { localToolDate } from '@/utils/tool-history'
 const props = defineProps<{ week: number | null }>()
+const emit = defineEmits<{ saved: [] }>()
 const instance = getCurrentInstance()?.proxy
 const generating = ref(false), saving = ref(false), imagePath = ref(''), notice = ref(''), permissionDenied = ref(false)
 function loadCode(): Promise<string> {
@@ -34,7 +38,9 @@ async function generate() {
   const week = props.week && props.week >= 1 && props.week <= 42 ? props.week : null
   try {
     let code = ''
-    try { code = await loadCode() } catch { notice.value = '小程序码暂不可用，图片仍可预览和保存。' }
+    if (TOOL_CLOUD_ENABLED) {
+      try { code = await loadCode() } catch { notice.value = '小程序码暂不可用，图片仍可预览和保存。' }
+    }
     const context = uni.createCanvasContext('stage-poster', instance)
     const gradient = context.createLinearGradient(0, 0, 375, 450)
     gradient.addColorStop(0, '#fbe2df'); gradient.addColorStop(1, '#fff5e9')
@@ -52,10 +58,15 @@ async function generate() {
       const timer = setTimeout(() => reject(new Error('绘图超时，请重试')), 8000)
       context.draw(false, () => { clearTimeout(timer); resolve() })
     })
-    imagePath.value = await new Promise<string>((resolve, reject) => uni.canvasToTempFilePath({
+    const generated = await new Promise<string>((resolve, reject) => uni.canvasToTempFilePath({
       canvasId: 'stage-poster', width: 375, height: 450, destWidth: 1125, destHeight: 1350, fileType: 'png',
       success: result => resolve(result.tempFilePath), fail: () => reject(new Error('图片未能生成，请重试')),
     }, instance))
+    imagePath.value = generated
+    const record = await saveToolImage('poster', generated, { week, date: localToolDate(), summary: week ? `孕 ${week} 周纪念卡` : '今日阶段纪念卡' })
+    imagePath.value = String(record.payload.path)
+    notice.value = `${notice.value} 已保存到海报历史，可随时回来查看。`
+    emit('saved')
   } catch (error) { notice.value = error instanceof Error ? error.message : '生成未完成，请重试' }
   finally { generating.value = false }
 }

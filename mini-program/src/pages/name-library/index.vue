@@ -3,7 +3,7 @@
     <view class="name-hero">
       <view class="hero-badge">起名灵感 · 预览</view>
       <text class="hero-title">给宝宝挑一个喜欢的名字</text>
-      <text class="hero-subtitle">从名字的读音与含义出发，收藏心仪的候选名。</text>
+      <text class="hero-subtitle">收藏心仪的候选名，从读音、含义和喜欢的风格慢慢挑选。</text>
       <text class="disclosure">{{ NAME_DISCLOSURE }}</text>
     </view>
 
@@ -39,6 +39,8 @@
       </view>
     </view>
 
+    <view id="name-comparison"><NameComparisonPanel :selected="comparisonNames" @remove="toggleComparison" @busy="comparisonBusy = $event" /></view>
+
     <view class="result-head">
       <view>
         <text class="result-title">{{ favoritesOnly ? '本机收藏' : '候选名字' }}</text>
@@ -71,20 +73,27 @@
         <text v-if="item.sourceQuote" class="name-source">原句：{{ item.sourceQuote }}</text>
         <view class="card-actions">
           <button class="view-toggle" @tap="toggleFavorite(item)">{{ isFavorite(item) ? '取消收藏' : '收藏' }}</button>
+          <button class="view-toggle" :class="{ 'comparison-selected': isComparing(item) }" :disabled="comparisonBusy" @tap="toggleComparison(item)">{{ isComparing(item) ? '✓ 已选对比' : '加入对比' }}</button>
           <button class="view-toggle" @tap="copyName(item)">复制候选名</button>
         </view>
       </view>
       <button v-if="!favoritesOnly && hasMore" class="load-more" :disabled="loading" @tap="loadMore">{{ loading ? '加载中…' : '加载更多' }}</button>
     </view>
+    <view v-if="comparisonNames.length" class="comparison-bar"><text>已选 {{ comparisonNames.length }} 个候选名</text><button @tap="showComparison">去对比 ↑</button></view>
   </view>
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, onUnmounted } from 'vue'
+import { computed, reactive, ref, watch, onUnmounted } from 'vue'
 import { onLoad, onReachBottom, onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app'
 import { nameLibraryApi, type NameGender, type NameLibraryItem } from '@/api/modules'
+import { NAME_LIBRARY_CLOUD_ENABLED } from '@/config/features'
+import { filterNameLibrary } from '../../../../src/services/name-library.service'
 import { trackMiniEvent } from '@/utils/analytics'
 import { MAX_NAME_FAVORITES, NAME_DISCLOSURE, NAME_FAVORITES_KEY, nameCopyText, nameFavoriteKey, readNameFavorites } from '../../../../shared/utils/name-library'
+import { NAME_COMPARISON_DRAFT_KEY } from '../../../../shared/utils/name-evaluation'
+import { NAME_LIBRARY } from '../../../../src/data/name-library'
+import NameComparisonPanel from '@/components/tools/NameComparisonPanel.vue'
 
 const genderOptions: Array<{ label: string; value: NameGender | 'all' }> = [
   { label: '不限性别', value: 'all' },
@@ -98,6 +107,8 @@ const filters = reactive<{ surname: string; gender: NameGender | 'all'; nameLeng
 })
 const names = ref<NameLibraryItem[]>([])
 const favorites = ref<NameLibraryItem[]>([])
+const comparisonNames = ref<NameLibraryItem[]>([])
+const comparisonBusy = ref(false)
 const favoritesOnly = ref(false)
 const visibleNames = computed(() => favoritesOnly.value ? favorites.value : names.value)
 const loading = ref(false)
@@ -121,7 +132,8 @@ const fetchNames = async (append = false) => {
   loading.value = true
   errorMessage.value = ''
   try {
-    const response = await nameLibraryApi.getNames({ ...appliedFilters, page: nextPage, pageSize: 12 })
+    const params = { ...appliedFilters, page: nextPage, pageSize: 12 }
+    const response = NAME_LIBRARY_CLOUD_ENABLED ? await nameLibraryApi.getNames(params) : filterNameLibrary(params)
     if (currentRequest !== requestId) return
     names.value = append ? names.value.concat(response.list) : response.list
     page.value = nextPage
@@ -162,6 +174,22 @@ const onGenderChange = (event: { detail: { value: string } }) => {
 }
 
 const isFavorite = (item: NameLibraryItem) => favorites.value.some(saved => nameFavoriteKey(saved) === nameFavoriteKey(item))
+const isComparing = (item: NameLibraryItem) => comparisonNames.value.some(saved => nameFavoriteKey(saved) === nameFavoriteKey(item))
+const surnameOf = (item: NameLibraryItem) => item.fullName.endsWith(item.givenName) ? item.fullName.slice(0, -item.givenName.length) : null
+const toggleComparison = (item: NameLibraryItem) => {
+  if (comparisonBusy.value) return
+  if (isComparing(item)) { comparisonNames.value = comparisonNames.value.filter(saved => nameFavoriteKey(saved) !== nameFavoriteKey(item)); return }
+  if (comparisonNames.value.length >= 5) { uni.showToast({ title: '最多对比 5 个名字，请先移除一个', icon: 'none' }); return }
+  const surname = surnameOf(item)
+  if (surname === null || !/^[\p{Script=Han}]{0,4}$/u.test(surname)) { uni.showToast({ title: '请填写汉字姓氏后重新筛选', icon: 'none' }); return }
+  if (comparisonNames.value.length && surnameOf(comparisonNames.value[0]) !== surname) { uni.showToast({ title: '请先移除已选名字，再比较其他姓氏', icon: 'none' }); return }
+  comparisonNames.value = [...comparisonNames.value, item]
+}
+const showComparison = () => uni.pageScrollTo({ selector: '#name-comparison', duration: 250 })
+watch(comparisonNames, value => {
+  try { uni.setStorageSync(NAME_COMPARISON_DRAFT_KEY, value) }
+  catch { uni.showToast({ title: '未能保存已选名字，重新进入需再选择', icon: 'none' }) }
+})
 const toggleFavorite = (item: NameLibraryItem) => {
   if (!isFavorite(item) && favorites.value.length >= MAX_NAME_FAVORITES) {
     uni.showToast({ title: '最多收藏 100 个名字，请先移除一些', icon: 'none' })
@@ -182,6 +210,13 @@ const copyName = (item: NameLibraryItem) => uni.setClipboardData({
 
 onLoad(() => {
   try { favorites.value = readNameFavorites(uni.getStorageSync(NAME_FAVORITES_KEY)) } catch { favorites.value = [] }
+  try {
+    const draft = readNameFavorites(uni.getStorageSync(NAME_COMPARISON_DRAFT_KEY)).filter(item => {
+      const surname = surnameOf(item)
+      return surname !== null && /^[\p{Script=Han}]{0,4}$/u.test(surname) && NAME_LIBRARY.some(candidate => candidate.id === item.id && candidate.givenName === item.givenName)
+    }).slice(0, 5)
+    comparisonNames.value = draft.filter(item => surnameOf(item) === surnameOf(draft[0]))
+  } catch { comparisonNames.value = [] }
   void fetchNames()
   trackMiniEvent('app_name_library_open', { page: 'NameLibrary' })
 })
@@ -198,12 +233,15 @@ onShareTimeline(() => {
 </script>
 
 <style scoped>
-.name-page { min-height: 100vh; padding: 34rpx 28rpx 56rpx; background: linear-gradient(180deg, #fff7f0, #fcf9f8 42%); box-sizing: border-box; }
+.name-page { min-height: 100vh; padding: 34rpx 28rpx calc(160rpx + env(safe-area-inset-bottom)); background: linear-gradient(180deg, #fff7f0, #fcf9f8 42%); box-sizing: border-box; }
 button { margin: 0; line-height: 1.5; }
 button::after { border: none; }
 .disclosure { display: block; margin-top: 18rpx; padding: 16rpx; border-radius: 12rpx; background: #f5e9df; color: #725343; font-size: 24rpx; line-height: 1.6; }
 .view-toggle { padding: 12rpx 16rpx; color: #8a4d32; background: #fbefe8; font-size: 24rpx; }
-.card-actions { display: flex; gap: 16rpx; margin-top: 20rpx; }
+.card-actions { display: flex; flex-wrap: wrap; gap: 12rpx; margin-top: 20rpx; }
+.comparison-selected { color: #fff; background: #b76d4d; }
+.comparison-bar { position: fixed; z-index: 10; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: space-between; padding: 16rpx 28rpx calc(16rpx + env(safe-area-inset-bottom)); background: #fffaf6; border-top: 1rpx solid #ead9cc; color: #6e5a50; font-size: 25rpx; }
+.comparison-bar button { padding: 18rpx 32rpx; border-radius: 999rpx; color: #fff; background: #b76d4d; font-size: 25rpx; font-weight: 700; }
 .name-hero { padding: 16rpx 4rpx 28rpx; }
 .hero-badge { display: inline-block; padding: 8rpx 16rpx; border-radius: 999rpx; background: #f5dfd0; color: #a46046; font-size: 22rpx; font-weight: 700; }
 .hero-title { display: block; margin-top: 20rpx; color: #46312a; font-size: 46rpx; line-height: 1.35; font-weight: 900; }
@@ -211,7 +249,7 @@ button::after { border: none; }
 .filter-card { padding: 12rpx 24rpx 24rpx; border: 1rpx solid rgba(185, 119, 87, .16); border-radius: 28rpx; background: rgba(255, 255, 255, .9); box-shadow: 0 16rpx 40rpx rgba(122, 86, 64, .08); }
 .filter-row { display: flex; align-items: center; flex-wrap: wrap; gap: 18rpx; min-height: 88rpx; border-bottom: 1rpx solid #f2ebe6; }
 .filter-row--last { border-bottom: 0; }
-.filter-label { flex-shrink: 0; width: 92rpx; color: #6e5a50; font-size: 26rpx; font-weight: 700; }
+.filter-label { flex-shrink: 0; width: 112rpx; color: #6e5a50; font-size: 26rpx; font-weight: 700; }
 .filter-input, .picker-value { flex: 1; min-width: 0; color: #43352e; font-size: 27rpx; }
 .picker-value { padding: 22rpx 0; }
 .length-switch { display: flex; gap: 10rpx; }

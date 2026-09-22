@@ -92,6 +92,10 @@ async function request<T = unknown>(options: RequestOptions): Promise<T> {
           reject(new Error(body?.message || '登录已过期'))
           return
         }
+        if (statusCode < 200 || statusCode >= 300) {
+          reject(new Error(body?.message || `服务暂不可用（${statusCode}）`))
+          return
+        }
 
         // 正常响应处理
         try {
@@ -133,6 +137,10 @@ async function upload<T = unknown>(
         if (statusCode === 401) {
           clearLocalSession()
           reject(new Error((body as ApiResponse<T>)?.message || '登录已过期'))
+          return
+        }
+        if (statusCode < 200 || statusCode >= 300) {
+          reject(new Error((body as ApiResponse<T>)?.message || `上传未完成（${statusCode}）`))
           return
         }
 

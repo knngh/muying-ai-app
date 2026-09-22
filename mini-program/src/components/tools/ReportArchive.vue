@@ -1,6 +1,6 @@
 <template>
   <view>
-    <view class="tool-panel">
+    <view v-show="!historyOnly" class="tool-panel">
       <text class="panel-title">留好每一份产检资料</text>
       <text class="panel-hint">拍照或选一张报告原图，也可以先记下名称。每份档案支持一张图片。</text>
       <text class="panel-label">报告日期</text>
@@ -16,12 +16,13 @@
       </view>
       <view class="panel-actions">
         <button class="panel-button" :disabled="busy" @tap="saveDraft(false)">保存到本机</button>
-        <button v-if="owner !== 'guest'" class="panel-button panel-button--secondary" :disabled="busy" :loading="busy" @tap="saveDraft(true)">保存并私有归档</button>
+        <button v-if="owner !== 'guest' && TOOL_CLOUD_ENABLED" class="panel-button panel-button--secondary" :disabled="busy" :loading="busy" @tap="saveDraft(true)">保存并私有归档</button>
       </view>
-      <text class="panel-hint">本机草稿仅在此设备保存，清理小程序数据会丢失。私有归档仅本人登录后可见。</text>
-      <text class="panel-hint">自动识别暂未开放；可在云端档案中手动补充字段并核对，不提供检验结果解读。</text>
+      <text class="panel-hint">本机草稿仅在此设备保存，清理小程序数据会丢失。保存后可在“历史记录”查看。</text>
+      <text class="panel-hint">自动识别暂未开放，不提供检验结果解读。</text>
     </view>
     <view v-if="notice" class="panel-notice">{{ notice }}</view>
+    <view v-show="historyOnly">
     <view class="tool-panel">
       <view class="panel-head"><text class="panel-title">本机草稿</text><text class="panel-badge">{{ drafts.length }} 份</text></view>
       <text v-if="!drafts.length" class="panel-hint">还没有草稿，先保存一份报告吧。</text>
@@ -31,13 +32,13 @@
         <text v-if="draft.note" class="panel-hint">{{ draft.note }}</text>
         <view class="panel-actions">
           <button v-if="draft.imagePath" class="panel-button panel-button--secondary" :disabled="busy" @tap="preview(draft.imagePath)">查看图片</button>
-          <button v-if="owner !== 'guest'" class="panel-button panel-button--secondary" :disabled="busy" @tap="upload(draft)">归档 / 重试</button>
+          <button v-if="owner !== 'guest' && TOOL_CLOUD_ENABLED" class="panel-button panel-button--secondary" :disabled="busy" @tap="upload(draft)">归档 / 重试</button>
           <button class="panel-button panel-button--quiet" :disabled="busy" @tap="discard(draft)">删除本机</button>
         </view>
       </view>
       <button v-if="guestCount && owner !== 'guest'" class="panel-button panel-button--secondary import-button" :disabled="busy" @tap="importGuests">导入此设备游客草稿（{{ guestCount }}）</button>
     </view>
-    <view class="tool-panel">
+    <view v-if="TOOL_CLOUD_ENABLED" class="tool-panel">
       <view class="panel-head"><text class="panel-title">私有归档</text><button class="panel-button panel-button--quiet" :disabled="loading || busy" @tap="refresh">刷新</button></view>
       <text v-if="owner === 'guest'" class="panel-hint">登录后可归档、查看和核对报告。本机草稿会保留。</text>
       <button v-if="owner === 'guest'" class="panel-button panel-button--secondary import-button" @tap="login">登录并返回</button>
@@ -55,7 +56,9 @@
       </view>
       <button v-if="nextCursor" class="panel-button panel-button--secondary import-button" :disabled="loading" @tap="loadMore">{{ loading ? '读取中…' : '更早的报告' }}</button>
     </view>
-    <view v-if="selected" id="report-fields" class="tool-panel">
+    <text v-if="!TOOL_CLOUD_ENABLED" class="panel-notice">云端归档暂未开放，报告原图和文字可先保存在本机。</text>
+    </view>
+    <view v-if="historyOnly && selected" id="report-fields" class="tool-panel">
       <view class="panel-head"><text class="panel-title">{{ selected.name }}</text><button class="panel-button panel-button--quiet" @tap="selectedId = ''">收起</button></view>
       <text v-if="selected.note" class="panel-hint">{{ selected.note }}</text>
       <text class="panel-hint">请对照报告原图核对文字与单位。手动原文始终保留，确认仅用于归档。</text>
@@ -79,7 +82,9 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { toolRecordApi, type ReportDocumentRecord, type ReportFieldRecord } from '@/api/modules'
 import { forgetReportDraft, keepReportImage, newReportOperationId, readReportDrafts, removeReportImage, reportOwner, writeReportDraft, type ReportDraft } from '@/utils/report-drafts'
-const props = defineProps<{ owner: string }>()
+import { TOOL_CLOUD_ENABLED } from '@/config/features'
+const props = defineProps<{ owner: string; historyOnly?: boolean }>()
+const emit = defineEmits<{ count: [count: number]; latest: [record: { name: string; createdAt: string } | null]; saved: [] }>()
 const date = ref(localDate())
 const name = ref(''), note = ref(''), imagePath = ref(''), notice = ref(''), loadError = ref('')
 const busy = ref(false), loading = ref(false)
@@ -123,11 +128,12 @@ async function saveDraft(toCloud: boolean) {
     reloadDrafts()
     notice.value = '草稿已保存到本机'
     if (toCloud) await sendDraft(draft)
+    emit('saved')
   } catch (error) { if (current()) notice.value = message(error) }
   finally { if (!saved && savedImage) await removeReportImage(savedImage); busy.value = false }
 }
 async function sendDraft(draft: ReportDraft) {
-  if (props.owner === 'guest' || !current()) return
+  if (!TOOL_CLOUD_ENABLED || props.owner === 'guest' || !current()) return
   const remote = await toolRecordApi.createReport(draft.imagePath || null, { name: draft.name, note: draft.note, reportDate: draft.reportDate, clientOperationId: draft.id })
   if (!current()) return
   documents.value = [remote, ...documents.value.filter(item => item.id !== remote.id)]
@@ -156,7 +162,7 @@ async function importGuests() {
   } catch (error) { notice.value = message(error); reloadDrafts() }
 }
 async function load(beforeId?: string) {
-  if (loading.value || props.owner === 'guest' || !current()) return
+  if (!TOOL_CLOUD_ENABLED || loading.value || props.owner === 'guest' || !current()) return
   loading.value = true; loadError.value = ''
   try {
     const result = await toolRecordApi.getReports(beforeId)
@@ -241,6 +247,8 @@ async function confirmField(field: ReportFieldRecord) {
   finally { busy.value = false }
 }
 watch(() => props.owner, refresh, { immediate: true })
+watch(() => drafts.value.length + documents.value.length, count => emit('count', count), { immediate: true })
+watch(() => [...drafts.value, ...documents.value].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))[0], record => emit('latest', record ? { name: record.name, createdAt: record.createdAt } : null), { immediate: true })
 defineExpose({ refresh })
 onBeforeUnmount(() => {
   disposed = true

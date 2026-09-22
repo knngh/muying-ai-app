@@ -1,0 +1,49 @@
+import type { LocalToolRecord } from './tool-records'
+
+export function localToolDate(now = new Date()): string {
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+}
+const labels: Record<string, string> = {
+  feeding: '喂奶', diaper: '换尿布', sleep: '睡眠', height: '身高', weight: '体重', head: '头围',
+  checkup: '产检', supplies: '待产包', vaccine: '疫苗', administered: '已接种', scheduled: '已预约',
+  unconfirmed: '待确认', planned: '计划中', free: '自由计数',
+}
+export function historyDate(record: LocalToolRecord): string {
+  const p = record.payload
+  const date = p.measuredAt || p.date || p.recordedAt || p.startedAt || p.startAt || record.createdAt
+  if (typeof date !== 'string') return ''
+  if (/^\d{4}-\d{2}-\d{2}$/.test(date)) return date
+  const value = new Date(date)
+  return Number.isFinite(value.getTime()) ? `${localToolDate(value)} ${String(value.getHours()).padStart(2, '0')}:${String(value.getMinutes()).padStart(2, '0')}` : ''
+}
+export function historyDetails(record: LocalToolRecord): Array<{ label: string; value: string }> {
+  const p = record.payload
+  const fields: Array<[string, unknown]> = []
+  const text = (value: unknown) => typeof value === 'string' ? labels[value] || value : value
+  switch (record.toolId) {
+    case 'contractions': fields.push(['开始时间', p.startAt], ['结束时间', p.endAt], ['持续秒数', p.durationSeconds], ['间隔秒数', p.intervalSeconds]); break
+    case 'movement': fields.push(['次数', p.count], ['开始时间', p.startedAt], ['结束时间', p.endedAt]); break
+    case 'weight': fields.push(['体重', `${p.value} kg`]); break
+    case 'care': fields.push(['照护类型', text(p.kind)], ['奶量（ml）', p.amount], ['备注', p.note]); break
+    case 'growth': fields.push(['测量项目', text(p.metric)], ['测量值', `${p.value} ${p.unit || ''}`]); break
+    case 'packing': fields.push(['物品', p.item], ['状态', p.done ? '已准备' : '未准备']); break
+    case 'vaccines': fields.push(['疫苗名称', p.name], ['接种状态', text(p.status)], ['原预约日期', p.appointmentDate]); break
+    case 'foods': fields.push(['食材', p.name], ['观察', p.note]); break
+    case 'diary': fields.push(['心情', p.mood], ['日记全文', p.content]); break
+    case 'expenses': fields.push(['金额', `${p.amount} 元`], ['分类', text(p.category)], ['备注', p.note]); break
+    case 'poster': fields.push(['制作时孕周', p.week ? `第 ${p.week} 周` : '今日阶段卡']); break
+    case 'album': fields.push(['照片日期', p.date]); break
+    case 'reports': fields.push(['报告名称', p.name], ['备注', p.note]); break
+    default: fields.push(['内容', p.note || p.name || p.summary]);
+  }
+  return fields.filter(([, value]) => value !== undefined && value !== null && value !== '').map(([label, value]) => ({
+    label, value: typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value) ? historyDate({ ...record, payload: { date: value } }) : String(value),
+  }))
+}
+export function historyTitle(record: LocalToolRecord): string {
+  if (record.toolId === 'care') return `${labels[String(record.payload.kind)] || '照护记录'}${record.payload.amount == null ? '' : ` ${record.payload.amount} ml`}`
+  if (record.toolId === 'growth') return `${labels[String(record.payload.metric)] || '生长记录'} ${record.payload.value} ${record.payload.unit || ''}`
+  if (record.toolId === 'vaccines') return `${record.payload.name} · ${labels[String(record.payload.status)] || record.payload.status}`
+  if (record.toolId === 'expenses') return `${labels[String(record.payload.category)] || record.payload.category} ${record.payload.amount} 元`
+  return typeof record.payload.summary === 'string' ? record.payload.summary : '已保存记录'
+}

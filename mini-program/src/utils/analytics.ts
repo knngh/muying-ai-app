@@ -1,4 +1,5 @@
 import { getAcquisitionAnalyticsProperties } from './acquisition'
+import { NAME_LIBRARY_CLOUD_ENABLED, TOOL_CLOUD_ENABLED } from '@/config/features'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://beihu.me/api/v1'
 const CLIENT_ID_KEY = 'analytics_client_id'
@@ -35,6 +36,8 @@ export function trackMiniEvent(
     properties?: Record<string, unknown>
   },
 ): void {
+  if (eventName.startsWith('app_tool_') && !TOOL_CLOUD_ENABLED) return
+  if (eventName.startsWith('app_name_library_') && !NAME_LIBRARY_CLOUD_ENABLED) return
   try {
     const token = uni.getStorageSync('token')
     const header: Record<string, string> = {
