@@ -1,4 +1,5 @@
 import type { ToolId } from '@/data/tool-catalog'
+import { reportOwner } from './report-drafts'
 
 export type ToolRecordPayload = Record<string, string | number | boolean | null | undefined>
 
@@ -12,7 +13,9 @@ export interface LocalToolRecord {
   payload: ToolRecordPayload
 }
 
-const STORAGE_KEY = 'beihu:tool-records:v1'
+const LEGACY_STORAGE_KEY = 'beihu:tool-records:v1'
+const STORAGE_PREFIX = 'beihu:tool-records:v2:'
+export const MAX_TOOL_RECORDS = 500
 
 function createRecordId(): string {
   return `local-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
@@ -30,13 +33,44 @@ function isRecord(value: unknown): value is LocalToolRecord {
     && !!item.payload && typeof item.payload === 'object'
 }
 
-export function readToolRecords(): LocalToolRecord[] {
+function ownerStorageKey(owner: string): string {
+  return `${STORAGE_PREFIX}${owner}`
+}
+
+function currentOwner(): string {
+  try { return reportOwner() } catch { return 'guest' }
+}
+
+function normalizeRecords(value: unknown): LocalToolRecord[] {
+  return Array.isArray(value)
+    ? value.filter(isRecord).sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)).slice(0, MAX_TOOL_RECORDS)
+    : []
+}
+
+function readStored(key: string): LocalToolRecord[] | undefined {
   try {
-    const stored = uni.getStorageSync(STORAGE_KEY)
-    return Array.isArray(stored) ? stored.filter(isRecord) : []
+    const stored = uni.getStorageSync(key)
+    return stored === undefined || stored === null ? undefined : normalizeRecords(stored)
   } catch {
-    return []
+    return undefined
   }
+}
+
+export function readToolRecords(): LocalToolRecord[] {
+  const owner = currentOwner()
+  const stored = readStored(ownerStorageKey(owner))
+  if (stored !== undefined) return stored
+
+  // Records written before v2 were device-wide. Keep them visible only to the
+  // guest namespace; never silently assign them to a newly logged-in account.
+  if (owner === 'guest') {
+    const legacy = readStored(LEGACY_STORAGE_KEY)
+    if (legacy !== undefined) {
+      try { uni.setStorageSync(ownerStorageKey('guest'), legacy) } catch { /* keep the in-memory result */ }
+      return legacy
+    }
+  }
+  return []
 }
 
 export function saveToolRecord(toolId: ToolId, recordType: string, payload: ToolRecordPayload): LocalToolRecord {
@@ -44,8 +78,8 @@ export function saveToolRecord(toolId: ToolId, recordType: string, payload: Tool
   const record: LocalToolRecord = {
     id: createRecordId(), toolId, recordType, createdAt: now, updatedAt: now, syncStatus: 'local', payload,
   }
-  const next = [record, ...readToolRecords()].slice(0, 500)
-  uni.setStorageSync(STORAGE_KEY, next)
+  const next = [record, ...readToolRecords()].slice(0, MAX_TOOL_RECORDS)
+  uni.setStorageSync(ownerStorageKey(currentOwner()), next)
   return record
 }
 
@@ -55,7 +89,7 @@ export function updateToolRecord(id: string, patch: Partial<Pick<LocalToolRecord
   if (index < 0) return null
   const updated = { ...records[index], ...patch, updatedAt: patch.updatedAt || new Date().toISOString() }
   records[index] = updated
-  uni.setStorageSync(STORAGE_KEY, records)
+  uni.setStorageSync(ownerStorageKey(currentOwner()), records.slice(0, MAX_TOOL_RECORDS))
   return updated
 }
 
@@ -80,12 +114,12 @@ export function importToolRecord(
   }
   if (existingIndex >= 0) records[existingIndex] = imported
   else records.unshift(imported)
-  uni.setStorageSync(STORAGE_KEY, records.slice(0, 500))
+  uni.setStorageSync(ownerStorageKey(currentOwner()), records.slice(0, MAX_TOOL_RECORDS))
   return imported
 }
 
 export function deleteToolRecord(id: string): void {
-  uni.setStorageSync(STORAGE_KEY, readToolRecords().filter(item => item.id !== id))
+  uni.setStorageSync(ownerStorageKey(currentOwner()), readToolRecords().filter(item => item.id !== id))
 }
 
 export function listToolRecords(toolId: ToolId, recordType?: string): LocalToolRecord[] {
