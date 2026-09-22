@@ -2,6 +2,13 @@
   <view class="tool-panel reminder-panel">
     <view class="panel-head"><view><text class="panel-title">{{ kind === 'vaccines' ? '接种提醒' : '我的提醒' }}</text><text class="panel-hint">{{ activeCount }} 项待处理 · {{ owner === 'guest' ? '游客本机' : '当前账号本机' }}</text></view><button class="panel-button panel-button--secondary" @tap="edit({ kind: kind || 'calendar', title: '' })">＋ 新建</button></view>
     <text class="panel-hint">在这里查看安排；加入手机日历后，由手机系统到点提醒。微信消息提醒尚未开启。</text>
+    <view v-if="reminderPrompt" class="reminder-prompt">
+      <view class="reminder-prompt-copy">
+        <text class="reminder-prompt-title">{{ reminderPrompt.kind === 'due' ? '有提醒到时间了' : '24 小时内有安排' }}</text>
+        <text class="reminder-prompt-desc">{{ reminderPrompt.items.length > 1 ? `${reminderPrompt.items[0].title}等 ${reminderPrompt.items.length} 项` : reminderPrompt.items[0].title }}，请按实际安排确认。</text>
+      </view>
+      <button class="reminder-prompt-dismiss" @tap.stop="dismissPrompt">知道了</button>
+    </view>
     <view v-if="editor" class="reminder-editor">
       <text class="panel-title">{{ editor.id ? '修改提醒' : '设置提醒' }}</text>
       <text class="panel-label">事项名称</text><input v-model="title" class="panel-input reminder-title-input" maxlength="100" placeholder="例如：周三产检 / 乙肝第二剂" />
@@ -35,17 +42,31 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { reportOwner } from '@/utils/report-drafts'
 import { localToolDate } from '@/utils/tool-history'
-import { defaultReminderDate, deleteReminder, markPhoneCalendarAdded, phoneCalendarPayload, readReminders, REMINDER_LEADS, REMINDER_LEAD_LABELS, REMINDERS_CHANGED, reminderSignature, reminderTime, saveReminder, setReminderState, type LocalReminder, type ReminderSeed } from '@/utils/reminders'
+import { buildReminderPrompt, defaultReminderDate, deleteReminder, markPhoneCalendarAdded, markReminderPromptRead, phoneCalendarPayload, readReminderPromptSignature, readReminders, REMINDER_LEADS, REMINDER_LEAD_LABELS, REMINDERS_CHANGED, reminderSignature, reminderTime, saveReminder, setReminderState, type LocalReminder, type ReminderPrompt, type ReminderSeed } from '@/utils/reminders'
 const props = defineProps<{ kind?: 'vaccines' }>()
 const owner = ref(reportOwner()), all = ref<LocalReminder[]>([]), showClosed = ref(false), busy = ref(false), message = ref('')
+const promptRead = ref(readReminderPromptSignature(owner.value))
 const editor = ref<ReminderSeed | null>(null), title = ref(''), date = ref(''), time = ref('09:00'), leadIndex = ref(0), now = ref(Date.now())
 const items = computed(() => all.value.filter(item => !props.kind || item.kind === props.kind))
 const activeCount = computed(() => items.value.filter(item => item.state === 'active').length)
 const visible = computed(() => items.value.filter(item => showClosed.value ? item.state !== 'active' : item.state === 'active'))
+const reminderPrompt = computed<ReminderPrompt | null>(() => {
+  const prompt = buildReminderPrompt(all.value)
+  if (!prompt || prompt.signature === promptRead.value) return null
+  const scopedItems = prompt.items.filter(item => !props.kind || item.kind === props.kind)
+  return scopedItems.length ? { ...prompt, items: scopedItems } : null
+})
 let timer: ReturnType<typeof setInterval> | undefined
 function refresh() {
   if (owner.value !== reportOwner()) { owner.value = reportOwner(); editor.value = null; message.value = '' }
+  promptRead.value = readReminderPromptSignature(owner.value)
   try { all.value = readReminders(owner.value); now.value = Date.now() } catch { message.value = '提醒暂时读取失败，请重新进入后再试。' }
+}
+function dismissPrompt() {
+  const prompt = reminderPrompt.value
+  if (!prompt) return
+  markReminderPromptRead(owner.value, prompt.signature)
+  promptRead.value = prompt.signature
 }
 function edit(seed: ReminderSeed) {
   refresh()
@@ -97,6 +118,7 @@ defineExpose({ edit, refresh })
 <style scoped lang="scss">
 @use '../tools/tool-panel.scss';
 .reminder-editor { margin-top: 22rpx; padding: 22rpx; border-radius: 18rpx; background: #f7f6f1; }.reminder-editor .panel-input { background: #fffdfb; }
+.reminder-prompt { display: flex; align-items: center; gap: 16rpx; margin-top: 18rpx; padding: 18rpx 20rpx; border-radius: 16rpx; background: #fff4e9; color: #895331; }.reminder-prompt-copy { min-width: 0; flex: 1; }.reminder-prompt-title, .reminder-prompt-desc { display: block; }.reminder-prompt-title { font-size: 25rpx; font-weight: 800; }.reminder-prompt-desc { margin-top: 5rpx; font-size: 22rpx; line-height: 1.5; overflow-wrap: anywhere; }.reminder-prompt-dismiss { flex-shrink: 0; margin: 0; padding: 10rpx 14rpx; border-radius: 12rpx; background: rgba(255,255,255,.7); color: #895331; font-size: 22rpx; line-height: 1.5; }.reminder-prompt-dismiss::after { border: 0; }
 .reminder-field { display: flex; align-items: center; justify-content: space-between; gap: 12rpx; padding: 24rpx 0; border-bottom: 1rpx solid #e6e5df; font-size: 24rpx; color: #645e55; }.reminder-field picker { color: #166c5b; }
 .reminder-actions { display: flex; align-items: center; gap: 14rpx; flex-wrap: wrap; margin-top: 18rpx; }.reminder-actions .panel-button { font-size: 23rpx; padding: 16rpx 10rpx; }
 .reminder-message { display: block; margin-top: 18rpx; color: #956147; font-size: 24rpx; line-height: 1.7; }.reminder-filters { display: flex; margin-top: 24rpx; border-bottom: 1rpx solid #eee7e1; }.reminder-filters button { margin: 0; padding: 18rpx 12rpx; font-size: 24rpx; line-height: 1.8; background: transparent; color: #766b67; }.reminder-filters .active { color: #166c5b; font-weight: 700; border-bottom: 4rpx solid #287e68; border-radius: 0; }.reminder-filters button::after { border: 0; }
