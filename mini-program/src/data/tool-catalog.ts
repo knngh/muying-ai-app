@@ -61,8 +61,8 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     stages: ['early', 'middle', 'late'], primaryAction: '记录体重', helper: '参考区间功能仍在准备中。',
   },
   {
-    id: 'care', title: '喂养三件套', kicker: '新生儿照护', description: '快速记录喂奶、尿布和睡眠事项。', icon: '护', group: 'baby', tone: 'green', status: 'planned',
-    stages: ['newborn', 'feeding'], primaryAction: '记一笔照护', helper: '计时和每日摘要仍在完善中。',
+    id: 'care', title: '喂养三件套', kicker: '新生儿照护', description: '记录喂奶、尿布和睡眠，回看今日照护摘要。', icon: '护', group: 'baby', tone: 'green', status: 'preview',
+    stages: ['newborn', 'feeding'], primaryAction: '记一笔照护', helper: '支持计时恢复与补记，方便家人交接。',
   },
   {
     id: 'growth', title: '宝宝生长', kicker: '成长曲线', description: '记录身高、体重和头围数值。', icon: '长', group: 'baby', tone: 'green', status: 'planned',

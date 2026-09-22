@@ -63,18 +63,7 @@
       <text class="safety-note">参考带和孕周计算会在资料条件完整后开放；当前只保存你的实际测量值。</text>
     </view>
 
-    <view v-else-if="tool.id === 'care'" class="content-card">
-      <text class="card-title">快速记一笔照护</text>
-      <view class="field-row"><text class="field-label">记录日期</text><picker mode="date" :value="recordDate" @change="onDateChange"><view class="field-value">{{ recordDate }}</view></picker></view>
-      <view class="field-row"><text class="field-label">记录时间</text><picker mode="time" :value="recordTime" @change="recordTime = $event.detail.value"><view class="field-value">{{ recordTime }}</view></picker></view>
-      <view class="choice-grid">
-        <view v-for="item in careTypes" :key="item.value" class="choice-chip" :class="{ active: careType === item.value }" @tap="careType = item.value"><text>{{ item.label }}</text></view>
-      </view>
-      <view v-if="careType === 'feeding'" class="field-row"><text class="field-label">奶量</text><input v-model="careAmount" class="field-input" type="digit" placeholder="未知可留空" /><text class="field-unit">ml</text></view>
-      <view class="field-row"><text class="field-label">备注</text><input v-model="careNote" class="field-input" maxlength="60" placeholder="可选，例如左侧亲喂" /></view>
-      <button class="primary-button" @tap="saveCare">保存照护记录</button>
-      <text class="safety-note">当前保存照护类型、奶量和备注；未知奶量可留空。</text>
-    </view>
+    <CareTracker v-else-if="tool.id === 'care'" :records="displayRecords" :owner="reportScope" @saved="onCareSaved" />
 
     <view v-else-if="tool.id === 'growth'" class="content-card">
       <text class="card-title">保存一次生长测量</text>
@@ -190,6 +179,7 @@ import ReminderCenter from '@/components/reminders/ReminderCenter.vue'
 import { closeReminderSource, readReminders } from '@/utils/reminders'
 import { cancelWechatReminderRemote } from '@/utils/wechat-subscribe'
 import { historyTitle, localToolDate } from '@/utils/tool-history'
+import CareTracker from '@/components/tools/CareTracker.vue'
 import { saveToolImage, removeUnusedToolImage } from '@/utils/tool-media'
 import { TOOL_CLOUD_ENABLED } from '@/config/features'
 import { readMovementTaps, writeMovementTaps } from '@/utils/tool-sessions'
@@ -209,7 +199,6 @@ const activePanel = ref<'entry' | 'history'>('entry')
 const reportCount = ref(0), albumSaving = ref(false)
 const reportLatest = ref<{ name: string; createdAt: string } | null>(null)
 const recordDate = ref(today())
-const recordTime = ref(`${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`)
 const storedWeek = ref<number | null>(null)
 
 const contractionStart = ref<string | null>(null)
@@ -219,9 +208,6 @@ const movementCount = computed(() => movementTaps.value.length)
 let contractionTimer: ReturnType<typeof setInterval> | undefined
 
 const weightValue = ref('')
-const careType = ref('feeding')
-const careAmount = ref('')
-const careNote = ref('')
 const growthType = ref('height')
 const growthValue = ref('')
 const vaccineName = ref('')
@@ -239,7 +225,6 @@ const expenseAmount = ref('')
 const expenseCategory = ref('checkup')
 const expenseNote = ref('')
 
-const careTypes = [{ value: 'feeding', label: '喂奶' }, { value: 'diaper', label: '换尿布' }, { value: 'sleep', label: '睡眠' }]
 const growthTypes = [{ value: 'height', label: '身高' }, { value: 'weight', label: '体重' }, { value: 'head', label: '头围' }]
 const vaccineStatuses = ['已接种', '已预约', '待确认']
 const moods = ['开心', '平稳', '疲惫', '期待'].map(label => ({ value: label, label }))
@@ -361,10 +346,10 @@ async function syncServer(record: LocalToolRecord | null): Promise<void> {
       const remote = await toolRecordApi.createCareLog({
         kind: payload.kind as 'feeding' | 'diaper' | 'sleep',
         recordedAt: payload.recordedAt,
-        endedAt: undefined,
+        endedAt: typeof payload.endedAt === 'string' ? payload.endedAt : undefined,
         amountMl: typeof payload.amount === 'number' ? payload.amount : null,
-        side: null,
-        diaperType: null,
+        side: typeof payload.side === 'string' ? payload.side : null,
+        diaperType: typeof payload.diaperType === 'string' ? payload.diaperType : null,
         note: typeof payload.note === 'string' ? payload.note : null,
         clientOperationId: record.id,
       })
@@ -449,7 +434,8 @@ async function loadRemoteRecords(): Promise<void> {
     } else if (toolId.value === 'care') {
       const list = await toolRecordApi.getCareLogs()
       list.forEach(item => importToolRecord('care', 'log', item.id, {
-        kind: item.kind, amount: item.amountMl, note: item.note, recordedAt: item.recordedAt, summary: `${item.kind}${item.amountMl === null ? '' : ` ${item.amountMl}ml`}`,
+        kind: item.kind, amount: item.amountMl, side: item.side, diaperType: item.diaperType, note: item.note,
+        recordedAt: item.recordedAt, endedAt: item.endedAt, summary: `${item.kind}${item.amountMl === null ? '' : ` ${item.amountMl}ml`}`,
       }, item.createdAt, item.updatedAt))
     } else if (toolId.value === 'growth') {
       const list = await toolRecordApi.getBabyMeasurements()
@@ -524,14 +510,9 @@ function saveWeight() {
   const record = save('measurement', { value, unit: 'kg', measuredAt: recordDate.value }, `${value} kg`)
   if (record) { void syncServer(record); weightValue.value = '' }
 }
-function saveCare() {
-  const amount = careType.value === 'feeding' && careAmount.value ? Number(careAmount.value) : null
-  if (amount !== null && (!Number.isInteger(amount) || amount < 0 || amount > 20000)) { showNotice('请输入有效的整数奶量'); return }
-  const label = careTypes.find(item => item.value === careType.value)?.label || '照护'
-  const recordedAt = new Date(`${recordDate.value}T${recordTime.value}:00`)
-  if (!Number.isFinite(recordedAt.getTime())) { showNotice('请选择有效的记录日期和时间'); return }
-  const record = save('log', { kind: careType.value, amount, note: careNote.value || null, recordedAt: recordedAt.toISOString() }, `${label}${amount === null ? '' : ` ${amount}ml`}`)
-  if (record) { void syncServer(record); careAmount.value = ''; careNote.value = '' }
+function onCareSaved(record: LocalToolRecord) {
+  trackMiniEvent('app_tool_record_save', { page: 'ToolDetail', properties: { toolId: 'care', recordType: 'log' } })
+  reload(); activePanel.value = 'history'; showNotice('已保存，可在历史记录中查看'); void syncServer(record)
 }
 function saveGrowth() {
   const value = Number(growthValue.value)
