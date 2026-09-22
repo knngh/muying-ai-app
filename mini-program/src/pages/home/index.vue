@@ -17,6 +17,12 @@
       </view>
       <button class="all-tools-button" @tap="openTools">查看全部 15 项工具 ›</button>
     </view>
+    <ReminderSummaryCard
+      :summary="reminderSummary"
+      :prompt="reminderPrompt"
+      @open="openReminders"
+      @dismiss="dismissReminderPrompt"
+    />
     <view class="home-card-list">
       <view class="home-card home-card--calendar" role="button" :aria-label="period?.stage === 'postpartum' ? '打开成长记录' : '打开孕周记录'" @tap="openTool('calendar')">
         <view class="home-card-head">
@@ -50,11 +56,21 @@ import { getStageLabel, getToolDefinition, getToolStage, type ToolId } from '@/d
 import { MAX_HOME_TOOLS, openToolPage, readHomeTools, recommendedHomeTools, resetHomeTools, saveHomeTools } from '@/utils/home-tools'
 import HomeToolEditor from '@/components/tools/HomeToolEditor.vue'
 import ToolIcon from '@/components/tools/ToolIcon.vue'
+import ReminderSummaryCard from '@/components/reminders/ReminderSummaryCard.vue'
 import { currentToolPeriod, periodTools, toolPeriodLabel } from '@/utils/tool-period'
 import { trackMiniEvent } from '@/utils/analytics'
+import { reportOwner } from '@/utils/report-drafts'
+import { buildReminderPrompt, buildReminderSummary, markReminderPromptRead, readReminderPromptSignature, readReminders, type LocalReminder } from '@/utils/reminders'
 const appStore = useAppStore()
 const loggedIn = ref(false), storedWeek = ref<number | null>(null), editing = ref(false)
 const customIds = ref<ToolId[] | null>(readHomeTools())
+const initialReminderOwner = reportOwner()
+const reminderOwner = ref(initialReminderOwner), reminders = ref<LocalReminder[]>([]), reminderPromptRead = ref(readReminderPromptSignature(initialReminderOwner))
+const reminderSummary = computed(() => buildReminderSummary(reminders.value))
+const reminderPrompt = computed(() => {
+  const prompt = buildReminderPrompt(reminders.value)
+  return prompt && prompt.signature !== reminderPromptRead.value ? prompt : null
+})
 const currentWeek = computed(() => {
   if (appStore.user?.babyBirthday) return null
   return appStore.user?.dueDate ? calculatePregnancyWeekFromDueDate(appStore.user.dueDate) : storedWeek.value
@@ -77,6 +93,29 @@ function restoreHome() {
 }
 function openTools() { uni.switchTab({ url: '/pages/tools/index' }) }
 function openTool(id: ToolId) { trackMiniEvent('app_tool_open', { page: 'Home', properties: { toolId: id, stage: stage.value } }); openToolPage(id) }
+function refreshReminders() {
+  const nextOwner = reportOwner()
+  if (nextOwner !== reminderOwner.value) {
+    reminderOwner.value = nextOwner
+    reminderPromptRead.value = readReminderPromptSignature(nextOwner)
+  }
+  reminders.value = readReminders(nextOwner)
+}
+function openReminders() {
+  const prompt = reminderPrompt.value
+  if (prompt) {
+    markReminderPromptRead(reminderOwner.value, prompt.signature)
+    reminderPromptRead.value = prompt.signature
+  }
+  uni.setStorageSync('beihu:calendar:initial-tab', 'reminders')
+  uni.switchTab({ url: '/pages/calendar/index' })
+}
+function dismissReminderPrompt() {
+  const prompt = reminderPrompt.value
+  if (!prompt) return
+  markReminderPromptRead(reminderOwner.value, prompt.signature)
+  reminderPromptRead.value = prompt.signature
+}
 function openProfile() {
   const target = '/pages/pregnancy-profile/index'
   uni.navigateTo({ url: loggedIn.value ? target : `/pages/login/index?redirect=${encodeURIComponent(target)}` })
@@ -87,6 +126,7 @@ onShow(() => {
   const week = Number(uni.getStorageSync('userPregnancyWeek'))
   storedWeek.value = Number.isInteger(week) && week >= 1 && week <= 40 ? week : null
   customIds.value = readHomeTools()
+  refreshReminders()
   if (loggedIn.value && !appStore.user) void appStore.fetchUser()
 })
 onShareAppMessage(() => ({ title: '贝护 · 孕育记录与实用工具', path: buildAcquisitionPath('/pages/home/index') }))

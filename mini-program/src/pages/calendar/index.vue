@@ -97,7 +97,12 @@
         <text class="tab-text">我的记录</text>
         <view class="tab-line" v-if="activeTab === 'diary'"></view>
       </view>
+      <view class="tab-item" :class="{ active: activeTab === 'reminders' }" @tap="activeTab = 'reminders'">
+        <text class="tab-text">提醒</text><view v-if="activeTab === 'reminders'" class="tab-line"></view>
+      </view>
     </view>
+
+    <ReminderCenter v-if="activeTab === 'reminders'" ref="reminderCenter" />
 
     <!-- 时间线内容 -->
     <view class="content-section" v-if="activeTab === 'guide'">
@@ -245,6 +250,7 @@
               </view>
               <text class="todo-title">{{ todo.title }}</text>
               <text class="todo-desc">{{ todo.desc }}</text>
+              <button v-if="!todo.completed" class="todo-reminder-button" @tap.stop="openTodoReminder(todo)">设置提醒</button>
               <view
                 v-if="todo.type === 'custom' && canUseTodoActions"
                 class="todo-actions"
@@ -418,11 +424,24 @@ import { calculatePregnancyWeekFromDueDate, syncPregnancyWeekStorage } from '@/u
 import { buildAcquisitionPath, buildAcquisitionQuery, recordAcquisitionContext } from '@/utils/acquisition'
 import { buildWeekPriorityPlan } from '@/utils/record-assist'
 import PeriodTools from '@/components/tools/PeriodTools.vue'
+import ReminderCenter from '@/components/reminders/ReminderCenter.vue'
+import { closeReminderSource } from '@/utils/reminders'
+import { reportOwner } from '@/utils/report-drafts'
 import { openToolPage } from '@/utils/home-tools'
 import type { ToolId } from '@/data/tool-catalog'
 import type { ToolPeriod } from '@/utils/tool-period'
 
 type TimelineStage = 'pregnancy' | 'postpartum'
+const reminderCenter = ref<InstanceType<typeof ReminderCenter> | null>(null)
+function openTodoReminder(todo: { stateKey: string; title: string; type: string; desc?: string }) {
+  activeTab.value = 'reminders'
+  void nextTick(() => reminderCenter.value?.edit({ sourceKey: `todo:${todo.stateKey}`, kind: todo.type === 'vaccine' ? 'vaccines' : 'calendar', title: todo.type === 'custom' ? todo.desc || todo.title : todo.title }))
+}
+function closeTodoReminder(stateKey: string, state: 'completed' | 'cancelled', owner: string) {
+  try {
+    if (closeReminderSource(owner, `todo:${stateKey}`, state)) uni.showModal({ title: '请同步手机日历', content: '小程序内提醒已结束。此前加入手机日历的事项，请手动修改或删除。', showCancel: false })
+  } catch { uni.showToast({ title: '待办已保存，请在提醒页手动停止提醒', icon: 'none' }) }
+}
 
 interface TimelineListItem {
   storageWeek: number
@@ -889,14 +908,18 @@ const weekPriority = computed(() => buildWeekPriorityPlan({
   hasDiary: Boolean(currentDiary.value),
 }))
 const weekCommandDescription = computed(() => (
-  activeTab.value === 'guide'
+  activeTab.value === 'reminders'
+    ? '按实际日期查看所有提醒；设置事项后，可加入手机日历。'
+    : activeTab.value === 'guide'
     ? '看看本周变化，也可以直接打开适合这一周的工具。'
     : activeTab.value === 'todo'
       ? (canUseTodoActions.value ? '把这一周要做的事集中处理，完成进度会实时保存。' : '先看本周待办结构，登录后再保存完成状态。')
       : (canUseTodoActions.value ? '把这一周的变化和提醒记下来，后面回看更省力。' : '登录后可以把这周感受、线下提醒和待办留下来。')
 ))
 const weekCommandBadge = computed(() => (
-  activeTab.value === 'guide'
+  activeTab.value === 'reminders'
+    ? '提醒'
+    : activeTab.value === 'guide'
     ? '指南'
     : activeTab.value === 'todo'
       ? `${completedTodoCount.value}/${todoList.value.length || 0}`
@@ -1270,6 +1293,7 @@ const saveCustomTodo = () => {
 
 const removeCustomTodo = (todo: { id: string; stateKey: string }) => {
   if (!checkLogin('请先登录后删除待办', false)) return
+  const reminderScope = reportOwner()
 
   uni.showModal({
     title: '删除待办',
@@ -1291,6 +1315,8 @@ const removeCustomTodo = (todo: { id: string; stateKey: string }) => {
           delete nextState[todo.stateKey]
           todoState.value = nextState
 
+          closeTodoReminder(todo.stateKey, 'cancelled', reminderScope)
+
           uni.showToast({ title: '待办已删除', icon: 'success' })
         } catch (err: any) {
           console.error('[Calendar] 删除自定义待办失败:', err)
@@ -1303,6 +1329,7 @@ const removeCustomTodo = (todo: { id: string; stateKey: string }) => {
 
 const toggleTodo = async (todo: { todoKey: string; stateKey: string; completed: boolean }) => {
   if (!checkLogin('请先登录后使用待办', false) || !canUseTodoActions.value) return
+  const reminderScope = reportOwner()
 
   const nextCompleted = !todo.completed
   const previousState = { ...todoState.value }
@@ -1321,6 +1348,7 @@ const toggleTodo = async (todo: { todoKey: string; stateKey: string; completed: 
       todoKey: todo.todoKey,
       completed: nextCompleted,
     })
+    if (nextCompleted) closeTodoReminder(todo.stateKey, 'completed', reminderScope)
     uni.showToast({ title: nextCompleted ? '已标记完成' : '已恢复待办', icon: 'none' })
   } catch (err: any) {
     todoState.value = previousState
@@ -1336,6 +1364,10 @@ const toggleTodo = async (todo: { todoKey: string; stateKey: string; completed: 
 onLoad((options) => {
   recordAcquisitionContext(options)
 
+  if (String(options?.tab || '') === 'reminders') {
+    activeTab.value = 'reminders'
+  }
+
   const sharedWeek = readWeekFromQuery(options)
   if (sharedWeek) {
     initialSharedWeek.value = sharedWeek
@@ -1344,6 +1376,11 @@ onLoad((options) => {
 })
 
 onShow(() => {
+  if (uni.getStorageSync('beihu:calendar:initial-tab') === 'reminders') {
+    activeTab.value = 'reminders'
+    uni.removeStorageSync('beihu:calendar:initial-tab')
+  }
+
   // Capture before fetching: an earlier page-show request must not consume a later tool return.
   const returning = toolReturnContext
   toolReturnContext = null
@@ -1433,6 +1470,8 @@ onShareTimeline(() => {
 </script>
 
 <style scoped>
+.todo-reminder-button { display: inline-block; margin: 12rpx 0 0; padding: 12rpx 20rpx; border-radius: 12rpx; background: #edf5f1; color: #166c5b; font-size: 23rpx; line-height: 1.8; }
+.todo-reminder-button::after { border: 0; }
 .calendar-timeline-page {
   min-height: 100vh;
   background: linear-gradient(180deg, #f9f0f5 0%, #fff7f2 100%);
