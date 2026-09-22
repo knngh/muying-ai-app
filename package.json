@@ -41,6 +41,7 @@
     "import:content": "tsx src/scripts/import-content-questions.ts",
     "sync:authority": "tsx src/scripts/sync-authority-sources.ts",
     "worker:authority": "tsx src/workers/authority-sync.worker.ts",
+    "worker:wechat-reminders": "tsx src/scripts/run-wechat-reminder-worker.ts",
     "authority:translate:prewarm": "tsx src/scripts/prewarm-authority-translations.ts",
     "review:authority": "node --import tsx src/scripts/review-authority-documents.ts",
     "ocr:authority": "tsx src/scripts/run-authority-ocr.ts",
