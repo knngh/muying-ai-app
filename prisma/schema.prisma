@@ -1129,6 +1129,10 @@ model AuthorityDiscoveredUrl {
   discoveredAt DateTime @default(now()) @map("discovered_at")
   priority     Int      @default(100)
   status       String   @default("pending") @db.VarChar(20)
+  // Compatibility columns retained by the production authority crawler.
+  lastModified String?  @map("last_modified") @db.VarChar(255)
+  lastFetchedAt DateTime? @map("last_fetched_at")
+  contentHash  String?  @map("content_hash") @db.VarChar(128)
 
   @@unique([sourceId, url(length: 255)])
   @@index([status])
@@ -1174,6 +1178,8 @@ model AuthorityNormalizedDocument {
   metadataJson     String?   @map("metadata_json") @db.LongText
   publishStatus    String    @default("draft") @map("publish_status") @db.VarChar(20)
   createdAt        DateTime  @default(now()) @map("created_at")
+  // Compatibility column retained by the production authority crawler.
+  contentHash      String?   @map("content_hash") @db.VarChar(128)
 
   @@unique([sourceId, sourceUrl(length: 255)])
   @@index([publishStatus])
