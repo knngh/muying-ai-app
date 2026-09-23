@@ -97,8 +97,8 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     stages: ['newborn', 'feeding'], primaryAction: '添加照片', helper: '云端照片与纪念卡尚未开放。',
   },
   {
-    id: 'expenses', title: '孕育记账', kicker: '家庭账本', description: '记录家庭支出、分类和备注。', icon: '账', group: 'memory', tone: 'orange', status: 'planned',
-    stages: ['preparing', 'early', 'middle', 'late', 'newborn', 'feeding'], primaryAction: '记一笔账', helper: '退款和月度汇总仍在完善中。',
+    id: 'expenses', title: '孕育记账', kicker: '家庭账本', description: '记录支出、退款和转账，查看月账与分类分布。', icon: '账', group: 'memory', tone: 'orange', status: 'preview',
+    stages: ['preparing', 'early', 'middle', 'late', 'newborn', 'feeding'], primaryAction: '记一笔账', helper: '按实际日期汇总，明细可回到原账核对。',
   },
   {
     id: 'names', title: '宝宝起名', kicker: '静态名字库', description: '筛选候选名字，收藏后慢慢讨论。', icon: '名', group: 'planning', tone: 'orange', status: 'preview',

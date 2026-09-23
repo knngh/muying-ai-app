@@ -1,4 +1,5 @@
 import type { LocalToolRecord } from './tool-records'
+import { expenseCategoryLabel, expenseDirectionLabel, formatExpenseCents, parseExpenseCents } from './expense-ledger'
 
 export function localToolDate(now = new Date()): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
@@ -39,7 +40,7 @@ export function historyDetails(record: LocalToolRecord): Array<{ label: string; 
     case 'vaccines': fields.push(['疫苗名称', p.name], ['接种状态', text(p.status)], ['原预约日期', p.appointmentDate]); break
     case 'foods': fields.push(['食材', p.name], ['观察', p.note]); break
     case 'diary': fields.push(['心情', p.mood], ['日记全文', p.content]); break
-    case 'expenses': fields.push(['金额', `${p.amount} 元`], ['分类', text(p.category)], ['备注', p.note]); break
+    case 'expenses': fields.push(['金额', expenseAmountText(p.amount)], ['类型', expenseDirectionLabel(record)], ['分类', expenseCategoryLabel(p.category)], ['备注', p.note]); break
     case 'poster': fields.push(['制作时孕周', p.week ? `第 ${p.week} 周` : '今日阶段卡']); break
     case 'album': fields.push(['照片日期', p.date]); break
     case 'reports': fields.push(['报告名称', p.name], ['备注', p.note]); break
@@ -60,6 +61,10 @@ export function historyTitle(record: LocalToolRecord): string {
   }
   if (record.toolId === 'growth') return `${labels[String(record.payload.metric)] || '生长记录'} ${record.payload.value} ${record.payload.unit || ''}`
   if (record.toolId === 'vaccines') return `${record.payload.name} · ${labels[String(record.payload.status)] || record.payload.status}`
-  if (record.toolId === 'expenses') return `${labels[String(record.payload.category)] || record.payload.category} ${record.payload.amount} 元`
+  if (record.toolId === 'expenses') return `${expenseDirectionLabel(record)} · ${expenseCategoryLabel(record.payload.category)} ${expenseAmountText(record.payload.amount)}`
   return typeof record.payload.summary === 'string' ? record.payload.summary : '已保存记录'
+}
+function expenseAmountText(value: unknown): string {
+  const cents = parseExpenseCents(value)
+  return cents === null ? `原金额：${value ?? '未填写'}（待核对）` : `${formatExpenseCents(cents)} 元`
 }

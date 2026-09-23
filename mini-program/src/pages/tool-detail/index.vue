@@ -63,7 +63,7 @@
       <text class="safety-note">参考带和孕周计算会在资料条件完整后开放；当前只保存你的实际测量值。</text>
     </view>
 
-    <CareTracker v-else-if="tool.id === 'care'" :records="displayRecords" :owner="reportScope" @saved="onCareSaved" @view-record="viewCareRecord" @refresh="reload" />
+    <CareTracker v-else-if="tool.id === 'care'" :records="displayRecords" :owner="reportScope" @saved="onCareSaved" @view-record="viewSourceRecord" @refresh="reload" />
 
     <view v-else-if="tool.id === 'growth'" class="content-card">
       <text class="card-title">保存一次生长测量</text>
@@ -128,15 +128,7 @@
       <text class="safety-note">照片仅在此设备保存，清理小程序数据会丢失。</text>
     </view>
 
-    <view v-else-if="tool.id === 'expenses'" class="content-card">
-      <text class="card-title">记一笔家庭支出</text>
-      <view class="field-row"><text class="field-label">支出日期</text><picker mode="date" :value="recordDate" @change="onDateChange"><view class="field-value">{{ recordDate }}</view></picker></view>
-      <view class="field-row"><text class="field-label">金额</text><input v-model="expenseAmount" class="field-input" type="digit" placeholder="0.00" /><text class="field-unit">元</text></view>
-      <view class="choice-grid"><view v-for="item in expenseCategories" :key="item.value" class="choice-chip" :class="{ active: expenseCategory === item.value }" @tap="expenseCategory = item.value"><text>{{ item.label }}</text></view></view>
-      <view class="field-row"><text class="field-label">备注</text><input v-model="expenseNote" class="field-input" maxlength="60" placeholder="例如 奶粉" /></view>
-      <button class="primary-button" @tap="saveExpense">保存账目</button>
-      <text class="safety-note">当前记录家庭支出，金额、分类和完整备注都可在历史中查看。</text>
-    </view>
+    <ExpenseLedger v-else-if="tool.id === 'expenses'" :records="displayRecords" :owner="reportScope" @saved="onExpenseSaved" @view-record="viewSourceRecord" />
 
     <view v-else class="content-card">
       <text class="card-title">{{ tool.title }}正在准备</text>
@@ -180,6 +172,8 @@ import { closeReminderSource, readReminders } from '@/utils/reminders'
 import { cancelWechatReminderRemote } from '@/utils/wechat-subscribe'
 import { historyTitle, localToolDate } from '@/utils/tool-history'
 import CareTracker from '@/components/tools/CareTracker.vue'
+import ExpenseLedger from '@/components/tools/ExpenseLedger.vue'
+import { expenseApiInput, expenseFromRemote } from '@/utils/expense-ledger'
 import { saveToolImage, removeUnusedToolImage } from '@/utils/tool-media'
 import { TOOL_CLOUD_ENABLED } from '@/config/features'
 import { readMovementTaps, writeMovementTaps } from '@/utils/tool-sessions'
@@ -222,14 +216,10 @@ const reportPanel = ref<InstanceType<typeof ReportArchive> | null>(null)
 const diaryMood = ref('平稳')
 const diaryText = ref('')
 const albumPreview = ref('')
-const expenseAmount = ref('')
-const expenseCategory = ref('checkup')
-const expenseNote = ref('')
 
 const growthTypes = [{ value: 'height', label: '身高' }, { value: 'weight', label: '体重' }, { value: 'head', label: '头围' }]
 const vaccineStatuses = ['已接种', '已预约', '待确认']
 const moods = ['开心', '平稳', '疲惫', '期待'].map(label => ({ value: label, label }))
-const expenseCategories = [{ value: 'checkup', label: '产检' }, { value: 'supplies', label: '待产包' }, { value: 'feeding', label: '奶粉/喂养' }, { value: 'vaccine', label: '疫苗' }]
 const packingItems = [
   { name: '证件与产检资料', group: '证件' }, { name: '产褥垫', group: '妈妈' }, { name: '哺乳内衣', group: '妈妈' },
   { name: '新生儿衣物', group: '宝宝' }, { name: '纸尿裤', group: '宝宝' }, { name: '包被', group: '宝宝' },
@@ -331,17 +321,13 @@ async function syncServer(record: LocalToolRecord | null): Promise<void> {
         clientOperationId: record.id,
       })
       markSynced(record, remote.id)
-    } else if (record.toolId === 'expenses' && record.recordType === 'entry'
-      && typeof payload.date === 'string' && typeof payload.amount === 'number' && typeof payload.category === 'string') {
-      const remote = await toolRecordApi.createExpenseEntry({
-        occurredAt: payload.date,
-        amountCents: Math.round(payload.amount * 100),
-        direction: 'expense',
-        category: payload.category,
-        note: typeof payload.note === 'string' ? payload.note : null,
-        clientOperationId: record.id,
-      })
-      markSynced(record, remote.id)
+    } else if (record.toolId === 'expenses' && record.recordType === 'entry') {
+      const input = expenseApiInput(record), owner = reportOwner()
+      if (!input) return
+      const remote = await toolRecordApi.createExpenseEntry(input)
+      if (owner === reportOwner() && readToolRecords().some(item => item.id === record.id && item.updatedAt === record.updatedAt)) {
+        markSynced({ ...record, payload: { ...record.payload, direction: input.direction } }, remote.id)
+      }
     } else if (record.toolId === 'care' && record.recordType === 'log'
       && typeof payload.recordedAt === 'string' && typeof payload.kind === 'string') {
       const remote = await toolRecordApi.createCareLog({
@@ -428,10 +414,10 @@ async function loadRemoteRecords(): Promise<void> {
         mood: item.mood, content: item.content, date: item.entryDate, summary: `${item.mood || '未标心情'} · ${item.content.slice(0, 18)}`,
       }, item.createdAt, item.updatedAt))
     } else if (toolId.value === 'expenses') {
+      const owner = reportOwner()
       const list = await toolRecordApi.getExpenseEntries()
-      list.forEach(item => importToolRecord('expenses', 'entry', item.id, {
-        amount: item.amountCents / 100, category: item.category, note: item.note, date: item.occurredAt, summary: `${item.category} ${(item.amountCents / 100).toFixed(2)} 元`,
-      }, item.createdAt, item.updatedAt))
+      if (owner !== reportOwner()) return
+      list.forEach(item => importToolRecord('expenses', 'entry', item.id, expenseFromRemote(item), item.createdAt, item.updatedAt))
     } else if (toolId.value === 'care') {
       const list = await toolRecordApi.getCareLogs()
       list.forEach(item => importToolRecord('care', 'log', item.id, {
@@ -511,10 +497,10 @@ function saveWeight() {
   const record = save('measurement', { value, unit: 'kg', measuredAt: recordDate.value }, `${value} kg`)
   if (record) { void syncServer(record); weightValue.value = '' }
 }
-async function viewCareRecord(id: string) {
+async function viewSourceRecord(id: string) {
   if (reportOwner() !== reportScope.value) { showNotice('账号已变化，请重新打开工具'); return }
   reload()
-  if (!displayRecords.value.some(record => record.id === id)) { showNotice('这条记录已移除，交接单已更新'); return }
+  if (!displayRecords.value.some(record => record.id === id)) { showNotice('这条记录已移除，页面已更新'); return }
   activePanel.value = 'history'
   await nextTick()
   await historyPanel.value?.openRecord(id)
@@ -522,6 +508,10 @@ async function viewCareRecord(id: string) {
 function onCareSaved(record: LocalToolRecord) {
   trackMiniEvent('app_tool_record_save', { page: 'ToolDetail', properties: { toolId: 'care', recordType: 'log' } })
   reload(); activePanel.value = 'history'; showNotice('已保存，可在历史记录中查看'); void syncServer(record)
+}
+function onExpenseSaved(record: LocalToolRecord) {
+  trackMiniEvent('app_tool_record_save', { page: 'ToolDetail', properties: { toolId: 'expenses', recordType: 'entry' } })
+  reload(); showNotice('已保存，月账已更新'); void syncServer(record)
 }
 function saveGrowth() {
   const value = Number(growthValue.value)
@@ -570,7 +560,6 @@ async function saveAlbum() {
   catch (error) { showNotice(error instanceof Error ? error.message : '保存失败，请重试') }
   finally { albumSaving.value = false }
 }
-function saveExpense() { const amount = Math.round(Number(expenseAmount.value) * 100) / 100; if (!Number.isFinite(amount) || amount <= 0 || amount > 1000000) { showNotice('请输入有效金额'); return }; const label = expenseCategories.find(item => item.value === expenseCategory.value)?.label || '其它'; const record = save('entry', { amount, category: expenseCategory.value, note: expenseNote.value || null, date: recordDate.value }, `${label} ${amount.toFixed(2)} 元`); if (record) { void syncServer(record); expenseAmount.value = ''; expenseNote.value = '' } }
 function saveGenericNote() { save('note', { note: '已打开并准备使用' }, '已建立工具记录入口') }
 
 onLoad((options) => {
