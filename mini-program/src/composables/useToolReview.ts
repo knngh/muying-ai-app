@@ -4,18 +4,19 @@ import { TOOL_AI_ENABLED } from '@/config/features'
 import { getToolDefinition } from '@/data/tool-catalog'
 import type { LocalToolRecord } from '@/utils/tool-records'
 import { reportOwner } from '@/utils/report-drafts'
-import { isToolReviewResponse, localToolReview, MAX_REVIEW_RECORDS, readSavedReviews, reviewInputs, writeSavedReviews, type SavedToolReview } from '@/utils/tool-review'
+import { isToolReviewResponse, localToolReview, MAX_REVIEW_RECORDS, readSavedReviews, reviewInputs, selectReviewRecords, writeSavedReviews, type SavedToolReview } from '@/utils/tool-review'
 
 export function useToolReview(props: { toolId: string; records: LocalToolRecord[]; week: number | null; owner: string }) {
   const expanded = ref(false), busy = ref(false), consent = ref(false), message = ref('')
   const selectedIds = ref<string[]>([]), visibleCount = ref(20)
   const current = ref<SavedToolReview | null>(null), saved = ref<SavedToolReview[]>([])
   const inputs = computed(() => reviewInputs(props.records))
-  const selected = computed(() => inputs.value.filter(record => selectedIds.value.includes(record.id)).slice(0, MAX_REVIEW_RECORDS))
+  const selected = computed(() => selectedIds.value.map(id => inputs.value.find(record => record.id === id)).filter((record): record is typeof inputs.value[number] => !!record).slice(0, MAX_REVIEW_RECORDS))
   const stage = computed(() => props.week ? `孕 ${props.week} 周` : '当前阶段')
   const label = computed(() => getToolDefinition(props.toolId).title)
   const isSaved = computed(() => !!current.value && saved.value.some(item => item.id === current.value?.id))
   let revision = 0
+  let preparedSelection = false
 
   function loadSaved() {
     try { saved.value = readSavedReviews(props.owner, props.toolId, inputs.value) }
@@ -23,7 +24,10 @@ export function useToolReview(props: { toolId: string; records: LocalToolRecord[
   }
   function invalidate() { revision++; busy.value = false; current.value = null; consent.value = false; message.value = '' }
   watch(() => JSON.stringify([props.owner, props.toolId, stage.value, inputs.value]), () => {
-    invalidate(); selectedIds.value = inputs.value.slice(0, MAX_REVIEW_RECORDS).map(record => record.id); loadSaved()
+    invalidate()
+    selectedIds.value = preparedSelection ? [] : inputs.value.slice(0, MAX_REVIEW_RECORDS).map(record => record.id)
+    if (preparedSelection) message.value = '记录已变化，请重新选择这一周的日记再整理。'
+    loadSaved()
   }, { immediate: true, flush: 'sync' })
   function toggle(id: string) {
     if (busy.value) return
@@ -33,16 +37,29 @@ export function useToolReview(props: { toolId: string; records: LocalToolRecord[
   }
   function setSelection(all: boolean) {
     if (busy.value) return
+    preparedSelection = false
     invalidate(); selectedIds.value = all ? inputs.value.slice(0, MAX_REVIEW_RECORDS).map(record => record.id) : []
+  }
+  function prepareSelection(ids: string[]): boolean {
+    if (reportOwner() !== props.owner) { message.value = '账号已变化，请重新打开工具'; return false }
+    invalidate()
+    preparedSelection = true
+    const selection = selectReviewRecords(inputs.value, ids)
+    selectedIds.value = selection.ids; expanded.value = true
+    visibleCount.value = Math.max(20, ...selection.ids.map(id => inputs.value.findIndex(item => item.id === id) + 1))
+    if (!selection.total) { message.value = '这些日记已变化，请返回周记重新选择。'; return true }
+    message.value = selection.total > MAX_REVIEW_RECORDS ? '本周超过 20 篇，已按日期选入前 20 篇。可取消或替换后再整理。' : '已选入这一周的日记，请核对正文后再整理。'
+    return true
   }
   async function run(useAI: boolean) {
     if (busy.value || !selected.value.length) return
+    if (reportOwner() !== props.owner) { message.value = '账号已变化，请重新打开工具'; return }
     if (useAI && (!TOOL_AI_ENABLED || !consent.value)) return
     if (useAI && (props.owner === 'guest' || reportOwner() !== props.owner)) { message.value = '请登录后使用 AI，或先选择本机摘要。'; return }
     const requestRevision = ++revision, owner = props.owner
     const requestStage = stage.value, records = selected.value.map(record => ({ ...record }))
     const local = () => localToolReview(label.value, records)
-    const stillCurrent = () => requestRevision === revision && props.owner === owner && (!useAI || reportOwner() === owner)
+    const stillCurrent = () => requestRevision === revision && props.owner === owner && reportOwner() === owner
     busy.value = true; message.value = ''; current.value = null
     let result = local(), origin: SavedToolReview['origin'] = 'local'
     try {
@@ -70,6 +87,7 @@ export function useToolReview(props: { toolId: string; records: LocalToolRecord[
   }
   function save() {
     if (!current.value || isSaved.value) return
+    if (reportOwner() !== props.owner) { message.value = '账号已变化，请重新打开工具'; return }
     try {
       writeSavedReviews(props.owner, props.toolId, [current.value, ...saved.value]); loadSaved()
       message.value = '回顾已保存到本机，再次进入可在“已保存回顾”打开。'
@@ -88,5 +106,5 @@ export function useToolReview(props: { toolId: string; records: LocalToolRecord[
   }
   function login() { uni.navigateTo({ url: `/pages/login/index?redirect=${encodeURIComponent(`/pages/tool-detail/index?id=${props.toolId}`)}` }) }
   onBeforeUnmount(() => { revision++ })
-  return { expanded, busy, consent, message, selectedIds, visibleCount, current, saved, inputs, selected, stage, isSaved, toggle, setSelection, run, save, open, remove, login }
+  return { expanded, busy, consent, message, selectedIds, visibleCount, current, saved, inputs, selected, stage, isSaved, toggle, setSelection, prepareSelection, run, save, open, remove, login }
 }

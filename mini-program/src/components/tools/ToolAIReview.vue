@@ -55,7 +55,8 @@ import type { LocalToolRecord } from '@/utils/tool-records'
 import { MAX_REVIEW_RECORDS, reviewSourceLabel } from '@/utils/tool-review'
 import { localToolDate } from '@/utils/tool-history'
 const props = defineProps<{ toolId: string; records: LocalToolRecord[]; week: number | null; owner: string }>()
-const { expanded, busy, consent, message, selectedIds, visibleCount, current, saved, inputs, selected, stage, isSaved, toggle, setSelection, run, save, open, remove, login } = useToolReview(props)
+const { expanded, busy, consent, message, selectedIds, visibleCount, current, saved, inputs, selected, stage, isSaved, toggle, setSelection, prepareSelection, run, save, open, remove, login } = useToolReview(props)
+defineExpose({ prepareSelection })
 function formatDate(value: string) { const date = new Date(value); return `${localToolDate(date)} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}` }
 </script>
 

@@ -89,8 +89,8 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     stages: ['early', 'middle', 'late'], primaryAction: '生成海报', helper: '预览后再保存到相册。',
   },
   {
-    id: 'diary', title: '孕育日记', kicker: '每日一笔', description: '写下当天心情与一小段日记。', icon: '记', group: 'memory', tone: 'lilac', status: 'planned',
-    stages: ['preparing', 'early', 'middle', 'late', 'newborn', 'feeding'], primaryAction: '写一笔日记', helper: '图文与周回顾仍在完善中。',
+    id: 'diary', title: '孕育日记', kicker: '每日一笔', description: '写下心情与日记，按自然周翻看周记原文。', icon: '记', group: 'memory', tone: 'lilac', status: 'preview',
+    stages: ['preparing', 'early', 'middle', 'late', 'newborn', 'feeding'], primaryAction: '写一笔日记', helper: '按天查看、原文回查，选好这一周再整理。',
   },
   {
     id: 'album', title: '成长相册', kicker: '时光档案', description: '选择照片，建立本机照片记录。', icon: '册', group: 'memory', tone: 'rose', status: 'planned',

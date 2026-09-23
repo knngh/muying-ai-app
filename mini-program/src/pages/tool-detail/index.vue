@@ -109,14 +109,7 @@
 
     <StagePoster v-else-if="tool.id === 'poster'" :week="currentWeek" @saved="onPosterSaved" />
 
-    <view v-else-if="tool.id === 'diary'" class="content-card">
-      <text class="card-title">写下今天的一小段</text>
-      <view class="field-row"><text class="field-label">日记日期</text><picker mode="date" :value="recordDate" @change="onDateChange"><view class="field-value">{{ recordDate }}</view></picker></view>
-      <view class="choice-grid"><view v-for="item in moods" :key="item.value" class="choice-chip" :class="{ active: diaryMood === item.value }" @tap="diaryMood = item.value"><text>{{ item.label }}</text></view></view>
-      <textarea v-model="diaryText" class="large-textarea" maxlength="800" placeholder="今天有什么想留下？"></textarea>
-      <button class="primary-button" @tap="saveDiary">保存日记</button>
-      <text class="safety-note">保存后可在“历史记录”展开查看完整日记。</text>
-    </view>
+    <DiaryJournal v-else-if="tool.id === 'diary'" :key="reportScope" :records="displayRecords" :owner="reportScope" @saved="onDiarySaved" @view-record="viewSourceRecord" @review-week="reviewDiaryWeek" />
 
     <view v-else-if="tool.id === 'album'" class="content-card">
       <text class="card-title">添加一张成长照片</text>
@@ -143,13 +136,17 @@
 
     <ToolHistory v-if="activePanel === 'history' && (tool.id !== 'reports' || displayRecords.length)" :key="reportScope" ref="historyPanel" :records="displayRecords" :title="tool.id === 'reports' ? '早期本机记录' : '历史记录'" @remove="removeRecord" />
 
+    <view id="tool-review">
     <ToolAIReview
       v-if="canReviewRecords"
+      :key="reportScope"
+      ref="reviewPanel"
       :tool-id="tool.id"
       :records="displayRecords"
       :week="currentWeek"
       :owner="reportScope"
     />
+    </view>
 
     <view v-if="tool.id !== 'reports'" class="detail-footer"><text>{{ TOOL_CLOUD_ENABLED ? '本机保存 · 登录后尝试同步' : '本机保存 · 云端同步暂未开放' }} · 最近 500 条保留在本机</text></view>
   </view>
@@ -173,6 +170,8 @@ import { cancelWechatReminderRemote } from '@/utils/wechat-subscribe'
 import { historyTitle, localToolDate } from '@/utils/tool-history'
 import CareTracker from '@/components/tools/CareTracker.vue'
 import ExpenseLedger from '@/components/tools/ExpenseLedger.vue'
+import DiaryJournal from '@/components/tools/DiaryJournal.vue'
+import { summarizeDiaryWeek } from '@/utils/diary-week'
 import { expenseApiInput, expenseFromRemote } from '@/utils/expense-ledger'
 import { saveToolImage, removeUnusedToolImage } from '@/utils/tool-media'
 import { TOOL_CLOUD_ENABLED } from '@/config/features'
@@ -191,6 +190,7 @@ const records = ref<LocalToolRecord[]>([])
 const notice = ref('')
 const activePanel = ref<'entry' | 'history'>('entry')
 const historyPanel = ref<{ openRecord: (id: string) => Promise<void> } | null>(null)
+const reviewPanel = ref<{ prepareSelection: (ids: string[]) => boolean } | null>(null)
 const reportCount = ref(0), albumSaving = ref(false)
 const reportLatest = ref<{ name: string; createdAt: string } | null>(null)
 const recordDate = ref(today())
@@ -213,13 +213,10 @@ const foodName = ref('')
 const foodNote = ref('')
 const reportScope = ref(reportOwner())
 const reportPanel = ref<InstanceType<typeof ReportArchive> | null>(null)
-const diaryMood = ref('平稳')
-const diaryText = ref('')
 const albumPreview = ref('')
 
 const growthTypes = [{ value: 'height', label: '身高' }, { value: 'weight', label: '体重' }, { value: 'head', label: '头围' }]
 const vaccineStatuses = ['已接种', '已预约', '待确认']
-const moods = ['开心', '平稳', '疲惫', '期待'].map(label => ({ value: label, label }))
 const packingItems = [
   { name: '证件与产检资料', group: '证件' }, { name: '产褥垫', group: '妈妈' }, { name: '哺乳内衣', group: '妈妈' },
   { name: '新生儿衣物', group: '宝宝' }, { name: '纸尿裤', group: '宝宝' }, { name: '包被', group: '宝宝' },
@@ -314,13 +311,14 @@ async function syncServer(record: LocalToolRecord | null): Promise<void> {
       markSynced(record, remote.id)
     } else if (record.toolId === 'diary' && record.recordType === 'entry'
       && typeof payload.date === 'string' && typeof payload.content === 'string') {
+      const owner = reportOwner()
       const remote = await toolRecordApi.createDiaryEntry({
         entryDate: payload.date,
         mood: typeof payload.mood === 'string' ? payload.mood : null,
         content: payload.content,
         clientOperationId: record.id,
       })
-      markSynced(record, remote.id)
+      if (owner === reportOwner() && readToolRecords().some(item => item.id === record.id && item.updatedAt === record.updatedAt)) markSynced(record, remote.id)
     } else if (record.toolId === 'expenses' && record.recordType === 'entry') {
       const input = expenseApiInput(record), owner = reportOwner()
       if (!input) return
@@ -409,7 +407,9 @@ async function loadRemoteRecords(): Promise<void> {
         value: item.weightKg, unit: 'kg', measuredAt: item.measuredAt, summary: `${item.weightKg} kg`,
       }, item.createdAt, item.updatedAt))
     } else if (toolId.value === 'diary') {
+      const owner = reportOwner()
       const list = await toolRecordApi.getDiaryEntries()
+      if (owner !== reportOwner()) return
       list.forEach(item => importToolRecord('diary', 'entry', item.id, {
         mood: item.mood, content: item.content, date: item.entryDate, summary: `${item.mood || '未标心情'} · ${item.content.slice(0, 18)}`,
       }, item.createdAt, item.updatedAt))
@@ -453,8 +453,10 @@ function goBack() { uni.navigateBack({ fail: () => uni.switchTab({ url: '/pages/
 function onDateChange(event: { detail: { value: string } }) { recordDate.value = event.detail.value }
 function onPosterSaved() { reload(); activePanel.value = 'history' }
 function removeRecord(record: LocalToolRecord) {
+  const owner = reportOwner()
+  if (owner !== reportScope.value) { showNotice('账号已变化，请重新打开工具'); return }
   uni.showModal({ title: '移除本机记录', content: record.syncStatus === 'synced' ? '仅移除此设备的副本，云端记录仍保留。' : '移除后无法从本机恢复，确定继续？', success: async result => {
-    if (!result.confirm) return
+    if (!result.confirm || owner !== reportOwner() || owner !== reportScope.value) return
     try { deleteToolRecord(record.id); if (record.toolId === 'vaccines') closeVaccineReminder(record.id, 'cancelled'); if (typeof record.payload.path === 'string') await removeUnusedToolImage(record.payload.path); reload(); showNotice('已移除本机记录') }
     catch { showNotice('移除未完成，请重试') }
   } })
@@ -513,6 +515,19 @@ function onExpenseSaved(record: LocalToolRecord) {
   trackMiniEvent('app_tool_record_save', { page: 'ToolDetail', properties: { toolId: 'expenses', recordType: 'entry' } })
   reload(); showNotice('已保存，月账已更新'); void syncServer(record)
 }
+function onDiarySaved(record: LocalToolRecord) {
+  trackMiniEvent('app_tool_record_save', { page: 'ToolDetail', properties: { toolId: 'diary', recordType: 'entry' } })
+  reload(); showNotice('日记已保存，本周记录已更新'); void syncServer(record)
+}
+async function reviewDiaryWeek(weekStart: string) {
+  const owner = reportScope.value
+  if (reportOwner() !== owner) { showNotice('账号已变化，请重新打开工具'); return }
+  reload(); await nextTick()
+  const ids = summarizeDiaryWeek(displayRecords.value, weekStart).entries.map(item => item.record.id)
+  if (reportScope.value === owner && reviewPanel.value?.prepareSelection(ids)) {
+    await nextTick(); uni.pageScrollTo({ selector: '#tool-review', duration: 250 })
+  }
+}
 function saveGrowth() {
   const value = Number(growthValue.value)
   if (!Number.isFinite(value) || value < 0.1 || value > 300) { showNotice('请输入有效测量值'); return }
@@ -551,7 +566,6 @@ function completeVaccine(record: LocalToolRecord) {
   } })
 }
 function saveFood() { if (!foodName.value.trim()) { showNotice('请填写食材名称'); return }; const record = save('trial', { name: foodName.value.trim(), note: foodNote.value || null, date: recordDate.value }, `${foodName.value.trim()} · 已记录观察`); if (record) { void syncServer(record); foodName.value = ''; foodNote.value = '' } }
-function saveDiary() { if (!diaryText.value.trim()) { showNotice('先写下一点内容'); return }; const record = save('entry', { mood: diaryMood.value, content: diaryText.value.trim(), date: recordDate.value }, `${diaryMood.value} · ${diaryText.value.trim().slice(0, 18)}`); if (record) { void syncServer(record); diaryText.value = '' } }
 function chooseAlbumImage() { uni.chooseImage({ count: 1, sourceType: ['album', 'camera'], success: result => { albumPreview.value = result.tempFilePaths[0] || '' } }) }
 async function saveAlbum() {
   if (!albumPreview.value || albumSaving.value) return

@@ -6,6 +6,11 @@ export const MAX_REVIEW_RECORDS = 20
 export const MAX_SAVED_REVIEWS = 10
 export type ReviewOrigin = 'local' | 'server-rules' | 'ai'
 export interface ReviewInputRecord { id: string; updatedAt: string; date: string; content: string }
+export function selectReviewRecords(inputs: ReviewInputRecord[], requestedIds: string[]) {
+  const available = new Set(inputs.map(item => item.id))
+  const ids = Array.from(new Set(requestedIds)).filter(id => available.has(id))
+  return { ids: ids.slice(0, MAX_REVIEW_RECORDS), total: ids.length }
+}
 export interface SavedToolReview {
   id: string
   createdAt: string
@@ -27,7 +32,7 @@ export function localToolReview(label: string, records: ReviewInputRecord[]): To
   const dates = records.map(record => record.date.slice(0, 10)).filter(Boolean).sort()
   return {
     source: 'rules', title: `${label}回顾`,
-    summary: `本次整理 ${records.length} 条已选记录${dates.length ? `，记录日期为 ${dates[0]} 至 ${dates[dates.length - 1]}` : ''}。以下摘录按保存顺序展示。`,
+    summary: `本次整理 ${records.length} 条已选记录${dates.length ? `，记录日期为 ${dates[0]} 至 ${dates[dates.length - 1]}` : ''}。以下摘录按所选顺序展示。`,
     highlights: records.slice(0, 3).map(record => `${record.date || '未标日期'} · ${record.content}`),
     nextSteps: ['可回到历史记录查看完整原文，再补充遗漏的信息。'],
     focus: '已选记录摘要', model: null, provider: null,

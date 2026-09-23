@@ -35,6 +35,7 @@ it('finds all 15 tools once and supports synonyms together with category filters
   expect(new Set(findTools('').map(tool => tool.id)).size).toBe(15);
   expect(findTools('喂奶').map(tool => tool.id)).toEqual(['care']);
   expect(findTools('交接单').map(tool => tool.id)).toEqual(['care']);
+  expect(findTools('周记').map(tool => tool.id)).toEqual(['diary']);
   expect(findTools('化验单').map(tool => tool.id)).toEqual(['reports']);
   expect(findTools('报告', 'baby')).toEqual([]);
   expect(findTools('  报告  原图 ').map(tool => tool.id)).toEqual(['reports']);
