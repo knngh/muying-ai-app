@@ -42,6 +42,7 @@ export { isTranslationPendingError } from '../../../shared/utils/translation-req
 
 import type { NameLibraryQuery, NameLibraryResponse, NameEvaluationRequest, NameEvaluationResponse } from '../../../shared/types/name-library'
 export type { NameGender, NameLibraryItem } from '../../../shared/types/name-library'
+import type { ExpenseCandidatesRequest, ExpenseCandidatesResponse } from '../../../shared/types/expense-candidates'
 
 export const nameLibraryApi = {
   getNames: (params?: NameLibraryQuery) => api.get<NameLibraryResponse>('/names', params as Record<string, unknown>, { timeout: 15000 }),
@@ -227,6 +228,7 @@ export interface ReportDocumentRecord {
 }
 
 export const toolRecordApi = {
+  expenseCandidates: (data: ExpenseCandidatesRequest) => api.post<ExpenseCandidatesResponse>('/tool-records/expense-candidates', data, { timeout: 30000 }),
   reviewRecords: (data: {
     toolId: 'contractions' | 'movement' | 'weight' | 'care' | 'growth' | 'packing' | 'vaccines' | 'foods' | 'diary' | 'expenses'
     stage?: string

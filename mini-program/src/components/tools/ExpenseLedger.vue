@@ -40,6 +40,8 @@
       </form>
     </view>
 
+    <ExpenseCandidates :records="records" :owner="owner" @saved="emit('saved', $event)" />
+
     <view class="tool-panel expense-month-entries">
       <view class="panel-head"><text class="panel-title">{{ month.slice(5) }} 月明细</text><text class="panel-badge">{{ filtered.length }} 笔</text></view>
       <view class="expense-filters">
@@ -73,6 +75,7 @@ import { EXPENSE_CATEGORIES, EXPENSE_DIRECTIONS, expenseCategoryLabel, expenseDi
 import { historyTitle, localToolDate } from '@/utils/tool-history'
 import { reportOwner } from '@/utils/report-drafts'
 import { saveToolRecord, type LocalToolRecord } from '@/utils/tool-records'
+import ExpenseCandidates from './ExpenseCandidates.vue'
 const props = defineProps<{ records: LocalToolRecord[]; owner: string }>()
 const emit = defineEmits<{ saved: [record: LocalToolRecord]; viewRecord: [id: string] }>()
 const currentDay = ref(localToolDate()), currentMonth = computed(() => currentDay.value.slice(0, 7))
