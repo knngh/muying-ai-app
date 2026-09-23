@@ -63,7 +63,7 @@
       <text class="safety-note">参考带和孕周计算会在资料条件完整后开放；当前只保存你的实际测量值。</text>
     </view>
 
-    <CareTracker v-else-if="tool.id === 'care'" :records="displayRecords" :owner="reportScope" @saved="onCareSaved" />
+    <CareTracker v-else-if="tool.id === 'care'" :records="displayRecords" :owner="reportScope" @saved="onCareSaved" @view-record="viewCareRecord" @refresh="reload" />
 
     <view v-else-if="tool.id === 'growth'" class="content-card">
       <text class="card-title">保存一次生长测量</text>
@@ -149,7 +149,7 @@
 
     <view v-if="tool.id === 'vaccines'" id="vaccine-reminders"><ReminderCenter ref="vaccineReminders" kind="vaccines" /></view>
 
-    <ToolHistory v-if="activePanel === 'history' && (tool.id !== 'reports' || displayRecords.length)" :records="displayRecords" :title="tool.id === 'reports' ? '早期本机记录' : '历史记录'" @remove="removeRecord" />
+    <ToolHistory v-if="activePanel === 'history' && (tool.id !== 'reports' || displayRecords.length)" :key="reportScope" ref="historyPanel" :records="displayRecords" :title="tool.id === 'reports' ? '早期本机记录' : '历史记录'" @remove="removeRecord" />
 
     <ToolAIReview
       v-if="canReviewRecords"
@@ -196,6 +196,7 @@ const toolId = ref<ToolId>('calendar')
 const records = ref<LocalToolRecord[]>([])
 const notice = ref('')
 const activePanel = ref<'entry' | 'history'>('entry')
+const historyPanel = ref<{ openRecord: (id: string) => Promise<void> } | null>(null)
 const reportCount = ref(0), albumSaving = ref(false)
 const reportLatest = ref<{ name: string; createdAt: string } | null>(null)
 const recordDate = ref(today())
@@ -509,6 +510,14 @@ function saveWeight() {
   if (!Number.isFinite(value) || value < 0.1 || value > 300) { showNotice('请输入有效体重'); return }
   const record = save('measurement', { value, unit: 'kg', measuredAt: recordDate.value }, `${value} kg`)
   if (record) { void syncServer(record); weightValue.value = '' }
+}
+async function viewCareRecord(id: string) {
+  if (reportOwner() !== reportScope.value) { showNotice('账号已变化，请重新打开工具'); return }
+  reload()
+  if (!displayRecords.value.some(record => record.id === id)) { showNotice('这条记录已移除，交接单已更新'); return }
+  activePanel.value = 'history'
+  await nextTick()
+  await historyPanel.value?.openRecord(id)
 }
 function onCareSaved(record: LocalToolRecord) {
   trackMiniEvent('app_tool_record_save', { page: 'ToolDetail', properties: { toolId: 'care', recordType: 'log' } })

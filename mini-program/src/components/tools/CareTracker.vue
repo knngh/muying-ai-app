@@ -10,6 +10,7 @@
       <text class="panel-hint">仅统计已保存记录；未知奶量不计入总量，跨日睡眠按当天时段计算。</text>
       <text v-if="summary.untimedSleepCount" class="panel-hint">另有 {{ summary.untimedSleepCount }} 条早期睡眠记录没有结束时间。</text>
     </view>
+    <CareHandoff :records="records" :owner="owner" :session="session" :today="day" @view-record="emit('viewRecord', $event)" @refresh="refreshHandoff" />
     <view class="tool-panel care-entry">
       <view class="care-kinds">
         <button v-for="item in kinds" :key="item.value" :class="{ selected: kind === item.value }" :disabled="!!session && kind !== item.value" @tap="kind = item.value">{{ item.label }}</button>
@@ -45,6 +46,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { onShow, onHide } from '@dcloudio/uni-app'
+import CareHandoff from './CareHandoff.vue'
 import { reportOwner } from '@/utils/report-drafts'
 import { localToolDate } from '@/utils/tool-history'
 import { saveToolRecord, type LocalToolRecord } from '@/utils/tool-records'
@@ -52,7 +54,7 @@ import { formatCareDuration, summarizeCareRecords, type CareKind } from '@/utils
 import { carePayload, readCareSession, writeCareSession, startCareSession, finishCareSession, discardCareSession, type CareSession } from '@/utils/care-session'
 
 const props = defineProps<{ records: LocalToolRecord[]; owner: string }>()
-const emit = defineEmits<{ saved: [record: LocalToolRecord] }>()
+const emit = defineEmits<{ saved: [record: LocalToolRecord]; viewRecord: [id: string]; refresh: [] }>()
 const kinds: Array<{ value: CareKind; label: string }> = [{ value: 'feeding', label: '喂奶' }, { value: 'diaper', label: '尿布' }, { value: 'sleep', label: '睡眠' }]
 const sides = [{ value: 'left', label: '左侧' }, { value: 'right', label: '右侧' }, { value: 'bottle', label: '奶瓶' }, { value: 'mixed', label: '混合' }]
 const diaperTypes = [{ value: 'wet', label: '尿湿' }, { value: 'stool', label: '便便' }, { value: 'both', label: '尿湿＋便便' }]
@@ -68,6 +70,7 @@ const elapsed = computed(() => {
   return `${String(Math.floor(seconds / 3600)).padStart(2, '0')}:${String(Math.floor(seconds % 3600 / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`
 })
 let ticker: ReturnType<typeof setInterval> | undefined
+function refreshHandoff() { refresh(); emit('refresh') }
 function resetTime() { const d = new Date(); date.value = localToolDate(d); time.value = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` }
 function stopTick() { if (ticker) clearInterval(ticker); ticker = undefined }
 function refresh() {

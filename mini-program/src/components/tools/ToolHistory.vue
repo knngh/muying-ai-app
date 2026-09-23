@@ -3,7 +3,7 @@
     <view class="panel-head"><text class="panel-title">{{ title || '历史记录' }}</text><text class="panel-badge">共 {{ records.length }} 条</text></view>
     <input v-if="records.length" v-model="query" class="panel-input history-search" placeholder="搜索内容、备注或日期" maxlength="80" />
     <view v-if="!filtered.length" class="history-empty"><text>{{ records.length ? '没有找到匹配记录' : '还没有保存记录' }}</text><text class="panel-hint">{{ records.length ? '换个关键词再试试。' : '保存后会出现在这里，再次打开也能查看。' }}</text></view>
-    <view v-for="record in filtered.slice(0, limit)" :key="record.id" class="history-item">
+    <view v-for="(record, index) in filtered.slice(0, limit)" :id="'tool-history-record-' + index" :key="record.id" class="history-item">
       <button class="history-open" @tap="expanded = expanded === record.id ? '' : record.id">
         <view class="history-copy"><text class="history-title">{{ historyTitle(record) }}</text><text class="panel-hint">{{ historyDate(record) }} · {{ record.syncStatus === 'synced' ? '已同步' : '本机保存' }}</text></view>
         <text class="history-chevron">{{ expanded === record.id ? '收起' : '详情 ›' }}</text>
@@ -20,14 +20,32 @@
   </view>
 </template>
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, getCurrentInstance, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import type { LocalToolRecord } from '@/utils/tool-records'
 import { historyDate, historyDetails, historyTitle } from '@/utils/tool-history'
 const props = defineProps<{ records: LocalToolRecord[]; title?: string }>()
 const emit = defineEmits<{ remove: [record: LocalToolRecord] }>()
 const query = ref(''), expanded = ref(''), limit = ref(20), failedImages = ref<Record<string, boolean>>({})
 const filtered = computed(() => props.records.filter(record => `${historyTitle(record)} ${historyDate(record)} ${historyDetails(record).map(field => field.value).join(' ')}`.toLowerCase().includes(query.value.trim().toLowerCase())))
-watch(query, () => { limit.value = 20 })
+watch(query, () => { limit.value = 20 }, { flush: 'sync' })
+const instance = getCurrentInstance()?.proxy
+async function openRecord(id: string) {
+  query.value = ''
+  const index = props.records.findIndex(record => record.id === id)
+  if (index < 0) return
+  limit.value = Math.max(20, index + 1); expanded.value = id
+  await nextTick()
+  if (!instance || expanded.value !== id) return
+  const selector = uni.createSelectorQuery().in(instance)
+  selector.select('#tool-history-record-' + index).boundingClientRect()
+  selector.selectViewport().scrollOffset(() => {})
+  selector.exec(result => {
+    const [rect, viewport] = result
+    if (expanded.value === id && rect && viewport) uni.pageScrollTo({ scrollTop: Math.max(0, rect.top + viewport.scrollTop - 12), duration: 250 })
+  })
+}
+onBeforeUnmount(() => { expanded.value = '' })
+defineExpose({ openRecord })
 function imagePath(record: LocalToolRecord): string { return typeof record.payload.path === 'string' ? record.payload.path : '' }
 function preview(record: LocalToolRecord) { uni.previewImage({ urls: [imagePath(record)], fail: () => { failedImages.value[record.id] = true } }) }
 </script>
