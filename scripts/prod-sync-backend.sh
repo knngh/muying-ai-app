@@ -94,6 +94,7 @@ echo "[1/3] create archive: ${ARCHIVE_PATH}"
 COPYFILE_DISABLE=1 tar \
   --exclude='.DS_Store' \
   --exclude='._*' \
+  --exclude='src/data' \
   -czf "${ARCHIVE_PATH}" \
   -C "${REPO_ROOT}" \
   "${SYNC_PATHS[@]}"
