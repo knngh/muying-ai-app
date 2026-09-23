@@ -42,7 +42,13 @@ export async function generateExpenseCandidates(input: ExpenseCandidatesRequest)
     const direction = selected(result, 'direction_' + index, directions);
     const category = selected(result, 'category_' + index, categories);
     const amountChoice = selected(result, 'amount_' + index, questions['amount_' + index]?.options || {});
-    const amount = amountChoice?.startsWith('value_') ? amounts[index][Number(amountChoice.slice(6))] : undefined;
+    // A single exact amount needs no semantic decision; this keeps a conservative
+    // Jev `none` response from hiding a value the user can still verify. Multiple
+    // amounts (corrections, discounts) remain Jev-selected or blank.
+    const amount = amountChoice?.startsWith('value_')
+      ? amounts[index][Number(amountChoice.slice(6))]
+      : result && (direction === 'expense' || direction === 'refund' || direction === 'transfer') && amounts[index].length === 1
+        ? amounts[index][0] : undefined;
     const blocked = unfinishedExpense.test(fragment) || direction === 'none';
     return {
       id: 'fragment_' + index, fragment,
