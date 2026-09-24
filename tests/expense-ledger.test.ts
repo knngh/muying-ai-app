@@ -1,4 +1,4 @@
-import { expenseApiInput, expenseFromRemote, expenseCandidateAlreadySaved, formatExpenseCents, parseExpenseCents, summarizeExpenseMonth } from '../mini-program/src/utils/expense-ledger';
+import { expenseApiInput, expenseFromRemote, expenseCandidateAlreadySaved, formatExpenseCents, formatExpenseYearExport, parseExpenseCents, summarizeExpenseMonth, summarizeExpenseYear } from '../mini-program/src/utils/expense-ledger';
 import { historyDetails, historyTitle } from '../mini-program/src/utils/tool-history';
 import { reviewInputs } from '../mini-program/src/utils/tool-review';
 import type { LocalToolRecord } from '../mini-program/src/utils/tool-records';
@@ -32,6 +32,21 @@ it('keeps refund-only months visible without implying any spending or counting a
   ], '2026-09');
   expect(result).toMatchObject({ expenseCents: 0, refundCents: 12000, transferCents: 100000, netCents: -12000, categories: [] });
   expect(result.entries).toHaveLength(2);
+});
+it('summarizes a year into twelve stable months and exports only non-empty months', () => {
+  const records = [
+    entry('jan', { amount: 100, date: '2026-01-03', direction: 'expense', category: 'checkup' }),
+    entry('jan-refund', { amount: 20, date: '2026-01-04', direction: 'refund', category: 'checkup' }),
+    entry('mar-transfer', { amount: 500, date: '2026-03-04', direction: 'transfer', category: 'other' }),
+    entry('next-year', { amount: 999, date: '2027-01-01', direction: 'expense', category: 'other' }),
+  ]
+  const summary = summarizeExpenseYear(records, 2026)
+  expect(summary.months).toHaveLength(12)
+  expect(summary.months[0]).toMatchObject({ month: '2026-01', expenseCents: 10000, refundCents: 2000, netCents: 8000, entryCount: 2 })
+  expect(summary.months[2]).toMatchObject({ transferCents: 50000, netCents: 0, entryCount: 1 })
+  expect(summary).toMatchObject({ expenseCents: 10000, refundCents: 2000, transferCents: 50000, netCents: 8000, entries: 3 })
+  expect(formatExpenseYearExport(records, 2026)).toContain('1月  支出 100.00 元 · 退款 20.00 元 · 净支出 80.00 元 · 2 笔')
+  expect(formatExpenseYearExport(records, 2026)).not.toContain('999.00')
 });
 it('rejects impossible dates and invalid values, keeps unknown categories separate, and exposes excluded sources', () => {
   const unknown = entry('unknown-category', { date: '2026-09-01', amount: 10, category: '老分类' });

@@ -15,6 +15,27 @@
       </view>
       <text class="panel-hint">净支出＝支出－退款。退款按到账日归入月份，转账不计入净支出。</text>
       <view class="month-actions"><text>{{ summary.entries.length }} 笔有效账目</text><button v-if="month !== currentMonth" class="back-to-month" @tap="month = currentMonth">回到本月</button></view>
+      <button class="year-toggle" :aria-expanded="showYearSummary" @tap="showYearSummary = !showYearSummary">年度账单 <text>{{ showYearSummary ? '收起' : '查看 ›' }}</text></button>
+      <view v-if="showYearSummary" class="year-summary">
+        <view class="year-summary-head">
+          <picker mode="date" fields="year" :value="`${year}-01-01`" start="1900-01-01" :end="currentDay" @change="onYearChange"><view class="year-picker">{{ year }} 年⌄</view></picker>
+          <button class="year-export" @tap="copyYearExport">复制年度账单</button>
+        </view>
+        <view class="year-totals">
+          <view><text class="total-label">全年支出</text><text class="total-value">{{ money(yearSummary.expenseCents) }}</text></view>
+          <view><text class="total-label">全年退款</text><text class="total-value">{{ money(yearSummary.refundCents) }}</text></view>
+          <view><text class="total-label">全年净支出</text><text class="total-value">{{ money(yearSummary.netCents) }}</text></view>
+        </view>
+        <view v-if="yearSummary.months.some(item => item.entryCount)" class="year-months">
+          <view v-for="item in yearSummary.months" :key="item.month" class="year-month-row">
+            <text class="year-month-label">{{ item.label }}</text>
+            <view class="year-month-track"><view class="year-month-fill" :style="{ width: `${yearBarWidth(item.expenseCents)}%` }" /></view>
+            <text class="year-month-value">{{ money(item.netCents) }}</text>
+          </view>
+        </view>
+        <text v-else class="panel-hint">这一年还没有有效账目。</text>
+        <text class="panel-hint">按实际发生日期汇总；转账在导出文本中单列，不计入净支出。</text>
+      </view>
       <button v-if="summary.categories.length" class="distribution-toggle" :aria-expanded="showDistribution" @tap="showDistribution = !showDistribution">支出分类分布 <text>{{ showDistribution ? '收起' : '展开 ›' }}</text></button>
       <view v-if="showDistribution && summary.categories.length" class="expense-distribution">
         <view v-for="category in summary.categories" :key="category.id" class="expense-category-row">
@@ -71,7 +92,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
-import { EXPENSE_CATEGORIES, EXPENSE_DIRECTIONS, expenseCategoryLabel, expenseDirectionLabel, formatExpenseCents as money, isExpenseDate, parseExpenseCents, summarizeExpenseMonth, type ExpenseDirection } from '@/utils/expense-ledger'
+import { EXPENSE_CATEGORIES, EXPENSE_DIRECTIONS, expenseCategoryLabel, expenseDirectionLabel, formatExpenseCents as money, formatExpenseYearExport, isExpenseDate, parseExpenseCents, summarizeExpenseMonth, summarizeExpenseYear, type ExpenseDirection } from '@/utils/expense-ledger'
 import { historyTitle, localToolDate } from '@/utils/tool-history'
 import { reportOwner } from '@/utils/report-drafts'
 import { saveToolRecord, type LocalToolRecord } from '@/utils/tool-records'
@@ -80,21 +101,25 @@ const props = defineProps<{ records: LocalToolRecord[]; owner: string }>()
 const emit = defineEmits<{ saved: [record: LocalToolRecord]; viewRecord: [id: string] }>()
 const currentDay = ref(localToolDate()), currentMonth = computed(() => currentDay.value.slice(0, 7))
 const month = ref(currentMonth.value), date = ref(currentDay.value)
+const year = ref(Number(currentDay.value.slice(0, 4)))
 const amount = ref(''), category = ref('checkup'), note = ref(''), direction = ref<ExpenseDirection>('expense')
-const showEntry = ref(!props.records.length), showDistribution = ref(false), showExcluded = ref(false), message = ref(''), busy = ref(false)
+const showEntry = ref(!props.records.length), showDistribution = ref(false), showYearSummary = ref(false), showExcluded = ref(false), message = ref(''), busy = ref(false)
 const directionLabel = computed(() => EXPENSE_DIRECTIONS.find(item => item.value === direction.value)?.label || '支出')
 const filterDirections = [{ value: 'all', label: '全部类型' }, ...EXPENSE_DIRECTIONS]
 const filterCategories = [{ value: 'all', label: '全部分类' }, ...EXPENSE_CATEGORIES]
 const directionIndex = ref(0), categoryIndex = ref(0), limit = ref(10), excludedLimit = ref(10)
 const summary = computed(() => summarizeExpenseMonth(props.records, month.value))
+const yearSummary = computed(() => summarizeExpenseYear(props.records, year.value))
+const maxYearExpense = computed(() => Math.max(1, ...yearSummary.value.months.map(item => item.expenseCents)))
 const filtered = computed(() => summary.value.entries.filter(item => (!directionIndex.value || item.direction === filterDirections[directionIndex.value].value) && (!categoryIndex.value || item.category === filterCategories[categoryIndex.value].value)))
 watch([month, directionIndex, categoryIndex], () => { limit.value = 10 })
 watch(month, () => { directionIndex.value = 0; categoryIndex.value = 0 })
 watch(() => props.owner, () => {
   currentDay.value = localToolDate(); month.value = currentMonth.value; date.value = currentDay.value
+  year.value = Number(currentDay.value.slice(0, 4))
   amount.value = ''; category.value = 'checkup'; note.value = ''; direction.value = 'expense'; message.value = ''
   directionIndex.value = 0; categoryIndex.value = 0; limit.value = 10
-  showEntry.value = !props.records.length; showDistribution.value = false; showExcluded.value = false; excludedLimit.value = 10
+  showEntry.value = !props.records.length; showDistribution.value = false; showYearSummary.value = false; showExcluded.value = false; excludedLimit.value = 10
 })
 onShow(() => {
   const previous = currentDay.value, next = localToolDate()
@@ -107,6 +132,18 @@ function moveMonth(step: number) {
   value.setMonth(value.getMonth() + step)
   const next = localToolDate(value).slice(0, 7)
   if (next >= '1900-01' && next <= currentMonth.value) month.value = next
+}
+function onYearChange(event: { detail: { value: string } }) {
+  const value = Number(event.detail.value.slice(0, 4))
+  if (Number.isInteger(value) && value >= 1900 && value <= Number(currentDay.value.slice(0, 4))) year.value = value
+}
+function yearBarWidth(cents: number) { return cents > 0 ? Math.max(2, Math.round(cents / maxYearExpense.value * 100)) : 0 }
+function copyYearExport() {
+  uni.setClipboardData({
+    data: formatExpenseYearExport(props.records, year.value),
+    success: () => uni.showToast({ title: '年度账单已复制', icon: 'success' }),
+    fail: () => { message.value = '复制失败，请稍后重试' },
+  })
 }
 function onCandidateSaved(record: LocalToolRecord) {
   const savedDate = record.payload.date
@@ -139,6 +176,7 @@ button::after { border: none; }
 .expense-eyebrow { display: block; margin-top: 20rpx; color: #815f45; font-size: 25rpx; }.expense-net { display: block; margin: 12rpx 0 28rpx; color: #69492f; font-size: 52rpx; font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .expense-totals { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16rpx; padding-bottom: 20rpx; border-bottom: 1rpx solid #e9d9ca; }.total-label, .total-value { display: block; }.total-label { color: #815f45; font-size: 23rpx; }.total-value { margin-top: 8rpx; color: #69492f; font-size: 28rpx; font-weight: 600; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
 .month-actions { display: flex; align-items: center; justify-content: space-between; margin-top: 16rpx; color: #815f45; font-size: 23rpx; }.back-to-month { padding: 16rpx 8rpx; margin: 0; font-size: 24rpx; line-height: 1.8; background: transparent; color: #166c5b; }
+.year-toggle { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 16rpx; padding: 20rpx 0; margin: 12rpx 0 0; border-top: 1rpx solid #e9d9ca; text-align: left; background: transparent; font-size: 26rpx; line-height: 1.8; color: #69492f; }.year-toggle > text:last-child { color: #166c5b; font-size: 25rpx; }.year-summary { padding: 4rpx 0 8rpx; }.year-summary-head { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; }.year-picker { padding: 16rpx 0; color: #69492f; font-size: 28rpx; font-weight: 700; }.year-export { flex: none; margin: 0; padding: 14rpx 18rpx; border-radius: 14rpx; background: #fff; color: #166c5b; font-size: 24rpx; line-height: 1.6; }.year-totals { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12rpx; padding: 14rpx 0 16rpx; border-bottom: 1rpx solid #e9d9ca; }.year-totals .total-value { font-size: 26rpx; }.year-month-row { display: flex; align-items: center; gap: 12rpx; margin-top: 14rpx; }.year-month-label { width: 54rpx; color: #815f45; font-size: 23rpx; }.year-month-track { flex: 1; height: 10rpx; overflow: hidden; background: #ead9c7; border-radius: 8rpx; }.year-month-fill { height: 100%; min-width: 0; background: #af7449; border-radius: 8rpx; }.year-month-value { width: 122rpx; color: #69492f; font-size: 23rpx; text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .distribution-toggle, .entry-toggle, .excluded-toggle { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 16rpx; padding: 20rpx 0; margin: 0; text-align: left; background: transparent; font-size: 26rpx; line-height: 1.8; color: #69492f; }.distribution-toggle { margin-top: 12rpx; border-top: 1rpx solid #e9d9ca; }.entry-toggle { padding: 8rpx 0; min-height: 88rpx; }.entry-toggle > text:last-child { font-size: 25rpx; color: #166c5b; }
 .expense-category-row { margin-top: 18rpx; }.category-labels { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8rpx; font-size: 24rpx; color: #69492f; }.category-track { height: 10rpx; margin-top: 12rpx; background: #ead9c7; border-radius: 8rpx; overflow: hidden; }.category-fill { height: 100%; background: #af7449; border-radius: 8rpx; }
 .expense-choices { display: flex; gap: 12rpx; flex-wrap: wrap; }.expense-choices button { margin: 0; padding: 20rpx 12rpx; min-height: 88rpx; border-radius: 16rpx; font-size: 25rpx; line-height: 1.8; background: #f6f1ee; color: #625650; }.direction-choices { margin-top: 20rpx; }.direction-choices button { flex: 1; }.category-choices button { flex: 1 1 28%; }.expense-choices .selected { color: #fff; background: #9a6441; font-weight: 600; }.expense-amount { font-size: 38rpx; height: 104rpx; }.expense-submit { width: 100%; margin-top: 26rpx; background: #9a6441; }.expense-message { display: block; margin-top: 20rpx; color: #965238; font-size: 24rpx; line-height: 1.7; }

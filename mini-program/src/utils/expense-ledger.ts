@@ -83,6 +83,55 @@ export function summarizeExpenseMonth(records: LocalToolRecord[], month: string)
   }).filter(category => category.count > 0).sort((a, b) => b.cents - a.cents)
   return { entries, excludedRecords, expenseCents, refundCents, transferCents, netCents: expenseCents - refundCents, categories }
 }
+
+export interface ExpenseYearMonthSummary {
+  month: string
+  label: string
+  expenseCents: number
+  refundCents: number
+  transferCents: number
+  netCents: number
+  entryCount: number
+}
+
+export function summarizeExpenseYear(records: LocalToolRecord[], year: number) {
+  const yearText = String(year)
+  const months: ExpenseYearMonthSummary[] = Array.from({ length: 12 }, (_, index) => {
+    const month = `${yearText}-${String(index + 1).padStart(2, '0')}`
+    const summary = summarizeExpenseMonth(records, month)
+    return {
+      month,
+      label: `${index + 1}月`,
+      expenseCents: summary.expenseCents,
+      refundCents: summary.refundCents,
+      transferCents: summary.transferCents,
+      netCents: summary.netCents,
+      entryCount: summary.entries.length,
+    }
+  })
+  const expenseCents = months.reduce((sum, item) => sum + item.expenseCents, 0)
+  const refundCents = months.reduce((sum, item) => sum + item.refundCents, 0)
+  const transferCents = months.reduce((sum, item) => sum + item.transferCents, 0)
+  const entries = months.reduce((sum, item) => sum + item.entryCount, 0)
+  return { year, months, expenseCents, refundCents, transferCents, netCents: expenseCents - refundCents, entries }
+}
+
+export function formatExpenseYearExport(records: LocalToolRecord[], year: number): string {
+  const summary = summarizeExpenseYear(records, year)
+  const lines = [
+    `贝护孕育账单 · ${year} 年`,
+    `支出 ${formatExpenseCents(summary.expenseCents)} 元 · 退款 ${formatExpenseCents(summary.refundCents)} 元 · 净支出 ${formatExpenseCents(summary.netCents)} 元`,
+    `转账 ${formatExpenseCents(summary.transferCents)} 元（单列，不计入净支出）`,
+    '',
+    ...summary.months
+      .filter(item => item.entryCount > 0)
+      .map(item => `${item.label}  支出 ${formatExpenseCents(item.expenseCents)} 元 · 退款 ${formatExpenseCents(item.refundCents)} 元 · 净支出 ${formatExpenseCents(item.netCents)} 元 · ${item.entryCount} 笔`),
+  ]
+  if (!summary.entries) lines.push('今年还没有有效账目。')
+  lines.push('', '仅汇总当前账号在本机保存的账目，不代表家庭全部收支。')
+  return lines.join('\n')
+}
+
 export function expenseApiInput(record: LocalToolRecord) {
   const entry = expenseEntry(record), p = record.payload
   if (!entry || typeof p.category !== 'string' || !p.category.trim()) return null
