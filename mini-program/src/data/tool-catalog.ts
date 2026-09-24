@@ -69,8 +69,8 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     stages: ['newborn', 'feeding'], primaryAction: '记录测量', helper: 'WHO 参考曲线仍在准备中。',
   },
   {
-    id: 'packing', title: '待产包清单', kicker: '家庭协作', description: '妈妈、宝宝、证件，逐项准备。', icon: '包', group: 'planning', tone: 'orange', status: 'planned',
-    stages: ['middle', 'late'], primaryAction: '查看清单', helper: '目前支持基础勾选，家庭认领尚未开放。',
+    id: 'packing', title: '待产包清单', kicker: '待产准备', description: '妈妈、宝宝、证件，逐项准备。', icon: '包', group: 'planning', tone: 'orange', status: 'preview',
+    stages: ['middle', 'late'], primaryAction: '查看清单', helper: '基础清单支持勾选和复制预览，医院要求请单独核对。',
   },
   {
     id: 'vaccines', title: '疫苗时间表', kicker: '按出生日期', description: '记录疫苗名称、日期与接种状态。', icon: '苗', group: 'planning', tone: 'green', status: 'planned',

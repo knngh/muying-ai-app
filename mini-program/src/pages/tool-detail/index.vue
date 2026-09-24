@@ -78,8 +78,16 @@
 
     <view v-else-if="tool.id === 'packing'" class="content-card">
       <view class="card-eyebrow-line"><text class="card-title">待产包基础清单</text><text class="progress-label">{{ packingDoneCount }}/{{ packingItems.length }}</text></view>
-      <text class="card-description">按妈妈、宝宝、证件逐项勾选。上次勾选会保留，医院的其他要求请另行核对。</text>
-      <view class="check-list"><view v-for="item in packingItems" :key="item.name" class="check-row" @tap="togglePacking(item.name)"><view class="check-box" :class="{ checked: isPackingDone(item.name) }"><text v-if="isPackingDone(item.name)">✓</text></view><view class="check-copy"><text class="check-name">{{ item.name }}</text><text class="check-group">{{ item.group }}</text></view></view></view>
+      <text class="card-description">按妈妈、宝宝、证件逐项勾选。数量只是整理提示，医院要求和个人情况请单独核对。</text>
+      <button class="secondary-button packing-copy-button" @tap="copyPackingPreview">复制清单预览</button>
+      <view class="packing-groups">
+        <view v-for="group in packingGroups" :key="group.value" class="packing-group">
+          <button class="packing-group-head" :aria-expanded="packingExpanded[group.value]" @tap="togglePackingGroup(group.value)"><text>{{ group.label }}</text><text>{{ group.doneCount }}/{{ group.items.length }} {{ packingExpanded[group.value] ? '收起' : '展开' }}</text></button>
+          <view v-if="packingExpanded[group.value]" class="check-list">
+            <view v-for="item in group.items" :key="item.name" class="check-row" @tap="togglePacking(item.name)"><view class="check-box" :class="{ checked: isPackingDone(item.name) }"><text v-if="isPackingDone(item.name)">✓</text></view><view class="check-copy"><text class="check-name">{{ item.name }}</text><text class="check-group">{{ item.quantity }}</text></view></view>
+          </view>
+        </view>
+      </view>
     </view>
 
     <view v-else-if="tool.id === 'vaccines'" class="content-card">
@@ -179,6 +187,7 @@ import { saveToolImage, removeUnusedToolImage } from '@/utils/tool-media'
 import { TOOL_CLOUD_ENABLED } from '@/config/features'
 import { contractionIntervalSeconds, summarizeContractionHistory } from '@/utils/contraction-sessions'
 import { MOVEMENT_MODES, clearMovementSession, movementElapsedSeconds, movementModeLabel, readMovementSession, type MovementMode, writeMovementSession } from '@/utils/movement-session'
+import { PACKING_GROUPS, PACKING_ITEMS, buildPackingShareText, packingDoneCount as countPackingDone, type PackingGroup } from '@/utils/packing-items'
 import { currentToolPeriod, parseToolPeriod, periodTools, toolPeriodLabel, type ToolPeriod } from '@/utils/tool-period'
 import { reportOwner } from '@/utils/report-drafts'
 import { getToolDefinition, getToneClass, type ToolId, type ToolStatus } from '@/data/tool-catalog'
@@ -225,10 +234,8 @@ const albumPreview = ref('')
 
 const growthTypes = [{ value: 'height', label: '身高' }, { value: 'weight', label: '体重' }, { value: 'head', label: '头围' }]
 const vaccineStatuses = ['已接种', '已预约', '待确认']
-const packingItems = [
-  { name: '证件与产检资料', group: '证件' }, { name: '产褥垫', group: '妈妈' }, { name: '哺乳内衣', group: '妈妈' },
-  { name: '新生儿衣物', group: '宝宝' }, { name: '纸尿裤', group: '宝宝' }, { name: '包被', group: '宝宝' },
-]
+const packingItems = PACKING_ITEMS
+const packingExpanded = ref<Record<PackingGroup, boolean>>({ 妈妈: true, 宝宝: true, 证件: true })
 
 const pinnedIds = ref(readHomeTools())
 const sourcePeriod = ref<ToolPeriod | null>(null)
@@ -252,7 +259,9 @@ const lastRecordTitle = computed(() => {
 const canReviewRecords = computed(() => ['contractions', 'movement', 'weight', 'care', 'growth', 'packing', 'vaccines', 'foods', 'diary', 'expenses'].includes(toolId.value))
 const weightRecords = computed(() => records.value.filter(item => item.toolId === 'weight' && item.recordType === 'measurement').filter(item => typeof item.payload.value === 'number'))
 const packingRecords = computed(() => records.value.filter(item => item.toolId === 'packing' && item.recordType === 'item'))
-const packingDoneCount = computed(() => packingItems.filter(item => isPackingDone(item.name)).length)
+const packingDoneNames = computed(() => new Set(packingRecords.value.filter(record => record.payload.done === true).map(record => String(record.payload.item))))
+const packingDoneCount = computed(() => countPackingDone(packingItems, packingDoneNames.value))
+const packingGroups = computed(() => PACKING_GROUPS.map(group => ({ ...group, items: packingItems.filter(item => item.group === group.value), doneCount: packingItems.filter(item => item.group === group.value && packingDoneNames.value.has(item.name)).length })))
 const growthUnit = computed(() => growthType.value === 'head' ? 'cm' : growthType.value === 'weight' ? 'kg' : 'cm')
 const contractionElapsedText = computed(() => {
   if (!contractionStart.value) return '00:00'
@@ -580,6 +589,10 @@ function saveGrowth() {
   if (record) { void syncServer(record); growthValue.value = '' }
 }
 function isPackingDone(name: string) { const item = packingRecords.value.find(record => record.payload.item === name); return item?.payload.done === true }
+function togglePackingGroup(group: PackingGroup) { packingExpanded.value[group] = !packingExpanded.value[group] }
+function copyPackingPreview() {
+  uni.setClipboardData({ data: buildPackingShareText(packingItems, packingDoneNames.value), success: () => uni.showToast({ title: '清单已复制', icon: 'success' }), fail: () => showNotice('复制失败，请稍后重试') })
+}
 function togglePacking(name: string) { const next = !isPackingDone(name); const record = save('item', { item: name, done: next }, `${next ? '已准备' : '取消'}：${name}`); void syncServer(record) }
 function onVaccineStatusChange(event: { detail: { value: string } }) { vaccineStatusIndex.value = Number(event.detail.value) }
 function saveVaccine() { if (!vaccineName.value.trim()) { showNotice('请填写疫苗名称'); return }; const record = save('record', { name: vaccineName.value.trim(), date: recordDate.value, status: ['administered', 'scheduled', 'unconfirmed'][vaccineStatusIndex.value] }, `${vaccineName.value.trim()} · ${vaccineStatuses[vaccineStatusIndex.value]}`); if (record) { void syncServer(record); vaccineName.value = ''; if (record.payload.status !== 'administered') openVaccineReminder(record) } }
@@ -650,6 +663,7 @@ onShareTimeline(() => ({ title: `贝护 · ${tool.value.title}` }))
 <style scoped>
 .vaccine-appointments { margin-top: 28rpx; padding-top: 24rpx; border-top: 1rpx solid #eee7e1; }
 .vaccine-appointment { padding: 22rpx 0; border-bottom: 1rpx solid #eee7e1; }.vaccine-actions { display: flex; gap: 12rpx; }.vaccine-actions .secondary-button { flex: 1; margin-top: 16rpx; font-size: 24rpx; padding: 16rpx 8rpx; }
+.packing-copy-button { width: 100%; margin-top: 22rpx; }.packing-group { margin-top: 20rpx; border-top: 1rpx solid #eee7e1; }.packing-group-head { display: flex; align-items: center; justify-content: space-between; gap: 12rpx; width: 100%; margin: 0; padding: 20rpx 0 10rpx; background: transparent; color: #69492f; font-size: 27rpx; line-height: 1.6; text-align: left; }.packing-group-head > text:last-child { color: #8c817c; font-size: 23rpx; }
 .tool-detail-page { min-height: 100vh; padding-bottom: 70rpx; background: #fcf9f8; }
 .record-tabs { display: flex; gap: 8rpx; position: sticky; top: 0; z-index: 5; padding: 12rpx 28rpx; background: #fcf9f8; border-bottom: 1rpx solid #eee7e1; }
 .record-tab { flex: 1; padding: 20rpx 8rpx; margin: 0; min-height: 88rpx; font-size: 28rpx; line-height: 1.8; background: transparent; color: #766b67; border-radius: 18rpx; }.record-tab.active { background: #edf5f1; color: #166c5b; font-weight: 700; }
