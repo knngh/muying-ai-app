@@ -40,11 +40,11 @@ export function findTools(query: string, group: ToolGroup | 'all' = 'all') {
   return TOOL_DEFINITIONS.filter(tool => (group === 'all' || group === tool.group)
     && words.every(word => `${tool.title} ${tool.description} ${aliases[tool.id] || ''}`.toLowerCase().includes(word)))
 }
-export function openToolPage(id: ToolId, period?: ToolPeriod | null) {
+export function openToolPage(id: ToolId, period?: ToolPeriod | null, recordId?: string) {
   if (id === 'calendar') uni.switchTab({ url: '/pages/calendar/index' })
   else {
     const context = period && parseToolPeriod(period.stage, period.week)
-    const query = context ? `&fromStage=${context.stage}&fromWeek=${context.week}` : ''
+    const query = `${context ? `&fromStage=${context.stage}&fromWeek=${context.week}` : ''}${recordId ? `&recordId=${encodeURIComponent(recordId)}` : ''}`
     uni.navigateTo({ url: id === 'names' ? '/pages/name-library/index' : `/pages/tool-detail/index?id=${id}${query}` })
   }
 }

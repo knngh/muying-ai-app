@@ -310,6 +310,19 @@
           />
         </view>
       </view>
+
+      <view class="tool-records-card">
+        <view class="tool-records-head">
+          <view><text class="tool-records-title">本周工具记录</text><text class="tool-records-hint">按实际记录日期归入当前周，可回到原工具查看详情。</text></view>
+          <text class="tool-records-count" v-if="calendarToolRecords.length">{{ calendarToolRecords.length }} 条</text>
+        </view>
+        <view v-if="!calendarRecordPeriodReady" class="tool-records-empty">补充预产期或宝宝出生日期后，这里会按真实日期汇总工具记录。</view>
+        <view v-else-if="!calendarToolRecords.length" class="tool-records-empty">本周还没有工具记录，保存后会显示在这里。</view>
+        <button v-for="item in calendarToolRecords" :key="item.id" class="tool-record-row" @tap="openCalendarToolRecord(item)">
+          <view class="tool-record-copy"><text class="tool-record-title">{{ item.title }}</text><text class="tool-record-meta">{{ item.date }} · {{ toolRecordLabel(item.toolId) }}</text></view>
+          <text class="tool-record-arrow">查看 ›</text>
+        </button>
+      </view>
     </view>
 
     <!-- 浮动操作按钮 -->
@@ -431,6 +444,8 @@ import { reportOwner } from '@/utils/report-drafts'
 import { openToolPage } from '@/utils/home-tools'
 import type { ToolId } from '@/data/tool-catalog'
 import type { ToolPeriod } from '@/utils/tool-period'
+import { readToolRecords, type LocalToolRecord } from '@/utils/tool-records'
+import { recordsForCalendarPeriod, type CalendarToolRecord } from '@/utils/calendar-tool-records'
 
 type TimelineStage = 'pregnancy' | 'postpartum'
 const reminderCenter = ref<InstanceType<typeof ReminderCenter> | null>(null)
@@ -544,6 +559,7 @@ const userDiaries = ref<Record<number, PregnancyDiary>>({})
 const customTodos = ref<Record<number, PregnancyCustomTodo[]>>({})
 const loginUserId = ref('')
 const todoState = ref<Record<string, boolean>>({})
+const localToolRecords = ref<LocalToolRecord[]>([])
 
 // 日记弹窗状态
 const showDiaryModal = ref(false)
@@ -855,6 +871,11 @@ const syncCustomTodoContext = async () => {
 const parsedContent = computed(() => currentWeekData.value.content)
 const currentDiary = computed(() => userDiaries.value[currentSelectedWeek.value])
 const currentDiaryImages = computed(() => currentDiary.value?.imageUrls || [])
+const calendarRecordPeriodReady = computed(() => Boolean(selectedTimelineItem.value.stage === 'pregnancy' ? timelineContext.value?.dueDate || appStore.user?.dueDate : timelineContext.value?.babyBirthday || appStore.user?.babyBirthday))
+const calendarToolRecords = computed<CalendarToolRecord[]>(() => recordsForCalendarPeriod(localToolRecords.value, selectedTimelineItem.value.stage, selectedTimelineItem.value.displayWeek, timelineContext.value?.dueDate || appStore.user?.dueDate, timelineContext.value?.babyBirthday || appStore.user?.babyBirthday))
+const toolRecordLabels: Partial<Record<ToolId, string>> = { contractions: '宫缩', movement: '胎动', weight: '体重', care: '喂养三件套', growth: '宝宝生长', packing: '待产包', vaccines: '疫苗', foods: '辅食', reports: '产检报告', diary: '孕育日记', album: '成长相册', expenses: '孕育记账' }
+const toolRecordLabel = (id: ToolId) => toolRecordLabels[id] || '工具记录'
+function openCalendarToolRecord(item: CalendarToolRecord) { openToolPage(item.toolId, selectedToolPeriod.value, item.id) }
 const canUseTodoActions = computed(() => !!loginUserId.value)
 const customTodoModalTitle = computed(() => editingCustomTodoId.value ? '编辑待办' : '添加待办')
 const customTodoSubmitText = computed(() => editingCustomTodoId.value ? '保存修改' : '添加待办')
@@ -1397,6 +1418,9 @@ onShow(() => {
       await appStore.fetchUser()
     }
     loginUserId.value = resolveLoginUserId()
+    // Resolve the owner before reading local records so an account switch never
+    // renders the previous namespace in the calendar.
+    localToolRecords.value = readToolRecords()
 
     if (returning && returning.userId === loginUserId.value) {
       await selectStorageWeek(returning.week)
@@ -1475,6 +1499,8 @@ onShareTimeline(() => {
 
 <style scoped>
 .todo-reminder-button { display: inline-block; margin: 12rpx 0 0; padding: 12rpx 20rpx; border-radius: 12rpx; background: #edf5f1; color: #166c5b; font-size: 23rpx; line-height: 1.8; }
+.tool-records-card { margin-top: 24rpx; padding: 24rpx; border-radius: 20rpx; background: #fffdfb; border: 1rpx solid #eee7e1; }
+.tool-records-head { display: flex; justify-content: space-between; gap: 16rpx; align-items: flex-start; }.tool-records-title, .tool-records-hint, .tool-records-empty, .tool-record-title, .tool-record-meta { display: block; }.tool-records-title { color: #443c3a; font-size: 28rpx; font-weight: 700; }.tool-records-hint { margin-top: 6rpx; color: #8c817c; font-size: 21rpx; line-height: 1.6; }.tool-records-count { color: #166c5b; font-size: 23rpx; flex-shrink: 0; }.tool-records-empty { padding: 24rpx 0 4rpx; color: #766b67; font-size: 24rpx; line-height: 1.7; }.tool-record-row { display: flex; justify-content: space-between; gap: 12rpx; align-items: center; width: 100%; margin: 18rpx 0 0; padding: 18rpx 0 0; border-top: 1rpx solid #eee7e1; background: transparent; text-align: left; }.tool-record-row::after { border: 0; }.tool-record-copy { min-width: 0; flex: 1; }.tool-record-title { color: #443c3a; font-size: 26rpx; overflow-wrap: anywhere; }.tool-record-meta { margin-top: 5rpx; color: #8c817c; font-size: 21rpx; }.tool-record-arrow { color: #166c5b; font-size: 23rpx; flex-shrink: 0; }
 .todo-reminder-button::after { border: 0; }
 .calendar-timeline-page {
   min-height: 100vh;

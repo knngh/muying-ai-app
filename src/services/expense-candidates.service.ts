@@ -13,6 +13,15 @@ interface ExpenseCandidatesResponse { source: 'ai' | 'manual'; model?: string; c
 
 const directions = { expense: 'Completed purchase/payment', refund: 'Refund actually received', transfer: 'Money transfer between people/accounts, not a purchase or refund', none: 'No completed transaction: a plan, negation, unfinished refund or unrelated text', unknown: 'Unclear or several transactions in the same fragment' };
 const categories = { checkup: 'Prenatal checkups or pregnancy examinations', supplies: 'Diapers, baby care supplies or hospital bag', feeding: 'Formula, milk, food or feeding supplies', vaccine: 'Vaccination', other: 'Other known purchase', unknown: 'Cannot determine from text' };
+const SUPPLIES_PATTERN = /纸尿裤|尿不湿|尿布|湿巾|护臀膏|隔尿垫/u;
+const FEEDING_PATTERN = /奶粉|母乳|奶瓶|奶嘴|辅食|米粉|喂奶/u;
+function categoryFromText(text: string, modelCategory: string | null): string | null {
+  const mentionsSupplies = SUPPLIES_PATTERN.test(text);
+  const mentionsFeeding = FEEDING_PATTERN.test(text);
+  if (mentionsSupplies && mentionsFeeding) return null;
+  if (mentionsSupplies) return 'supplies';
+  return modelCategory;
+}
 function selected(result: JevChoiceResult | undefined, id: string, options: Record<string, string>): string | null {
   const answer = result?.answers[id];
   return answer && answer.confidence >= .7 && Object.hasOwn(options, answer.choice) ? answer.choice : null;
@@ -40,7 +49,7 @@ export async function generateExpenseCandidates(input: ExpenseCandidatesRequest)
   }
   const candidates: ExpenseCandidate[] = fragments.map((fragment, index) => {
     const direction = selected(result, 'direction_' + index, directions);
-    const category = selected(result, 'category_' + index, categories);
+    const category = categoryFromText(fragment, selected(result, 'category_' + index, categories));
     const amountChoice = selected(result, 'amount_' + index, questions['amount_' + index]?.options || {});
     // A single exact amount needs no semantic decision; this keeps a conservative
     // Jev `none` response from hiding a value the user can still verify. Multiple

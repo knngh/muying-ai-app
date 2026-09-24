@@ -57,3 +57,7 @@ it('carries the browsed week in navigation without changing the actual pregnancy
   expect(navigateTo).toHaveBeenLastCalledWith({ url: '/pages/tool-detail/index?id=weight&fromStage=pregnancy&fromWeek=12' });
   expect(storage.get('userPregnancyWeek')).toBe(38);
 });
+it('can carry a local source record back into the tool history', () => {
+  openToolPage('weight', { stage: 'pregnancy', week: 12 }, 'local-record/1');
+  expect(navigateTo).toHaveBeenLastCalledWith({ url: '/pages/tool-detail/index?id=weight&fromStage=pregnancy&fromWeek=12&recordId=local-record%2F1' });
+});

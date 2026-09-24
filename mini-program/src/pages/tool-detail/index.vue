@@ -195,6 +195,7 @@ const reportCount = ref(0), albumSaving = ref(false)
 const reportLatest = ref<{ name: string; createdAt: string } | null>(null)
 const recordDate = ref(today())
 const storedWeek = ref<number | null>(null)
+const requestedRecordId = ref('')
 
 const contractionStart = ref<string | null>(null)
 const contractionNow = ref(Date.now())
@@ -257,6 +258,13 @@ function reload() {
   const value = Number.parseInt(String(uni.getStorageSync('userPregnancyWeek') || ''), 10)
   storedWeek.value = Number.isFinite(value) && value >= 1 && value <= 40 ? value : null
   records.value = readToolRecords()
+}
+async function openRequestedRecord() {
+  if (!requestedRecordId.value || !displayRecords.value.some(record => record.id === requestedRecordId.value)) return
+  const id = requestedRecordId.value
+  activePanel.value = 'history'
+  await nextTick()
+  if (requestedRecordId.value === id) { await historyPanel.value?.openRecord(id); requestedRecordId.value = '' }
 }
 function statusLabel(status: ToolStatus) { return ({ ready: '已上线', preview: '基础版', planned: '基础版' }[status]) }
 function showNotice(message: string) { notice.value = message; setTimeout(() => { if (notice.value === message) notice.value = '' }, 2400) }
@@ -579,7 +587,9 @@ function saveGenericNote() { save('note', { note: '已打开并准备使用' }, 
 onLoad((options) => {
   toolId.value = String(options?.id || 'calendar') as ToolId
   sourcePeriod.value = parseToolPeriod(options?.fromStage, options?.fromWeek)
+  requestedRecordId.value = typeof options?.recordId === 'string' ? options.recordId : ''
   reload()
+  void openRequestedRecord()
   void loadRemoteRecords()
   if (toolId.value === 'movement') movementTaps.value = readMovementTaps()
   const startedAt = uni.getStorageSync('beihu:contraction-start')
@@ -588,7 +598,7 @@ onLoad((options) => {
     contractionTimer = setInterval(() => { contractionNow.value = Date.now() }, 1000)
   }
 })
-onShow(() => { reload(); pinnedIds.value = readHomeTools(); reportScope.value = reportOwner(); reportPanel.value?.refresh?.() })
+onShow(() => { reload(); pinnedIds.value = readHomeTools(); reportScope.value = reportOwner(); reportPanel.value?.refresh?.(); void openRequestedRecord() })
 onBeforeUnmount(() => { if (contractionTimer) clearInterval(contractionTimer) })
 onShareAppMessage(() => ({ title: `贝护 · ${tool.value.title}`, path: `/pages/tool-detail/index?id=${toolId.value}` }))
 onShareTimeline(() => ({ title: `贝护 · ${tool.value.title}` }))

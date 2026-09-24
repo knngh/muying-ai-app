@@ -40,7 +40,7 @@
       </form>
     </view>
 
-    <ExpenseCandidates :records="records" :owner="owner" @saved="emit('saved', $event)" />
+    <ExpenseCandidates :records="records" :owner="owner" @saved="onCandidateSaved" />
 
     <view class="tool-panel expense-month-entries">
       <view class="panel-head"><text class="panel-title">{{ month.slice(5) }} 月明细</text><text class="panel-badge">{{ filtered.length }} 笔</text></view>
@@ -107,6 +107,12 @@ function moveMonth(step: number) {
   value.setMonth(value.getMonth() + step)
   const next = localToolDate(value).slice(0, 7)
   if (next >= '1900-01' && next <= currentMonth.value) month.value = next
+}
+function onCandidateSaved(record: LocalToolRecord) {
+  const savedDate = record.payload.date
+  if (isExpenseDate(savedDate)) month.value = savedDate.slice(0, 7)
+  directionIndex.value = 0; categoryIndex.value = 0
+  emit('saved', record)
 }
 function save(event: Event) {
   if (busy.value) return

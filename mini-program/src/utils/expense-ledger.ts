@@ -9,6 +9,22 @@ export const EXPENSE_DIRECTIONS = [{ value: 'expense', label: '支出' }, { valu
 export type ExpenseDirection = typeof EXPENSE_DIRECTIONS[number]['value']
 export interface LedgerEntry { record: LocalToolRecord; cents: number; direction: ExpenseDirection; category: string; date: string }
 
+function normalizeCandidateSource(value: unknown): string {
+  return typeof value === 'string' ? value.trim().replace(/\s+/gu, ' ') : ''
+}
+
+export function expenseCandidateAlreadySaved(records: LocalToolRecord[], sourceText: string, candidateId: string): boolean {
+  const normalizedSource = normalizeCandidateSource(sourceText)
+  if (!normalizedSource) return false
+  const stableId = `${normalizedSource}\u0000${candidateId}`
+  return records.some(record => {
+    if (record.toolId !== 'expenses' || record.recordType !== 'entry') return false
+    const candidateSource = normalizeCandidateSource(record.payload.sourceCandidateText)
+    const sourceId = typeof record.payload.sourceCandidateId === 'string' ? record.payload.sourceCandidateId : ''
+    return sourceId === stableId || (candidateSource === normalizedSource && sourceId.endsWith(`:${candidateId}`))
+  })
+}
+
 export function parseExpenseCents(value: unknown): number | null {
   if (typeof value !== 'string' && typeof value !== 'number') return null
   const text = String(value).trim()

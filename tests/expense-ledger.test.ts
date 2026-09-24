@@ -1,4 +1,4 @@
-import { expenseApiInput, expenseFromRemote, formatExpenseCents, parseExpenseCents, summarizeExpenseMonth } from '../mini-program/src/utils/expense-ledger';
+import { expenseApiInput, expenseFromRemote, expenseCandidateAlreadySaved, formatExpenseCents, parseExpenseCents, summarizeExpenseMonth } from '../mini-program/src/utils/expense-ledger';
 import { historyDetails, historyTitle } from '../mini-program/src/utils/tool-history';
 import { reviewInputs } from '../mini-program/src/utils/tool-review';
 import type { LocalToolRecord } from '../mini-program/src/utils/tool-records';
@@ -73,4 +73,16 @@ it('retains refund/transfer directions through API conversion and history for re
     expect(reviewInputs([record])[0].content).toContain('类型：' + title);
   }
   expect(expenseApiInput(entry('invalid', { date: '2026-09-01', amount: 1.005, category: 'feeding' }))).toBeNull();
+});
+it('shows candidate wording in history and detects the same draft after reprocessing', () => {
+  const record = entry('candidate', {
+    date: '2026-09-23', amount: 89, category: 'supplies', direction: 'expense',
+    sourceCandidateId: '奶粉 268，尿布 89\u0000fragment_1',
+    sourceCandidateText: '奶粉 268，尿布 89', sourceCandidateFragment: '尿布 89',
+  });
+  expect(expenseCandidateAlreadySaved([record], ' 奶粉 268，尿布 89 ', 'fragment_1')).toBe(true);
+  expect(expenseCandidateAlreadySaved([record], '奶粉 268，尿布 89', 'fragment_0')).toBe(false);
+  expect(expenseCandidateAlreadySaved([record], '另一笔尿布 89', 'fragment_1')).toBe(false);
+  expect(historyDetails(record)).toContainEqual({ label: '来源原话', value: '奶粉 268，尿布 89' });
+  expect(historyDetails(record)).toContainEqual({ label: '原话片段', value: '尿布 89' });
 });

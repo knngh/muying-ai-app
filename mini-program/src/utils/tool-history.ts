@@ -40,7 +40,7 @@ export function historyDetails(record: LocalToolRecord): Array<{ label: string; 
     case 'vaccines': fields.push(['疫苗名称', p.name], ['接种状态', text(p.status)], ['原预约日期', p.appointmentDate]); break
     case 'foods': fields.push(['食材', p.name], ['观察', p.note]); break
     case 'diary': fields.push(['心情', p.mood], ['日记全文', p.content]); break
-    case 'expenses': fields.push(['金额', expenseAmountText(p.amount)], ['类型', expenseDirectionLabel(record)], ['分类', expenseCategoryLabel(p.category)], ['备注', p.note]); break
+    case 'expenses': fields.push(['金额', expenseAmountText(p.amount)], ['类型', expenseDirectionLabel(record)], ['分类', expenseCategoryLabel(p.category)], ['备注', p.note], ['来源原话', p.sourceCandidateText], ['原话片段', p.sourceCandidateFragment]); break
     case 'poster': fields.push(['制作时孕周', p.week ? `第 ${p.week} 周` : '今日阶段卡']); break
     case 'album': fields.push(['照片日期', p.date]); break
     case 'reports': fields.push(['报告名称', p.name], ['备注', p.note]); break

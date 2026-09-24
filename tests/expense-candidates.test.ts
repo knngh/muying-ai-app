@@ -25,6 +25,14 @@ it('keeps changed amounts in one fragment and selects only the actual payment', 
   const response = await generateExpenseCandidates({ text: '尿布原价98元，实际支付89元', consent: true });
   expect(response.candidates).toHaveLength(1); expect(response.candidates[0].amountCents).toBe(8900);
 });
+it('keeps diaper and wipe purchases out of feeding, while mixed-item fragments require manual category review', async () => {
+  ask.mockResolvedValue(result({
+    direction_0: answer('expense'), category_0: answer('feeding'), amount_0: answer('value_0'),
+    direction_1: answer('expense'), category_1: answer('feeding'), amount_1: answer('value_0'),
+  }));
+  const response = await generateExpenseCandidates({ text: '尿布89元；尿布和奶粉100元', consent: true });
+  expect(response.candidates.map(candidate => candidate.category)).toEqual(['supplies', null]);
+});
 it('keeps the only exact amount when Jev conservatively chooses none', async () => {
   ask.mockResolvedValue(result({ direction_0: answer('expense'), category_0: answer('feeding'), amount_0: answer('none') }));
   const response = await generateExpenseCandidates({ text: '奶粉268元', consent: true });
