@@ -318,10 +318,15 @@
         </view>
         <view v-if="!calendarRecordPeriodReady" class="tool-records-empty">补充预产期或宝宝出生日期后，这里会按真实日期汇总工具记录。</view>
         <view v-else-if="!calendarToolRecords.length" class="tool-records-empty">本周还没有工具记录，保存后会显示在这里。</view>
-        <button v-for="item in calendarToolRecords" :key="item.id" class="tool-record-row" @tap="openCalendarToolRecord(item)">
-          <view class="tool-record-copy"><text class="tool-record-title">{{ item.title }}</text><text class="tool-record-meta">{{ item.date }} · {{ toolRecordLabel(item.toolId) }}</text></view>
-          <text class="tool-record-arrow">查看 ›</text>
-        </button>
+        <view v-else class="tool-record-days">
+          <view v-for="day in calendarToolRecordDays" :key="day.date" class="tool-record-day">
+            <view class="tool-record-day-head"><text class="tool-record-day-title">{{ day.label }}</text><text class="tool-record-day-count">{{ day.count }} 条</text></view>
+            <button v-for="item in day.records" :key="item.id" class="tool-record-row" @tap="openCalendarToolRecord(item)">
+              <view class="tool-record-copy"><text class="tool-record-title">{{ item.title }}</text><text class="tool-record-meta">{{ toolRecordLabel(item.toolId) }} · 原记录 {{ item.date }}</text></view>
+              <text class="tool-record-arrow">查看 ›</text>
+            </button>
+          </view>
+        </view>
       </view>
     </view>
 
@@ -445,7 +450,7 @@ import { openToolPage } from '@/utils/home-tools'
 import type { ToolId } from '@/data/tool-catalog'
 import type { ToolPeriod } from '@/utils/tool-period'
 import { readToolRecords, type LocalToolRecord } from '@/utils/tool-records'
-import { recordsForCalendarPeriod, type CalendarToolRecord } from '@/utils/calendar-tool-records'
+import { groupCalendarToolRecordsByDate, recordsForCalendarPeriod, type CalendarToolRecord } from '@/utils/calendar-tool-records'
 
 type TimelineStage = 'pregnancy' | 'postpartum'
 const reminderCenter = ref<InstanceType<typeof ReminderCenter> | null>(null)
@@ -873,6 +878,7 @@ const currentDiary = computed(() => userDiaries.value[currentSelectedWeek.value]
 const currentDiaryImages = computed(() => currentDiary.value?.imageUrls || [])
 const calendarRecordPeriodReady = computed(() => Boolean(selectedTimelineItem.value.stage === 'pregnancy' ? timelineContext.value?.dueDate || appStore.user?.dueDate : timelineContext.value?.babyBirthday || appStore.user?.babyBirthday))
 const calendarToolRecords = computed<CalendarToolRecord[]>(() => recordsForCalendarPeriod(localToolRecords.value, selectedTimelineItem.value.stage, selectedTimelineItem.value.displayWeek, timelineContext.value?.dueDate || appStore.user?.dueDate, timelineContext.value?.babyBirthday || appStore.user?.babyBirthday))
+const calendarToolRecordDays = computed(() => groupCalendarToolRecordsByDate(calendarToolRecords.value))
 const toolRecordLabels: Partial<Record<ToolId, string>> = { contractions: '宫缩', movement: '胎动', weight: '体重', care: '喂养三件套', growth: '宝宝生长', packing: '待产包', vaccines: '疫苗', foods: '辅食', reports: '产检报告', diary: '孕育日记', album: '成长相册', expenses: '孕育记账' }
 const toolRecordLabel = (id: ToolId) => toolRecordLabels[id] || '工具记录'
 function openCalendarToolRecord(item: CalendarToolRecord) { openToolPage(item.toolId, selectedToolPeriod.value, item.id) }
@@ -1500,7 +1506,7 @@ onShareTimeline(() => {
 <style scoped>
 .todo-reminder-button { display: inline-block; margin: 12rpx 0 0; padding: 12rpx 20rpx; border-radius: 12rpx; background: #edf5f1; color: #166c5b; font-size: 23rpx; line-height: 1.8; }
 .tool-records-card { margin-top: 24rpx; padding: 24rpx; border-radius: 20rpx; background: #fffdfb; border: 1rpx solid #eee7e1; }
-.tool-records-head { display: flex; justify-content: space-between; gap: 16rpx; align-items: flex-start; }.tool-records-title, .tool-records-hint, .tool-records-empty, .tool-record-title, .tool-record-meta { display: block; }.tool-records-title { color: #443c3a; font-size: 28rpx; font-weight: 700; }.tool-records-hint { margin-top: 6rpx; color: #8c817c; font-size: 21rpx; line-height: 1.6; }.tool-records-count { color: #166c5b; font-size: 23rpx; flex-shrink: 0; }.tool-records-empty { padding: 24rpx 0 4rpx; color: #766b67; font-size: 24rpx; line-height: 1.7; }.tool-record-row { display: flex; justify-content: space-between; gap: 12rpx; align-items: center; width: 100%; margin: 18rpx 0 0; padding: 18rpx 0 0; border-top: 1rpx solid #eee7e1; background: transparent; text-align: left; }.tool-record-row::after { border: 0; }.tool-record-copy { min-width: 0; flex: 1; }.tool-record-title { color: #443c3a; font-size: 26rpx; overflow-wrap: anywhere; }.tool-record-meta { margin-top: 5rpx; color: #8c817c; font-size: 21rpx; }.tool-record-arrow { color: #166c5b; font-size: 23rpx; flex-shrink: 0; }
+.tool-records-head { display: flex; justify-content: space-between; gap: 16rpx; align-items: flex-start; }.tool-records-title, .tool-records-hint, .tool-records-empty, .tool-record-title, .tool-record-meta { display: block; }.tool-records-title { color: #443c3a; font-size: 28rpx; font-weight: 700; }.tool-records-hint { margin-top: 6rpx; color: #8c817c; font-size: 21rpx; line-height: 1.6; }.tool-records-count { color: #166c5b; font-size: 23rpx; flex-shrink: 0; }.tool-records-empty { padding: 24rpx 0 4rpx; color: #766b67; font-size: 24rpx; line-height: 1.7; }.tool-record-day { margin-top: 20rpx; }.tool-record-day-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12rpx; padding-bottom: 8rpx; border-bottom: 1rpx solid #eee7e1; }.tool-record-day-title { color: #69492f; font-size: 25rpx; font-weight: 700; }.tool-record-day-count { color: #8c817c; font-size: 21rpx; }.tool-record-row { display: flex; justify-content: space-between; gap: 12rpx; align-items: center; width: 100%; margin: 0; padding: 18rpx 0 0; background: transparent; text-align: left; }.tool-record-row + .tool-record-row { padding-top: 14rpx; }.tool-record-row::after { border: 0; }.tool-record-copy { min-width: 0; flex: 1; }.tool-record-title { color: #443c3a; font-size: 26rpx; overflow-wrap: anywhere; }.tool-record-meta { margin-top: 5rpx; color: #8c817c; font-size: 21rpx; }.tool-record-arrow { color: #166c5b; font-size: 23rpx; flex-shrink: 0; }
 .todo-reminder-button::after { border: 0; }
 .calendar-timeline-page {
   min-height: 100vh;

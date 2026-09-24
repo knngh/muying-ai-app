@@ -1,4 +1,4 @@
-import { recordsForCalendarPeriod } from '../mini-program/src/utils/calendar-tool-records'
+import { groupCalendarToolRecordsByDate, recordsForCalendarPeriod } from '../mini-program/src/utils/calendar-tool-records'
 import type { LocalToolRecord } from '../mini-program/src/utils/tool-records'
 function record(id: string, toolId: LocalToolRecord['toolId'], payload: LocalToolRecord['payload']): LocalToolRecord { const createdAt = '2026-09-23T10:00:00Z'; return { id, toolId, recordType: 'entry', payload, createdAt, updatedAt: createdAt, syncStatus: 'local' } }
 it('groups real pregnancy dates and excludes undated records', () => {
@@ -19,4 +19,16 @@ it('keeps timestamp records on the device local calendar date', () => {
 it('does not map records outside the pregnancy anchor window into a clamped week', () => {
   const records = [record('after-due', 'weight', { value: 63, measuredAt: '2027-01-07' }), record('before-start', 'weight', { value: 60, measuredAt: '2026-03-01' })]
   expect(recordsForCalendarPeriod(records, 'pregnancy', 40, '2027-01-06')).toEqual([])
+})
+it('groups calendar records by real date with stable newest-day ordering', () => {
+  const records = recordsForCalendarPeriod([
+    record('one', 'weight', { measuredAt: '2026-09-23', value: 62 }),
+    record('two', 'diary', { date: '2026-09-24', content: '今天' }),
+    record('three', 'growth', { measuredAt: '2026-09-23', value: 6 }),
+  ], 'pregnancy', 25, '2027-01-06')
+  expect(groupCalendarToolRecordsByDate(records, '2026-09-24')).toMatchObject([
+    { date: '2026-09-24', label: '今天', count: 1 },
+    { date: '2026-09-23', label: '09月23日', count: 2 },
+  ])
+  expect(groupCalendarToolRecordsByDate([], '2026-09-24')).toEqual([])
 })

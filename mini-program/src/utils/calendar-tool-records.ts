@@ -5,6 +5,7 @@ import { calculatePregnancyWeekFromDueDate } from './index'
 
 export type CalendarRecordStage = 'pregnancy' | 'postpartum'
 export interface CalendarToolRecord { id: string; toolId: ToolId; title: string; date: string; record: LocalToolRecord }
+export interface CalendarToolRecordDay { date: string; label: string; count: number; records: CalendarToolRecord[] }
 const DATE_KEYS = ['date', 'measuredAt', 'recordedAt', 'startedAt', 'startAt', 'appointmentDate'] as const
 function dateKey(value: unknown): string | null {
   if (typeof value !== 'string') return null
@@ -42,4 +43,17 @@ export function recordsForCalendarPeriod(records: LocalToolRecord[], stage: Cale
     .sort((a, b) => b.date.localeCompare(a.date) || b.record.createdAt.localeCompare(a.record.createdAt))
     .slice(0, 20)
     .map(item => ({ id: item.record.id, toolId: item.record.toolId, title: historyTitle(item.record), date: item.date, record: item.record }))
+}
+
+export function groupCalendarToolRecordsByDate(records: CalendarToolRecord[], today = localToolDate()): CalendarToolRecordDay[] {
+  const groups = new Map<string, CalendarToolRecord[]>()
+  for (const item of records) groups.set(item.date, [...(groups.get(item.date) || []), item])
+  return [...groups.entries()]
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([date, items]) => ({
+      date,
+      label: date === today ? '今天' : date.slice(5).replace('-', '月') + '日',
+      count: items.length,
+      records: items,
+    }))
 }
