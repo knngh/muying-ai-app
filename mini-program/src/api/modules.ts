@@ -94,6 +94,7 @@ export interface MovementRecord {
   endedAt: string
   count: number
   method: string
+  durationSeconds: number
   createdAt: string
   updatedAt: string
 }
@@ -183,6 +184,29 @@ export interface PackingItemRecord {
   updatedAt: string
 }
 
+export interface CalendarSummaryRecord {
+  id: string
+  toolId: string
+  date: string
+  title: string
+}
+
+export interface CalendarSummaryDay {
+  date: string
+  count: number
+  records: CalendarSummaryRecord[]
+}
+
+export interface AnnualExpenseSummary {
+  year: number
+  months: Array<{ month: string; expenseCents: number; refundCents: number; transferCents: number; netCents: number; entryCount: number }>
+  expenseCents: number
+  refundCents: number
+  transferCents: number
+  netCents: number
+  entryCount: number
+}
+
 export interface ToolAIReviewRecordInput {
   date: string
   content: string
@@ -228,6 +252,7 @@ export interface ReportDocumentRecord {
 }
 
 export const toolRecordApi = {
+  getCalendarSummary: (from: string, to: string) => api.get<CalendarSummaryDay[]>('/tool-records/calendar-summary', { from, to }),
   expenseCandidates: (data: ExpenseCandidatesRequest) => api.post<ExpenseCandidatesResponse>('/tool-records/expense-candidates', data, { timeout: 30000 }),
   reviewRecords: (data: {
     toolId: 'contractions' | 'movement' | 'weight' | 'care' | 'growth' | 'packing' | 'vaccines' | 'foods' | 'diary' | 'expenses'
@@ -239,7 +264,7 @@ export const toolRecordApi = {
   createContraction: (data: Omit<ContractionRecord, 'id' | 'createdAt' | 'updatedAt'> & { clientOperationId?: string }) =>
     api.post<ContractionRecord>('/tool-records/contractions', data),
   getMovements: (limit = 30) => api.get<MovementRecord[]>('/tool-records/movements', { limit }),
-  createMovement: (data: Omit<MovementRecord, 'id' | 'createdAt' | 'updatedAt'> & { clientOperationId?: string }) =>
+  createMovement: (data: Omit<MovementRecord, 'id' | 'createdAt' | 'updatedAt' | 'durationSeconds'> & { clientOperationId?: string }) =>
     api.post<MovementRecord>('/tool-records/movements', data),
   getWeights: (limit = 30) => api.get<PregnancyWeightRecord[]>('/tool-records/weights', { limit }),
   createWeight: (data: Omit<PregnancyWeightRecord, 'id' | 'createdAt' | 'updatedAt'> & { clientOperationId?: string }) =>
@@ -248,6 +273,7 @@ export const toolRecordApi = {
   createDiaryEntry: (data: Omit<DiaryEntryRecord, 'id' | 'createdAt' | 'updatedAt' | 'imageUrls'> & { clientOperationId?: string }) =>
     api.post<DiaryEntryRecord>('/tool-records/diary', data),
   getExpenseEntries: (limit = 30) => api.get<ExpenseEntryRecord[]>('/tool-records/expenses', { limit }),
+  getAnnualExpenseSummary: (year: number) => api.get<AnnualExpenseSummary>('/tool-records/expenses/annual', { year }),
   createExpenseEntry: (data: Omit<ExpenseEntryRecord, 'id' | 'createdAt' | 'updatedAt'> & { clientOperationId?: string }) =>
     api.post<ExpenseEntryRecord>('/tool-records/expenses', data),
   getCareLogs: (limit = 30) => api.get<CareLogRecord[]>('/tool-records/care', { limit }),

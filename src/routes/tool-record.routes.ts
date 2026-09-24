@@ -5,13 +5,13 @@ import { validate } from '../middlewares/validate.middleware';
 import {
   createBabyMeasurement, createCareLog, createContraction, createDiaryEntry, createExpenseEntry,
   createFoodTrial, createMovement, createVaccinationRecord, createWeight, getBabyMeasurements,
-  getCareLogs, getContractions, getDiaryEntries, getExpenseEntries, getFoodTrials, getMovements,
+  getAnnualExpenseSummary, getCalendarSummary, getCareLogs, getContractions, getDiaryEntries, getExpenseEntries, getFoodTrials, getMovements,
   getPackingItems, getVaccinationRecords, getWeights, upsertPackingItem,
 } from '../controllers/tool-record.controller';
 import {
   babyMeasurementBody, careLogBody, contractionRecordBody, diaryEntryBody, expenseEntryBody,
   foodTrialBody, movementRecordBody, packingItemBody, pregnancyWeightRecordBody,
-  toolRecordsQuery, vaccinationRecordBody,
+  calendarSummaryQuery, expenseAnnualQuery, toolRecordsQuery, vaccinationRecordBody,
 } from '../schemas/tool-record.schema';
 import reportDocumentRoutes from './report-document.routes';
 import { getPosterCode } from '../services/poster-code.service';
@@ -26,6 +26,8 @@ router.get('/poster-code', queryRateLimiter, async (_req, res, next) => {
 });
 router.use(authMiddleware);
 
+router.get('/calendar-summary', queryRateLimiter, validate({ query: calendarSummaryQuery }), getCalendarSummary);
+
 router.get('/contractions', queryRateLimiter, validate({ query: toolRecordsQuery }), getContractions);
 router.post('/contractions', writeRateLimiter, validate({ body: contractionRecordBody }), createContraction);
 router.get('/movements', queryRateLimiter, validate({ query: toolRecordsQuery }), getMovements);
@@ -35,6 +37,7 @@ router.post('/weights', writeRateLimiter, validate({ body: pregnancyWeightRecord
 router.get('/diary', queryRateLimiter, validate({ query: toolRecordsQuery }), getDiaryEntries);
 router.post('/diary', writeRateLimiter, validate({ body: diaryEntryBody }), createDiaryEntry);
 router.get('/expenses', queryRateLimiter, validate({ query: toolRecordsQuery }), getExpenseEntries);
+router.get('/expenses/annual', queryRateLimiter, validate({ query: expenseAnnualQuery }), getAnnualExpenseSummary);
 router.post('/expenses', writeRateLimiter, validate({ body: expenseEntryBody }), createExpenseEntry);
 router.get('/care', queryRateLimiter, validate({ query: toolRecordsQuery }), getCareLogs);
 router.post('/care', writeRateLimiter, validate({ body: careLogBody }), createCareLog);

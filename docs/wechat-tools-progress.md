@@ -25,6 +25,14 @@
 - 微信自动化：新增 `mini-program/scripts/check-tools-ui.cjs` 与 `npm run smoke:tools`，覆盖 15 个路由、标题/入口/历史表面及 320/375/430 宽度横向溢出。当前环境没有 `playwright`，脚本未运行；需安装依赖并启动 H5 后执行。
 - 验证：新增/相关单元测试 23 项通过，小程序 `type-check` 通过。下一步已具备产物小版本条件，但微信 CLI 仍返回 `IDE service port disabled`，尚未完成原生模拟器/真机检查，也没有上传微信版本。
 
+## 后端先行补齐（2026-09-24）
+
+- 新增登录保护的 `GET /api/v1/tool-records/expenses/annual?year=YYYY`，只聚合当前账号该年份的支出、退款、转账和 12 个月明细；无记录月份仍返回，未知方向不会进入合计。
+- 新增登录保护的 `GET /api/v1/tool-records/calendar-summary?from=YYYY-MM-DD&to=YYYY-MM-DD`，日期范围最多 32 天，返回按真实日期分组的工具摘要，不返回报告图片、原始健康字段或其他账号数据。
+- 宫缩写入契约校验持续时间必须等于起止时间差；胎动方式限制为 `free`、`one_hour_morning`、`one_hour_midday`、`one_hour_evening`，服务端响应补充实际会话时长。
+- 待产包默认模板扩为 19 项，新老账号读取时按唯一名称补齐缺项，保留已有勾选状态和数量；仍无家庭认领、邀请或医院专属规则。
+- 后端验证：新增聚合服务、路由隔离和字段契约测试 14 项通过，`npm run build` 与 ESLint 通过。没有 Prisma schema 变化，不需要数据库迁移；生产部署需执行现有 `ops:smoke:prod`，小程序云同步开关继续关闭。
+
 ## 2026-09-23 Jev 一句话记账候选
 
 - 孕育记账本增加“一句话记账”卡：输入最多 4 段文字后，服务端先由代码分句、提取原文金额，再由 Jev 在固定的类型、分类和金额候选中选择。模型不能创造金额、日期或账目事实。

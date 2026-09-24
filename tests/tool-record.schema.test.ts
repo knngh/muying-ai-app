@@ -2,7 +2,10 @@ import {
   babyMeasurementBody,
   contractionRecordBody,
   diaryEntryBody,
+  movementRecordBody,
+  calendarSummaryQuery,
   expenseEntryBody,
+  expenseAnnualQuery,
   foodTrialBody,
   packingItemBody,
   pregnancyWeightRecordBody,
@@ -15,6 +18,22 @@ describe('tool record contracts', () => {
       startedAt: '2026-09-21T08:00:00.000Z', endedAt: '2026-09-21T08:00:48.000Z',
       durationSeconds: 48, intervalSeconds: 320, clientOperationId: 'local-12345678',
     }).success).toBe(true);
+  });
+
+  it('rejects a contraction duration that does not match its timestamps', () => {
+    expect(contractionRecordBody.safeParse({
+      startedAt: '2026-09-21T08:00:00.000Z', endedAt: '2026-09-21T08:00:48.000Z',
+      durationSeconds: 47,
+    }).success).toBe(false);
+  });
+
+  it('accepts only supported fetal movement session modes', () => {
+    expect(movementRecordBody.safeParse({
+      startedAt: '2026-09-21T08:00:00.000Z', endedAt: '2026-09-21T08:20:00.000Z', count: 8, method: 'one_hour_morning',
+    }).success).toBe(true);
+    expect(movementRecordBody.safeParse({
+      startedAt: '2026-09-21T08:00:00.000Z', endedAt: '2026-09-21T08:20:00.000Z', count: 8, method: 'diagnosis',
+    }).success).toBe(false);
   });
 
   it('rejects invalid pregnancy weight ranges', () => {
@@ -42,5 +61,13 @@ describe('tool record contracts', () => {
     const base = { toolId: 'weight', records: [{ date: '2026-09-21', content: '体重 62.4 kg' }] };
     expect(toolAIReviewBody.safeParse({ ...base, consent: true }).success).toBe(true);
     expect(toolAIReviewBody.safeParse({ ...base, consent: false }).success).toBe(false);
+  });
+
+  it('bounds annual and calendar summary queries', () => {
+    expect(expenseAnnualQuery.safeParse({ year: 2026 }).success).toBe(true)
+    expect(expenseAnnualQuery.safeParse({ year: 1800 }).success).toBe(false)
+    expect(calendarSummaryQuery.safeParse({ from: '2026-09-01', to: '2026-09-24' }).success).toBe(true)
+    expect(calendarSummaryQuery.safeParse({ from: '2026-09-24', to: '2026-09-01' }).success).toBe(false)
+    expect(calendarSummaryQuery.safeParse({ from: '2026-01-01', to: '2026-02-10' }).success).toBe(false)
   });
 });

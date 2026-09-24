@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 const dateTime = z.string().trim().refine(value => !Number.isNaN(Date.parse(value)), '时间格式无效');
-const dateOnly = z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式无效，请使用 YYYY-MM-DD')
+export const dateOnly = z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式无效，请使用 YYYY-MM-DD')
   .refine(value => {
     const [year, month, day] = value.split('-').map(Number);
     const date = new Date(Date.UTC(year, month - 1, day));
@@ -13,6 +13,20 @@ export const toolRecordsQuery = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(30),
 });
 
+export const expenseAnnualQuery = z.object({
+  year: z.coerce.number().int().min(1900).max(2100),
+});
+
+export const calendarSummaryQuery = z.object({
+  from: dateOnly,
+  to: dateOnly,
+}).superRefine((value, ctx) => {
+  const from = Date.parse(`${value.from}T00:00:00.000Z`)
+  const to = Date.parse(`${value.to}T00:00:00.000Z`)
+  if (to < from) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['to'], message: '结束日期不能早于开始日期' })
+  if (to - from > 31 * 86400000) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['to'], message: '日期范围不能超过 32 天' })
+});
+
 export { toolAIReviewBody } from './tool-ai-review.schema';
 
 export const contractionRecordBody = z.object({
@@ -21,13 +35,16 @@ export const contractionRecordBody = z.object({
   durationSeconds: z.coerce.number().int().min(0).max(86_400),
   intervalSeconds: z.coerce.number().int().min(0).max(86_400).nullable().optional(),
   clientOperationId: operationId,
+}).superRefine((value, ctx) => {
+  const elapsed = Math.round((Date.parse(value.endedAt) - Date.parse(value.startedAt)) / 1000)
+  if (elapsed !== value.durationSeconds) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['durationSeconds'], message: '持续时间必须与起止时间一致' })
 });
 
 export const movementRecordBody = z.object({
   startedAt: dateTime,
   endedAt: dateTime,
   count: z.coerce.number().int().min(1).max(10_000),
-  method: z.string().trim().min(1).max(30).default('free'),
+  method: z.enum(['free', 'one_hour_morning', 'one_hour_midday', 'one_hour_evening']).default('free'),
   clientOperationId: operationId,
 });
 

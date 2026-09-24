@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import prisma from '../config/database';
 import { AppError, ErrorCodes, successResponse } from '../middlewares/error.middleware';
+import { groupCalendarSummaryRecords, summarizeExpenseYear } from '../services/tool-record-summary.service';
 
 const requireUserId = (req: Request): bigint => {
   if (!req.userId) throw new AppError('未授权', ErrorCodes.TOKEN_INVALID, 401);
@@ -19,7 +20,9 @@ const serializeMovement = (record: {
   id: bigint; startedAt: Date; endedAt: Date; count: number; method: string; createdAt: Date; updatedAt: Date;
 }) => ({
   id: record.id.toString(), startedAt: record.startedAt.toISOString(), endedAt: record.endedAt.toISOString(),
-  count: record.count, method: record.method, createdAt: record.createdAt.toISOString(), updatedAt: record.updatedAt.toISOString(),
+  count: record.count, method: record.method,
+  durationSeconds: Math.max(0, Math.round((record.endedAt.getTime() - record.startedAt.getTime()) / 1000)),
+  createdAt: record.createdAt.toISOString(), updatedAt: record.updatedAt.toISOString(),
 });
 
 const serializeWeight = (record: {
@@ -199,6 +202,56 @@ export const getExpenseEntries = async (req: Request, res: Response, next: NextF
   } catch (error) { next(error); }
 };
 
+export const getAnnualExpenseSummary = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = requireUserId(req);
+    const year = Number(req.query.year);
+    const start = new Date(Date.UTC(year, 0, 1));
+    const end = new Date(Date.UTC(year + 1, 0, 1));
+    const records = await prisma.expenseEntry.findMany({
+      where: { userId, occurredAt: { gte: start, lt: end } },
+      select: { occurredAt: true, amountCents: true, direction: true },
+      orderBy: { occurredAt: 'asc' },
+    });
+    res.json(successResponse(summarizeExpenseYear(records, year)));
+  } catch (error) { next(error); }
+};
+
+function isoDate(value: Date): string { return value.toISOString().slice(0, 10); }
+
+export const getCalendarSummary = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = requireUserId(req);
+    const from = new Date(`${String(req.query.from)}T00:00:00.000Z`);
+    const toExclusive = new Date(`${String(req.query.to)}T00:00:00.000Z`);
+    toExclusive.setUTCDate(toExclusive.getUTCDate() + 1);
+    const range = { gte: from, lt: toExclusive };
+    const [contractions, movements, weights, diaries, expenses, care, growth, vaccinations, foods] = await Promise.all([
+      prisma.contractionSession.findMany({ where: { userId, startedAt: range }, select: { id: true, startedAt: true, durationSeconds: true } }),
+      prisma.movementSession.findMany({ where: { userId, startedAt: range }, select: { id: true, startedAt: true, count: true } }),
+      prisma.pregnancyWeightRecord.findMany({ where: { userId, measuredAt: range }, select: { id: true, measuredAt: true, weightKg: true } }),
+      prisma.diaryEntry.findMany({ where: { userId, entryDate: range }, select: { id: true, entryDate: true } }),
+      prisma.expenseEntry.findMany({ where: { userId, occurredAt: range }, select: { id: true, occurredAt: true, amountCents: true, direction: true } }),
+      prisma.careLog.findMany({ where: { userId, recordedAt: range }, select: { id: true, recordedAt: true, kind: true } }),
+      prisma.babyMeasurement.findMany({ where: { userId, measuredAt: range }, select: { id: true, measuredAt: true, metric: true, value: true, unit: true } }),
+      prisma.vaccinationRecord.findMany({ where: { userId, administeredAt: range }, select: { id: true, administeredAt: true, vaccineName: true } }),
+      prisma.foodTrial.findMany({ where: { userId, triedAt: range }, select: { id: true, triedAt: true, foodName: true } }),
+    ]);
+    const records = [
+      ...contractions.map(item => ({ id: item.id.toString(), toolId: 'contractions', date: isoDate(item.startedAt), title: `宫缩 ${item.durationSeconds} 秒` })),
+      ...movements.map(item => ({ id: item.id.toString(), toolId: 'movement', date: isoDate(item.startedAt), title: `胎动 ${item.count} 次` })),
+      ...weights.map(item => ({ id: item.id.toString(), toolId: 'weight', date: isoDate(item.measuredAt), title: `体重 ${Number(item.weightKg)} kg` })),
+      ...diaries.map(item => ({ id: item.id.toString(), toolId: 'diary', date: isoDate(item.entryDate), title: '孕育日记' })),
+      ...expenses.map(item => ({ id: item.id.toString(), toolId: 'expenses', date: isoDate(item.occurredAt), title: `账目 ${item.amountCents} 分 · ${item.direction}` })),
+      ...care.map(item => ({ id: item.id.toString(), toolId: 'care', date: isoDate(item.recordedAt), title: `照护 · ${item.kind}` })),
+      ...growth.map(item => ({ id: item.id.toString(), toolId: 'growth', date: isoDate(item.measuredAt), title: `生长 ${item.metric} ${Number(item.value)}${item.unit}` })),
+      ...vaccinations.map(item => ({ id: item.id.toString(), toolId: 'vaccines', date: isoDate(item.administeredAt), title: item.vaccineName })),
+      ...foods.map(item => ({ id: item.id.toString(), toolId: 'foods', date: isoDate(item.triedAt), title: item.foodName })),
+    ];
+    res.json(successResponse(groupCalendarSummaryRecords(records)));
+  } catch (error) { next(error); }
+};
+
 export const createExpenseEntry = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = requireUserId(req);
@@ -313,16 +366,15 @@ export const createFoodTrial = async (req: Request, res: Response, next: NextFun
 };
 
 const DEFAULT_PACKING_ITEMS = [
-  ['证件与产检资料', '证件'], ['产褥垫', '妈妈'], ['哺乳内衣', '妈妈'], ['新生儿衣物', '宝宝'], ['纸尿裤', '宝宝'], ['包被', '宝宝'],
+  ['证件与产检资料', '证件', 1], ['医保卡/就诊卡', '证件', 1], ['手机与充电器', '证件', 1], ['现金或支付工具', '证件', 1],
+  ['产褥垫', '妈妈', 1], ['一次性内裤', '妈妈', 1], ['哺乳内衣', '妈妈', 2], ['防溢乳垫', '妈妈', 1], ['产妇卫生巾', '妈妈', 1], ['洗漱用品', '妈妈', 1], ['拖鞋和出院衣物', '妈妈', 1], ['吸管杯或带吸管水杯', '妈妈', 1],
+  ['新生儿衣物', '宝宝', 2], ['纸尿裤', '宝宝', 1], ['包被', '宝宝', 2], ['小方巾', '宝宝', 3], ['婴儿湿巾', '宝宝', 1], ['护臀用品', '宝宝', 1], ['新生儿帽子', '宝宝', 1],
 ] as const;
 
 export const getPackingItems = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = requireUserId(req);
-    const count = await prisma.packingItem.count({ where: { userId } });
-    if (count === 0) {
-      await prisma.packingItem.createMany({ data: DEFAULT_PACKING_ITEMS.map(([name, category]) => ({ userId, name, category })), skipDuplicates: true });
-    }
+    await prisma.packingItem.createMany({ data: DEFAULT_PACKING_ITEMS.map(([name, category, quantity]) => ({ userId, name, category, quantity })), skipDuplicates: true });
     const list = await prisma.packingItem.findMany({ where: { userId }, orderBy: [{ category: 'asc' }, { createdAt: 'asc' }] });
     res.json(successResponse(list.map(serializePacking)));
   } catch (error) { next(error); }
