@@ -27,7 +27,7 @@ export const PACKING_ITEMS: PackingItem[] = [
   { name: '吸管杯或带吸管水杯', group: '妈妈', quantity: '1 个' },
   { name: '新生儿衣物', group: '宝宝', quantity: '2 套' },
   { name: '纸尿裤', group: '宝宝', quantity: '1 小包' },
-  { name: '包被', group: '宝宝', quantity: '1–2 条' },
+  { name: '包被', group: '宝宝', quantity: '1-2 条' },
   { name: '小方巾', group: '宝宝', quantity: '2–3 条' },
   { name: '婴儿湿巾', group: '宝宝', quantity: '1 包' },
   { name: '护臀用品', group: '宝宝', quantity: '按需' },
