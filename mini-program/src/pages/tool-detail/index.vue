@@ -39,13 +39,15 @@
       <button class="primary-button" :class="{ 'primary-button--stop': contractionStart }" @tap="toggleContraction">
         {{ contractionStart ? '结束本次宫缩' : '开始本次宫缩' }}
       </button>
+      <text v-if="latestContraction" class="session-summary">上次：持续 {{ latestContraction.durationSeconds }} 秒{{ latestContraction.intervalSeconds === null ? '' : ` · 间隔 ${latestContraction.intervalSeconds} 秒` }}</text>
       <text class="safety-note">这里只记录时间，不判断是否临产。明显不适或有疑虑时，请按医嘱及时联系医护人员。</text>
     </view>
 
     <view v-else-if="tool.id === 'movement'" class="content-card counter-card">
       <view class="card-eyebrow-line"><text class="card-eyebrow">今日胎动记录</text><text class="local-badge">本机</text></view>
+      <view class="movement-mode-row"><text class="field-label">记录方式</text><picker :range="movementModeLabels" :value="movementModeIndex" @change="onMovementModeChange"><view class="field-value">{{ movementModeLabel(movementMode) }}</view></picker></view>
       <text class="counter-value">{{ movementCount }}</text>
-      <text class="counter-label">{{ movementCount ? '计数进度已保存在本机，退出后可继续' : '每次点按保存一个时间点，可撤销上一次' }}</text>
+      <text class="counter-label">{{ movementCount ? `已记录 ${movementElapsedText}，退出后可继续` : '每次点按保存一个时间点，可撤销上一次' }}</text>
       <view class="counter-actions">
         <button class="counter-button counter-button--undo" :disabled="movementCount === 0" @tap="undoMovement">撤销</button>
         <button class="counter-button" @tap="addMovement">踢一下 +1</button>
@@ -175,7 +177,8 @@ import { summarizeDiaryWeek } from '@/utils/diary-week'
 import { expenseApiInput, expenseFromRemote } from '@/utils/expense-ledger'
 import { saveToolImage, removeUnusedToolImage } from '@/utils/tool-media'
 import { TOOL_CLOUD_ENABLED } from '@/config/features'
-import { readMovementTaps, writeMovementTaps } from '@/utils/tool-sessions'
+import { contractionIntervalSeconds, summarizeContractionHistory } from '@/utils/contraction-sessions'
+import { MOVEMENT_MODES, clearMovementSession, movementElapsedSeconds, movementModeLabel, readMovementSession, type MovementMode, writeMovementSession } from '@/utils/movement-session'
 import { currentToolPeriod, parseToolPeriod, periodTools, toolPeriodLabel, type ToolPeriod } from '@/utils/tool-period'
 import { reportOwner } from '@/utils/report-drafts'
 import { getToolDefinition, getToneClass, type ToolId, type ToolStatus } from '@/data/tool-catalog'
@@ -200,8 +203,12 @@ const requestedRecordId = ref('')
 const contractionStart = ref<string | null>(null)
 const contractionNow = ref(Date.now())
 const movementTaps = ref<string[]>([])
+const movementMode = ref<MovementMode>('free')
+const movementStartedAt = ref<string | null>(null)
+const movementNow = ref(Date.now())
 const movementCount = computed(() => movementTaps.value.length)
 let contractionTimer: ReturnType<typeof setInterval> | undefined
+let movementTimer: ReturnType<typeof setInterval> | undefined
 
 const weightValue = ref('')
 const growthType = ref('height')
@@ -250,6 +257,14 @@ const growthUnit = computed(() => growthType.value === 'head' ? 'cm' : growthTyp
 const contractionElapsedText = computed(() => {
   if (!contractionStart.value) return '00:00'
   const seconds = Math.max(0, Math.floor((contractionNow.value - new Date(contractionStart.value).getTime()) / 1000))
+  return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`
+})
+const contractionHistory = computed(() => summarizeContractionHistory(displayRecords.value.filter(record => record.recordType === 'session').map(record => record.payload)))
+const latestContraction = computed(() => contractionHistory.value[0] || null)
+const movementModeLabels = MOVEMENT_MODES.map(item => item.label)
+const movementModeIndex = computed(() => Math.max(0, MOVEMENT_MODES.findIndex(item => item.value === movementMode.value)))
+const movementElapsedText = computed(() => {
+  const seconds = movementElapsedSeconds(movementStartedAt.value, new Date(movementNow.value).toISOString())
   return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`
 })
 
@@ -474,7 +489,9 @@ function toggleContraction() {
   if (contractionStart.value) {
     const start = new Date(contractionStart.value).getTime()
     const end = Date.now()
-    const record = save('session', { startAt: contractionStart.value, endAt: new Date(end).toISOString(), durationSeconds: Math.max(0, Math.round((end - start) / 1000)) }, `宫缩 ${Math.max(0, Math.round((end - start) / 1000))} 秒`)
+    const durationSeconds = Math.max(0, Math.round((end - start) / 1000))
+    const intervalSeconds = contractionIntervalSeconds(contractionStart.value, latestContraction.value?.startAt)
+    const record = save('session', { startAt: contractionStart.value, endAt: new Date(end).toISOString(), durationSeconds, intervalSeconds }, `宫缩 ${durationSeconds} 秒${intervalSeconds === null ? '' : ` · 间隔 ${intervalSeconds} 秒`}`)
     if (!record) return
     void syncServer(record)
     contractionStart.value = null
@@ -491,15 +508,34 @@ function toggleContraction() {
 }
 
 function setMovement(taps: string[]) {
-  try { writeMovementTaps(taps); movementTaps.value = taps; return true }
+  try { writeMovementSession({ taps, mode: movementMode.value, startedAt: movementStartedAt.value || taps[0] || null }); movementTaps.value = taps; return true }
   catch { showNotice('未能保存计数，请检查本机空间'); return false }
 }
-function addMovement() { if (movementCount.value >= 10000) { showNotice('请先保存这次计数'); return }; setMovement([...movementTaps.value, new Date().toISOString()]) }
+function startMovementTimer() {
+  if (movementTimer) clearInterval(movementTimer)
+  movementTimer = setInterval(() => { movementNow.value = Date.now() }, 1000)
+}
+function onMovementModeChange(event: { detail: { value: string } }) {
+  const index = Number(event.detail.value)
+  const next = MOVEMENT_MODES[index]?.value
+  if (next) movementMode.value = next
+  if (movementCount.value) setMovement(movementTaps.value)
+}
+function addMovement() {
+  if (movementCount.value >= 10000) { showNotice('请先保存这次计数'); return }
+  const startedAt = movementStartedAt.value || new Date().toISOString()
+  movementStartedAt.value = startedAt
+  movementNow.value = Date.now()
+  startMovementTimer()
+  setMovement([...movementTaps.value, new Date().toISOString()])
+}
 function undoMovement() { setMovement(movementTaps.value.slice(0, -1)) }
 function finishMovement() {
   if (!movementCount.value) { showNotice('先记录至少一次胎动'); return }
-  const record = save('session', { count: movementCount.value, startedAt: movementTaps.value[0], endedAt: new Date().toISOString(), method: 'free' }, `胎动 ${movementCount.value} 次`)
-  if (record) { void syncServer(record); setMovement([]) }
+  const endedAt = new Date().toISOString()
+  const startedAt = movementStartedAt.value || movementTaps.value[0]
+  const record = save('session', { count: movementCount.value, startedAt, endedAt, method: movementMode.value, durationSeconds: movementElapsedSeconds(startedAt, endedAt) }, `胎动 ${movementCount.value} 次 · ${movementModeLabel(movementMode.value)}`)
+  if (record) { void syncServer(record); clearMovementSession(); movementTaps.value = []; movementStartedAt.value = null; if (movementTimer) clearInterval(movementTimer) }
 }
 function saveWeight() {
   const value = Number(weightValue.value)
@@ -591,7 +627,14 @@ onLoad((options) => {
   reload()
   void openRequestedRecord()
   void loadRemoteRecords()
-  if (toolId.value === 'movement') movementTaps.value = readMovementTaps()
+  if (toolId.value === 'movement') {
+    const session = readMovementSession()
+    movementTaps.value = session.taps
+    movementMode.value = session.mode
+    movementStartedAt.value = session.startedAt
+    movementNow.value = Date.now()
+    if (movementTaps.value.length) startMovementTimer()
+  }
   const startedAt = uni.getStorageSync('beihu:contraction-start')
   if (toolId.value === 'contractions' && typeof startedAt === 'string' && Number.isFinite(Date.parse(startedAt)) && Date.parse(startedAt) <= Date.now()) {
     contractionStart.value = startedAt
@@ -599,7 +642,7 @@ onLoad((options) => {
   }
 })
 onShow(() => { reload(); pinnedIds.value = readHomeTools(); reportScope.value = reportOwner(); reportPanel.value?.refresh?.(); void openRequestedRecord() })
-onBeforeUnmount(() => { if (contractionTimer) clearInterval(contractionTimer) })
+onBeforeUnmount(() => { if (contractionTimer) clearInterval(contractionTimer); if (movementTimer) clearInterval(movementTimer) })
 onShareAppMessage(() => ({ title: `贝护 · ${tool.value.title}`, path: `/pages/tool-detail/index?id=${toolId.value}` }))
 onShareTimeline(() => ({ title: `贝护 · ${tool.value.title}` }))
 </script>
@@ -639,6 +682,7 @@ onShareTimeline(() => ({ title: `贝护 · ${tool.value.title}` }))
 .card-eyebrow-line, .history-head, .field-row, .counter-actions { display: flex; align-items: center; justify-content: space-between; gap: 18rpx; }
 .timer-card { text-align: center; }
 .timer-value { display: block; margin-top: 20rpx; color: #b65e68; font-size: 92rpx; line-height: 1; font-weight: 900; font-variant-numeric: tabular-nums; }
+.session-summary { display: block; margin-top: 18rpx; color: #805f59; font-size: 24rpx; font-variant-numeric: tabular-nums; }
 .timer-label, .counter-label { display: block; margin-top: 16rpx; color: #897d78; font-size: 23rpx; }
 .primary-button, .secondary-button { width: 100%; margin-top: 24rpx; border: 0; border-radius: 16rpx; font-size: 27rpx; font-weight: 800; line-height: 1.5; }
 .primary-button { padding: 19rpx 24rpx; background: #16806a; color: #fff; }
@@ -646,6 +690,7 @@ onShareTimeline(() => ({ title: `贝护 · ${tool.value.title}` }))
 .secondary-button { padding: 17rpx 24rpx; background: #edf5f1; color: #16806a; }
 button::after { border: 0; }
 .counter-card { text-align: center; }
+.movement-mode-row { display: flex; align-items: center; justify-content: space-between; margin-top: 12rpx; padding: 16rpx 18rpx; border-radius: 14rpx; background: #f8f3f0; text-align: left; }.movement-mode-row .field-value { color: #166c5b; font-size: 25rpx; }
 .counter-value { display: block; margin-top: 18rpx; color: #16806a; font-size: 94rpx; line-height: 1; font-weight: 900; }
 .counter-actions { justify-content: center; margin-top: 24rpx; }
 .counter-button { flex: 1; max-width: 280rpx; padding: 20rpx 10rpx; border: 0; border-radius: 18rpx; background: #16806a; color: #fff; font-size: 27rpx; font-weight: 800; }
