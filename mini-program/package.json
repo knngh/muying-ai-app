@@ -12,6 +12,7 @@
     "build:mp-alipay": "uni build -p mp-alipay",
     "build:h5": "uni build",
     "type-check": "vue-tsc --noEmit",
+    "smoke:tools": "node scripts/check-tools-ui.cjs",
     "smoke:mp-weixin": "bash scripts/smoke-mp-weixin.sh"
   },
   "dependencies": {
