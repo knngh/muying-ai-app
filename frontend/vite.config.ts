@@ -22,7 +22,7 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      '@': path.resolve(import.meta.dirname, './src'),
     },
   },
   server: {
@@ -91,6 +91,21 @@ export default defineConfig({
 
           if (isMarkdownPackage) {
             return 'vendor-markdown'
+          }
+
+          const isChartPackage = (
+            packageName === 'recharts'
+            || packageName.startsWith('recharts-')
+            || packageName.startsWith('d3-')
+            || packageName === 'victory-vendor'
+            || packageName === 'react-smooth'
+            || packageName === 'fast-equals'
+            || packageName === 'dom-helpers'
+            || packageName === 'internmap'
+          )
+
+          if (isChartPackage) {
+            return 'vendor-charts'
           }
 
           if ([

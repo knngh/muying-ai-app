@@ -166,12 +166,19 @@
   }
 
   .nav {
-    gap: 8px;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 4px;
   }
 
   .navItem {
-    min-width: 92px;
-    padding: 10px 12px;
+    min-width: 0;
+    padding: 12px 2px;
+    font-size: 13px;
+  }
+
+  .navHint {
+    display: none;
   }
 
   .footer {
