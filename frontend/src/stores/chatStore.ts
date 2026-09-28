@@ -89,6 +89,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const response = await aiApi.chat({
         message: content,
         conversationId: get().conversationId || undefined,
+        clientRequestId: uuidv4(),
         history: historyBeforeSend,
       })
 
@@ -118,9 +119,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
       await get().loadConversations()
     } catch (error: unknown) {
-      const err = error as { message?: string }
+      const err = error as {
+        message?: string
+        code?: string
+        response?: { data?: { message?: string } }
+      }
+      // 优先透出后端文案（如 429「今日免费额度已用完」）；AI 生成超时给中文提示
+      const fallback =
+        err.code === 'ECONNABORTED'
+          ? '回答生成时间较长，请稍后重试'
+          : err.response?.data?.message || err.message || '发送消息失败，请重试'
       set({
-        error: err.message || '发送消息失败，请重试',
+        error: fallback,
         loading: false,
       })
     }
