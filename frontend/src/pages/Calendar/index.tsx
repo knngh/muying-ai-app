@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react
 import { useCalendarStore } from '@/stores/calendarStore'
 import type { CalendarEvent } from '@/api/modules'
 import dayjs, { Dayjs } from 'dayjs'
+import { downloadCalendarEvent } from '@/utils/calendarExport'
 import styles from './Calendar.module.css'
 
 type EventDraft = {
@@ -39,12 +40,15 @@ export function Calendar() {
   const [modalVisible, setModalVisible] = useState(false)
   const [draft, setDraft] = useState<EventDraft>(initialDraft)
   const [formError, setFormError] = useState('')
+  const [notificationPermission, setNotificationPermission] = useState(() => 'Notification' in window ? Notification.permission : 'unsupported')
+  const [notificationError, setNotificationError] = useState('')
   const [upcomingEvents, setUpcomingEvents] = useState<CalendarEvent[]>([])
 
   const {
     selectedEvent,
     currentMonth,
     loading,
+    error,
     fetchEvents,
     createEvent,
     updateEvent,
@@ -55,6 +59,15 @@ export function Calendar() {
     getEventsByDate,
     getUpcomingEvents,
   } = useCalendarStore()
+
+  const enableNotifications = async () => {
+    try {
+      setNotificationError('')
+      const permission = await Notification.requestPermission()
+      setNotificationPermission(permission)
+      window.dispatchEvent(new Event('calendar-reminders-changed'))
+    } catch { setNotificationError('无法开启通知，请检查浏览器设置') }
+  }
 
   const monthDays = useMemo(() => buildMonthGrid(currentMonth), [currentMonth])
   const monthLabel = dayjs(currentMonth).format('YYYY年MM月')
@@ -125,14 +138,14 @@ export function Calendar() {
       reminderEnabled: draft.reminderEnabled,
     }
 
-    if (selectedEvent) {
-      await updateEvent(selectedEvent.id, eventData)
-    } else {
-      await createEvent(eventData)
+    const saved = selectedEvent
+      ? await updateEvent(selectedEvent.id, eventData)
+      : await createEvent(eventData)
+    if (saved) {
+      handleCloseModal()
+      refreshUpcoming()
+      window.dispatchEvent(new Event('calendar-reminders-changed'))
     }
-
-    handleCloseModal()
-    refreshUpcoming()
   }
 
   const handleDelete = async (id: number) => {
@@ -167,9 +180,11 @@ export function Calendar() {
           </span>
         </div>
         <p>{event.eventDate}</p>
+        {event.reminderEnabled ? <p>已设置提前提醒</p> : null}
         {event.description ? <p>{event.description}</p> : null}
       </div>
       <div className={styles.eventActions}>
+        <button type="button" className={styles.textButton} onClick={() => downloadCalendarEvent(event)}>导出到系统日历</button>
         <button
           type="button"
           className={styles.textButton}
@@ -201,6 +216,15 @@ export function Calendar() {
         </button>
       </section>
 
+      <section className={styles.calendarCard} aria-label="网页通知设置">
+        <h2>网页通知</h2>
+        <p>网页打开且允许通知时，会检查近期安排；未设置时间的事件按当天 09:00 计算。关闭所有网页后不会继续检查，可导出到系统日历继续提醒。</p>
+        {notificationPermission === 'granted' ? <p role="status">网页通知已开启</p>
+          : notificationPermission === 'denied' ? <p role="status">通知已被阻止，请在浏览器的网站设置中允许通知。</p>
+          : notificationPermission === 'unsupported' ? <p role="status">此浏览器不支持网页通知，可使用系统日历。</p>
+          : <button type="button" className={styles.secondaryButton} onClick={enableNotifications}>开启网页通知</button>}
+        {notificationError ? <p role="alert">{notificationError}</p> : null}
+      </section>
       <div className={styles.contentGrid}>
         <section className={styles.calendarCard}>
           <div className={styles.monthHeader}>
@@ -213,6 +237,7 @@ export function Calendar() {
             </button>
           </div>
 
+          {error ? <div role="alert" className={styles.formError}>{error}</div> : null}
           {loading ? <div className={styles.loadingBar}>正在同步事件...</div> : null}
 
           <div className={styles.weekHeader}>
@@ -349,10 +374,10 @@ export function Calendar() {
                   checked={draft.reminderEnabled}
                   onChange={(event) => setDraft((current) => ({ ...current, reminderEnabled: event.target.checked }))}
                 />
-                <span>开启提醒</span>
+                <span>提前一天提醒</span>
               </label>
 
-              {formError ? <div className={styles.formError}>{formError}</div> : null}
+              {formError || error ? <div role="alert" className={styles.formError}>{formError || error}</div> : null}
 
               <button type="submit" className={styles.primaryButton} disabled={loading}>
                 {loading ? '保存中...' : '保存'}

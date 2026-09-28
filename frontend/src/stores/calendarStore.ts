@@ -9,10 +9,10 @@ interface CalendarState {
   loading: boolean
   error: string | null
   fetchEvents: (startDate?: string, endDate?: string) => Promise<void>
-  createEvent: (data: Omit<CalendarEvent, 'id' | 'userId' | 'createdAt' | 'updatedAt' | 'status'>) => Promise<void>
-  updateEvent: (id: number, data: Partial<CalendarEvent>) => Promise<void>
-  deleteEvent: (id: number) => Promise<void>
-  completeEvent: (id: number) => Promise<void>
+  createEvent: (data: Omit<CalendarEvent, 'id' | 'userId' | 'createdAt' | 'updatedAt' | 'status'>) => Promise<boolean>
+  updateEvent: (id: number, data: Partial<CalendarEvent>) => Promise<boolean>
+  deleteEvent: (id: number) => Promise<boolean>
+  completeEvent: (id: number) => Promise<boolean>
   selectEvent: (event: CalendarEvent | null) => void
   setCurrentMonth: (month: string) => void
   getEventsByDate: (date: string) => CalendarEvent[]
@@ -45,9 +45,11 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
         events: [...state.events, newEvent],
         loading: false,
       }))
+      return true
     } catch (error: unknown) {
       const err = error as { message?: string }
       set({ error: err.message || '创建事件失败', loading: false })
+      return false
     }
   },
 
@@ -59,9 +61,11 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
         events: state.events.map((e) => (e.id === id ? updatedEvent : e)),
         loading: false,
       }))
+      return true
     } catch (error: unknown) {
       const err = error as { message?: string }
       set({ error: err.message || '更新事件失败', loading: false })
+      return false
     }
   },
 
@@ -73,9 +77,11 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
         events: state.events.filter((e) => e.id !== id),
         loading: false,
       }))
+      return true
     } catch (error: unknown) {
       const err = error as { message?: string }
       set({ error: err.message || '删除事件失败', loading: false })
+      return false
     }
   },
 
@@ -85,8 +91,11 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
       set((state) => ({
         events: state.events.map((e) => (e.id === id ? updatedEvent : e)),
       }))
+      return true
     } catch (error: unknown) {
-      console.error('标记完成失败:', error)
+      const err = error as { message?: string }
+      set({ error: err.message || '标记完成失败' })
+      return false
     }
   },
 
@@ -96,9 +105,6 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
 
   setCurrentMonth: (month) => {
     set({ currentMonth: month })
-    const start = dayjs(month).startOf('month').format('YYYY-MM-DD')
-    const end = dayjs(month).endOf('month').format('YYYY-MM-DD')
-    get().fetchEvents(start, end)
   },
 
   getEventsByDate: (date) => {
