@@ -1,6 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useAppStore } from '@/stores/appStore'
+import { startSession } from '@/utils/authSession'
 import { authApi } from '@/api/modules'
 import styles from './Login.module.css'
 
@@ -32,8 +31,6 @@ export function Login() {
   const [formData, setFormData] = useState<FormData>(initialForm)
   const [errors, setErrors] = useState<FormErrors>({})
   const [feedback, setFeedback] = useState<{ type: 'error' | 'warning'; message: string } | null>(null)
-  const navigate = useNavigate()
-  const setUser = useAppStore((s) => s.setUser)
 
   const validate = () => {
     const nextErrors: FormErrors = {}
@@ -84,27 +81,13 @@ export function Login() {
               email: formData.email.trim() || undefined,
             })
 
-      localStorage.setItem('token', result.token)
-      setUser(result.user)
-      navigate('/')
-    } catch {
-      if (import.meta.env.DEV) {
-        const mockUser = {
-          id: '1',
-          username: formData.username.trim(),
-          nickname: formData.username.trim(),
-          createdAt: new Date().toISOString(),
-        }
-        localStorage.setItem('token', 'mock_token_' + Date.now())
-        setUser(mockUser)
-        setFeedback({ type: 'warning', message: 'API 不可用，已切换开发模式登录。' })
-        navigate('/')
-      } else {
-        setFeedback({
-          type: 'error',
-          message: mode === 'login' ? '登录失败，请检查用户名和密码。' : '注册失败，请稍后重试。',
-        })
-      }
+      startSession(result.token, result.user)
+    } catch (error) {
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      setFeedback({
+        type: 'error',
+        message: err.response?.data?.message || err.message || '登录失败，请稍后重试。',
+      })
     } finally {
       setLoading(false)
     }
@@ -125,7 +108,7 @@ export function Login() {
           <h1>母婴AI助手</h1>
           <p>
             {mode === 'login'
-              ? '登录后继续查看知识、日历和个人资料。'
+              ? '登录后可收藏文章、同步阅读记录，更多功能将陆续开放。'
               : '创建账户后，把你的孕育记录和偏好保存在同一个入口里。'}
           </p>
           <div className={styles.metrics}>
