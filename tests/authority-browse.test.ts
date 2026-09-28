@@ -32,6 +32,16 @@ describe('authority knowledge browsing', () => {
     expect(authorityBrowsePriority('https://www.who.int/news/item/announcement')).toBeGreaterThan(0);
   });
 
+  it('puts practical feeding and pregnancy guidance before broad public-health reading', () => {
+    const publicHealth = authorityBrowsePriority('https://www.who.int/news-room/fact-sheets/detail/violence-against-children', '母婴知识');
+    const feeding = authorityBrowsePriority('https://www.nhs.uk/baby/breastfeeding/', '喂养');
+    const pregnancy = authorityBrowsePriority('https://www.nhs.uk/pregnancy/', '孕期');
+    const news = authorityBrowsePriority('https://www.who.int/news-room/detail/announcement', '疫苗');
+    expect(feeding).toBeLessThan(publicHealth);
+    expect(pregnancy).toBeLessThan(publicHealth);
+    expect(publicHealth).toBeLessThan(news);
+  });
+
   it('does not share first-page responses across page sizes, sort orders or filters', () => {
     const baseline = { page: 1, pageSize: 10, sort: 'recommended' };
     const key = authorityListCacheKey(baseline);

@@ -2165,8 +2165,13 @@ export const getArticles = async (req: Request, res: Response, next: NextFunctio
 
       const sorted = [...filtered].sort((left, right) => {
         if (sort === 'recommended') {
-          const readingPriority = authorityBrowsePriority(left.sourceUrl) - authorityBrowsePriority(right.sourceUrl);
+          const readingPriority = authorityBrowsePriority(left.sourceUrl, left.topic) - authorityBrowsePriority(right.sourceUrl, right.topic);
           if (readingPriority !== 0) return readingPriority;
+          if (typeof keyword === 'string' && keyword.trim()) {
+            const titleMatches = (article: AuthorityArticle) => Number(matchesExpandedSearch(keyword, [article.title, getCachedAuthorityArticleTranslation(article)?.translatedTitle].join(' ')));
+            const relevance = titleMatches(right) - titleMatches(left);
+            if (relevance !== 0) return relevance;
+          }
           const quality = getAuthorityArticleQualityScore(right) - getAuthorityArticleQualityScore(left);
           if (quality !== 0) return quality;
         }

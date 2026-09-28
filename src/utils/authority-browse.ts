@@ -41,13 +41,14 @@ export function matchesAuthorityBrowseCategory(article: BrowseArticle, category:
   }
 }
 
-export function authorityBrowsePriority(sourceUrl?: string): number {
-  if (!sourceUrl) return 0;
+export function authorityBrowsePriority(sourceUrl?: string, topic?: string): number {
+  const topicPriority = !topic || ['孕期', '产后恢复', '新生儿', '喂养', '疫苗', '成长发育', '常见症状'].includes(topic) ? 0 : 1;
+  if (!sourceUrl) return topicPriority;
   let pathname: string;
-  try { pathname = new URL(sourceUrl).pathname; } catch { return 0; }
+  try { pathname = new URL(sourceUrl).pathname; } catch { return topicPriority; }
   // News remains accessible. This only orders the recommended reading list.
-  if (/\/fact-sheets\/|\/questions-and-answers\/|\/q-a-detail\//i.test(pathname)) return 0;
-  return /\/news-room\/(?:detail|feature-stories|commentaries|events|spotlight)\/|\/news\/item\/|\/press-releases\//i.test(pathname) ? 1 : 0;
+  if (/\/fact-sheets\/|\/questions-and-answers\/|\/q-a-detail\//i.test(pathname)) return topicPriority;
+  return /\/news-room\/(?:detail|feature-stories|commentaries|events|spotlight)\/|\/news\/item\/|\/press-releases\//i.test(pathname) ? 2 : topicPriority;
 }
 
 export function authorityListCacheKey(params: Record<string, unknown>): string {
