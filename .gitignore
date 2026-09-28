@@ -64,3 +64,8 @@ mobile/ios/*.xcworkspace/xcuserdata/
 mini-program/unpackage/
 uploads/
 private-uploads/
+
+# Web validation and Worker local state
+frontend/test-results/
+frontend/playwright-report/
+frontend/.wrangler/
