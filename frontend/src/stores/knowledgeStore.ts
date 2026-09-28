@@ -10,6 +10,7 @@ import {
 } from '@/api/modules'
 
 let knowledgeListRequestId = 0
+let knowledgeDetailRequestId = 0
 const articleDetailInFlight = new Map<string, Promise<Article>>()
 
 function mergeArticlePages(existing: Article[], incoming: Article[]) {
@@ -50,8 +51,8 @@ interface KnowledgeState {
   setStage: (stage: string | null) => void
   setKeyword: (keyword: string) => void
   search: (keyword: string) => Promise<void>
-  likeArticle: (id: number) => Promise<void>
-  favoriteArticle: (id: number) => Promise<void>
+  likeArticle: (id: number) => Promise<boolean>
+  favoriteArticle: (id: number) => Promise<boolean>
   reset: () => void
 }
 
@@ -81,6 +82,8 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
       const response = (await articleApi.getList({
         page,
         pageSize: state.pageSize,
+        contentType: 'authority',
+        sort: 'recommended',
         category: state.selectedCategory || undefined,
         tag: state.selectedTag || undefined,
         stage: state.selectedStage || undefined,
@@ -134,7 +137,8 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
       return
     }
 
-    set({ loading: true, error: null })
+    const requestId = ++knowledgeDetailRequestId
+    set({ loading: true, error: null, currentArticle: null })
 
     try {
       const inFlight = articleDetailInFlight.get(slug)
@@ -144,8 +148,10 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
       }
 
       const article = await request
+      if (requestId !== knowledgeDetailRequestId) return
       set({ currentArticle: article, loading: false })
     } catch (error: unknown) {
+      if (requestId !== knowledgeDetailRequestId) return
       const err = error as { message?: string }
       set({
         error: err.message || '获取文章详情失败',
@@ -179,35 +185,8 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
   },
 
   search: async (keyword: string) => {
-    const requestId = ++knowledgeListRequestId
-    set({ keyword, page: 1, loading: true })
-
-    try {
-      const response = (await articleApi.search(keyword, {
-        page: 1,
-        pageSize: get().pageSize,
-      })) as PaginatedResponse<Article>
-
-      if (requestId !== knowledgeListRequestId) {
-        return
-      }
-
-      set({
-        articles: mergeArticlePages([], response.list),
-        total: response.pagination.total,
-        loading: false,
-      })
-    } catch (error: unknown) {
-      if (requestId !== knowledgeListRequestId) {
-        return
-      }
-
-      const err = error as { message?: string }
-      set({
-        error: err.message || '搜索失败',
-        loading: false,
-      })
-    }
+    set({ keyword, page: 1 })
+    await get().fetchArticles({ page: 1, reset: true })
   },
 
   likeArticle: async (id: number) => {
@@ -242,8 +221,11 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
             }
           : state.currentArticle,
       }))
+      return true
     } catch (error: unknown) {
-      console.error('点赞失败:', error)
+      const err = error as { message?: string }
+      set({ error: err.message || '点赞失败，请重试' })
+      return false
     }
   },
 
@@ -279,8 +261,11 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
             }
           : state.currentArticle,
       }))
+      return true
     } catch (error: unknown) {
-      console.error('收藏失败:', error)
+      const err = error as { message?: string }
+      set({ error: err.message || '收藏失败，请重试' })
+      return false
     }
   },
 
