@@ -27,6 +27,28 @@ const sw = await fetch(new URL('/notifications-sw.js', baseURL))
 assert.ok(sw.ok)
 assert.match(sw.headers.get('content-type') || '', /javascript/)
 
+// SEO 基建：robots / llms.txt / sitemap / 文章页 meta 注入
+const robots = await fetch(new URL('/robots.txt', baseURL))
+assert.ok(robots.ok, '/robots.txt must be served')
+assert.match(await robots.text(), /Sitemap: https:\/\/hibeihu\.com\/sitemap\.xml/)
+const llms = await fetch(new URL('/llms.txt', baseURL))
+assert.ok(llms.ok, '/llms.txt must be served')
+assert.match(await llms.text(), /贝护妈妈/)
+const sitemap = await fetch(new URL('/sitemap.xml', baseURL))
+assert.ok(sitemap.ok, '/sitemap.xml must be served')
+assert.match(sitemap.headers.get('content-type') || '', /xml/)
+const sitemapBody = await sitemap.text()
+assert.match(sitemapBody, /<urlset/, 'sitemap must be valid XML urlset')
+assert.ok(sitemapBody.includes('/knowledge</loc>'), 'sitemap must list /knowledge')
+const firstSlug = articles.data.list[0]?.slug
+if (firstSlug) {
+  const article = await fetch(new URL(`/knowledge/${firstSlug}`, baseURL))
+  assert.ok(article.ok, '/knowledge/:slug must return HTML')
+  const html = await article.text()
+  assert.match(html, /rel="canonical" href="https:\/\/hibeihu\.com\/knowledge\//, 'article page must have canonical')
+  assert.match(html, /application\/ld\+json/, 'article page must have JSON-LD')
+}
+
 const localChrome = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 const browser = await chromium.launch({
   executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || (existsSync(localChrome) ? localChrome : undefined),

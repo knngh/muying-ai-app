@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom'
+import { usePageTitle } from '@/hooks'
 import styles from './Tools.module.css'
 
 const TOOL_CARDS = [
@@ -29,6 +30,7 @@ const TOOL_CARDS = [
 ]
 
 export function Tools() {
+  usePageTitle('孕育工具箱')
   const navigate = useNavigate()
 
   return (

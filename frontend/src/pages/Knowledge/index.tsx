@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useKnowledgeStore } from '@/stores/knowledgeStore'
+import { usePageTitle } from '@/hooks'
 import type { Article } from '@/api/modules'
 import {
   buildKnowledgeSourceDigest,
@@ -47,6 +48,7 @@ const variantSortOptions = [
 ] as const
 
 export function Knowledge() {
+  usePageTitle('权威母婴知识库')
   const navigate = useNavigate()
   const {
     articles,

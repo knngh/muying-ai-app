@@ -28,10 +28,9 @@ const LayoutRoute = () => {
   )
 }
 
-// 首页入口：未登录先进登录页，已登录进知识库（2026-09-27 产品逻辑：登录优先）
+// 首页入口：知识库免费开放作为网站主页（2026-09-28 产品逻辑：内容优先，AI 问答/工具等登录后可用）
 const RootRedirect = () => {
-  const token = storage.getItem('token')
-  return <Navigate to={token ? '/knowledge' : '/login'} replace />
+  return <Navigate to="/knowledge" replace />
 }
 
 // 需要登录的路由守卫

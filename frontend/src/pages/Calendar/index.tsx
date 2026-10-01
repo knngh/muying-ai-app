@@ -3,6 +3,7 @@ import { useCalendarStore } from '@/stores/calendarStore'
 import type { CalendarEvent } from '@/api/modules'
 import dayjs, { Dayjs } from 'dayjs'
 import { downloadCalendarEvent } from '@/utils/calendarExport'
+import { usePageTitle } from '@/hooks'
 import styles from './Calendar.module.css'
 
 type EventDraft = {
@@ -37,6 +38,7 @@ function buildMonthGrid(month: string) {
 }
 
 export function Calendar() {
+  usePageTitle('孕育日历')
   const [modalVisible, setModalVisible] = useState(false)
   const [draft, setDraft] = useState<EventDraft>(initialDraft)
   const [formError, setFormError] = useState('')

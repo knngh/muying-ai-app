@@ -3,6 +3,7 @@ import dayjs from 'dayjs'
 import { useVaccineStore } from '@/stores/vaccineStore'
 import { v4 } from '@/utils/uuid'
 import type { VaccinationStatus, VaccineItem } from '@/api/tools'
+import { usePageTitle } from '@/hooks'
 import styles from './Vaccines.module.css'
 
 type RecordDraft = {
@@ -42,6 +43,7 @@ function categoryBadgeClass(category: string) {
 }
 
 export function Vaccines() {
+  usePageTitle('疫苗接种')
   const [modalVisible, setModalVisible] = useState(false)
   const [draft, setDraft] = useState<RecordDraft>(initialDraft)
   const [formError, setFormError] = useState('')

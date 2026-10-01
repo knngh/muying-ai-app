@@ -8,6 +8,20 @@
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
     // SPA 回退会吞掉一切未命中路径（含 /api/*），必须让 API 路径先进 Worker 反代
-    "run_worker_first": ["/api/*", "/version.json", "/notifications-sw.js"]
+    "run_worker_first": [
+      "/api/*",
+      "/",
+      "/knowledge",
+      "/knowledge/*",
+      "/login",
+      "/chat",
+      "/calendar",
+      "/tools",
+      "/tools/*",
+      "/profile",
+      "/sitemap.xml",
+      "/version.json",
+      "/notifications-sw.js"
+    ]
   }
 }

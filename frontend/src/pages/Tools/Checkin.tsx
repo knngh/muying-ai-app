@@ -2,11 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import dayjs from 'dayjs'
 import { useCheckinStore } from '@/stores/checkinStore'
 import type { CheckinResult } from '@/api/tools'
+import { usePageTitle } from '@/hooks'
 import styles from './Checkin.module.css'
 
 const WEEK_LABELS = ['一', '二', '三', '四', '五', '六', '日']
 
 export function Checkin() {
+  usePageTitle('每日打卡')
   const [result, setResult] = useState<CheckinResult | null>(null)
 
   const {

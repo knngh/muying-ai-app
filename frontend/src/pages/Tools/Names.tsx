@@ -7,6 +7,7 @@ import {
   type NameGender,
   type NameLibraryItem,
 } from '@/api/tools'
+import { usePageTitle } from '@/hooks'
 import styles from './Names.module.css'
 
 const genderOptions: { value: NameGender | 'all'; label: string }[] = [
@@ -31,6 +32,7 @@ const genderTagClass: Record<NameGender, string> = {
 const COPY_RESET_MS = 1500
 
 export function Names() {
+  usePageTitle('宝宝起名')
   const {
     query,
     response,

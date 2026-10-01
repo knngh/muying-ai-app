@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import DOMPurify from 'dompurify'
 import { useKnowledgeStore } from '@/stores/knowledgeStore'
+import { usePageTitle } from '@/hooks'
 import {
   addArticleHeadingAnchors,
   buildKnowledgeReadingMeta,
@@ -63,6 +64,7 @@ export function KnowledgeDetail() {
 
   const displayContent = useMemo(() => resolveKnowledgeDisplayContent(currentArticle), [currentArticle])
   const displayTitle = displayContent.title
+  usePageTitle(displayTitle || undefined)
 
   const summaryText = useMemo(() => (
     normalizePlainText(displayContent.summary)

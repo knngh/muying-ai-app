@@ -8,6 +8,7 @@ import type { ChartSex, GrowthMetric } from '@/data/who-growth-standards'
 import type { BabyMeasurement } from '@/api/tools'
 import { v4 } from '@/utils/uuid'
 import { dateOnly } from '@/utils/dateOnly'
+import { usePageTitle } from '@/hooks'
 import styles from './Growth.module.css'
 
 const METRIC_LABELS: Record<GrowthMetric, string> = {
@@ -83,6 +84,7 @@ const initialProfileDraft: ProfileDraft = {
 }
 
 export function Growth() {
+  usePageTitle('生长曲线')
   const [activeMetric, setActiveMetric] = useState<GrowthMetric>('weight')
   const [formMetric, setFormMetric] = useState<GrowthMetric>('weight')
   const [draft, setDraft] = useState<MeasureDraft>(initialMeasureDraft)
