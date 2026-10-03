@@ -141,6 +141,52 @@ describe('AI gateway Modal Direct provider', () => {
     expect(requestBody.thinking).toEqual({ type: 'disabled' });
   });
 
+  it('sends reasoning_effort only to the configured Zhipu GLM task model', async () => {
+    process.env.AI_GLM_KEY = 'test-zhipu-key';
+    process.env.AI_GLM_URL = 'https://open.bigmodel.cn/api/paas/v4';
+    process.env.AI_GLM_MODEL = 'glm-5.3';
+    process.env.AI_GLM_PROVIDER = 'zhipu';
+    delete process.env.AI_MODAL_DIRECT_KEY;
+
+    const fetchMock = jest.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(
+      JSON.stringify({
+        choices: [{
+          message: { role: 'assistant', content: '{"title":"记录回顾"}' },
+          finish_reason: 'stop',
+        }],
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    ));
+
+    let callTaskModelDetailed: typeof import('../src/services/ai-gateway.service').callTaskModelDetailed;
+    jest.isolateModules(() => {
+      const aiGateway = require('../src/services/ai-gateway.service') as typeof import('../src/services/ai-gateway.service');
+      callTaskModelDetailed = aiGateway.callTaskModelDetailed;
+    });
+
+    await expect(callTaskModelDetailed('glm_classify', [
+      { role: 'user', content: '整理记录' },
+    ], {
+      primaryOnly: true,
+      responseFormat: 'json_object',
+      reasoningEffort: 'low',
+    })).resolves.toMatchObject({
+      answer: '{"title":"记录回顾"}',
+      route: { provider: 'zhipu', model: 'glm-5.3' },
+    });
+
+    const requestBody = JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string) as {
+      model?: string;
+      response_format?: { type?: string };
+      reasoning_effort?: string;
+      thinking?: unknown;
+    };
+    expect(requestBody.model).toBe('glm-5.3');
+    expect(requestBody.response_format).toEqual({ type: 'json_object' });
+    expect(requestBody.reasoning_effort).toBe('low');
+    expect(requestBody.thinking).toBeUndefined();
+  });
+
   it('retries transient DeepSeek task provider failures before falling back', async () => {
     process.env.AI_DEEPSEEK_KEY = 'test-deepseek-key';
     process.env.AI_TASK_TRANSIENT_RETRY_ATTEMPTS = '1';

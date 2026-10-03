@@ -1,0 +1,47 @@
+name: Web Quality
+
+on:
+  push:
+    branches: [main, 'fix/web-*']
+    paths: ['frontend/**', 'shared/**', 'src/data/**', '.github/workflows/web.yml']
+  pull_request:
+    paths: ['frontend/**', 'shared/**', 'src/data/**', '.github/workflows/web.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: web-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck:e2e
+      - run: npm audit --audit-level=high
+      - run: npx playwright install --with-deps chromium
+      # Playwright builds production assets before starting its local server.
+      # Every API is intercepted: CI needs no live account or production keys.
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: web-regression-report
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/
+          retention-days: 14

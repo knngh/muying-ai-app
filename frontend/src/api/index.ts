@@ -1,5 +1,6 @@
 import axios, { AxiosRequestConfig, InternalAxiosRequestConfig } from 'axios'
 import { storage } from '../utils/storage'
+import { endSession } from '../utils/authSession'
 
 // 创建主 axios 实例
 const api = axios.create({
@@ -29,6 +30,7 @@ async function doRefreshToken(): Promise<string> {
   const newToken = res.data?.data?.token
   if (!newToken) throw new Error('Refresh failed')
 
+  if (storage.getItem('token') !== currentToken) throw new Error('登录状态已变更')
   storage.setItem('token', newToken)
   return newToken
 }
@@ -76,7 +78,8 @@ api.interceptors.response.use(
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean }
 
     // 401 处理：尝试刷新 token
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    const isAuthEntry = /\/auth\/(login|register)$/.test(originalRequest?.url || '')
+    if (error.response?.status === 401 && originalRequest && !isAuthEntry && !originalRequest._retry) {
       originalRequest._retry = true
 
       try {
@@ -85,14 +88,15 @@ api.interceptors.response.use(
         return api(originalRequest)
       } catch {
         // 刷新失败，清除 token 跳转登录
-        storage.removeItem('token')
-        window.location.href = '/login'
+        endSession()
         return Promise.reject(error)
       }
     }
 
-    // 其他错误
-    const message = error.response?.data?.message || error.message
+    // Preserve Axios metadata while presenting the API's actionable message.
+    error.message = error.response?.data?.message
+      || (error.code === 'ECONNABORTED' ? '请求超时，请重试' : '请求失败，请检查网络后重试')
+    const message = error.message
     if (error.response) {
       switch (error.response.status) {
         case 403:

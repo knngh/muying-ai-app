@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useKnowledgeStore } from '@/stores/knowledgeStore'
+import { usePageTitle } from '@/hooks'
 import type { Article } from '@/api/modules'
 import {
   buildKnowledgeSourceDigest,
@@ -27,9 +28,11 @@ const stageOptions = [
   { label: '孕早期 (1-12周)', value: 'first-trimester' },
   { label: '孕中期 (13-27周)', value: 'second-trimester' },
   { label: '孕晚期 (28-40周)', value: 'third-trimester' },
+  { label: '产后', value: 'postpartum' },
   { label: '0-6月', value: '0-6-months' },
   { label: '6-12月', value: '6-12-months' },
   { label: '1-3岁', value: '1-3-years' },
+  { label: '3岁以上', value: '3-years-plus' },
 ]
 
 const variantFilterOptions = [
@@ -45,6 +48,7 @@ const variantSortOptions = [
 ] as const
 
 export function Knowledge() {
+  usePageTitle('权威母婴知识库')
   const navigate = useNavigate()
   const {
     articles,
@@ -53,6 +57,7 @@ export function Knowledge() {
     total,
     page,
     loading,
+    error,
     keyword,
     selectedCategory,
     selectedTag,
@@ -274,7 +279,12 @@ export function Knowledge() {
           </span>
         </div>
 
-        {loading && displayedArticleGroups.length === 0 ? (
+        {error ? (
+          <div role="alert" className={styles.emptyState}>
+            <p>{error}</p>
+            <button type="button" className={styles.searchButton} onClick={() => fetchArticles({ page: 1, reset: true })}>重新加载</button>
+          </div>
+        ) : loading && displayedArticleGroups.length === 0 ? (
           <div className={styles.loadingState}>
             <span className={styles.loadingDot} />
             <span>正在加载知识内容...</span>
@@ -299,7 +309,7 @@ export function Knowledge() {
                 return (
                 <article
                   key={groupKey}
-                  className={styles.articleCard}
+                  className={`${styles.articleCard} ${article.coverImage ? '' : styles.articleCardWithoutImage}`}
                   onClick={() => goToDetail(article.slug)}
                 >
                   {article.coverImage ? (
@@ -329,7 +339,7 @@ export function Knowledge() {
                       ))}
                     </div>
 
-                    <h3>{getDisplayTitle(article)}</h3>
+                    <h3><a href={`/knowledge/${article.slug}`} onClick={(event) => { event.preventDefault(); event.stopPropagation(); goToDetail(article.slug) }}>{getDisplayTitle(article)}</a></h3>
                     <div className={styles.readingMetaRow}>
                       <span className={styles.readingMetaBadge}>{getReadingMeta(article).estimatedMinutesLabel}</span>
                       <span className={styles.readingMetaBadge}>{getReadingMeta(article).textLengthLabel}</span>

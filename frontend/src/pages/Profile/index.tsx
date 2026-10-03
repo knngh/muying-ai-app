@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useState, type FormEvent } from 'react'
+import { endSession } from '@/utils/authSession'
+import { dateOnly } from '@/utils/dateOnly'
 import { useAppStore } from '@/stores/appStore'
 import { authApi } from '@/api/modules'
 import type { User } from '@/api/modules'
@@ -61,7 +62,6 @@ function formatPhone(phone: string) {
 }
 
 export function Profile() {
-  const navigate = useNavigate()
   const { user, setUser } = useAppStore()
   const [loading, setLoading] = useState(false)
   const [editModalOpen, setEditModalOpen] = useState(false)
@@ -69,32 +69,18 @@ export function Profile() {
   const [draft, setDraft] = useState<ProfileDraft>(initialDraft)
   const [toast, setToast] = useState('')
 
-  const fetchProfile = useCallback(async () => {
-    setLoading(true)
-    try {
-      const userData = (await authApi.me()) as User
-      setUser(userData)
-    } catch {
-      if (import.meta.env.DEV) {
-        if (!user) {
-          setUser({
-            id: '1',
-            username: 'mock_user',
-            nickname: '测试用户',
-            createdAt: new Date().toISOString(),
-          })
-        }
-      } else {
-        setToast('获取用户信息失败')
-      }
-    } finally {
-      setLoading(false)
-    }
-  }, [setUser, user])
-
   useEffect(() => {
-    void fetchProfile()
-  }, [fetchProfile])
+    let active = true
+    setLoading(true)
+    void authApi.me().then((userData) => {
+      if (active) setUser(userData)
+    }).catch(() => {
+      if (active) setToast('获取用户信息失败，请刷新重试')
+    }).finally(() => {
+      if (active) setLoading(false)
+    })
+    return () => { active = false }
+  }, [setUser])
 
   useEffect(() => {
     if (!toast) return
@@ -106,8 +92,8 @@ export function Profile() {
     setDraft({
       nickname: user?.nickname || '',
       pregnancyStatus: normalizePregnancyStatus(user?.pregnancyStatus)?.toString() || '',
-      dueDate: user?.dueDate ? dayjs(user.dueDate).format('YYYY-MM-DD') : '',
-      babyBirthday: user?.babyBirthday ? dayjs(user.babyBirthday).format('YYYY-MM-DD') : '',
+      dueDate: dateOnly(user?.dueDate),
+      babyBirthday: dateOnly(user?.babyBirthday),
       babyGender: normalizeBabyGender(user?.babyGender)?.toString() || '',
     })
     setEditModalOpen(true)
@@ -120,8 +106,8 @@ export function Profile() {
       const data = {
         nickname: draft.nickname || undefined,
         pregnancyStatus: draft.pregnancyStatus ? Number(draft.pregnancyStatus) : undefined,
-        dueDate: draft.dueDate || undefined,
-        babyBirthday: draft.babyBirthday || undefined,
+        dueDate: draft.dueDate || null,
+        babyBirthday: draft.babyBirthday || null,
         babyGender: draft.babyGender ? Number(draft.babyGender) : undefined,
       }
       const updatedUser = (await authApi.updateProfile(data)) as User
@@ -129,36 +115,16 @@ export function Profile() {
       setToast('资料更新成功')
       setEditModalOpen(false)
     } catch {
-      if (import.meta.env.DEV && user) {
-        setUser({
-          ...user,
-          nickname: draft.nickname || user.nickname,
-          pregnancyStatus: draft.pregnancyStatus ? Number(draft.pregnancyStatus) : undefined,
-          dueDate: draft.dueDate || undefined,
-          babyBirthday: draft.babyBirthday || undefined,
-          babyGender: draft.babyGender ? Number(draft.babyGender) : undefined,
-        })
-        setToast('API 不可用，本地更新')
-        setEditModalOpen(false)
-      } else {
-        setToast('更新失败')
-      }
+      setToast('更新失败，请重试')
     } finally {
       setEditLoading(false)
     }
   }
 
-  const handleLogout = async () => {
+  const handleLogout = () => {
     if (!window.confirm('确定要退出登录吗？')) return
-
-    try {
-      await authApi.logout()
-    } catch {
-      // 忽略登出接口错误，本地状态仍需清理。
-    }
-    localStorage.removeItem('token')
-    setUser(null)
-    navigate('/login')
+    // The backend uses stateless JWTs; local invalidation must not wait for it.
+    endSession()
   }
 
   if (loading && !user) {

@@ -1171,12 +1171,12 @@ describe('authority content guards', () => {
 
     lowValueOfficialRecords.forEach((record) => {
       expect(shouldFilterAuthoritySourceUrl(record)).toBe(true);
-      // These are all low-value official records that must be dropped. Most are
-      // caught by the official_chinese activity/admin/navigation gate, but a few
-      // event-announcement titles (e.g. "...启动仪式在哈尔滨举办") legitimately match
-      // the news/information gate, which runs first. Either is a correct rejection.
+      // Low-value official records must be dropped by the official_chinese
+      // activity/admin/navigation gate. (The former news_or_information_content
+      // gate was removed 2026-09-26 — the mini-program no longer has a knowledge
+      // section, so time-bound news is allowed in when maternal-relevant.)
       expect(getAuthorityKnowledgeDropReason(record)).toMatch(
-        /^(official_chinese_|news_or_information_content$)/,
+        /^official_chinese_/,
       );
     });
 

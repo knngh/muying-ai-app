@@ -1,5 +1,6 @@
 <template>
-  <view class="detail-page">
+  <KnowledgePaused v-if="!KNOWLEDGE_ENABLED" />
+  <view v-else class="detail-page">
     <view v-if="loading" class="state-box">
       <text class="state-text">加载中...</text>
     </view>
@@ -166,6 +167,8 @@
 </template>
 
 <script setup lang="ts">
+import { KNOWLEDGE_ENABLED } from '@/config/features'
+import KnowledgePaused from '@/components/KnowledgePaused.vue'
 import { computed, nextTick, ref, watch } from 'vue'
 import { onLoad, onPageScroll, onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app'
 import { articleApi, isTranslationPendingError } from '@/api/modules'
@@ -506,6 +509,7 @@ const translationReadyText = computed(() => {
 })
 
 onLoad((options) => {
+  if (!KNOWLEDGE_ENABLED) return
   recordAcquisitionContext(options)
   viewportHeightPx.value = getViewportHeight()
   readingProgress.value = 0
@@ -704,7 +708,7 @@ function handleMissingKnowledgeArticle(slug: string) {
     uni.showToast({ title: '内容已更新，正在刷新知识库', icon: 'none' })
     void knowledgeStore.fetchArticles({ reset: true, page: 1 })
     setTimeout(() => {
-      uni.switchTab({ url: '/pages/knowledge/index' })
+      uni.navigateTo({ url: '/pages/knowledge/index' })
     }, 800)
   }
 }
@@ -943,10 +947,11 @@ function openContinueReading(slug: string) {
 }
 
 function goBackToKnowledge() {
-  uni.switchTab({ url: '/pages/knowledge/index' })
+  uni.navigateTo({ url: '/pages/knowledge/index' })
 }
 
 function buildSharePayload() {
+  if (!KNOWLEDGE_ENABLED) return { title: '贝护 · 孕育记录与实用工具', path: '/pages/tools/index', query: '' }
   const title = displayedTitle.value || article.value?.title || '贝护妈妈孕育资料库'
   const extra = currentSlug ? { slug: currentSlug } : undefined
   const path = currentSlug
@@ -962,6 +967,7 @@ function buildSharePayload() {
 }
 
 function trackKnowledgeShare(channel: 'share_app_message' | 'share_timeline') {
+  if (!KNOWLEDGE_ENABLED) return
   if (!article.value) {
     return
   }

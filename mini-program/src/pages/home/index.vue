@@ -1,460 +1,183 @@
 <template>
   <view class="home-page">
     <view class="home-header">
-      <view class="hero-topline">
-        <text class="hero-eyebrow">{{ heroEyebrow }}</text>
-        <text class="hero-state">{{ loginStateLabel }}</text>
-      </view>
-      <text class="hero-title">{{ heroTitle }}</text>
-      <text class="hero-subtitle">{{ heroSubtitle }}</text>
+      <view class="hero-topline"><text class="hero-eyebrow">贝护 · 每天一点记录</text><text class="hero-state">{{ loggedIn ? '已登录' : '游客使用' }}</text></view>
+      <text class="hero-title">{{ period?.stage === 'postpartum' ? `宝宝第 ${period.week} 周，一起慢慢长大` : currentWeek ? `第 ${currentWeek} 周，陪你记下每一天` : '把常用工具，放在手边' }}</text>
+      <text class="hero-subtitle">{{ currentWeek ? '照顾好当下，也留下值得回看的日常。' : '先开始记录，随时按自己的习惯调整首页。' }}</text>
     </view>
-
+    <view class="home-tools-panel">
+      <view class="tools-panel-head"><view><text class="tools-panel-title">我的常用</text><text class="tools-panel-subtitle">{{ customIds === null ? (period ? `${toolPeriodLabel(period)}推荐 · 可自由调整` : '已按阶段推荐，可自由调整') : `已添加 ${homeIds.length} 项 · 按你的顺序` }}</text></view><button class="text-button" @tap="editing = !editing">{{ editing ? '完成' : '管理' }}</button></view>
+      <HomeToolEditor v-if="editing" :ids="homeIds" @change="updateHome" @reset="restoreHome" />
+      <view v-else class="home-quick-list" :class="{ 'home-quick-list--many': homeIds.length > 5 }">
+        <button v-for="tool in homeTools" :key="tool.id" class="home-quick-item" :aria-label="`打开${tool.title}`" @tap="openTool(tool.id)">
+          <view class="home-quick-icon" :class="`tone-${tool.tone}`"><ToolIcon :id="tool.id" /></view>
+          <text class="home-quick-title">{{ tool.title }}</text>
+        </button>
+        <button v-if="homeIds.length < MAX_HOME_TOOLS" class="home-quick-item home-add" @tap="openTools"><view class="home-quick-icon"><text>＋</text></view><text class="home-quick-title">添加工具</text></button>
+      </view>
+      <button class="all-tools-button" @tap="openTools">查看全部 15 项工具 ›</button>
+    </view>
+    <ReminderSummaryCard
+      :summary="reminderSummary"
+      :prompt="reminderPrompt"
+      @open="openReminders"
+      @dismiss="dismissReminderPrompt"
+    />
     <view class="home-card-list">
-      <view
-        v-for="item in primaryEntries"
-        :key="item.url"
-        class="home-card"
-        :class="[`home-card--${item.tone}`, { 'home-card--primary': item.primary }]"
-        @tap="navigateTo(item.url)"
-      >
+      <view class="home-card home-card--calendar" role="button" :aria-label="period?.stage === 'postpartum' ? '打开成长记录' : '打开孕周记录'" @tap="openTool('calendar')">
         <view class="home-card-head">
-          <view class="home-card-icon">
-            <text class="home-card-icon-text">{{ item.icon }}</text>
-          </view>
-          <view class="home-card-meta">
-            <text class="home-card-kicker">{{ item.kicker }}</text>
-            <text class="home-card-title">{{ item.title }}</text>
-          </view>
-          <text class="home-card-action">{{ item.action }}</text>
+          <view class="home-card-icon"><text class="home-card-icon-text">期</text></view>
+          <view class="home-card-meta"><text class="home-card-kicker">{{ period ? stageLabel : '开启孕育之旅' }}</text><text class="home-card-title">{{ period?.stage === 'postpartum' ? '成长记录' : '孕周记录' }}</text></view>
+          <text class="home-card-action">查看</text>
         </view>
-
-        <text class="home-card-desc">{{ item.desc }}</text>
-
-        <view v-if="item.tone === 'knowledge' && recentKnowledge.length" class="home-card-foot">
-          <view class="recent-inline">
-            <text class="recent-inline-label">最近阅读</text>
-            <text class="recent-inline-title">{{ recentKnowledge[0].title }}</text>
-          </view>
-          <text class="recent-inline-action" @tap.stop="openRecentKnowledge(recentKnowledge[0].slug)">继续看</text>
+        <text class="home-card-desc">{{ calendarDescription }}</text>
+        <view class="home-card-foot"><text class="home-card-foot-label">当前阶段</text><text class="home-card-foot-value">{{ period ? toolPeriodLabel(period) : '日历' }}</text></view>
+      </view>
+      <view class="home-card home-card--archive" role="button" aria-label="打开时光档案" @tap="openProfile">
+        <view class="home-card-head">
+          <view class="home-card-icon"><text class="home-card-icon-text">档</text></view>
+          <view class="home-card-meta"><text class="home-card-kicker">{{ loggedIn ? '云端同步' : '守护回忆' }}</text><text class="home-card-title">时光档案</text></view>
+          <text class="home-card-action">打开</text>
         </view>
-
-        <view v-if="item.tone !== 'knowledge'" class="home-card-foot">
-          <text class="home-card-foot-label">{{ item.footLabel }}</text>
-          <text class="home-card-foot-value">{{ item.footValue }}</text>
-        </view>
+        <text class="home-card-desc">保存孕周、提醒和阶段记录，形成只属于您的孕育档案。</text>
+        <view class="home-card-foot"><text class="home-card-foot-label">档案状态</text><text class="home-card-foot-value">{{ loggedIn ? '记录中' : '待开启' }}</text></view>
       </view>
     </view>
+    <text class="home-note">记录与整理，从今天的小事开始。</text>
   </view>
 </template>
-
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { onLoad, onShareAppMessage, onShareTimeline, onShow } from '@dcloudio/uni-app'
+import { onLoad, onShow, onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app'
 import { useAppStore } from '@/stores/app'
 import { calculatePregnancyWeekFromDueDate } from '@/utils'
 import { buildAcquisitionPath, buildAcquisitionQuery, recordAcquisitionContext } from '@/utils/acquisition'
-import { getKnowledgeDisplayTitle } from '@/utils/knowledge-format'
-import type { RecentKnowledgeItem } from '@/utils/home-helpers'
-
+import { getStageLabel, getToolDefinition, getToolStage, type ToolId } from '@/data/tool-catalog'
+import { MAX_HOME_TOOLS, openToolPage, readHomeTools, recommendedHomeTools, resetHomeTools, saveHomeTools } from '@/utils/home-tools'
+import HomeToolEditor from '@/components/tools/HomeToolEditor.vue'
+import ToolIcon from '@/components/tools/ToolIcon.vue'
+import ReminderSummaryCard from '@/components/reminders/ReminderSummaryCard.vue'
+import { currentToolPeriod, periodTools, toolPeriodLabel } from '@/utils/tool-period'
+import { trackMiniEvent } from '@/utils/analytics'
+import { reportOwner } from '@/utils/report-drafts'
+import { buildReminderPrompt, buildReminderSummary, markReminderPromptRead, readReminderPromptSignature, readReminders, type LocalReminder } from '@/utils/reminders'
 const appStore = useAppStore()
-const RECENT_KNOWLEDGE_STORAGE_KEY = 'recentKnowledgeArticles'
-
-const TAB_PAGES = new Set([
-  '/pages/home/index',
-  '/pages/calendar/index',
-  '/pages/knowledge/index',
-  '/pages/profile/index',
-])
-
-const PUBLIC_PAGES = new Set([
-  '/pages/home/index',
-  '/pages/calendar/index',
-  '/pages/knowledge/index',
-])
-
-const sessionLoggedIn = ref(Boolean(uni.getStorageSync('token')))
-const storedWeek = ref<number | null>(null)
-const recentKnowledge = ref<RecentKnowledgeItem[]>([])
-
-const syncHomeState = () => {
-  sessionLoggedIn.value = Boolean(uni.getStorageSync('token'))
-  const rawWeek = Number.parseInt(String(uni.getStorageSync('userPregnancyWeek') || ''), 10)
-  storedWeek.value = !Number.isNaN(rawWeek) && rawWeek >= 1 && rawWeek <= 40 ? rawWeek : null
-
-  const storedRecent = uni.getStorageSync(RECENT_KNOWLEDGE_STORAGE_KEY) as RecentKnowledgeItem[] | null
-  recentKnowledge.value = Array.isArray(storedRecent)
-    ? storedRecent.slice(0, 3).map(item => ({ ...item, title: getKnowledgeDisplayTitle({ title: item.title }) }))
-    : []
-}
-
-syncHomeState()
-
+const loggedIn = ref(false), storedWeek = ref<number | null>(null), editing = ref(false)
+const customIds = ref<ToolId[] | null>(readHomeTools())
+const initialReminderOwner = reportOwner()
+const reminderOwner = ref(initialReminderOwner), reminders = ref<LocalReminder[]>([]), reminderPromptRead = ref(readReminderPromptSignature(initialReminderOwner))
+const reminderSummary = computed(() => buildReminderSummary(reminders.value))
+const reminderPrompt = computed(() => {
+  const prompt = buildReminderPrompt(reminders.value)
+  return prompt && prompt.signature !== reminderPromptRead.value ? prompt : null
+})
 const currentWeek = computed(() => {
-  const userDueDate = appStore.user?.dueDate
-  if (userDueDate) {
-    const week = calculatePregnancyWeekFromDueDate(userDueDate)
-    if (week) return week
+  if (appStore.user?.babyBirthday) return null
+  return appStore.user?.dueDate ? calculatePregnancyWeekFromDueDate(appStore.user.dueDate) : storedWeek.value
+})
+const stage = computed(() => getToolStage(currentWeek.value, appStore.user?.babyBirthday))
+const stageLabel = computed(() => getStageLabel(stage.value))
+const period = computed(() => currentToolPeriod(currentWeek.value, appStore.user?.babyBirthday))
+const calendarDescription = computed(() => period.value
+  ? `这一周可用：${periodTools(period.value).map(item => getToolDefinition(item.id).title).join('、')}。打开日历，按周查看。`
+  : '了解每周常见变化，在对应孕周找到记录工具与待办。')
+const homeIds = computed(() => customIds.value ?? recommendedHomeTools(stage.value, period.value))
+const homeTools = computed(() => homeIds.value.map(getToolDefinition))
+function updateHome(ids: ToolId[]) {
+  try { saveHomeTools(ids); customIds.value = [...ids] }
+  catch { uni.showToast({ title: '未能保存设置，请重试', icon: 'none' }) }
+}
+function restoreHome() {
+  try { resetHomeTools(); customIds.value = null }
+  catch { uni.showToast({ title: '未能恢复推荐，请重试', icon: 'none' }) }
+}
+function openTools() { uni.switchTab({ url: '/pages/tools/index' }) }
+function openTool(id: ToolId) { trackMiniEvent('app_tool_open', { page: 'Home', properties: { toolId: id, stage: stage.value } }); openToolPage(id) }
+function refreshReminders() {
+  const nextOwner = reportOwner()
+  if (nextOwner !== reminderOwner.value) {
+    reminderOwner.value = nextOwner
+    reminderPromptRead.value = readReminderPromptSignature(nextOwner)
   }
-  return storedWeek.value
-})
-
-const isLoggedIn = computed(() => sessionLoggedIn.value)
-
-const pregnancyStageLabel = computed(() => {
-  const week = currentWeek.value
-  if (!week) return isLoggedIn.value ? '待完善孕周' : '开启孕育之旅'
-  if (week <= 12) return `孕早期 · 第 ${week} 周`
-  if (week <= 27) return `孕中期 · 第 ${week} 周`
-  return `孕晚期 · 第 ${week} 周`
-})
-
-const loginStateLabel = computed(() => (isLoggedIn.value ? '已守护' : '探索模式'))
-const heroEyebrow = computed(() => (currentWeek.value ? `第 ${currentWeek.value} 周贴心指南` : '贝护妈妈孕育助手'))
-const heroTitle = computed(() => (currentWeek.value ? '按周整理，安心记录每一天' : '您的孕育记录与资料工具'))
-const heroSubtitle = computed(() => (
-  isLoggedIn.value
-    ? '查看公开资料、孕周提醒与时光档案，记录您与宝宝的重要变化。'
-    : '先浏览公开资料和孕周日历，登录后可保存个人记录与提醒。'
-))
-
-const primaryEntries = computed(() => [
-  {
-    title: '孕育资料库',
-    kicker: '公开资料',
-    desc: '整理公开机构资料与同步时间，帮助您按主题查阅孕产和育儿信息。',
-    action: '去查看',
-    icon: '阅',
-    tone: 'knowledge',
-    url: '/pages/knowledge/index',
-    primary: true,
-  },
-  {
-    title: '孕周记录',
-    kicker: pregnancyStageLabel.value,
-    desc: currentWeek.value ? `按周查看常见变化和记录提醒，方便整理下一次产检要点。` : '了解每周常见变化，登录后可保存您的孕期日历。',
-    action: '查看',
-    icon: '期',
-    tone: 'calendar',
-    url: '/pages/calendar/index',
-    footLabel: '当前阶段',
-    footValue: currentWeek.value ? `W${currentWeek.value}` : '日历',
-  },
-  {
-    title: '时光档案',
-    kicker: isLoggedIn.value ? '云端同步' : '守护回忆',
-    desc: '保存孕周、提醒和阶段记录，形成只属于您的孕育档案。',
-    action: '打开',
-    icon: '档',
-    tone: 'archive',
-    url: '/pages/pregnancy-profile/index',
-    footLabel: '档案状态',
-    footValue: isLoggedIn.value ? '记录中' : '待开启',
-  },
-])
-
-const checkLogin = (): boolean => {
-  if (!isLoggedIn.value) {
-    uni.showToast({ title: '登录后可保存你的进度', icon: 'none' })
-    setTimeout(() => { uni.navigateTo({ url: '/pages/login/index' }) }, 900)
-    return false
+  reminders.value = readReminders(nextOwner)
+}
+function openReminders() {
+  const prompt = reminderPrompt.value
+  if (prompt) {
+    markReminderPromptRead(reminderOwner.value, prompt.signature)
+    reminderPromptRead.value = prompt.signature
   }
-  return true
+  uni.setStorageSync('beihu:calendar:initial-tab', 'reminders')
+  uni.switchTab({ url: '/pages/calendar/index' })
 }
-
-function openRecentKnowledge(slug: string) {
-  uni.navigateTo({ url: buildAcquisitionPath('/pages/knowledge-detail/index', { slug }) })
+function dismissReminderPrompt() {
+  const prompt = reminderPrompt.value
+  if (!prompt) return
+  markReminderPromptRead(reminderOwner.value, prompt.signature)
+  reminderPromptRead.value = prompt.signature
 }
-
-const navigateTo = (url: string) => {
-  if (!PUBLIC_PAGES.has(url) && !checkLogin()) return
-  if (TAB_PAGES.has(url)) { uni.switchTab({ url }); return }
-  uni.navigateTo({ url: buildAcquisitionPath(url) })
+function openProfile() {
+  const target = '/pages/pregnancy-profile/index'
+  uni.navigateTo({ url: loggedIn.value ? target : `/pages/login/index?redirect=${encodeURIComponent(target)}` })
 }
-
-onLoad((options) => {
-  recordAcquisitionContext(options)
-})
-
+onLoad(options => recordAcquisitionContext(options))
 onShow(() => {
-  syncHomeState()
-  if (sessionLoggedIn.value && !appStore.user) {
-    void appStore.fetchUser()
-  }
+  loggedIn.value = !!uni.getStorageSync('token')
+  const week = Number(uni.getStorageSync('userPregnancyWeek'))
+  storedWeek.value = Number.isInteger(week) && week >= 1 && week <= 40 ? week : null
+  customIds.value = readHomeTools()
+  refreshReminders()
+  if (loggedIn.value && !appStore.user) void appStore.fetchUser()
 })
-
-function buildSharePayload() {
-  const query = buildAcquisitionQuery()
-
-  return {
-    title: '贝护妈妈：孕周资料与记录工具',
-    path: buildAcquisitionPath('/pages/home/index'),
-    query,
-  }
-}
-
-onShareAppMessage(() => buildSharePayload())
-onShareTimeline(() => {
-  const payload = buildSharePayload()
-  return {
-    title: payload.title,
-    query: payload.query,
-  }
-})
+onShareAppMessage(() => ({ title: '贝护 · 孕育记录与实用工具', path: buildAcquisitionPath('/pages/home/index') }))
+onShareTimeline(() => ({ title: '贝护 · 孕育记录与实用工具', query: buildAcquisitionQuery() }))
 </script>
-
 <style scoped>
-.home-page {
-  min-height: 100vh;
-  padding: 96rpx 28rpx 48rpx;
-  background: linear-gradient(180deg, #f9f0f5 0%, #fff7f2 48%, #fbfaf8 100%);
-  box-sizing: border-box;
-}
-
-.home-header {
-  padding: 0 4rpx 30rpx;
-}
-
-.hero-topline {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18rpx;
-}
-
-.hero-eyebrow,
-.hero-state,
-.home-card-action {
-  font-size: 24rpx;
-  font-weight: 800;
-}
-
-.hero-eyebrow {
-  color: #d88188;
-}
-
-.hero-state {
-  flex-shrink: 0;
-  padding: 10rpx 20rpx;
-  border-radius: 999rpx;
-  background: rgba(216, 129, 136, 0.11);
-  color: #d88188;
-}
-
-.hero-title {
-  display: block;
-  margin-top: 18rpx;
-  font-size: 48rpx;
-  line-height: 1.35;
-  font-weight: 900;
-  color: #444;
-  letter-spacing: 1rpx;
-}
-
-.hero-subtitle {
-  display: block;
-  margin-top: 18rpx;
-  font-size: 28rpx;
-  line-height: 1.72;
-  color: #666;
-}
-
-.home-card-list {
-  display: flex;
-  flex-direction: column;
-  gap: 22rpx;
-}
-
-.home-card {
-  position: relative;
-  overflow: hidden;
-  padding: 30rpx;
-  border-radius: 30rpx;
-  background: #fffcf8;
-  border: 1rpx solid rgba(255, 255, 255, 0.72);
-  box-shadow: 0 18rpx 38rpx rgba(31, 42, 55, 0.02);
-  box-sizing: border-box;
-}
-
-.home-card--primary {
-  min-height: 292rpx;
-  color: #ffffff;
-  background: linear-gradient(135deg, #e8a1a6 0%, #d88188 52%, #c7656e 100%);
-}
-
-.home-card--calendar {
-  background: linear-gradient(135deg, #fff2ed 0%, #ffe3d5 58%, #ffd2bc 100%);
-}
-
-.home-card--archive {
-  background: linear-gradient(135deg, #f9ebf1 0%, #ebd3e0 54%, #dcb8cc 100%);
-}
-
-.home-card-head {
-  display: flex;
-  align-items: center;
-  gap: 18rpx;
-}
-
-.home-card-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 64rpx;
-  height: 64rpx;
-  border-radius: 20rpx;
-  background: rgba(255, 255, 255, 0.9);
-  flex-shrink: 0;
-}
-
-.home-card--primary .home-card-icon {
-  background: rgba(255, 255, 255, 0.95);
-  border: 1rpx solid rgba(255, 255, 255, 0.24);
-}
-
-.home-card--calendar .home-card-icon {
-  background: rgba(229, 115, 77, 0.12);
-}
-
-.home-card--archive .home-card-icon {
-  background: rgba(164, 108, 139, 0.1);
-}
-
-.home-card-icon-text {
-  font-size: 26rpx;
-  font-weight: 900;
-  color: #444;
-}
-
-.home-card--primary .home-card-icon-text {
-  color: #c7656e;
-}
-
-.home-card-meta {
-  flex: 1;
-  min-width: 0;
-}
-
-.home-card-kicker {
-  display: block;
-  font-size: 21rpx;
-  font-weight: 800;
-  color: #16806a;
-}
-
-.home-card--primary .home-card-kicker {
-  color: rgba(255, 255, 255, 0.78);
-}
-
-.home-card--calendar .home-card-kicker {
-  color: #e5734d;
-}
-
-.home-card--archive .home-card-kicker {
-  color: #a46c8b;
-}
-
-.home-card-title {
-  display: block;
-  margin-top: 5rpx;
-  font-size: 36rpx;
-  line-height: 1.32;
-  font-weight: 900;
-  color: #444;
-}
-
-.home-card--primary .home-card-title {
-  color: #ffffff;
-}
-
-.home-card-action {
-  flex-shrink: 0;
-  padding: 11rpx 20rpx;
-  border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.72);
-  color: #16806a;
-}
-
-.home-card--primary .home-card-action {
-  background: rgba(255, 255, 255, 0.22);
-  color: #ffffff;
-}
-
-.home-card-desc {
-  display: block;
-  margin-top: 22rpx;
-  font-size: 26rpx;
-  line-height: 1.7;
-  color: #5f6d7c;
-}
-
-.home-card--primary .home-card-desc {
-  color: rgba(255, 255, 255, 0.9);
-}
-
-.home-card-foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18rpx;
-  margin-top: 24rpx;
-  padding-top: 20rpx;
-  border-top: 1rpx solid rgba(31, 42, 55, 0.08);
-}
-
-.home-card--primary .home-card-foot {
-  border-top-color: rgba(255, 255, 255, 0.22);
-}
-
-.home-card-foot-label,
-.recent-inline-label {
-  flex-shrink: 0;
-  font-size: 22rpx;
-  color: #7a8592;
-}
-
-.home-card--primary .home-card-foot-label,
-.home-card--primary .recent-inline-label {
-  color: rgba(255, 255, 255, 0.7);
-}
-
-.home-card-foot-value,
-.recent-inline-action {
-  flex-shrink: 0;
-  font-size: 24rpx;
-  font-weight: 800;
-  color: #16806a;
-}
-
-.home-card--calendar .home-card-foot-value {
-  color: #e5734d;
-}
-
-.home-card--archive .home-card-foot-value {
-  color: #a46c8b;
-}
-
-.home-card--primary .home-card-foot-value,
-.home-card--primary .recent-inline-action {
-  color: #ffffff;
-}
-
-.recent-inline {
-  flex: 1;
-  min-width: 0;
-}
-
-.recent-inline-title {
-  display: block;
-  margin-top: 6rpx;
-  font-size: 24rpx;
-  line-height: 1.5;
-  color: #314050;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.home-card--primary .recent-inline-title {
-  color: rgba(255, 255, 255, 0.92);
-}
+.home-page { min-height: 100vh; padding: 36rpx 28rpx 54rpx; background: linear-gradient(180deg, #fff4f1 0%, #fcf9f8 55%); box-sizing: border-box; }
+.home-header { padding: 0 4rpx 28rpx; }
+.hero-topline, .tools-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; }
+.hero-eyebrow { color: #a5525e; font-size: 24rpx; font-weight: 800; }
+.hero-state { color: #756761; padding: 10rpx 16rpx; background: #fffdfb; border-radius: 16rpx; font-size: 22rpx; }
+.hero-title { display: block; margin-top: 20rpx; font-size: 40rpx; font-weight: 700; color: #443c3a; line-height: 1.4; }
+.hero-subtitle { display: block; margin-top: 12rpx; font-size: 26rpx; line-height: 1.6; color: #756761; }
+.home-tools-panel { padding: 22rpx; border-radius: 28rpx; background: #fffcf8; box-shadow: 0 12rpx 30rpx rgba(58,48,44,.045); }
+.tools-panel-title, .tools-panel-subtitle { display: block; }
+.tools-panel-title { color: #443c3a; font-size: 32rpx; font-weight: 800; }
+.tools-panel-subtitle { color: #766b67; font-size: 23rpx; margin-top: 6rpx; }
+.text-button { padding: 20rpx 8rpx; margin: 0; min-height: 88rpx; background: transparent; color: #166c5b; font-size: 26rpx; line-height: 1.8; }
+button::after { border: 0; }
+.home-quick-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16rpx 8rpx; margin-top: 16rpx; }
+.home-quick-list--many { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.home-quick-item { min-width: 0; width: 100%; margin: 0; padding: 12rpx 0; background: transparent; text-align: center; line-height: 1.5; }
+.home-quick-icon { display: flex; justify-content: center; align-items: center; width: 76rpx; height: 76rpx; margin: 0 auto; border-radius: 24rpx; color: #166c5b; font-size: 34rpx; font-weight: 800; background: #edf5f1; }
+.home-quick-title { display: block; margin-top: 12rpx; font-size: 24rpx; color: #514641; white-space: normal; }
+.tone-rose { background: #fff0f1; color: #a44e5c; }
+.tone-orange { background: #fff1e7; color: #a55a32; }
+.tone-green { background: #edf8f2; color: #166c5b; }
+.tone-lilac { background: #f5eef7; color: #785784; }
+.home-add .home-quick-icon { background: transparent; border: 2rpx dashed #bed3c9; box-sizing: border-box; }
+.all-tools-button { margin: 22rpx 0 0; padding: 20rpx 8rpx; background: #f4f7f3; color: #166c5b; border-radius: 16rpx; font-size: 25rpx; line-height: 1.8; }
+.home-card-list { display: flex; flex-direction: column; gap: 22rpx; margin-top: 24rpx; }
+.home-card { position: relative; overflow: hidden; padding: 30rpx; border-radius: 30rpx; background: #fffcf8; border: 1rpx solid rgba(255,255,255,.72); box-shadow: 0 18rpx 38rpx rgba(31,42,55,.02); box-sizing: border-box; }
+.home-card--calendar { background: linear-gradient(135deg, #fff2ed 0%, #ffe3d5 58%, #ffd2bc 100%); }
+.home-card--archive { background: linear-gradient(135deg, #f9ebf1 0%, #ebd3e0 54%, #dcb8cc 100%); }
+.home-card-head { display: flex; align-items: center; gap: 18rpx; }
+.home-card-icon { display: flex; align-items: center; justify-content: center; width: 64rpx; height: 64rpx; border-radius: 20rpx; flex-shrink: 0; }
+.home-card--calendar .home-card-icon { background: rgba(229,115,77,.12); }
+.home-card--archive .home-card-icon { background: rgba(164,108,139,.1); }
+.home-card-icon-text { font-size: 26rpx; font-weight: 900; color: #444; }
+.home-card-meta { flex: 1; min-width: 0; }
+.home-card-kicker { display: block; font-size: 21rpx; font-weight: 800; }
+.home-card--calendar .home-card-kicker { color: #e5734d; }
+.home-card--archive .home-card-kicker { color: #a46c8b; }
+.home-card-title { display: block; margin-top: 5rpx; font-size: 36rpx; line-height: 1.32; font-weight: 900; color: #444; }
+.home-card-action { flex-shrink: 0; padding: 11rpx 20rpx; border-radius: 999rpx; background: rgba(255,255,255,.72); color: #16806a; font-size: 24rpx; font-weight: 800; }
+.home-card-desc { display: block; margin-top: 22rpx; font-size: 26rpx; line-height: 1.7; color: #5f6d7c; }
+.home-card-foot { display: flex; align-items: center; justify-content: space-between; gap: 18rpx; margin-top: 24rpx; padding-top: 20rpx; border-top: 1rpx solid rgba(31,42,55,.08); }
+.home-card-foot-label { flex-shrink: 0; font-size: 22rpx; color: #7a8592; }
+.home-card-foot-value { flex-shrink: 0; font-size: 24rpx; font-weight: 800; }
+.home-card--calendar .home-card-foot-value { color: #e5734d; }
+.home-card--archive .home-card-foot-value { color: #a46c8b; }
+.home-note { display: block; margin-top: 30rpx; text-align: center; color: #766b67; font-size: 23rpx; }
+@media (max-width: 350px) { .home-quick-list { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 </style>

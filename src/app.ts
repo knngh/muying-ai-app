@@ -32,6 +32,10 @@ import reportRoutes from './routes/report.routes';
 import analyticsRoutes from './routes/analytics.routes';
 import checkinRoutes from './routes/checkin.routes';
 import growthRoutes from './routes/growth.routes';
+import nameLibraryRoutes from './routes/name-library.routes';
+import toolRecordRoutes from './routes/tool-record.routes';
+import toolAIReviewRoutes from './routes/tool-ai-review.routes';
+import wechatNotificationRoutes from './routes/wechat-notification.routes';
 
 // 中间件导入
 import { ErrorCodes, errorHandler, notFoundHandler } from './middlewares/error.middleware';
@@ -163,6 +167,10 @@ app.use(`${API_PREFIX}/report`, reportRoutes);
 app.use(`${API_PREFIX}/analytics`, analyticsRoutes);
 app.use(`${API_PREFIX}/checkin`, checkinRoutes);
 app.use(`${API_PREFIX}/growth`, growthRoutes);
+app.use(`${API_PREFIX}/names`, nameLibraryRoutes);
+app.use(`${API_PREFIX}/tool-records`, toolAIReviewRoutes);
+app.use(`${API_PREFIX}/tool-records`, toolRecordRoutes);
+app.use(`${API_PREFIX}/notifications`, wechatNotificationRoutes);
 
 // ============================================
 // 错误处理

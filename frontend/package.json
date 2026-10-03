@@ -5,11 +5,17 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "tsc && vite build && node scripts/build-version.mjs",
     "lint": "eslint . --report-unused-disable-directives --max-warnings 0",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"src/**/*.{ts,tsx,css,json}\"",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:e2e": "playwright test",
+    "test:e2e:report": "playwright show-report",
+    "typecheck:e2e": "tsc -p e2e/tsconfig.json",
+    "smoke:deploy": "node scripts/deploy-smoke.mjs",
+    "smoke:live": "node scripts/live-smoke.mjs",
+    "deploy": "wrangler deploy"
   },
   "dependencies": {
     "@tailwindcss/typography": "^0.5.19",
@@ -21,12 +27,16 @@
     "react-dom": "^18.2.0",
     "react-markdown": "^10.1.0",
     "react-router-dom": "^6.22.0",
+    "recharts": "^3.10.1",
     "remark-gfm": "^4.0.1",
     "tailwindcss": "^4.2.2",
     "zustand": "^4.5.0"
   },
   "devDependencies": {
+    "@eslint/js": "^8.57.1",
+    "@playwright/test": "1.63.0",
     "@types/dompurify": "^3.0.5",
+    "@types/node": "^22.20.4",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "@typescript-eslint/eslint-plugin": "^7.0.0",
@@ -35,9 +45,11 @@
     "eslint": "^8.56.0",
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.5",
+    "globals": "^15.15.0",
     "prettier": "^3.2.0",
     "typescript": "^5.3.0",
     "typescript-eslint": "^8.57.1",
-    "vite": "^8.0.10"
+    "vite": "^8.0.10",
+    "wrangler": "^4.136.2"
   }
 }

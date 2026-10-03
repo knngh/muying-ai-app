@@ -1,4 +1,4 @@
-import api from './request'
+import api, { BASE_URL } from './request'
 import type {
   ArticleListParams,
   ArticleTranslationOptions,
@@ -39,6 +39,271 @@ export type {
   PregnancyTodoProgress, PregnancyDiary, PregnancyCustomTodo, PregnancyProfile, TimelineContext, TimelineDefaultTodo,
 }
 export { isTranslationPendingError } from '../../../shared/utils/translation-request'
+
+import type { NameLibraryQuery, NameLibraryResponse, NameEvaluationRequest, NameEvaluationResponse } from '../../../shared/types/name-library'
+export type { NameGender, NameLibraryItem } from '../../../shared/types/name-library'
+import type { ExpenseCandidatesRequest, ExpenseCandidatesResponse } from '../../../shared/types/expense-candidates'
+
+export const nameLibraryApi = {
+  getNames: (params?: NameLibraryQuery) => api.get<NameLibraryResponse>('/names', params as Record<string, unknown>, { timeout: 15000 }),
+  evaluate: (data: NameEvaluationRequest) => api.post<NameEvaluationResponse>('/names/evaluate', data, { timeout: 20000 }),
+}
+
+export interface WechatReminderDelivery {
+  id: string
+  clientReminderId: string
+  sourceKey: string | null
+  templateId: string
+  title: string
+  eventAt: string
+  scheduledAt: string
+  leadMinutes: number
+  status: 'pending' | 'sending' | 'sent' | 'failed' | 'cancelled'
+  attempts: number
+  sentAt: string | null
+}
+
+export const wechatNotificationApi = {
+  enqueueReminder: (data: {
+    clientReminderId: string
+    sourceKey?: string
+    templateId: string
+    title: string
+    eventAt: string
+    scheduledAt: string
+    leadMinutes: number
+    subscriptionResult: 'accept'
+  }) => api.post<WechatReminderDelivery>('/notifications/reminders', data, { timeout: 15000 }),
+  cancelReminder: (clientReminderId: string) => api.delete<{ clientReminderId: string; status: string }>(`/notifications/reminders/${encodeURIComponent(clientReminderId)}`),
+}
+
+// ==================== 工具记录 API ====================
+export interface ContractionRecord {
+  id: string
+  startedAt: string
+  endedAt: string
+  durationSeconds: number
+  intervalSeconds: number | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface MovementRecord {
+  id: string
+  startedAt: string
+  endedAt: string
+  count: number
+  method: string
+  durationSeconds: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface PregnancyWeightRecord {
+  id: string
+  measuredAt: string
+  weightKg: number
+  source: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface DiaryEntryRecord {
+  id: string
+  entryDate: string
+  mood: string | null
+  content: string
+  imageUrls: string[]
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ExpenseEntryRecord {
+  id: string
+  occurredAt: string
+  amountCents: number
+  direction: 'expense' | 'refund' | 'transfer'
+  category: string
+  note: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CareLogRecord {
+  id: string
+  kind: 'feeding' | 'diaper' | 'sleep'
+  recordedAt: string
+  endedAt: string | null
+  amountMl: number | null
+  side: string | null
+  diaperType: string | null
+  note: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface BabyMeasurementRecord {
+  id: string
+  measuredAt: string
+  metric: 'height' | 'weight' | 'head'
+  value: number
+  unit: string
+  method: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface VaccinationRecord {
+  id: string
+  vaccineName: string
+  administeredAt: string
+  status: 'planned' | 'scheduled' | 'administered' | 'unconfirmed'
+  doseNumber: number | null
+  note: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface FoodTrialRecord {
+  id: string
+  foodName: string
+  triedAt: string
+  observation: string | null
+  responseStatus: 'unconfirmed' | 'no-note' | 'needs-review'
+  createdAt: string
+  updatedAt: string
+}
+
+export interface PackingItemRecord {
+  id: string
+  name: string
+  category: string
+  quantity: number
+  isDone: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CalendarSummaryRecord {
+  id: string
+  toolId: string
+  date: string
+  title: string
+}
+
+export interface CalendarSummaryDay {
+  date: string
+  count: number
+  records: CalendarSummaryRecord[]
+}
+
+export interface AnnualExpenseSummary {
+  year: number
+  months: Array<{ month: string; expenseCents: number; refundCents: number; transferCents: number; netCents: number; entryCount: number }>
+  expenseCents: number
+  refundCents: number
+  transferCents: number
+  netCents: number
+  entryCount: number
+}
+
+export interface ToolAIReviewRecordInput {
+  date: string
+  content: string
+}
+
+export interface ToolAIReviewResponse {
+  source: 'ai' | 'rules'
+  title: string
+  summary: string
+  highlights: string[]
+  nextSteps: string[]
+  focus: string
+  model: string | null
+  provider: string | null
+  disclaimer: string
+}
+
+export interface ReportFieldRecord {
+  id: string
+  pageNumber: number
+  fieldKey: string
+  label: string | null
+  candidateValue: string
+  normalizedValue: string | null
+  confidence: number | null
+  source: 'manual' | 'ocr' | 'jev'
+  version: number
+  confirmedAt: string | null
+}
+
+export interface ReportDocumentRecord {
+  id: string
+  reportDate: string
+  name: string
+  note: string | null
+  hasImage: boolean
+  ocrStatus: string
+  pageCount: number
+  clientOperationId: string
+  createdAt: string
+  updatedAt: string
+  fields: ReportFieldRecord[]
+}
+
+export const toolRecordApi = {
+  getCalendarSummary: (from: string, to: string) => api.get<CalendarSummaryDay[]>('/tool-records/calendar-summary', { from, to }),
+  expenseCandidates: (data: ExpenseCandidatesRequest) => api.post<ExpenseCandidatesResponse>('/tool-records/expense-candidates', data, { timeout: 30000 }),
+  reviewRecords: (data: {
+    toolId: 'contractions' | 'movement' | 'weight' | 'care' | 'growth' | 'packing' | 'vaccines' | 'foods' | 'diary' | 'expenses'
+    stage?: string
+    records: ToolAIReviewRecordInput[]
+    consent: true
+  }) => api.post<ToolAIReviewResponse>('/tool-records/ai-review', data, { timeout: 30000 }),
+  getContractions: (limit = 30) => api.get<ContractionRecord[]>('/tool-records/contractions', { limit }),
+  createContraction: (data: Omit<ContractionRecord, 'id' | 'createdAt' | 'updatedAt'> & { clientOperationId?: string }) =>
+    api.post<ContractionRecord>('/tool-records/contractions', data),
+  getMovements: (limit = 30) => api.get<MovementRecord[]>('/tool-records/movements', { limit }),
+  createMovement: (data: Omit<MovementRecord, 'id' | 'createdAt' | 'updatedAt' | 'durationSeconds'> & { clientOperationId?: string }) =>
+    api.post<MovementRecord>('/tool-records/movements', data),
+  getWeights: (limit = 30) => api.get<PregnancyWeightRecord[]>('/tool-records/weights', { limit }),
+  createWeight: (data: Omit<PregnancyWeightRecord, 'id' | 'createdAt' | 'updatedAt'> & { clientOperationId?: string }) =>
+    api.post<PregnancyWeightRecord>('/tool-records/weights', data),
+  getDiaryEntries: (limit = 30) => api.get<DiaryEntryRecord[]>('/tool-records/diary', { limit }),
+  createDiaryEntry: (data: Omit<DiaryEntryRecord, 'id' | 'createdAt' | 'updatedAt' | 'imageUrls'> & { clientOperationId?: string }) =>
+    api.post<DiaryEntryRecord>('/tool-records/diary', data),
+  getExpenseEntries: (limit = 30) => api.get<ExpenseEntryRecord[]>('/tool-records/expenses', { limit }),
+  getAnnualExpenseSummary: (year: number) => api.get<AnnualExpenseSummary>('/tool-records/expenses/annual', { year }),
+  createExpenseEntry: (data: Omit<ExpenseEntryRecord, 'id' | 'createdAt' | 'updatedAt'> & { clientOperationId?: string }) =>
+    api.post<ExpenseEntryRecord>('/tool-records/expenses', data),
+  getCareLogs: (limit = 30) => api.get<CareLogRecord[]>('/tool-records/care', { limit }),
+  createCareLog: (data: Omit<CareLogRecord, 'id' | 'createdAt' | 'updatedAt' | 'endedAt'> & { endedAt?: string; clientOperationId?: string }) =>
+    api.post<CareLogRecord>('/tool-records/care', data),
+  getBabyMeasurements: (limit = 30) => api.get<BabyMeasurementRecord[]>('/tool-records/growth', { limit }),
+  createBabyMeasurement: (data: Omit<BabyMeasurementRecord, 'id' | 'createdAt' | 'updatedAt'> & { clientOperationId?: string }) =>
+    api.post<BabyMeasurementRecord>('/tool-records/growth', data),
+  getVaccinations: (limit = 30) => api.get<VaccinationRecord[]>('/tool-records/vaccinations', { limit }),
+  createVaccination: (data: Omit<VaccinationRecord, 'id' | 'createdAt' | 'updatedAt'> & { clientOperationId?: string }) =>
+    api.post<VaccinationRecord>('/tool-records/vaccinations', data),
+  getFoodTrials: (limit = 30) => api.get<FoodTrialRecord[]>('/tool-records/foods', { limit }),
+  createFoodTrial: (data: Omit<FoodTrialRecord, 'id' | 'createdAt' | 'updatedAt'> & { clientOperationId?: string }) =>
+    api.post<FoodTrialRecord>('/tool-records/foods', data),
+  getPackingItems: () => api.get<PackingItemRecord[]>('/tool-records/packing'),
+  upsertPackingItem: (data: Omit<PackingItemRecord, 'id' | 'createdAt' | 'updatedAt'> & { clientOperationId?: string }) =>
+    api.post<PackingItemRecord>('/tool-records/packing', data),
+  getReports: (beforeId?: string) => api.get<{ list: ReportDocumentRecord[]; nextCursor: string | null }>('/tool-records/reports', { beforeId }),
+  createReport: (filePath: string | null, data: { reportDate: string; name: string; note: string; clientOperationId: string }) => (
+    filePath
+      ? api.upload<ReportDocumentRecord>('/tool-records/reports', filePath, 'file', data)
+      : api.post<ReportDocumentRecord>('/tool-records/reports', data)
+  ),
+  deleteReport: (reportId: string) => api.delete<{ id: string }>(`/tool-records/reports/${reportId}`),
+  addReportField: (reportId: string, data: { fieldKey: string; label: string; candidateValue: string }) =>
+    api.post<ReportFieldRecord>(`/tool-records/reports/${reportId}/fields`, data),
+  confirmReportField: (reportId: string, fieldId: string, normalizedValue: string, version: number) =>
+    api.post<ReportFieldRecord>(`/tool-records/reports/${reportId}/fields/${fieldId}/confirm`, { normalizedValue, version }),
+  getReportFileUrl: (reportId: string) => `${BASE_URL}/tool-records/reports/${reportId}/file`,
+}
 
 // ==================== 分类 API ====================
 export const categoryApi = {

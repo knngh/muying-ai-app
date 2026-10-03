@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import DOMPurify from 'dompurify'
 import { useKnowledgeStore } from '@/stores/knowledgeStore'
+import { usePageTitle } from '@/hooks'
 import {
   addArticleHeadingAnchors,
   buildKnowledgeReadingMeta,
@@ -47,14 +48,14 @@ export function KnowledgeDetail() {
 
   const handleLike = async () => {
     if (!currentArticle) return
-    await likeArticle(currentArticle.id)
-    setToast(currentArticle.isLiked ? '已取消点赞' : '点赞成功')
+    const saved = await likeArticle(currentArticle.id)
+    setToast(saved ? (currentArticle.isLiked ? '已取消点赞' : '点赞成功') : '点赞失败，请重试')
   }
 
   const handleFavorite = async () => {
     if (!currentArticle) return
-    await favoriteArticle(currentArticle.id)
-    setToast(currentArticle.isFavorited ? '已取消收藏' : '收藏成功')
+    const saved = await favoriteArticle(currentArticle.id)
+    setToast(saved ? (currentArticle.isFavorited ? '已取消收藏' : '收藏成功') : '收藏失败，请重试')
   }
 
   const goBack = () => {
@@ -63,6 +64,7 @@ export function KnowledgeDetail() {
 
   const displayContent = useMemo(() => resolveKnowledgeDisplayContent(currentArticle), [currentArticle])
   const displayTitle = displayContent.title
+  usePageTitle(displayTitle || undefined)
 
   const summaryText = useMemo(() => (
     normalizePlainText(displayContent.summary)
@@ -143,10 +145,12 @@ export function KnowledgeDetail() {
     )
   }
 
-  if (error || !currentArticle) {
+  if (!currentArticle) {
     return (
       <div className={styles.emptyState}>
-        <h1>文章不存在或已删除</h1>
+        <h1>{error ? '加载文章失败' : '文章不存在或已删除'}</h1>
+        {error ? <p role="alert">{error}</p> : null}
+        {error && slug ? <button type="button" className={styles.primaryButton} onClick={() => fetchArticleDetail(slug)}>重新加载</button> : null}
         <button type="button" className={styles.primaryButton} onClick={goBack}>
           返回列表
         </button>

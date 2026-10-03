@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, type KeyboardEvent } from 'react'
 import { useChatStore } from '@/stores/chatStore'
 import { ChatMessage } from '@/components/ChatMessage'
 import { getDisclaimer } from '@/api/ai'
+import { usePageTitle } from '@/hooks'
 import styles from './Chat.module.css'
 
 const quickQuestions = [
@@ -12,6 +13,7 @@ const quickQuestions = [
 ]
 
 export function Chat() {
+  usePageTitle('AI 问答')
   const [inputValue, setInputValue] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
 

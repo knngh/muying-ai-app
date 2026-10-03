@@ -56,6 +56,7 @@ export interface ChatSession {
 export interface AskRequest {
   question: string
   conversationId?: string
+  clientRequestId?: string
   context?: string | Record<string, string | number | boolean | null>
 }
 
@@ -79,6 +80,7 @@ export interface AskResponse {
 export interface ChatRequest {
   message: string
   conversationId?: string
+  clientRequestId?: string
   history?: Array<{ role: string; content: string }>
   context?: string | Record<string, string | number | boolean | null>
 }
@@ -120,7 +122,7 @@ export const aiApi = {
       model?: AskResponse['model']
       provider?: AskResponse['provider']
       route?: AskResponse['route']
-    }>('/ai/ask', { question: data.question, context: data.context, conversationId: data.conversationId })
+    }>('/ai/ask', { question: data.question, context: data.context, conversationId: data.conversationId, clientRequestId: data.clientRequestId }, { timeout: 60000 })
 
     return {
       answer: res.answer,
@@ -161,7 +163,7 @@ export const aiApi = {
       model?: ChatResponse['model']
       provider?: ChatResponse['provider']
       route?: ChatResponse['route']
-    }>('/ai/chat', { messages, context: data.context, conversationId: data.conversationId })
+    }>('/ai/chat', { messages, context: data.context, conversationId: data.conversationId, clientRequestId: data.clientRequestId }, { timeout: 60000 })
 
     return {
       response: res.message?.content || '',
@@ -188,8 +190,8 @@ export const aiApi = {
 
   // 获取所有对话列表
   getConversations: async (): Promise<ChatSession[]> => {
-    const res = await api.get<{ conversations: ChatSession[] }>('/ai/conversations')
-    return res.conversations || []
+    const res = await api.get<{ list: ChatSession[] }>('/ai/conversations')
+    return res.list || []
   },
 
   // 删除对话

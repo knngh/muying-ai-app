@@ -1,7 +1,7 @@
 import { ReactNode } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { useAppStore } from '@/stores/appStore'
 import styles from './Layout.module.css'
+import { useCalendarNotifications } from '@/hooks/useCalendarNotifications'
 
 interface LayoutProps {
   children: ReactNode
@@ -18,19 +18,16 @@ function getActiveMenuKey(pathname: string, items: Array<{ key: string }>) {
 }
 
 export function Layout({ children }: LayoutProps) {
+  useCalendarNotifications()
   const navigate = useNavigate()
   const location = useLocation()
-  const user = useAppStore((state) => state.user)
 
+  // 网页版导航（2026-09-28）：知识库 / AI问答 / 孕育日历 / 工具 / 我的；未登录访问受限页自动跳登录
   const menuItems = [
-    { key: '/', label: '首页', hint: 'Home' },
-    { key: '/chat', label: 'AI问答', hint: 'Chat' },
     { key: '/knowledge', label: '知识库', hint: 'Knowledge' },
-    { key: '/community', label: '社区', hint: 'Community' },
-    ...(user?.username === 'admin'
-      ? [{ key: '/community/reports', label: '举报处理', hint: 'Reports' }]
-      : []),
-    { key: '/calendar', label: '日历', hint: 'Calendar' },
+    { key: '/chat', label: 'AI问答', hint: 'Chat' },
+    { key: '/calendar', label: '孕育日历', hint: 'Calendar' },
+    { key: '/tools', label: '工具', hint: 'Tools' },
     { key: '/profile', label: '我的', hint: 'Profile' },
   ]
   const activeMenuKey = getActiveMenuKey(location.pathname, menuItems)

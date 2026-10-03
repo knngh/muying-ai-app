@@ -107,6 +107,7 @@ interface ChatRequest {
   thinking?: {
     type: 'enabled' | 'disabled';
   };
+  reasoning_effort?: 'low' | 'high' | 'max';
 }
 
 interface ChatResponse {
@@ -794,6 +795,7 @@ async function requestProvider(
     timeoutMs?: number;
     responseFormat?: 'json_object';
     thinking?: 'enabled' | 'disabled';
+    reasoningEffort?: 'low' | 'high' | 'max';
   } = {}
 ): Promise<Response> {
   const request: ChatRequest = {
@@ -808,6 +810,11 @@ async function requestProvider(
   }
   if (options.thinking) {
     request.thinking = { type: options.thinking };
+  }
+  // Zhipu GLM-5.3 uses reasoning_effort=low/high/max; see the official
+  // capability guide: https://docs.bigmodel.cn/cn/guide/capabilities/thinking
+  if (options.reasoningEffort && (provider.provider === 'zhipu' || /glm-5\.3/i.test(provider.model))) {
+    request.reasoning_effort = options.reasoningEffort;
   }
 
   const timeoutMs = options.timeoutMs && Number.isFinite(options.timeoutMs)
@@ -839,6 +846,7 @@ async function callProvider(
     timeoutMs?: number;
     responseFormat?: 'json_object';
     thinking?: 'enabled' | 'disabled';
+    reasoningEffort?: 'low' | 'high' | 'max';
   } = {}
 ): Promise<string> {
   const activeBlock = getActiveProviderBlock(provider);
@@ -873,6 +881,7 @@ async function callProviderWithTransientRetry(
     timeoutMs?: number;
     responseFormat?: 'json_object';
     thinking?: 'enabled' | 'disabled';
+    reasoningEffort?: 'low' | 'high' | 'max';
   } = {},
 ): Promise<string> {
   let lastError: unknown;
@@ -1069,6 +1078,7 @@ export async function callTaskModelDetailed(
     primaryOnly?: boolean;
     responseFormat?: 'json_object';
     thinking?: 'enabled' | 'disabled';
+    reasoningEffort?: 'low' | 'high' | 'max';
   } = {}
 ): Promise<AIGatewayTextResult> {
   const providers = resolveTaskProviderChain(taskRole, { primaryOnly: options.primaryOnly });

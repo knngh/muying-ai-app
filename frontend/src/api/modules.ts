@@ -1,4 +1,5 @@
 import api from './index'
+import { dateOnly } from '@/utils/dateOnly'
 import type {
   ArticleListParams,
   Article,
@@ -23,6 +24,21 @@ import type {
 } from '../../../shared/types'
 
 export type { Article, CalendarEvent, Category, PaginatedResponse, PaginationMeta, Tag, User }
+
+function normalizeCalendarEvent(event: CalendarEvent): CalendarEvent {
+  return { ...event, eventDate: dateOnly(event.eventDate) }
+}
+
+function calendarPayload(data: CalendarEventInput) {
+  const { reminderEnabled, isCompleted, ...rest } = data
+  return {
+    ...rest,
+    eventDate: data.eventDate ? dateOnly(data.eventDate) : undefined,
+    eventTime: data.startTime,
+    ...(reminderEnabled !== undefined ? { reminderMinutes: reminderEnabled ? (data.reminderMinutes || 1440) : 0 } : {}),
+    ...(isCompleted !== undefined ? { status: isCompleted ? 1 : 0 } : {}),
+  }
+}
 
 // ==================== 分类 API ====================
 
@@ -54,7 +70,7 @@ export const articleApi = {
     api.get<Article>(`/articles/${slug}`),
 
   // 搜索文章
-  search: (keyword: string, params?: PaginationParams) =>
+  search: (keyword: string, params?: PaginationParams & { contentType?: string }) =>
     api.get<PaginatedResponse<Article>>('/articles/search', {
       params: { q: keyword, ...params },
     }),
@@ -90,7 +106,7 @@ export const calendarApi = {
       endDate: params?.endDate,
       type: params?.eventType,
     },
-  }).then((res) => res.list),
+  }).then((res) => res.list.map(normalizeCalendarEvent)),
 
   // 获取周视图
   getWeek: (params?: CalendarWeekParams) =>
@@ -106,17 +122,11 @@ export const calendarApi = {
 
   // 创建事件
   createEvent: (data: Omit<CalendarEventInput, 'id' | 'userId' | 'createdAt' | 'updatedAt' | 'status'>) =>
-    api.post<CalendarEvent>('/calendar/events', {
-      ...data,
-      eventTime: data.startTime,
-    }),
+    api.post<CalendarEvent>('/calendar/events', calendarPayload(data)).then(normalizeCalendarEvent),
 
   // 更新事件
   updateEvent: (id: number, data: CalendarEventInput) =>
-    api.put<CalendarEvent>(`/calendar/events/${id}`, {
-      ...data,
-      eventTime: data.startTime,
-    }),
+    api.put<CalendarEvent>(`/calendar/events/${id}`, calendarPayload(data)).then(normalizeCalendarEvent),
 
   // 删除事件
   deleteEvent: (id: number) =>
@@ -124,7 +134,7 @@ export const calendarApi = {
 
   // 标记完成（POST，非 PUT）
   completeEvent: (id: number) =>
-    api.post<CalendarEvent>(`/calendar/events/${id}/complete`),
+    api.post<CalendarEvent>(`/calendar/events/${id}/complete`).then(normalizeCalendarEvent),
 
   // 拖拽更新
   dragEvent: (id: number, data: CalendarEventDragPayload) =>

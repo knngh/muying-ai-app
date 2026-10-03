@@ -62,7 +62,7 @@
           :key="item.key"
           class="week-command-item"
           :class="{ 'week-command-item--active': activeTab === item.key }"
-          @tap="activeTab = item.key"
+          @tap="openWeekSection(item.key)"
         >
           <text class="week-command-item-label">{{ item.label }}</text>
           <text class="week-command-item-value">{{ item.value }}</text>
@@ -97,10 +97,16 @@
         <text class="tab-text">我的记录</text>
         <view class="tab-line" v-if="activeTab === 'diary'"></view>
       </view>
+      <view class="tab-item" :class="{ active: activeTab === 'reminders' }" @tap="activeTab = 'reminders'">
+        <text class="tab-text">提醒</text><view v-if="activeTab === 'reminders'" class="tab-line"></view>
+      </view>
     </view>
+
+    <ReminderCenter v-if="activeTab === 'reminders'" ref="reminderCenter" />
 
     <!-- 时间线内容 -->
     <view class="content-section" v-if="activeTab === 'guide'">
+      <view id="week-tools"><PeriodTools :period="selectedToolPeriod" @open="openWeekTool" /></view>
       <!-- 总体总结 -->
       <view class="summary-card">
         <text class="quote-mark">“</text>
@@ -244,6 +250,7 @@
               </view>
               <text class="todo-title">{{ todo.title }}</text>
               <text class="todo-desc">{{ todo.desc }}</text>
+              <button v-if="!todo.completed" class="todo-reminder-button" @tap.stop="openTodoReminder(todo)">设置提醒</button>
               <view
                 v-if="todo.type === 'custom' && canUseTodoActions"
                 class="todo-actions"
@@ -301,6 +308,24 @@
             mode="aspectFill"
             @tap="previewDiaryImages(index, currentDiaryImages)"
           />
+        </view>
+      </view>
+
+      <view class="tool-records-card">
+        <view class="tool-records-head">
+          <view><text class="tool-records-title">本周工具记录</text><text class="tool-records-hint">按实际记录日期归入当前周，可回到原工具查看详情。</text></view>
+          <text class="tool-records-count" v-if="calendarToolRecords.length">{{ calendarToolRecords.length }} 条</text>
+        </view>
+        <view v-if="!calendarRecordPeriodReady" class="tool-records-empty">补充预产期或宝宝出生日期后，这里会按真实日期汇总工具记录。</view>
+        <view v-else-if="!calendarToolRecords.length" class="tool-records-empty">本周还没有工具记录，保存后会显示在这里。</view>
+        <view v-else class="tool-record-days">
+          <view v-for="day in calendarToolRecordDays" :key="day.date" class="tool-record-day">
+            <view class="tool-record-day-head"><text class="tool-record-day-title">{{ day.label }}</text><text class="tool-record-day-count">{{ day.count }} 条</text></view>
+            <button v-for="item in day.records" :key="item.id" class="tool-record-row" @tap="openCalendarToolRecord(item)">
+              <view class="tool-record-copy"><text class="tool-record-title">{{ item.title }}</text><text class="tool-record-meta">{{ toolRecordLabel(item.toolId) }} · 原记录 {{ item.date }}</text></view>
+              <text class="tool-record-arrow">查看 ›</text>
+            </button>
+          </view>
         </view>
       </view>
     </view>
@@ -371,7 +396,7 @@
     <view v-if="showPrivacyAuthorizationModal" class="privacy-auth-mask" @tap="rejectPrivacyAuthorization">
       <view class="privacy-auth-dialog" @tap.stop>
         <text class="privacy-auth-title">使用照片前需要你的同意</text>
-        <text class="privacy-auth-desc">我们只会处理你主动选择或拍摄的照片，用于保存孕育记录。拒绝授权不影响知识库和日历浏览。</text>
+        <text class="privacy-auth-desc">我们只会处理你主动选择或拍摄的照片，用于保存孕育记录。拒绝授权不影响工具和日历使用。</text>
         <text class="privacy-auth-link" @tap="openPrivacyPolicyFromAuthorization">查看隐私指引</text>
         <view class="privacy-auth-actions">
           <button class="privacy-auth-reject" @tap="rejectPrivacyAuthorization">暂不同意</button>
@@ -416,8 +441,31 @@ import { resolveUploadUrl } from '@/api/request'
 import { calculatePregnancyWeekFromDueDate, syncPregnancyWeekStorage } from '@/utils'
 import { buildAcquisitionPath, buildAcquisitionQuery, recordAcquisitionContext } from '@/utils/acquisition'
 import { buildWeekPriorityPlan } from '@/utils/record-assist'
+import PeriodTools from '@/components/tools/PeriodTools.vue'
+import ReminderCenter from '@/components/reminders/ReminderCenter.vue'
+import { closeReminderSource, readReminders } from '@/utils/reminders'
+import { cancelWechatReminderRemote } from '@/utils/wechat-subscribe'
+import { reportOwner } from '@/utils/report-drafts'
+import { openToolPage } from '@/utils/home-tools'
+import type { ToolId } from '@/data/tool-catalog'
+import type { ToolPeriod } from '@/utils/tool-period'
+import { readToolRecords, type LocalToolRecord } from '@/utils/tool-records'
+import { groupCalendarToolRecordsByDate, recordsForCalendarPeriod, type CalendarToolRecord } from '@/utils/calendar-tool-records'
 
 type TimelineStage = 'pregnancy' | 'postpartum'
+const reminderCenter = ref<InstanceType<typeof ReminderCenter> | null>(null)
+function openTodoReminder(todo: { stateKey: string; title: string; type: string; desc?: string }) {
+  activeTab.value = 'reminders'
+  void nextTick(() => reminderCenter.value?.edit({ sourceKey: `todo:${todo.stateKey}`, kind: todo.type === 'vaccine' ? 'vaccines' : 'calendar', title: todo.type === 'custom' ? todo.desc || todo.title : todo.title }))
+}
+function closeTodoReminder(stateKey: string, state: 'completed' | 'cancelled', owner: string) {
+  try {
+    const sourceKey = `todo:${stateKey}`
+    const ids = readReminders(owner).filter(item => item.sourceKey === sourceKey && item.state === 'active').map(item => item.id)
+    if (closeReminderSource(owner, sourceKey, state)) uni.showModal({ title: '请同步手机日历', content: '小程序内提醒已结束。此前加入手机日历的事项，请手动修改或删除。', showCancel: false })
+    ids.forEach(id => { void cancelWechatReminderRemote(id, owner) })
+  } catch { uni.showToast({ title: '待办已保存，请在提醒页手动停止提醒', icon: 'none' }) }
+}
 
 interface TimelineListItem {
   storageWeek: number
@@ -516,6 +564,7 @@ const userDiaries = ref<Record<number, PregnancyDiary>>({})
 const customTodos = ref<Record<number, PregnancyCustomTodo[]>>({})
 const loginUserId = ref('')
 const todoState = ref<Record<string, boolean>>({})
+const localToolRecords = ref<LocalToolRecord[]>([])
 
 // 日记弹窗状态
 const showDiaryModal = ref(false)
@@ -531,7 +580,7 @@ const todoPendingKey = ref('')
 
 const fallbackData = {
   title: '数据未收录',
-  summary: '当前周内容暂未完整收录，可先使用待办、日记和知识库继续记录本周重点。',
+  summary: '当前周内容暂未完整收录，可先使用待办、日记和记录工具继续记录本周重点。',
   babySizeEmoji: '✨',
   babySizeText: '不断成长中',
   babyWeight: '',
@@ -613,6 +662,19 @@ const getTimelineItemFromStorageWeek = (storageWeek: number): TimelineListItem =
 }
 
 const selectedTimelineItem = computed(() => getTimelineItemFromStorageWeek(currentSelectedWeek.value))
+const selectedToolPeriod = computed<ToolPeriod>(() => ({ stage: selectedTimelineItem.value.stage, week: selectedTimelineItem.value.displayWeek }))
+let toolReturnContext: { week: number; userId: string } | null = null
+function openWeekTool(id: ToolId) {
+  toolReturnContext = { week: currentSelectedWeek.value, userId: loginUserId.value }
+  openToolPage(id, selectedToolPeriod.value)
+}
+async function openWeekSection(key: string) {
+  activeTab.value = key
+  if (key === 'guide') {
+    await nextTick()
+    uni.pageScrollTo({ selector: '#week-tools', duration: 200 })
+  }
+}
 const selectedTimelineKey = computed(() => selectedTimelineItem.value.timelineKey)
 const isPostpartumTimeline = computed(() => (
   timelineContext.value?.lifecycleStage === 'postpartum' || selectedTimelineItem.value.stage === 'postpartum'
@@ -814,6 +876,12 @@ const syncCustomTodoContext = async () => {
 const parsedContent = computed(() => currentWeekData.value.content)
 const currentDiary = computed(() => userDiaries.value[currentSelectedWeek.value])
 const currentDiaryImages = computed(() => currentDiary.value?.imageUrls || [])
+const calendarRecordPeriodReady = computed(() => Boolean(selectedTimelineItem.value.stage === 'pregnancy' ? timelineContext.value?.dueDate || appStore.user?.dueDate : timelineContext.value?.babyBirthday || appStore.user?.babyBirthday))
+const calendarToolRecords = computed<CalendarToolRecord[]>(() => recordsForCalendarPeriod(localToolRecords.value, selectedTimelineItem.value.stage, selectedTimelineItem.value.displayWeek, timelineContext.value?.dueDate || appStore.user?.dueDate, timelineContext.value?.babyBirthday || appStore.user?.babyBirthday))
+const calendarToolRecordDays = computed(() => groupCalendarToolRecordsByDate(calendarToolRecords.value))
+const toolRecordLabels: Partial<Record<ToolId, string>> = { contractions: '宫缩', movement: '胎动', weight: '体重', care: '喂养三件套', growth: '宝宝生长', packing: '待产包', vaccines: '疫苗', foods: '辅食', reports: '产检报告', diary: '孕育日记', album: '成长相册', expenses: '孕育记账' }
+const toolRecordLabel = (id: ToolId) => toolRecordLabels[id] || '工具记录'
+function openCalendarToolRecord(item: CalendarToolRecord) { openToolPage(item.toolId, selectedToolPeriod.value, item.id) }
 const canUseTodoActions = computed(() => !!loginUserId.value)
 const customTodoModalTitle = computed(() => editingCustomTodoId.value ? '编辑待办' : '添加待办')
 const customTodoSubmitText = computed(() => editingCustomTodoId.value ? '保存修改' : '添加待办')
@@ -871,14 +939,18 @@ const weekPriority = computed(() => buildWeekPriorityPlan({
   hasDiary: Boolean(currentDiary.value),
 }))
 const weekCommandDescription = computed(() => (
-  activeTab.value === 'guide'
-    ? (selectedTimelineItem.value.stage === 'postpartum' ? '先扫一眼本周成长与照护重点，再决定要不要补待办或记录。' : '先扫一眼本周发育与注意事项，再决定要不要补待办或记录。')
+  activeTab.value === 'reminders'
+    ? '按实际日期查看所有提醒；设置事项后，可加入手机日历。'
+    : activeTab.value === 'guide'
+    ? '看看本周变化，也可以直接打开适合这一周的工具。'
     : activeTab.value === 'todo'
       ? (canUseTodoActions.value ? '把这一周要做的事集中处理，完成进度会实时保存。' : '先看本周待办结构，登录后再保存完成状态。')
       : (canUseTodoActions.value ? '把这一周的变化和提醒记下来，后面回看更省力。' : '登录后可以把这周感受、线下提醒和待办留下来。')
 ))
 const weekCommandBadge = computed(() => (
-  activeTab.value === 'guide'
+  activeTab.value === 'reminders'
+    ? '提醒'
+    : activeTab.value === 'guide'
     ? '指南'
     : activeTab.value === 'todo'
       ? `${completedTodoCount.value}/${todoList.value.length || 0}`
@@ -887,11 +959,9 @@ const weekCommandBadge = computed(() => (
 const tabQuickActions = computed(() => [
   {
     key: 'guide',
-    label: guideTabLabel.value,
-    value: currentWeekData.value.babySizeText || '查看重点',
-    meta: parsedContent.value.tips?.length
-      ? `${parsedContent.value.tips.length} 条${tipsSectionTitle.value}`
-      : (selectedTimelineItem.value.stage === 'postpartum' ? '先看宝宝成长和照护重点' : '先看宝宝发育和妈妈变化'),
+    label: '本周工具',
+    value: '3 项随手用',
+    meta: '随浏览周数更新，点这里查看',
   },
   {
     key: 'todo',
@@ -1254,6 +1324,7 @@ const saveCustomTodo = () => {
 
 const removeCustomTodo = (todo: { id: string; stateKey: string }) => {
   if (!checkLogin('请先登录后删除待办', false)) return
+  const reminderScope = reportOwner()
 
   uni.showModal({
     title: '删除待办',
@@ -1275,6 +1346,8 @@ const removeCustomTodo = (todo: { id: string; stateKey: string }) => {
           delete nextState[todo.stateKey]
           todoState.value = nextState
 
+          closeTodoReminder(todo.stateKey, 'cancelled', reminderScope)
+
           uni.showToast({ title: '待办已删除', icon: 'success' })
         } catch (err: any) {
           console.error('[Calendar] 删除自定义待办失败:', err)
@@ -1287,6 +1360,7 @@ const removeCustomTodo = (todo: { id: string; stateKey: string }) => {
 
 const toggleTodo = async (todo: { todoKey: string; stateKey: string; completed: boolean }) => {
   if (!checkLogin('请先登录后使用待办', false) || !canUseTodoActions.value) return
+  const reminderScope = reportOwner()
 
   const nextCompleted = !todo.completed
   const previousState = { ...todoState.value }
@@ -1305,6 +1379,7 @@ const toggleTodo = async (todo: { todoKey: string; stateKey: string; completed: 
       todoKey: todo.todoKey,
       completed: nextCompleted,
     })
+    if (nextCompleted) closeTodoReminder(todo.stateKey, 'completed', reminderScope)
     uni.showToast({ title: nextCompleted ? '已标记完成' : '已恢复待办', icon: 'none' })
   } catch (err: any) {
     todoState.value = previousState
@@ -1320,6 +1395,10 @@ const toggleTodo = async (todo: { todoKey: string; stateKey: string; completed: 
 onLoad((options) => {
   recordAcquisitionContext(options)
 
+  if (String(options?.tab || '') === 'reminders') {
+    activeTab.value = 'reminders'
+  }
+
   const sharedWeek = readWeekFromQuery(options)
   if (sharedWeek) {
     initialSharedWeek.value = sharedWeek
@@ -1328,6 +1407,14 @@ onLoad((options) => {
 })
 
 onShow(() => {
+  if (uni.getStorageSync('beihu:calendar:initial-tab') === 'reminders') {
+    activeTab.value = 'reminders'
+    uni.removeStorageSync('beihu:calendar:initial-tab')
+  }
+
+  // Capture before fetching: an earlier page-show request must not consume a later tool return.
+  const returning = toolReturnContext
+  toolReturnContext = null
   void (async () => {
     const sharedWeek = initialSharedWeek.value
     const hasSharedWeek = sharedWeek !== null
@@ -1337,6 +1424,15 @@ onShow(() => {
       await appStore.fetchUser()
     }
     loginUserId.value = resolveLoginUserId()
+    // Resolve the owner before reading local records so an account switch never
+    // renders the previous namespace in the calendar.
+    localToolRecords.value = readToolRecords()
+
+    if (returning && returning.userId === loginUserId.value) {
+      await selectStorageWeek(returning.week)
+      await Promise.all([syncTodoContext(), syncDiaryContext(), syncCustomTodoContext(), syncTimelineTodos()])
+      return
+    }
 
     const selectedFromUserDueDate = loginUserId.value
       ? await selectPregnancyWeekFromDueDate(appStore.user?.dueDate)
@@ -1408,6 +1504,10 @@ onShareTimeline(() => {
 </script>
 
 <style scoped>
+.todo-reminder-button { display: inline-block; margin: 12rpx 0 0; padding: 12rpx 20rpx; border-radius: 12rpx; background: #edf5f1; color: #166c5b; font-size: 23rpx; line-height: 1.8; }
+.tool-records-card { margin-top: 24rpx; padding: 24rpx; border-radius: 20rpx; background: #fffdfb; border: 1rpx solid #eee7e1; }
+.tool-records-head { display: flex; justify-content: space-between; gap: 16rpx; align-items: flex-start; }.tool-records-title, .tool-records-hint, .tool-records-empty, .tool-record-title, .tool-record-meta { display: block; }.tool-records-title { color: #443c3a; font-size: 28rpx; font-weight: 700; }.tool-records-hint { margin-top: 6rpx; color: #8c817c; font-size: 21rpx; line-height: 1.6; }.tool-records-count { color: #166c5b; font-size: 23rpx; flex-shrink: 0; }.tool-records-empty { padding: 24rpx 0 4rpx; color: #766b67; font-size: 24rpx; line-height: 1.7; }.tool-record-day { margin-top: 20rpx; }.tool-record-day-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12rpx; padding-bottom: 8rpx; border-bottom: 1rpx solid #eee7e1; }.tool-record-day-title { color: #69492f; font-size: 25rpx; font-weight: 700; }.tool-record-day-count { color: #8c817c; font-size: 21rpx; }.tool-record-row { display: flex; justify-content: space-between; gap: 12rpx; align-items: center; width: 100%; margin: 0; padding: 18rpx 0 0; background: transparent; text-align: left; }.tool-record-row + .tool-record-row { padding-top: 14rpx; }.tool-record-row::after { border: 0; }.tool-record-copy { min-width: 0; flex: 1; }.tool-record-title { color: #443c3a; font-size: 26rpx; overflow-wrap: anywhere; }.tool-record-meta { margin-top: 5rpx; color: #8c817c; font-size: 21rpx; }.tool-record-arrow { color: #166c5b; font-size: 23rpx; flex-shrink: 0; }
+.todo-reminder-button::after { border: 0; }
 .calendar-timeline-page {
   min-height: 100vh;
   background: linear-gradient(180deg, #f9f0f5 0%, #fff7f2 100%);
@@ -1572,7 +1672,7 @@ onShareTimeline(() => {
   padding: 18rpx 16rpx;
   border-radius: 24rpx;
   text-align: center;
-  background: linear-gradient(135deg, #16806a 0%, #2f7cf6 100%);
+  background: #16806a;
 }
 
 .week-command-badge-text {
@@ -1592,7 +1692,7 @@ onShareTimeline(() => {
   min-height: 150rpx;
   padding: 20rpx 18rpx;
   border-radius: 24rpx;
-  background: #f4f7fb;
+  background: #f7f2ee;
   border: 2rpx solid transparent;
   box-sizing: border-box;
 }
@@ -1606,7 +1706,7 @@ onShareTimeline(() => {
   display: block;
   font-size: 22rpx;
   font-weight: 700;
-  color: #8a96a3;
+  color: #766b67;
 }
 
 .week-command-item-value {
@@ -1623,7 +1723,7 @@ onShareTimeline(() => {
   margin-top: 8rpx;
   font-size: 20rpx;
   line-height: 1.45;
-  color: #788595;
+  color: #766b67;
 }
 
 /* Tabs */

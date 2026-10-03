@@ -1,3 +1,4 @@
+import { authorityBrowsePriority, authorityListCacheKey, matchesAuthorityBrowseCategory } from '../utils/authority-browse';
 import fs from 'fs';
 import path from 'path';
 import { Prisma } from '@prisma/client';
@@ -33,7 +34,6 @@ import { logger } from '../utils/logger';
 import { shouldFilterAuthoritySourceUrl } from '../utils/authority-source-url';
 import { getAuthorityKnowledgeDropReason, isOutOfScopeKnowledgeQuery } from '../utils/knowledge-content-guard';
 import { matchesExpandedSearch } from '../utils/search-query-expansion';
-import { rewriteSearchQueries } from '../services/knowledge.service';
 import { recordServerRetentionBehaviorEvent } from '../services/analytics.service';
 import { resolveArticleSourceUrl } from '../utils/article-source-url';
 import {
@@ -2063,9 +2063,8 @@ async function filterAuthorityArticles(
     return [];
   }
 
-  const searchQueries = keyword
-    ? Array.from(new Set([keyword, ...(await rewriteSearchQueries(keyword))].map((item) => item.trim()).filter(Boolean)))
-    : [];
+  // Browsing must not wait for an external AI provider. The local glossary
+  // already expands Chinese/English maternal and infant health terms.
 
   return articles.filter((article) => {
     const articleStages = Array.isArray(article.targetStages) && article.targetStages.length > 0
@@ -2080,8 +2079,7 @@ async function filterAuthorityArticles(
     }
 
     if (typeof filters.category === 'string' && filters.category) {
-      const categoryText = `${article.topic || ''} ${article.category?.name || ''}`.toLowerCase();
-      if (!categoryText.includes(filters.category.toLowerCase())) {
+      if (!matchesAuthorityBrowseCategory(article, filters.category)) {
         return false;
       }
     }
@@ -2120,7 +2118,7 @@ async function filterAuthorityArticles(
       translated?.translatedContent,
     ].join(' ').toLowerCase();
 
-    return searchQueries.some((query) => matchesExpandedSearch(query, searchable));
+    return matchesExpandedSearch(keyword, searchable);
   });
 }
 
@@ -2152,24 +2150,9 @@ export const getArticles = async (req: Request, res: Response, next: NextFunctio
 
       // Cache authority articles — unfiltered first page uses MEDIUM TTL, filtered uses SHORT TTL
       const isAuthorityFirstPage = currentPage === 1 && !category && !tag && !stage && !difficulty && !keyword && !source;
-      const filterParamsKey = [category, tag, stage, difficulty, keyword, source, sort, page, pageSize]
-        .map((v) => String(v ?? ''))
-        .join(':');
-      const filteredCacheKey = CacheKeys.ARTICLES_AUTHORITY_FILTERED(filterParamsKey);
-
-      if (isAuthorityFirstPage) {
-        const cached = cache.get<unknown>(CacheKeys.ARTICLES_AUTHORITY);
-        if (cached) {
-          console.log(`[Cache] Hit: ${CacheKeys.ARTICLES_AUTHORITY}`);
-          return res.json(cached);
-        }
-      } else {
-        const cached = cache.get<unknown>(filteredCacheKey);
-        if (cached) {
-          console.log(`[Cache] Hit: ${filteredCacheKey}`);
-          return res.json(cached);
-        }
-      }
+      const filteredCacheKey = authorityListCacheKey({ category, tag, stage, difficulty, keyword, source, sort, page, pageSize });
+      const cached = cache.get<unknown>(filteredCacheKey);
+      if (cached) return res.json(cached);
 
       const filtered = await filterAuthorityArticles(await getAuthorityArticles(), {
         category,
@@ -2181,6 +2164,18 @@ export const getArticles = async (req: Request, res: Response, next: NextFunctio
       });
 
       const sorted = [...filtered].sort((left, right) => {
+        if (sort === 'recommended') {
+          const readingPriority = authorityBrowsePriority(left.sourceUrl, left.topic) - authorityBrowsePriority(right.sourceUrl, right.topic);
+          if (readingPriority !== 0) return readingPriority;
+          if (typeof keyword === 'string' && keyword.trim()) {
+            const titleMatches = (article: AuthorityArticle) => Number(matchesExpandedSearch(keyword, [article.title, getCachedAuthorityArticleTranslation(article)?.translatedTitle].join(' ')));
+            const relevance = titleMatches(right) - titleMatches(left);
+            if (relevance !== 0) return relevance;
+          }
+          const quality = getAuthorityArticleQualityScore(right) - getAuthorityArticleQualityScore(left);
+          if (quality !== 0) return quality;
+        }
+
         if (sort === 'popular') {
           return (right.viewCount || 0) - (left.viewCount || 0);
         }
@@ -2222,11 +2217,7 @@ export const getArticles = async (req: Request, res: Response, next: NextFunctio
         sorted.length,
       );
 
-      if (isAuthorityFirstPage) {
-        cache.set(CacheKeys.ARTICLES_AUTHORITY, authorityResponse, CacheTTL.MEDIUM);
-      } else {
-        cache.set(filteredCacheKey, authorityResponse, CacheTTL.SHORT);
-      }
+      cache.set(filteredCacheKey, authorityResponse, isAuthorityFirstPage ? CacheTTL.MEDIUM : CacheTTL.SHORT);
 
       return res.json(authorityResponse);
     }

@@ -1,0 +1,391 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.hero,
+.card {
+  border: 1px solid rgba(154, 112, 82, 0.12);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 24px 60px rgba(130, 93, 69, 0.1);
+  padding: 22px;
+}
+
+.hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  background:
+    radial-gradient(circle at top left, rgba(255, 223, 201, 0.82), transparent 28%),
+    linear-gradient(135deg, rgba(255, 251, 246, 0.98), rgba(250, 240, 232, 0.98));
+}
+
+.eyebrow {
+  display: inline-block;
+  margin-bottom: 8px;
+  color: #ab5d43;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.hero h1,
+.sectionHeader h2 {
+  margin: 0;
+  color: #30231f;
+}
+
+.hero p {
+  margin: 10px 0 0;
+  color: #6d5a52;
+  line-height: 1.8;
+}
+
+.primaryButton,
+.secondaryButton {
+  border: none;
+  font: inherit;
+  cursor: pointer;
+  border-radius: 999px;
+  padding: 12px 18px;
+  font-weight: 700;
+}
+
+.primaryButton {
+  background: linear-gradient(135deg, #db785b, #c55c42);
+  color: #fff;
+  box-shadow: 0 18px 32px rgba(197, 92, 66, 0.24);
+}
+
+.secondaryButton {
+  background: rgba(246, 238, 231, 0.92);
+  color: #7c6257;
+}
+
+.primaryButton:disabled,
+.secondaryButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  box-shadow: none;
+}
+
+.bigButton {
+  width: 100%;
+  padding: 18px 24px;
+  font-size: 18px;
+}
+
+.contentGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(320px, 0.8fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.leftPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.loadingBar {
+  margin: 14px 0;
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: rgba(255, 246, 223, 0.94);
+  color: #8b6723;
+}
+
+.errorBar {
+  margin: 14px 0 0;
+  border-radius: 16px;
+  padding: 12px 14px;
+  background: rgba(255, 237, 233, 0.94);
+  color: #a44634;
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.statCell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px 12px;
+  border-radius: 20px;
+  background: rgba(255, 250, 246, 0.86);
+  border: 1px solid rgba(154, 112, 82, 0.1);
+  text-align: center;
+}
+
+.statValue {
+  color: #c55c42;
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.statLabel {
+  color: #8a766d;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.bonusHint {
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: rgba(253, 243, 223, 0.85);
+  color: #8b6723;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.bonusHint:empty {
+  display: none;
+}
+
+.monthLabel {
+  color: #8a766d;
+  font-weight: 700;
+}
+
+.weekHeader,
+.monthGrid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.weekHeader {
+  margin-top: 18px;
+  color: #8a766d;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.weekHeader span {
+  padding: 10px 0;
+}
+
+.monthGrid {
+  gap: 8px;
+}
+
+.dayCell {
+  min-height: 62px;
+  border-radius: 16px;
+  padding: 8px;
+  background: rgba(255, 250, 246, 0.9);
+  border: 1px solid rgba(154, 112, 82, 0.1);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.dayCellBlank {
+  min-height: 62px;
+}
+
+.dayCellToday {
+  outline: 2px solid rgba(219, 120, 91, 0.55);
+  outline-offset: -2px;
+}
+
+.dayNumber {
+  font-weight: 800;
+  color: #30231f;
+}
+
+.checkinDot,
+.dotPlaceholder {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-top: auto;
+}
+
+.checkinDot {
+  background: #c55c42;
+}
+
+.dotPlaceholder {
+  background: transparent;
+}
+
+.streakSection {
+  margin-top: 18px;
+}
+
+.streakTitle {
+  display: inline-block;
+  margin-bottom: 10px;
+  color: #ab5d43;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.streakChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.streakChip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  background: #fdf3df;
+  color: #7c6257;
+}
+
+.streakEmpty {
+  color: #9c8b82;
+  font-size: 13px;
+}
+
+.balanceBadge {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.balanceValue {
+  color: #c55c42;
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.balanceLabel {
+  color: #8a766d;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.logList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.logItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 20px;
+  background: rgba(255, 250, 246, 0.86);
+  border: 1px solid rgba(154, 112, 82, 0.1);
+}
+
+.pointsPositive,
+.pointsNegative {
+  flex: 0 0 auto;
+  min-width: 52px;
+  font-size: 18px;
+  font-weight: 800;
+  text-align: right;
+}
+
+.pointsPositive {
+  color: #3d7a52;
+}
+
+.pointsNegative {
+  color: #b04a3a;
+}
+
+.logInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.logDescription {
+  color: #30231f;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.logDate {
+  color: #8a766d;
+  font-size: 12px;
+}
+
+.secondaryButton {
+  margin-top: 16px;
+  width: 100%;
+}
+
+.noMore {
+  margin-top: 16px;
+  color: #9c8b82;
+  font-size: 13px;
+  text-align: center;
+}
+
+.emptyState {
+  min-height: 120px;
+  display: grid;
+  place-items: center;
+  color: #76645c;
+  text-align: center;
+}
+
+@media (max-width: 768px) {
+  .contentGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .hero {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .statsGrid {
+    gap: 8px;
+  }
+
+  .statValue {
+    font-size: 24px;
+  }
+
+  .monthGrid {
+    gap: 5px;
+  }
+
+  .dayCell {
+    min-height: 50px;
+    padding: 6px;
+  }
+
+  .dayCellBlank {
+    min-height: 50px;
+  }
+}

@@ -213,45 +213,12 @@ export function getAuthorityThinContentDropReason(record: KnowledgeGuardRecord):
   return null;
 }
 
-// Time-bound news / press-release ("资讯") content. A personal-entity WeChat
-// mini-program is not permitted to operate a news/information category, so this
-// content must be dropped regardless of how maternal-relevant it is. Driven
-// primarily by URL (covers WHO zh/ar/en news items), excluding health-education
-// paths (fact sheets, Q&A) which are NOT news.
-const NEWS_OR_INFORMATION_URL_PATTERN = /\/news\/item\/|\/news-room\/(?:feature-stories|commentaries|events|spotlight)\/|\/feature-stories\/|\/events\/|\/director-general\/(?:speeches|statements)\//i;
-
-const NEWS_EDUCATION_URL_EXEMPTION = /\/fact-sheets\/|\/questions-and-answers\/|\/q-a-detail\//i;
-
-// Conservative title fallback for news where the URL is not decisive. Requires an
-// organisation subject paired with a news verb, or an explicit event/campaign
-// marker, or clear Chinese news vocabulary. Kept tight so 科普 explainer titles
-// (e.g. "Newborn physical examination") are not caught.
-const NEWS_TITLE_ORG_EN = /\b(?:WHO|W\.H\.O|UNICEF|UNFPA|FAO|ILO|CDC)\b/;
-const NEWS_TITLE_VERB_EN = /\b(?:launch(?:es|ed)?|publish(?:es|ed)?|announce[sd]?|release[sd]?|designate[sd]?|convene[sd]?|host(?:s|ed)?|dispatch(?:es|ed)?|sign(?:s|ed)?|outline[sd]?|welcome[sd]?|honou?red|renew(?:s|ed)?|calls? for)\b/i;
-const NEWS_TITLE_EVENT_EN = /\bmeeting of\b|\bwebinar\b|\bworld\b[\w\s]{0,30}\b(?:day|week)\b|press release/i;
-const NEWS_TITLE_ZH = /新闻|资讯|快讯|要闻|新闻发布会|工作动态|工作简报|通讯专栏|新闻中心|论坛(?:举办|召开|在)|峰会|揭牌|启动仪式|签署.{0,8}(?:协议|备忘录|合作)|出席.{0,12}(?:会议|论坛|活动)|赴.{0,10}调研|召开.{0,10}座谈/u;
-
-function isNewsOrInformationContent(record: KnowledgeGuardRecord): boolean {
-  const url = record.sourceUrl || record.source_url || record.url || '';
-  if (NEWS_OR_INFORMATION_URL_PATTERN.test(url) && !NEWS_EDUCATION_URL_EXEMPTION.test(url)) {
-    return true;
-  }
-
-  const title = record.title || record.question || '';
-  if (!title) {
-    return false;
-  }
-
-  if (NEWS_TITLE_ZH.test(title)) {
-    return true;
-  }
-
-  if (NEWS_TITLE_EVENT_EN.test(title)) {
-    return true;
-  }
-
-  return NEWS_TITLE_ORG_EN.test(title) && NEWS_TITLE_VERB_EN.test(title);
-}
+// 2026-09-26 决策：资讯/新闻类拦截闸（news_or_information_content）已整体移除。
+// 原因：微信小程序已下线知识库板块，"个人主体小程序不得运营资讯类目"的合规
+// 动机不再成立；权威源新闻稿中母婴相关内容应当收录。脏文章防线不变——
+// 跑题新闻仍被下方 isEnglishAuthorityOffTopic（含 OFF_TOPIC_PROGRAM_NEWS_EN
+// 外交项目新闻覆盖闸）拦截，死亡相关/高敏感/标题党/伪医学/质量闸全部保留。
+// 如需恢复（例如小程序重新上线知识库），从 git 历史找回 isNewsOrInformationContent。
 
 // Global-health program/diplomacy news that is off-topic even when it mentions
 // children (e.g. "...treatment of school-age children for schistosomiasis").
@@ -382,10 +349,6 @@ export function getAuthorityKnowledgeDropReason(record: KnowledgeGuardRecord): s
 
   if (FOREIGN_EMERGENCY_INSTRUCTION_EN_PATTERN.test(getRecordText(record))) {
     return 'foreign_emergency_instruction';
-  }
-
-  if (isNewsOrInformationContent(record)) {
-    return 'news_or_information_content';
   }
 
   if (isEnglishAuthorityOffTopic(record)) {
