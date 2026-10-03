@@ -107,8 +107,9 @@ async function servePageWithMeta(request: Request, env: Env, ctx: Ctx): Promise<
   const base = await env.ASSETS.fetch(request)
   const contentType = base.headers.get('content-type') || ''
   if (!contentType.includes('text/html')) {
-    // 非导航请求（如对不存在静态文件的探测）：保留资产层原始响应（404 等），不强加 no-cache
-    return base
+    // 非导航请求（如对不存在静态文件的探测）：保留资产层原始响应（404 等），不强加 no-cache。
+    // 资产层 Response 的 headers 不可变（入口处还要 set x-worker-hit），必须重建 Response。
+    return new Response(base.body, base)
   }
 
   let meta: PageMeta
@@ -362,10 +363,8 @@ function refreshSeoIndex(): Promise<void> {
 }
 
 async function pullAllArticleList(): Promise<SeoIndexItem[]> {
-  const out: SeoIndexItem[] = []
-  let page = 1
-  let totalPages = 1
-  while (page <= totalPages && page <= MAX_PULL_PAGES) {
+  // 第 1 页拿 totalPages，其余页并行（串行 38 页首建要 8-30s，并行降到 ~1-2s）
+  const fetchPage = async (page: number) => {
     // 全新 Request（干净头，不继承客户端 IP/Cookie），按 Worker 出口 IP 计入限流
     const response = await fetch(
       `${UPSTREAM_ORIGIN}/api/v1/articles?contentType=authority&page=${page}&pageSize=100`,
@@ -377,9 +376,16 @@ async function pullAllArticleList(): Promise<SeoIndexItem[]> {
       data?: { list: SeoIndexItem[]; pagination: { totalPages: number } }
     }
     if (json.code !== 0 || !json.data) throw new Error('upstream code')
-    out.push(...json.data.list)
-    totalPages = json.data.pagination.totalPages
-    page += 1
+    return { items: json.data.list, totalPages: json.data.pagination.totalPages }
+  }
+  const first = await fetchPage(1)
+  const out: SeoIndexItem[] = [...first.items]
+  const lastPage = Math.min(first.totalPages, MAX_PULL_PAGES)
+  if (lastPage > 1) {
+    const rest = await Promise.all(
+      Array.from({ length: lastPage - 1 }, (_, i) => fetchPage(i + 2)),
+    )
+    for (const page of rest) out.push(...page.items)
   }
   return out
 }
@@ -394,7 +400,8 @@ async function handleSitemap(ctx: Ctx): Promise<Response> {
       if (Date.now() - generatedAt > SITEMAP_SOFT_TTL_SEC * 1000) {
         ctx.waitUntil(rebuildSitemap(ctx))
       }
-      return cached
+      // caches 返回的 Response headers 不可变（入口处要 set x-worker-hit），重建后再返回
+      return new Response(cached.body, cached)
     }
     return await rebuildSitemap(ctx) // 首次同步生成（1-3s，可接受）
   } catch {
