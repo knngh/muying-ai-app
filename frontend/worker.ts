@@ -2,8 +2,16 @@
 // - /api/* → 服务端反代 https://beihu.me（删 origin 头规避 CORS，beihu.me 零改动）
 // - /sitemap.xml → 动态生成（数据源：后端文章列表接口，caches 缓存 + 软 TTL）
 // - /__seo/* → 内部缓存键，挡掉外部探测
-// - 其余 HTML 导航请求 → index.html + 按路径注入 SEO meta（HTMLRewriter 流式改写）
+// - 其余 HTML 导航请求 → index.html + 按路径注入 SEO meta（HTMLRewriter 流式改写）；
+//   /knowledge/:slug 额外注入文章正文（AI 爬虫不执行 JS，正文必须进 HTML 才能被引用）
 // 静态资产（/assets/*、robots.txt、llms.txt、og-default.png 等）由资产层直接服务，不进 Worker。
+
+import {
+  formatKnowledgeDisplayDate,
+  getKnowledgeSourceLabel,
+  resolveKnowledgeDisplayContent,
+} from '../shared/utils/knowledge-presentation'
+import { stripHtmlTags } from '../shared/utils/knowledge-text'
 
 interface Env {
   ASSETS: { fetch(input: RequestInfo, init?: RequestInit): Promise<Response> }
@@ -23,6 +31,9 @@ const SITEMAP_CACHE_TTL_SEC = 24 * 3600 // sitemap 物理缓存
 const SITEMAP_SOFT_TTL_SEC = 12 * 3600 // 超过则后台重建
 const SITEMAP_CLIENT_TTL_SEC = 43200
 const MAX_PULL_PAGES = 40 // 子请求保险（免费版上限 50）
+const ARTICLE_CACHE_TTL_SEC = 2 * 3600 // 文章详情缓存（源站 6h 同步，留余量）
+const ARTICLE_MEM_MAX = 2000 // isolate 内存缓存条数上限（约等于全库量级）
+const ARTICLE_BODY_JSONLD_MAX = 25000 // JSON-LD articleBody 截断长度
 
 const SITE_NAME = '贝护妈妈'
 const DEFAULT_TITLE = `${SITE_NAME} · 权威母婴知识库`
@@ -58,6 +69,28 @@ interface PageMeta {
 interface IsolateIndex {
   map: Map<string, SeoIndexItem>
   generatedAt: number
+}
+
+// 文章详情最小字段（来自 GET /api/v1/articles/{slug}，供正文注入与 articleBody）
+interface ArticleDetailPayload {
+  title?: string
+  content?: string
+  displayTitle?: string
+  displaySummary?: string
+  displayContent?: string
+  translation?: Record<string, unknown> | null
+  hasChineseTranslation?: boolean
+  sourceOrg?: string
+  sourceUrl?: string
+  sourceUpdatedAt?: string
+  publishedAt?: string
+  createdAt?: string
+}
+
+// 文章页正文渲染产物：html 注入 #root，plainText 供 JSON-LD articleBody
+interface ArticleBodyRender {
+  html: string
+  plainText: string
 }
 
 // isolate 级内存缓存（避免每请求 JSON.parse；single-flight 防并发重建）
@@ -112,15 +145,34 @@ async function servePageWithMeta(request: Request, env: Env, ctx: Ctx): Promise<
     return new Response(base.body, base)
   }
 
+  const pathname = new URL(request.url).pathname
+
+  // meta 与文章正文并行解析；正文失败/非文章页 → null，只影响注入不影响响应
   let meta: PageMeta
+  let articleBody: ArticleBodyRender | null
   try {
-    meta = await resolvePageMeta(new URL(request.url).pathname, ctx)
+    ;[meta, articleBody] = await Promise.all([
+      resolvePageMeta(pathname, ctx),
+      loadArticleBody(pathname, ctx),
+    ])
   } catch {
     meta = DEFAULT_META
+    articleBody = null
   }
 
+  // articleBody 补进 Article JSON-LD（不原地改：meta 常量是 isolate 级共享对象）
+  let jsonLd = meta.jsonLd
+  if (articleBody?.plainText) {
+    jsonLd = meta.jsonLd.map((entry) =>
+      (entry as Record<string, unknown>)['@type'] === 'Article'
+        ? { ...entry, articleBody: articleBody.plainText }
+        : entry,
+    )
+  }
+  const metaForHead = jsonLd === meta.jsonLd ? meta : { ...meta, jsonLd }
+
   // HTMLRewriter.on 的第二参必须是 handlers 对象（{ element(el) }），裸函数不会被执行
-  const html = new HTMLRewriter()
+  const rewriter = new HTMLRewriter()
     .on('title', {
       element(element) {
         element.setInnerContent(meta.title)
@@ -133,10 +185,18 @@ async function servePageWithMeta(request: Request, env: Env, ctx: Ctx): Promise<
     })
     .on('head', {
       element(element) {
-        element.append(buildHeadBlock(meta), { html: true })
+        element.append(buildHeadBlock(metaForHead), { html: true })
       },
     })
-    .transform(base)
+  // 正文注入 #root 内部：爬虫拿到可引用全文；用户端 React createRoot 首挂会清空容器接管
+  if (articleBody) {
+    rewriter.on('div[id="root"]', {
+      element(element) {
+        element.append(articleBody.html, { html: true })
+      },
+    })
+  }
+  const html = rewriter.transform(base)
 
   const response = new Response(html.body, html)
   // HTML 必须 no-store：no-cache 允许 CF 边缘存储副本（部署后回旧 HTML/旧 hash 引用）
@@ -388,6 +448,104 @@ async function pullAllArticleList(): Promise<SeoIndexItem[]> {
     for (const page of rest) out.push(...page.items)
   }
   return out
+}
+
+// ==================== 文章详情缓存与正文注入 ====================
+
+// isolate 内存缓存（含负缓存 null：防 404/临时故障 slug 反复回源）
+const articleMemCache = new Map<string, { payload: ArticleDetailPayload | null; fetchedAt: number }>()
+
+async function getArticleDetail(slug: string): Promise<ArticleDetailPayload | null> {
+  const now = Date.now()
+  const mem = articleMemCache.get(slug)
+  if (mem && now - mem.fetchedAt < ARTICLE_CACHE_TTL_SEC * 1000) return mem.payload
+
+  const key = new Request(`${SITE_ORIGIN}/__seo/article/${encodeURIComponent(slug)}`)
+  const cached = await caches.default.match(key)
+  if (cached) {
+    try {
+      const payload = (await cached.json()) as ArticleDetailPayload
+      articleMemCache.set(slug, { payload, fetchedAt: now })
+      return payload
+    } catch {
+      // 缓存损坏 → 回源
+    }
+  }
+
+  const payload = await fetchArticleDetail(slug)
+  articleMemCache.set(slug, { payload, fetchedAt: Date.now() })
+  if (articleMemCache.size > ARTICLE_MEM_MAX) {
+    // Map 迭代顺序 = 插入顺序，淘汰最旧
+    const oldest = articleMemCache.keys().next().value
+    if (oldest !== undefined) articleMemCache.delete(oldest)
+  }
+  if (payload) {
+    await caches.default.put(
+      key,
+      new Response(JSON.stringify(payload), {
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': `public, max-age=${ARTICLE_CACHE_TTL_SEC}`,
+        },
+      }),
+    )
+  }
+  return payload
+}
+
+async function fetchArticleDetail(slug: string): Promise<ArticleDetailPayload | null> {
+  try {
+    // 全新 Request（干净头，不继承客户端 IP/Cookie），按 Worker 出口 IP 计入限流
+    const response = await fetch(
+      `${UPSTREAM_ORIGIN}/api/v1/articles/${encodeURIComponent(slug)}`,
+      { headers: { accept: 'application/json' } },
+    )
+    if (!response.ok) return null
+    const json = (await response.json()) as { code: number; data?: ArticleDetailPayload }
+    if (json.code !== 0 || !json.data) return null
+    return json.data
+  } catch {
+    return null
+  }
+}
+
+// 门控：仅 /knowledge/:slug 且索引已收录的 slug 才拉详情（防任意 slug 浪费子请求）
+async function loadArticleBody(pathname: string, ctx: Ctx): Promise<ArticleBodyRender | null> {
+  const match = pathname.match(/^\/knowledge\/([^/]+)$/)
+  if (!match) return null
+  const slug = decodeURIComponent(match[1])
+  const index = await getSeoIndex(ctx)
+  if (!index?.map.has(slug)) return null
+  const detail = await getArticleDetail(slug)
+  if (!detail) return null
+  return buildArticleBodyRender(detail)
+}
+
+function buildArticleBodyRender(detail: ArticleDetailPayload): ArticleBodyRender | null {
+  // 与前端/小程序共用同一展示决策（displayContent → translation → 原文），零分叉
+  const display = resolveKnowledgeDisplayContent(detail)
+  if (!display.content) return null
+
+  const title = truncateText(striptags(display.title), 110) || DEFAULT_TITLE
+  const date = formatKnowledgeDisplayDate(detail, 'iso')
+  const sourceUrl = typeof detail.sourceUrl === 'string' ? detail.sourceUrl : ''
+  const meta = [
+    `来源：${getKnowledgeSourceLabel(detail)}`,
+    `更新：${date}`,
+    sourceUrl ? `<a href="${escapeHtmlAttr(sourceUrl)}" rel="noopener nofollow" target="_blank">查看原文</a>` : '',
+  ]
+    .filter(Boolean)
+    .join(' · ')
+
+  const html =
+    `<article>` +
+    `<h1>${escapeHtmlAttr(title)}</h1>` +
+    `<p>${meta}</p>` +
+    display.content +
+    `</article>`
+
+  const plainText = stripHtmlTags(display.content).trim().slice(0, ARTICLE_BODY_JSONLD_MAX)
+  return { html, plainText: plainText || DEFAULT_DESCRIPTION }
 }
 
 // ==================== sitemap ====================

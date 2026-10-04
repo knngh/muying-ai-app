@@ -47,6 +47,11 @@ if (firstSlug) {
   const html = await article.text()
   assert.match(html, /rel="canonical" href="https:\/\/hibeihu\.com\/knowledge\//, 'article page must have canonical')
   assert.match(html, /application\/ld\+json/, 'article page must have JSON-LD')
+  // GEO：正文必须进 HTML（AI 爬虫不执行 JS）
+  const articleBlock = html.match(/<article>[\s\S]*?<\/article>/)
+  assert.ok(articleBlock, 'article page must embed <article> body block')
+  assert.ok(articleBlock[0].length > 1500, 'embedded article body must be substantial (>1.5KB)')
+  assert.match(articleBlock[0], /<h1>/, 'article body must have heading')
 }
 
 const localChrome = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
