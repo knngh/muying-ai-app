@@ -34,6 +34,9 @@ const MAX_PULL_PAGES = 40 // 子请求保险（免费版上限 50）
 const ARTICLE_CACHE_TTL_SEC = 2 * 3600 // 文章详情缓存（源站 6h 同步，留余量）
 const ARTICLE_MEM_MAX = 2000 // isolate 内存缓存条数上限（约等于全库量级）
 const ARTICLE_BODY_JSONLD_MAX = 25000 // JSON-LD articleBody 截断长度
+const LLMS_CACHE_KEY = new Request(SITE_ORIGIN + '/__seo/llms.txt')
+const LLMS_CACHE_TTL_SEC = 12 * 3600
+const LLMS_MAX_ARTICLES = 300 // 精选清单上限（全文目录靠 API/sitemap）
 
 const SITE_NAME = '贝护妈妈'
 const DEFAULT_TITLE = `${SITE_NAME} · 权威母婴知识库`
@@ -111,6 +114,11 @@ export default {
     if (url.pathname === '/sitemap.xml') {
       const response = await handleSitemap(ctx)
       response.headers.set('x-worker-hit', 'sitemap')
+      return response
+    }
+    if (url.pathname === '/llms.txt') {
+      const response = await handleLlmsTxt(request, env, ctx)
+      response.headers.set('x-worker-hit', 'llms')
       return response
     }
     if (url.pathname.startsWith('/__seo/')) {
@@ -626,4 +634,90 @@ function minimalSitemap(): Response {
   return new Response(xml, {
     headers: { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': 'no-store' },
   })
+}
+
+// ==================== llms.txt（GEO）====================
+
+// 动态生成：只列中文就绪文章（displayTitle 有值），英文原文以 API 指引带过。
+// 索引不可用或生成异常 → 回退资产层静态版 llms.txt。
+async function handleLlmsTxt(request: Request, env: Env, ctx: Ctx): Promise<Response> {
+  try {
+    const cached = await caches.default.match(LLMS_CACHE_KEY)
+    if (cached) {
+      // caches 返回的 Response headers 不可变（入口要 set x-worker-hit），重建
+      return new Response(cached.body, cached)
+    }
+    const text = await buildLlmsTxt(ctx)
+    if (text === null) return await env.ASSETS.fetch(request)
+    const headers = {
+      'Content-Type': 'text/plain; charset=utf-8',
+      'Cache-Control': `public, max-age=${LLMS_CACHE_TTL_SEC}`,
+    }
+    await caches.default.put(LLMS_CACHE_KEY, new Response(text, { headers }))
+    return new Response(text, { headers })
+  } catch {
+    return await env.ASSETS.fetch(request)
+  }
+}
+
+async function buildLlmsTxt(ctx: Ctx): Promise<string | null> {
+  const index = await getSeoIndex(ctx)
+  if (!index) return null
+  const items = [...index.map.values()]
+  const chinese = items.filter((item) => item.displayTitle)
+  const foreignCount = items.length - chinese.length
+  const listed = chinese.slice(0, LLMS_MAX_ARTICLES)
+
+  const lines: string[] = []
+  for (const item of listed) {
+    const title = llmsSafeText(truncateText(striptags(item.displayTitle || item.title || ''), 80))
+    const summary = llmsSafeText(truncateText(striptags(item.displaySummary || item.summary || ''), 90))
+    const date = (item.sourceUpdatedAt || item.publishedAt || '').slice(0, 10)
+    const org = item.sourceOrg || '权威机构'
+    lines.push(
+      `- [${title}](${SITE_ORIGIN}/knowledge/${item.slug})` +
+        (summary ? `：${summary}` : '') +
+        (date ? `（${org}，${date}）` : `（${org}）`),
+    )
+  }
+
+  return `# 贝护妈妈（hibeihu.com）
+
+> 面向备孕、孕期与 0-3 岁育儿家庭的中文健康信息站：聚合 WHO（世界卫生组织）、美国儿科学会（AAP）、英国 NHS、中国国家卫健委等权威机构的孕育科普原文（含中文翻译），并提供 AI 问答与孕育记录工具。内容均标注来源机构与更新时间，免费阅读。
+
+## 内容区
+
+- [权威母婴知识库](https://hibeihu.com/knowledge)：共 ${items.length} 篇权威机构科普文章，其中 ${chinese.length} 篇中文就绪（中文标题+全文）；覆盖备孕、孕期、产后护理、婴儿喂养、疫苗接种、生长发育等主题；每篇标注来源机构、原文链接与发布/更新时间，每 6 小时增量同步。
+
+## 精选中文文章（${listed.length} 篇，按站点推荐序；完整目录见 sitemap 或 API）
+
+${lines.join('\n')}
+
+## 英文原文（${foreignCount} 篇，中文翻译由后台持续补齐）
+
+- 通过列表接口按页获取：GET https://hibeihu.com/api/v1/articles?contentType=authority&page=1&pageSize=100
+- 单篇全文：GET https://hibeihu.com/api/v1/articles/{slug}（返回 displayContent 中文翻译与 content 原文）
+
+## 工具（需注册登录）
+
+- [AI 问答](https://hibeihu.com/chat)：基于权威知识库的孕育问答，回答附可溯源参考来源。
+- [孕育工具箱](https://hibeihu.com/tools)：生长曲线（对照 WHO 生长标准参考带）、疫苗接种排期与记录、每日打卡、宝宝起名。
+
+## 公开数据接口（JSON，无需鉴权）
+
+- \`GET https://hibeihu.com/api/v1/articles?contentType=authority&page=1&pageSize=20\`：文章列表（slug/title/summary/来源机构/时间/语言；pageSize 最大 100）
+- \`GET https://hibeihu.com/api/v1/articles/{slug}\`：文章详情（全文 HTML、中文翻译状态）
+- \`GET https://hibeihu.com/api/v1/names?gender=all&nameLength=2\`：起名库数据
+- 响应统一格式：\`{"code":0,"message":"success","data":...}\`
+
+## 数据说明
+
+- 知识库内容同步自权威机构公开渠道，每 6 小时增量更新；文章的 \`sourceOrg\`/\`sourceUrl\`/\`sourceUpdatedAt\` 字段标明原始出处，引用时建议注明来源机构。
+- 本站内容仅供健康科普参考，不构成医疗建议；紧急情况请就医。
+`
+}
+
+// llms.txt 是 markdown：标题/摘要里的 []() 会破坏链接语法，替换为全角
+function llmsSafeText(value: string): string {
+  return value.replace(/[[\]()]/g, (ch) => ({ '[': '【', ']': '】', '(': '（', ')': '）' })[ch] || ch)
 }
