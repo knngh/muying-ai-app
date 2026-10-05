@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { v4 as uuidv4 } from '@/utils/uuid'
 import type { AIMessage, ChatSession } from '@/api/ai'
 import { aiApi } from '@/api/ai'
+import { getTodayAiUsage, isAiQuotaExhaustedError, recordAiUsage } from '@/utils/aiUsage'
 
 interface ChatState {
   messages: AIMessage[]
@@ -11,6 +12,9 @@ interface ChatState {
   loadingHistory: boolean
   initialized: boolean
   error: string | null
+  /** 今日已获得回答的本地计数（免费额度 3 次/天，以后端 429 为权威） */
+  todayUsage: number
+  quotaExhausted: boolean
   initialize: () => Promise<void>
   sendMessage: (content: string) => Promise<void>
   clearMessages: () => void
@@ -27,11 +31,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
   loadingHistory: false,
   initialized: false,
   error: null,
+  todayUsage: getTodayAiUsage(),
+  quotaExhausted: false,
 
   initialize: async () => {
     if (get().initialized) {
       return
     }
+
+    set({ todayUsage: getTodayAiUsage() })
 
     set({ loadingHistory: true, error: null })
 
@@ -115,6 +123,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         messages: [...state.messages, assistantMessage],
         conversationId: response.conversationId || state.conversationId,
         loading: false,
+        todayUsage: recordAiUsage(),
+        quotaExhausted: false,
       }))
 
       await get().loadConversations()
@@ -132,6 +142,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       set({
         error: fallback,
         loading: false,
+        ...(isAiQuotaExhaustedError(error) ? { quotaExhausted: true } : null),
       })
     }
   },

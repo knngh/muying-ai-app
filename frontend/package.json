@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build && node scripts/build-version.mjs",
+    "build": "tsc && tsc -p tsconfig.worker.json --noEmit && vite build && node scripts/build-version.mjs",
+    "typecheck": "tsc && tsc -p tsconfig.worker.json --noEmit",
     "lint": "eslint . --report-unused-disable-directives --max-warnings 0",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"src/**/*.{ts,tsx,css,json}\"",
@@ -33,6 +34,7 @@
     "zustand": "^4.5.0"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261005.1",
     "@eslint/js": "^8.57.1",
     "@playwright/test": "1.63.0",
     "@types/dompurify": "^3.0.5",

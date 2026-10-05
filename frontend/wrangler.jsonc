@@ -3,6 +3,10 @@
   "compatibility_date": "2026-09-22",
   // Worker 入口：/api/* 反代 beihu.me；其余走 dist 静态资源（SPA 回退）
   "main": "worker.ts",
+  // AI/搜索爬虫抓取量统计（GEO 效果数据，CF Dashboard → Analytics & Logs → Analytics Engine 可查）
+  "analytics_engine_datasets": [
+    { "binding": "SEO_STATS", "dataset": "beihu_web_crawlers" }
+  ],
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",

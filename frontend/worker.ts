@@ -15,6 +15,7 @@ import { stripHtmlTags } from '../shared/utils/knowledge-text'
 
 interface Env {
   ASSETS: { fetch(input: RequestInfo, init?: RequestInit): Promise<Response> }
+  SEO_STATS: { writeDataPoint(event: { blobs?: string[]; indexes?: string[]; doubles?: number[] }): void }
 }
 
 interface Ctx {
@@ -105,6 +106,8 @@ let indexBuildPromise: Promise<void> | null = null
 export default {
   async fetch(request: Request, env: Env, ctx: Ctx): Promise<Response> {
     const url = new URL(request.url)
+
+    recordCrawlerHit(request, env, url)
 
     if (url.pathname.startsWith('/api/')) {
       const response = await proxyApi(request)
@@ -725,4 +728,48 @@ ${lines.join('\n')}
 // llms.txt 是 markdown：标题/摘要里的 []() 会破坏链接语法，替换为全角
 function llmsSafeText(value: string): string {
   return value.replace(/[[\]()]/g, (ch) => ({ '[': '【', ']': '】', '(': '（', ')': '）' })[ch] || ch)
+}
+
+// ==================== 爬虫抓取统计（Analytics Engine，GEO 效果数据） ====================
+
+// AI 爬虫（生成式引擎）与搜索引擎爬虫 UA 识别；命中才记 data point，普通流量零成本。
+// 数据查询：CF Dashboard → Workers → beihu-web → Analytics Engine（dataset: beihu_web_crawlers）或 GraphQL API。
+const AI_CRAWLER_UAS = [
+  'GPTBot', 'OAI-SearchBot', 'ChatGPT-User',
+  'ClaudeBot', 'Claude-User', 'Claude-SearchBot', 'anthropic-ai',
+  'PerplexityBot', 'Perplexity-User',
+  'Google-Extended', 'Googleother',
+  'Bytespider', 'CCBot', 'Amazonbot', 'Applebot-Extended',
+  'Meta-ExternalAgent', 'meta-externalagent', 'DuckAssistBot', 'YouBot', 'cohere-ai',
+]
+const SEARCH_CRAWLER_UAS = ['Googlebot', 'Bingbot', 'Baiduspider', 'YandexBot', 'Sogou', 'HaosouSpider']
+
+function detectCrawlerCategory(userAgent: string): string | null {
+  if (AI_CRAWLER_UAS.some((token) => userAgent.includes(token))) return 'ai'
+  if (SEARCH_CRAWLER_UAS.some((token) => userAgent.includes(token))) return 'search'
+  return null
+}
+
+function pathCategoryOf(pathname: string): string {
+  if (pathname === '/sitemap.xml') return 'sitemap'
+  if (pathname === '/llms.txt') return 'llms'
+  if (pathname === '/robots.txt') return 'robots'
+  if (/^\/knowledge\/[^/]+/.test(pathname)) return 'article'
+  if (pathname.startsWith('/api/')) return 'api'
+  return 'page'
+}
+
+function recordCrawlerHit(request: Request, env: Env, url: URL): void {
+  const userAgent = request.headers.get('user-agent') || ''
+  const category = detectCrawlerCategory(userAgent)
+  if (!category) return
+  try {
+    env.SEO_STATS.writeDataPoint({
+      // indexes=日期（按天聚合），blobs=[ai|search, 具体 UA, 路径类型]
+      blobs: [category, userAgent.slice(0, 120), pathCategoryOf(url.pathname)],
+      indexes: [new Date().toISOString().slice(0, 10)],
+    })
+  } catch {
+    // 统计失败静默，不影响响应
+  }
 }

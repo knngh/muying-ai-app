@@ -23,6 +23,8 @@ export function Chat() {
     loading,
     loadingHistory,
     error,
+    todayUsage,
+    quotaExhausted,
     initialize,
     sendMessage,
     clearMessages,
@@ -176,6 +178,13 @@ export function Chat() {
           <button type="button" onClick={clearMessages}>
             新对话
           </button>
+          <span className={styles.usageHint}>
+            {quotaExhausted
+              ? '今日免费额度已用完，明天再来'
+              : todayUsage > 0
+                ? `今日已获得 ${todayUsage} 次回答`
+                : '免费用户每日 3 次 AI 问答'}
+          </span>
         </div>
       </section>
     </div>
