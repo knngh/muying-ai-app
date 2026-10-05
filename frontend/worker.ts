@@ -148,9 +148,8 @@ async function servePageWithMeta(request: Request, env: Env, ctx: Ctx): Promise<
   const base = await env.ASSETS.fetch(request)
   const contentType = base.headers.get('content-type') || ''
   if (!contentType.includes('text/html')) {
-    // 非导航请求（如对不存在静态文件的探测）：保留资产层原始响应（404 等），不强加 no-cache。
-    // 资产层 Response 的 headers 不可变（入口处还要 set x-worker-hit），必须重建 Response。
-    return new Response(base.body, base)
+    // 非导航请求（如对不存在静态文件的探测）：保留资产层原始响应（404 等），不强加 no-cache
+    return rebuildResponse(base)
   }
 
   const pathname = new URL(request.url).pathname
@@ -567,7 +566,7 @@ async function handleSitemap(ctx: Ctx): Promise<Response> {
         ctx.waitUntil(rebuildSitemap(ctx))
       }
       // caches 返回的 Response headers 不可变（入口处要 set x-worker-hit），重建后再返回
-      return new Response(cached.body, cached)
+      return rebuildResponse(cached)
     }
     return await rebuildSitemap(ctx) // 首次同步生成（1-3s，可接受）
   } catch {
@@ -645,10 +644,10 @@ async function handleLlmsTxt(request: Request, env: Env, ctx: Ctx): Promise<Resp
     const cached = await caches.default.match(LLMS_CACHE_KEY)
     if (cached) {
       // caches 返回的 Response headers 不可变（入口要 set x-worker-hit），重建
-      return new Response(cached.body, cached)
+      return rebuildResponse(cached)
     }
     const text = await buildLlmsTxt(ctx)
-    if (text === null) return await env.ASSETS.fetch(request)
+    if (text === null) return rebuildResponse(await env.ASSETS.fetch(request))
     const headers = {
       'Content-Type': 'text/plain; charset=utf-8',
       'Cache-Control': `public, max-age=${LLMS_CACHE_TTL_SEC}`,
@@ -656,15 +655,21 @@ async function handleLlmsTxt(request: Request, env: Env, ctx: Ctx): Promise<Resp
     await caches.default.put(LLMS_CACHE_KEY, new Response(text, { headers }))
     return new Response(text, { headers })
   } catch {
-    return await env.ASSETS.fetch(request)
+    return rebuildResponse(await env.ASSETS.fetch(request))
   }
+}
+
+// 资产层/caches 返回的 Response headers 不可变，转发前必须重建（入口要 set x-worker-hit）
+function rebuildResponse(response: Response): Response {
+  return new Response(response.body, response)
 }
 
 async function buildLlmsTxt(ctx: Ctx): Promise<string | null> {
   const index = await getSeoIndex(ctx)
   if (!index) return null
   const items = [...index.map.values()]
-  const chinese = items.filter((item) => item.displayTitle)
+  // 中文就绪 = 有中文翻译（displayTitle）或本来就是中文原文（sourceLanguage=zh，不翻译直接展示）
+  const chinese = items.filter((item) => item.displayTitle || item.sourceLanguage === 'zh')
   const foreignCount = items.length - chinese.length
   const listed = chinese.slice(0, LLMS_MAX_ARTICLES)
 
@@ -687,7 +692,7 @@ async function buildLlmsTxt(ctx: Ctx): Promise<string | null> {
 
 ## 内容区
 
-- [权威母婴知识库](https://hibeihu.com/knowledge)：共 ${items.length} 篇权威机构科普文章，其中 ${chinese.length} 篇中文就绪（中文标题+全文）；覆盖备孕、孕期、产后护理、婴儿喂养、疫苗接种、生长发育等主题；每篇标注来源机构、原文链接与发布/更新时间，每 6 小时增量同步。
+- [权威母婴知识库](https://hibeihu.com/knowledge)：共 ${items.length} 篇权威机构科普文章，其中 ${chinese.length} 篇中文就绪（中文原文或中文翻译）；覆盖备孕、孕期、产后护理、婴儿喂养、疫苗接种、生长发育等主题；每篇标注来源机构、原文链接与发布/更新时间，每 6 小时增量同步。
 
 ## 精选中文文章（${listed.length} 篇，按站点推荐序；完整目录见 sitemap 或 API）
 
