@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import DOMPurify from 'dompurify'
 import { useKnowledgeStore } from '@/stores/knowledgeStore'
 import { usePageTitle } from '@/hooks'
+import { storage } from '@/utils/storage'
 import {
   addArticleHeadingAnchors,
   buildKnowledgeReadingMeta,
@@ -60,6 +61,12 @@ export function KnowledgeDetail() {
 
   const goBack = () => {
     navigate('/knowledge')
+  }
+
+  const isLoggedIn = Boolean(storage.getItem('token'))
+
+  const handleAskAi = () => {
+    navigate(isLoggedIn ? '/chat' : '/login')
   }
 
   const displayContent = useMemo(() => resolveKnowledgeDisplayContent(currentArticle), [currentArticle])
@@ -272,6 +279,20 @@ export function KnowledgeDetail() {
           className={`article-content ${styles.content}`}
           dangerouslySetInnerHTML={{ __html: contentHtml }}
         />
+
+        <section className={styles.askAiCard}>
+          <div className={styles.askAiCopy}>
+            <span className={styles.askAiKicker}>AI 育儿顾问</span>
+            <p className={styles.askAiDesc}>
+              {isLoggedIn
+                ? '宝宝的情况和这篇文章不完全一样？把具体疑问告诉 AI 顾问，获得结合权威资料的个性化解答。'
+                : '注册后免费向 AI 育儿顾问提问，每天 3 次，解答基于 WHO、美国儿科学会、英国 NHS 等权威资料。'}
+            </p>
+          </div>
+          <button type="button" className={styles.askAiButton} onClick={handleAskAi}>
+            {isLoggedIn ? '去提问' : '免费注册提问'}
+          </button>
+        </section>
 
         {displaySourceUrl ? (
           <section className={styles.sourceBox}>
