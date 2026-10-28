@@ -119,6 +119,12 @@ app.use('/uploads', (_req: Request, res: Response) => {
 // ============================================
 const API_PREFIX = '/api/v1';
 
+// API responses may contain account or health records, including error responses.
+app.use(API_PREFIX, (_req: Request, res: Response, next) => {
+  res.setHeader('Cache-Control', 'private, no-store, max-age=0');
+  next();
+});
+
 // 健康检查（增强版 - 覆盖数据库和缓存状态）
 app.get('/health', async (req: Request, res: Response) => {
   const cacheStats = cache.getStats();
