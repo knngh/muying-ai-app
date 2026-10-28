@@ -10,6 +10,9 @@
 - 未在 `mp-weixin.requiredPrivateInfos` 中声明 `chooseImage`。该字段只适用于微信要求的指定隐私接口，照片选择应通过隐私保护指引和运行时授权处理。
 - `mini-program/src/pages/calendar/index.vue` 在调用 `uni.chooseImage` 前调用 `uni.getPrivacySetting`。需要同意时显示隐私授权弹窗，使用 `open-type="agreePrivacyAuthorization"` 的按钮；拒绝后不上传照片，但仍可浏览知识库和日历。
 - `mini-program/src/pages/privacy-policy/index.vue` 提供与当前代码一致的可读版指引；登录页和“我的”页均提供入口。
+- 报告选图、成长相册选图和阶段卡保存到相册使用 `useMiniProgramPrivacyAuthorization` 与 `PrivacyAuthorizationPrompt`，需要授权时必须收到平台同意按钮事件才继续；拒绝不继续照片操作。
+- 成长相册目前仅保存在设备；阶段卡只在用户点击时保存到手机相册；报告草稿保存在本机，仅在云端功能开放且用户主动选择私有归档时上传。微信后台声明必须区分这些路径，不将所有照片操作统一写成自动上传。
+- `npm --prefix mini-program run smoke:privacy` 检查这三处新增门槛和平台授权按钮；该检查不能替代公众平台后台发布和真机授权验收。
 
 ## 公众平台后台操作
 

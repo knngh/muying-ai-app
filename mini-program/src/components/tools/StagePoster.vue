@@ -13,6 +13,13 @@
     <text v-if="notice" class="panel-hint">{{ notice }}</text>
     <button v-if="permissionDenied" class="panel-button panel-button--secondary" @tap="openSettings">去设置相册权限</button>
     <text class="panel-hint">只展示孕周和固定文案，分享前请确认愿意公开这些信息。</text>
+    <PrivacyAuthorizationPrompt
+      :visible="privacyVisible"
+      description="阶段卡只会保存到你主动选择的手机相册中，不会上传。"
+      @agree="agreePrivacyAuthorization"
+      @reject="rejectPrivacyAuthorization"
+      @open-contract="openPrivacyContract"
+    />
   </view>
 </template>
 <script setup lang="ts">
@@ -21,8 +28,11 @@ import { BASE_URL } from '@/api/request'
 import { TOOL_CLOUD_ENABLED } from '@/config/features'
 import { saveToolImage } from '@/utils/tool-media'
 import { localToolDate } from '@/utils/tool-history'
+import PrivacyAuthorizationPrompt from '@/components/PrivacyAuthorizationPrompt.vue'
+import { useMiniProgramPrivacyAuthorization } from '@/utils/privacy-authorization'
 const props = defineProps<{ week: number | null }>()
 const emit = defineEmits<{ saved: [] }>()
+const { visible: privacyVisible, ensurePrivacyAuthorization, agreePrivacyAuthorization, rejectPrivacyAuthorization, openPrivacyContract } = useMiniProgramPrivacyAuthorization()
 const instance = getCurrentInstance()?.proxy
 const generating = ref(false), saving = ref(false), imagePath = ref(''), notice = ref(''), permissionDenied = ref(false)
 function loadCode(): Promise<string> {
@@ -73,6 +83,7 @@ async function generate() {
 function preview() { if (imagePath.value) uni.previewImage({ urls: [imagePath.value] }) }
 async function saveImage() {
   if (!imagePath.value || saving.value) return
+  if (!await ensurePrivacyAuthorization()) return
   saving.value = true
   uni.saveImageToPhotosAlbum({
     filePath: imagePath.value,

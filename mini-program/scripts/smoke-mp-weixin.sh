@@ -17,19 +17,22 @@ fi
 
 mkdir -p "${OUTPUT_DIR}"
 
-echo "[1/5] type-check"
+echo "[1/6] type-check"
 npm --prefix "${PROJECT_DIR}" run type-check
 
-echo "[2/5] build mp-weixin"
+echo "[2/6] build mp-weixin"
 npm --prefix "${PROJECT_DIR}" run build:mp-weixin
 
-echo "[3/5] assert privacy config"
+echo "[3/6] assert photo privacy authorization coverage"
+npm --prefix "${PROJECT_DIR}" run smoke:privacy
+
+echo "[4/6] assert privacy config"
 node -e 'const fs = require("fs"); const app = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); const allowed = new Set(["chooseAddress", "chooseLocation", "choosePoi", "getFuzzyLocation", "getLocation", "onLocationChange", "startLocationUpdate", "startLocationUpdateBackground"]); const invalid = Array.isArray(app.requiredPrivateInfos) ? app.requiredPrivateInfos.filter((item) => !allowed.has(item)) : []; if (app.__usePrivacyCheck__ !== true || invalid.length > 0) { console.error(`Invalid mp-weixin privacy config: expected __usePrivacyCheck__ and no unsupported requiredPrivateInfos entries. Invalid entries: ${invalid.join(", ") || "none"}`); process.exit(1); }' "${APP_JSON}"
 
-echo "[4/5] open project in WeChat DevTools"
+echo "[5/6] open project in WeChat DevTools"
 "${DEVTOOLS_CLI}" open --project "${PROJECT_DIR}"
 
-echo "[5/5] preview"
+echo "[6/6] preview"
 "${DEVTOOLS_CLI}" preview \
   --project "${PROJECT_DIR}" \
   --info-output "${INFO_OUTPUT}" \

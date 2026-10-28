@@ -2,6 +2,7 @@
 // The same route matrix is useful before opening the generated mp-weixin package.
 const { chromium } = require('playwright')
 const assert = require('node:assert/strict')
+const { existsSync } = require('node:fs')
 
 const baseUrl = process.env.BEIHU_H5_URL || 'http://127.0.0.1:5198'
 const tools = [
@@ -29,7 +30,10 @@ function routeFor(tool) {
 }
 
 ;(async () => {
-  const browser = await chromium.launch({ channel: 'chrome', headless: true })
+  const localChrome = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+  const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
+    || (existsSync(localChrome) ? localChrome : undefined)
+  const browser = await chromium.launch({ executablePath, headless: true })
   const errors = []
   try {
     const page = await browser.newPage({ viewport: { width: 375, height: 812 } })
@@ -38,9 +42,11 @@ function routeFor(tool) {
     await page.route('https://beihu.me/**', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 0, data: {} }) }))
 
     for (const tool of tools) {
+      // Hash-only navigation reuses onLoad state; each route needs a fresh document.
+      await page.goto('about:blank')
       await page.goto(routeFor(tool), { waitUntil: 'domcontentloaded' })
       await page.locator(tool.selector).waitFor({ state: 'visible' })
-      assert.match(await page.locator('body').innerText(), new RegExp(tool.title))
+      assert.ok((await page.locator('body').innerText()).includes(tool.title), `${tool.id}: missing page title`)
       assert.ok(await page.locator('.record-tabs, .name-page').count(), `${tool.id}: missing history/navigation surface`)
       for (const width of [320, 375, 430]) {
         await page.setViewportSize({ width, height: 812 })

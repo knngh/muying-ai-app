@@ -75,6 +75,13 @@
       <input v-model="fieldValue" class="panel-input field-value" maxlength="500" placeholder="按原图填写数值与单位" :disabled="busy" />
       <button class="panel-button panel-button--secondary import-button" :disabled="busy" @tap="addField">保存待核对字段</button>
     </view>
+    <PrivacyAuthorizationPrompt
+      :visible="privacyVisible"
+      description="报告原图先保存在此设备；只有在你点击“保存并私有归档”时才会上传到账号私有空间。"
+      @agree="agreePrivacyAuthorization"
+      @reject="rejectPrivacyAuthorization"
+      @open-contract="openPrivacyContract"
+    />
   </view>
 </template>
 
@@ -83,8 +90,11 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { toolRecordApi, type ReportDocumentRecord, type ReportFieldRecord } from '@/api/modules'
 import { forgetReportDraft, keepReportImage, newReportOperationId, readReportDrafts, removeReportImage, reportOwner, writeReportDraft, type ReportDraft } from '@/utils/report-drafts'
 import { TOOL_CLOUD_ENABLED } from '@/config/features'
+import PrivacyAuthorizationPrompt from '@/components/PrivacyAuthorizationPrompt.vue'
+import { useMiniProgramPrivacyAuthorization } from '@/utils/privacy-authorization'
 const props = defineProps<{ owner: string; historyOnly?: boolean }>()
 const emit = defineEmits<{ count: [count: number]; latest: [record: { name: string; createdAt: string } | null]; saved: [] }>()
+const { visible: privacyVisible, ensurePrivacyAuthorization, agreePrivacyAuthorization, rejectPrivacyAuthorization, openPrivacyContract } = useMiniProgramPrivacyAuthorization()
 const date = ref(localDate())
 const name = ref(''), note = ref(''), imagePath = ref(''), notice = ref(''), loadError = ref('')
 const busy = ref(false), loading = ref(false)
@@ -104,7 +114,8 @@ function reloadDrafts() { if (current()) { drafts.value = readReportDrafts(props
 function ask(content: string): Promise<boolean> { return new Promise(resolve => uni.showModal({ title: '请确认', content, success: result => resolve(result.confirm), fail: () => resolve(false) })) }
 function preview(path: string) { if (current()) uni.previewImage({ urls: [path], fail: () => { notice.value = '图片暂时无法查看，请重新选择或稍后再试' } }) }
 function login() { uni.navigateTo({ url: `/pages/login/index?redirect=${encodeURIComponent('/pages/tool-detail/index?id=reports')}` }) }
-function chooseImage() {
+async function chooseImage() {
+  if (!await ensurePrivacyAuthorization()) return
   uni.chooseImage({ count: 1, sizeType: ['original'], sourceType: ['camera', 'album'], success: result => {
     if (!current()) return
     const files = result.tempFiles as { size: number }[]

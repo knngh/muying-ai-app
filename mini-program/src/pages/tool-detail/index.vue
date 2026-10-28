@@ -159,6 +159,13 @@
     </view>
 
     <view v-if="tool.id !== 'reports'" class="detail-footer"><text>{{ TOOL_CLOUD_ENABLED ? '本机保存 · 登录后尝试同步' : '本机保存 · 云端同步暂未开放' }} · 最近 500 条保留在本机</text></view>
+    <PrivacyAuthorizationPrompt
+      :visible="privacyVisible"
+      description="成长照片只保存在此设备的历史记录中，目前不会上传。"
+      @agree="agreePrivacyAuthorization"
+      @reject="rejectPrivacyAuthorization"
+      @open-contract="openPrivacyContract"
+    />
   </view>
 </template>
 
@@ -195,8 +202,11 @@ import { deleteToolRecord, importToolRecord, readToolRecords, saveToolRecord, up
 import { trackMiniEvent } from '@/utils/analytics'
 import { MAX_HOME_TOOLS, readHomeTools, recommendedHomeTools, saveHomeTools } from '@/utils/home-tools'
 import { getToolStage } from '@/data/tool-catalog'
+import PrivacyAuthorizationPrompt from '@/components/PrivacyAuthorizationPrompt.vue'
+import { useMiniProgramPrivacyAuthorization } from '@/utils/privacy-authorization'
 
 const appStore = useAppStore()
+const { visible: privacyVisible, ensurePrivacyAuthorization, agreePrivacyAuthorization, rejectPrivacyAuthorization, openPrivacyContract } = useMiniProgramPrivacyAuthorization()
 const toolId = ref<ToolId>('calendar')
 const records = ref<LocalToolRecord[]>([])
 const notice = ref('')
@@ -623,7 +633,10 @@ function completeVaccine(record: LocalToolRecord) {
   } })
 }
 function saveFood() { if (!foodName.value.trim()) { showNotice('请填写食材名称'); return }; const record = save('trial', { name: foodName.value.trim(), note: foodNote.value || null, date: recordDate.value }, `${foodName.value.trim()} · 已记录观察`); if (record) { void syncServer(record); foodName.value = ''; foodNote.value = '' } }
-function chooseAlbumImage() { uni.chooseImage({ count: 1, sourceType: ['album', 'camera'], success: result => { albumPreview.value = result.tempFilePaths[0] || '' } }) }
+async function chooseAlbumImage() {
+  if (!await ensurePrivacyAuthorization()) return
+  uni.chooseImage({ count: 1, sourceType: ['album', 'camera'], success: result => { albumPreview.value = result.tempFilePaths[0] || '' } })
+}
 async function saveAlbum() {
   if (!albumPreview.value || albumSaving.value) return
   albumSaving.value = true
