@@ -13,7 +13,7 @@ it('uses the baby birthday for postpartum weeks and never guesses without it', (
   expect(recordsForCalendarPeriod(records, 'postpartum', 2)).toEqual([])
 })
 it('keeps timestamp records on the device local calendar date', () => {
-  const records = [record('care', 'care', { kind: 'feeding', recordedAt: '2026-09-23T00:30:00+08:00' })]
+  const records = [record('care', 'care', { kind: 'feeding', recordedAt: new Date(2026, 8, 23, 0, 30).toISOString() })]
   expect(recordsForCalendarPeriod(records, 'postpartum', 2, null, '2026-09-16').map(item => item.date)).toEqual(['2026-09-23'])
 })
 it('does not map records outside the pregnancy anchor window into a clamped week', () => {
