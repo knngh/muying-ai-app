@@ -36,7 +36,11 @@ const createUpload = (image: Buffer, data = base) => {
   Object.entries(data).forEach(([key, value]) => call.field(key, value));
   return call.attach('file', image, { filename: 'report.png', contentType: 'image/png' });
 };
-async function files() { return fs.readdir(path.join(folder, 'reports')).catch(() => []); }
+async function files() {
+  return fs.readdir(path.join(folder, 'reports'))
+    .then(entries => entries.filter(entry => !entry.startsWith('._')))
+    .catch(() => []);
+}
 
 beforeEach(async () => {
   jest.clearAllMocks();

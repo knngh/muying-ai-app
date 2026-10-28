@@ -68,22 +68,22 @@
   "dependencies": {
     "@prisma/client": "^5.8.0",
     "@zilliz/milvus2-sdk-node": "^2.6.13",
-    "axios": "^1.15.2",
+    "axios": "^1.20.0",
     "bcryptjs": "^2.4.3",
-    "compression": "^1.7.4",
+    "compression": "^1.8.2",
     "cors": "^2.8.5",
     "dayjs": "^1.11.10",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
-    "express-rate-limit": "^8.3.1",
+    "express-rate-limit": "^8.7.1",
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
-    "morgan": "^1.10.0",
-    "multer": "^2.0.2",
-    "mysql2": "^3.6.5",
-    "sharp": "^0.34.5",
-    "ws": "^8.19.0",
-    "zod": "^3.22.4"
+    "morgan": "^1.12.1",
+    "multer": "^2.5.0",
+    "mysql2": "^3.24.6",
+    "sharp": "^0.35.5",
+    "ws": "^8.22.0",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
@@ -108,6 +108,9 @@
     "typescript": "^5.3.3"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=22.12.0"
+  },
+  "overrides": {
+    "qs": "^6.16.1"
   }
 }

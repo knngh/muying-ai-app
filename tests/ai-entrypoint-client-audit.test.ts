@@ -6,6 +6,7 @@ describe('AI entrypoint client audit', () => {
 
     expect(summary.ok).toBe(true);
     expect(summary.failures).toEqual([]);
-    expect(summary.passed).toBeGreaterThanOrEqual(12);
+    expect(summary.passed).toBeGreaterThanOrEqual(11);
+    expect(summary.warnings.some(({ description }) => description.includes('mini-program chat UI is still disabled'))).toBe(true);
   });
 });

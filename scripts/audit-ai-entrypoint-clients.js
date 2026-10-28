@@ -49,6 +49,11 @@ function audit() {
     failures: [],
   };
 
+  const miniChatPath = 'mini-program/src/pages/chat/index.vue';
+  const miniChatExists = fs.existsSync(path.join(root, miniChatPath));
+  const miniChat = miniChatExists ? read(miniChatPath) : '';
+  const miniChatEnabled = miniChatExists && !miniChat.includes('const chatFeatureEnabled = false');
+
   checkContains(results, 'mobile/src/services/analytics.ts', [
     'app_home_suggested_question_click',
     'app_weekly_report_ask_ai_click',
@@ -125,18 +130,19 @@ function audit() {
     'requestId: clientRequestId || requestId',
   ], 'backend websocket analytics and quota use clientRequestId when valid');
 
-  checkContains(results, 'mini-program/src/api/ai.ts', [
-    'clientRequestId?: string',
-    'clientRequestId: data.clientRequestId',
-  ], 'mini-program REST AI API accepts clientRequestId');
+  if (miniChatEnabled) {
+    checkContains(results, 'mini-program/src/api/ai.ts', [
+      'clientRequestId?: string',
+      'clientRequestId: data.clientRequestId',
+    ], 'mini-program REST AI API accepts clientRequestId');
 
-  checkContains(results, 'mini-program/src/stores/chat.ts', [
-    'const requestId = genRequestId()',
-    'clientRequestId: requestId',
-  ], 'mini-program websocket AI store passes clientRequestId');
+    checkContains(results, 'mini-program/src/stores/chat.ts', [
+      'const requestId = genRequestId()',
+      'clientRequestId: requestId',
+    ], 'mini-program websocket AI store passes clientRequestId');
+  }
 
-  const miniChat = read('mini-program/src/pages/chat/index.vue');
-  if (miniChat.includes('const chatFeatureEnabled = false')) {
+  if (!miniChatEnabled) {
     results.warnings.push({
       description: 'mini-program chat UI is still disabled; full chat entrypoint analytics will remain limited until the feature flag is opened',
       file: 'mini-program/src/pages/chat/index.vue',

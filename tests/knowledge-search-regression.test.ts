@@ -1,4 +1,34 @@
-import { searchQAWithRewrite } from '../src/services/knowledge.service';
+const originalEnv = { ...process.env };
+let searchQAWithRewrite: typeof import('../src/services/knowledge.service').searchQAWithRewrite;
+
+beforeAll(() => {
+  // Exercise the bundled search fallback without depending on live AI providers.
+  process.env = {
+    ...originalEnv,
+    AI_SEARCH_REWRITE: 'false',
+    AI_VECTOR_RETRIEVAL: 'false',
+    AI_KNOWLEDGE_RERANK: 'false',
+  };
+  jest.isolateModules(() => {
+    ({ searchQAWithRewrite } = require('../src/services/knowledge.service'));
+  });
+});
+
+beforeEach(() => {
+  jest.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('External requests are disabled in local search tests'));
+});
+
+afterEach(() => {
+  try {
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  } finally {
+    jest.restoreAllMocks();
+  }
+});
+
+afterAll(() => {
+  process.env = originalEnv;
+});
 
 describe('knowledge search regressions', () => {
   it('returns symptom-oriented results for baby fever queries', async () => {

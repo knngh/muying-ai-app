@@ -12,10 +12,10 @@ const analyticsJsonValue: z.ZodType<JsonValue> = z.lazy(() => z.union([
   z.boolean(),
   z.null(),
   z.array(analyticsJsonValue).max(20),
-  z.record(analyticsJsonValue),
+  z.record(z.string(), analyticsJsonValue),
 ]));
 
-const analyticsProperties = z.record(analyticsJsonValue)
+const analyticsProperties = z.record(z.string(), analyticsJsonValue)
   .refine(value => Object.keys(value).length <= 30, 'properties 字段过多')
   .refine(value => JSON.stringify(value).length <= 4096, 'properties 过大');
 

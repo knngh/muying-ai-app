@@ -25,9 +25,9 @@ export type JevChoiceQuestions = z.infer<typeof questionMap>;
 const probability = z.number().finite().min(0).max(1);
 const responseSchema = z.object({
   model: z.string().min(1).max(100),
-  answers: z.record(z.object({
+  answers: z.record(z.string(), z.object({
     type: z.literal('choice'), choice: z.string(), confidence: probability,
-    probabilities: z.record(probability),
+    probabilities: z.record(z.string(), probability),
   })),
   usage: z.object({ input_tokens: z.number().int().nonnegative(), output_tokens: z.number().int().nonnegative() }),
 });

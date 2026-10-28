@@ -25,7 +25,7 @@ export function validate(schema: {
       next();
     } catch (err) {
       if (err instanceof ZodError) {
-        const messages = err.errors.map(e => {
+        const messages = err.issues.map(e => {
           const path = e.path.join('.');
           return path ? `${path}: ${e.message}` : e.message;
         });
