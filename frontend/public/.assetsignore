@@ -1,0 +1,3 @@
+# macOS metadata created by the mounted workspace must not become public assets.
+**/._*
+**/.DS_Store
