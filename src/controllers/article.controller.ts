@@ -974,7 +974,20 @@ async function findAuthorityRecordMatchBySlug(slug: string): Promise<{
   slugCandidates: string[];
 } | null> {
   const records = await getAuthorityRecords();
-  const index = records.findIndex((item, itemIndex) => getAuthoritySlugCandidates(item, itemIndex).includes(slug));
+  // Express leaves route params percent-decoded in normal requests, but links
+  // copied from crawlers and older clients can still contain an encoded slug.
+  // Compare both forms so a valid article is not turned into a false 404.
+  const normalizedSlug = (() => {
+    try {
+      return decodeURIComponent(slug);
+    } catch {
+      return slug;
+    }
+  })();
+  const candidates = new Set([slug, normalizedSlug]);
+  const index = records.findIndex((item, itemIndex) => (
+    getAuthoritySlugCandidates(item, itemIndex).some((candidate) => candidates.has(candidate))
+  ));
   if (index < 0) {
     return null;
   }
