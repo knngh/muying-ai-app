@@ -88,7 +88,7 @@ REMOTE_COMMANDS=(
   "cd ${APP_DIR}"
   "pwd"
   "if [ -f .env ]; then set -a; source ./.env; set +a; fi"
-  "node -e 'const [major, minor] = process.versions.node.split(\".\").map(Number); if (major < 22 || (major === 22 && minor < 12)) { console.error(\"Node.js >=22.12.0 is required\"); process.exit(1); }'"
+  "node -e 'const [major, minor] = process.versions.node.split(\".\").map(Number); if (major < 24 || (major === 24 && minor < 18)) { console.error(\"Node.js >=24.18.0 is required\"); process.exit(1); }'"
   "if sudo -n pm2 describe ${PM2_APP_NAME} >/dev/null 2>&1; then PM2_CMD='sudo -n --preserve-env=NAME_EVALUATION_AI_ENABLED,TOOL_AI_REVIEW_ENABLED,EXPENSE_CANDIDATES_AI_ENABLED pm2'; NPM_CMD='sudo -n npm'; else PM2_CMD='pm2'; NPM_CMD='npm'; fi"
 )
 

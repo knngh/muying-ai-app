@@ -87,7 +87,7 @@ npm --prefix mini-program run build:h5
 用户已授权提交、推送及后台和网页部署；微信小程序由用户自行发布，相关代码纳入提交但不上传微信。上述 10 月 27 日的观察和待办为当时记录，部署结果以本节之后的发布记录为准。
 
 - 三端均重新执行 `npm ci`，确认直接依赖安装版本与锁文件一致。后端 lint、build 及 112 套件/787 用例再次通过；网页 lint、E2E 类型检查、生产构建和 30 项浏览器回归再次通过；小程序 type-check、照片隐私检查和微信构建再次通过。
-- 已通过现有 SSH 密钥连接生产。生产 Node 为 20.20.2，已在 `/opt/muying-runtime/node-v22.23.4-linux-x64` 安装官方 Node 22.23.4 并核对 SHA-256；系统 Node 保持原样。发布时 API 和 authority worker 均需指定此绝对解释器路径。
+- 已通过现有 SSH 密钥连接生产。生产 Node 为 20.20.2；服务器安装发布包时发现 Milvus 的 `@dsnp/parquetjs@1.9.4` 要求 Node >=24.18。最终将 package、Docker、CI 和部署检查统一为 Node 24 基线，使用 `/opt/muying-runtime/node-v24.22.1-linux-x64/bin/node`；系统 Node 保持原样。API 和 authority worker 均需指定此绝对解释器路径。此前 Node 22 构建和 SDK 导入成功不代表满足整个依赖树的运行要求。
 - 对照生产源码、Prisma schema 和编译产物，219 个 JavaScript 文件字节一致，仅三处 Zod 兼容修改不同。生产已包含文章 slug 容错修复；数据库 schema 一致，不执行数据库迁移。
 - 生产存在额外历史源码和编译文件，发布采用独立目录安装构建，保留历史文件与运行时 data、uploads、private-uploads、auth。切换前备份源码、依赖、构建、环境配置和 PM2 状态，失败恢复旧版本。
 - 网页发布前版本为 `ce27c711-4eb2-446a-b4c4-5189e59fb1fc`；正式构建必须来自干净提交，发布后核验 `/version.json` 提交号、`dirty=false`、API 代理、401 缓存和浏览器深链接。
