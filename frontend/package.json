@@ -53,5 +53,9 @@
     "typescript-eslint": "^8.57.1",
     "vite": "^8.0.10",
     "wrangler": "^4.136.2"
+  },
+  "overrides": {
+    "undici": "^7.30.1",
+    "postcss-selector-parser": "6.1.5"
   }
 }

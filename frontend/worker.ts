@@ -161,7 +161,7 @@ async function servePageWithMeta(request: Request, env: Env, ctx: Ctx): Promise<
   let meta: PageMeta
   let articleBody: ArticleBodyRender | null
   try {
-    ;[meta, articleBody] = await Promise.all([
+    [meta, articleBody] = await Promise.all([
       resolvePageMeta(pathname, ctx),
       loadArticleBody(pathname, ctx),
     ])
