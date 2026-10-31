@@ -23,13 +23,16 @@
   </view>
 </template>
 <script setup lang="ts">
-import { getCurrentInstance, ref, watch } from 'vue'
+import { getCurrentInstance, onBeforeUnmount, ref, watch } from 'vue'
 import { BASE_URL } from '@/api/request'
 import { TOOL_CLOUD_ENABLED } from '@/config/features'
 import { saveToolImage } from '@/utils/tool-media'
 import { localToolDate } from '@/utils/tool-history'
 import PrivacyAuthorizationPrompt from '@/components/PrivacyAuthorizationPrompt.vue'
 import { useMiniProgramPrivacyAuthorization } from '@/utils/privacy-authorization'
+import { reportOwner } from '@/utils/report-drafts'
+let disposed = false
+onBeforeUnmount(() => { disposed = true })
 const props = defineProps<{ week: number | null }>()
 const emit = defineEmits<{ saved: [] }>()
 const { visible: privacyVisible, ensurePrivacyAuthorization, agreePrivacyAuthorization, rejectPrivacyAuthorization, openPrivacyContract } = useMiniProgramPrivacyAuthorization()
@@ -44,6 +47,7 @@ function loadCode(): Promise<string> {
 }
 async function generate() {
   if (generating.value) return
+  const owner = reportOwner()
   generating.value = true; notice.value = ''; imagePath.value = ''; permissionDenied.value = false
   const week = props.week && props.week >= 1 && props.week <= 42 ? props.week : null
   try {
@@ -72,6 +76,7 @@ async function generate() {
       canvasId: 'stage-poster', width: 375, height: 450, destWidth: 1125, destHeight: 1350, fileType: 'png',
       success: result => resolve(result.tempFilePath), fail: () => reject(new Error('图片未能生成，请重试')),
     }, instance))
+    if (disposed || owner !== reportOwner()) return
     imagePath.value = generated
     const record = await saveToolImage('poster', generated, { week, date: localToolDate(), summary: week ? `孕 ${week} 周纪念卡` : '今日阶段纪念卡' })
     imagePath.value = String(record.payload.path)
@@ -83,7 +88,8 @@ async function generate() {
 function preview() { if (imagePath.value) uni.previewImage({ urls: [imagePath.value] }) }
 async function saveImage() {
   if (!imagePath.value || saving.value) return
-  if (!await ensurePrivacyAuthorization()) return
+  const owner = reportOwner()
+  if (!await ensurePrivacyAuthorization() || disposed || owner !== reportOwner()) return
   saving.value = true
   uni.saveImageToPhotosAlbum({
     filePath: imagePath.value,

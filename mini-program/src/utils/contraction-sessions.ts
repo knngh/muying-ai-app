@@ -1,3 +1,21 @@
+import { reportOwner } from './report-drafts'
+
+const timerKey = () => `beihu:contraction-start:v2:${reportOwner()}`
+const legacyTimerKey = 'beihu:contraction-start'
+
+export function readContractionStart(): string | null {
+  const value = uni.getStorageSync(timerKey()) || (reportOwner() === 'guest' ? uni.getStorageSync(legacyTimerKey) : null)
+  return typeof value === 'string' && Number.isFinite(Date.parse(value)) && Date.parse(value) <= Date.now() ? value : null
+}
+
+export function writeContractionStart(value: string | null): void {
+  if (value) uni.setStorageSync(timerKey(), value)
+  else {
+    uni.removeStorageSync(timerKey())
+    if (reportOwner() === 'guest') uni.removeStorageSync(legacyTimerKey)
+  }
+}
+
 export interface ContractionHistoryInput {
   startAt?: unknown
   endAt?: unknown

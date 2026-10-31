@@ -23,3 +23,20 @@ it('calculates actual session duration without extrapolating counts', () => {
   expect(movementElapsedSeconds('2026-09-24T08:00:00.000Z', '2026-09-24T08:22:30.000Z')).toBe(1350)
   expect(movementElapsedSeconds('2026-09-24T08:22:30.000Z', '2026-09-24T08:00:00.000Z')).toBe(0)
 })
+
+it('isolates active counts across accounts and keeps old device drafts with guests', () => {
+  const draft = { taps: ['2026-09-24T08:00:00.000Z'], mode: 'free' as const, startedAt: '2026-09-24T08:00:00.000Z' }
+  storage.set('beihu:movement-session:v2', draft)
+  storage.set('token', 'account-123'); storage.set('user', { id: '123' })
+  expect(readMovementSession().taps).toEqual([])
+  writeMovementSession({ ...draft, mode: 'one_hour_evening' })
+  storage.set('user', { id: '456' })
+  expect(readMovementSession().taps).toEqual([])
+  clearMovementSession()
+  storage.set('user', { id: '123' })
+  expect(readMovementSession().mode).toBe('one_hour_evening')
+  storage.delete('token'); storage.delete('user')
+  expect(readMovementSession().taps).toEqual(draft.taps)
+  clearMovementSession()
+  expect(readMovementSession().taps).toEqual([])
+})

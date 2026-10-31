@@ -50,7 +50,7 @@ function normalizeRecords(value: unknown): LocalToolRecord[] {
 function readStored(key: string): LocalToolRecord[] | undefined {
   try {
     const stored = uni.getStorageSync(key)
-    return stored === undefined || stored === null ? undefined : normalizeRecords(stored)
+    return stored === undefined || stored === null || stored === '' ? undefined : normalizeRecords(stored)
   } catch {
     return undefined
   }

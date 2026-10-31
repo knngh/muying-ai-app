@@ -115,7 +115,7 @@ function ask(content: string): Promise<boolean> { return new Promise(resolve => 
 function preview(path: string) { if (current()) uni.previewImage({ urls: [path], fail: () => { notice.value = '图片暂时无法查看，请重新选择或稍后再试' } }) }
 function login() { uni.navigateTo({ url: `/pages/login/index?redirect=${encodeURIComponent('/pages/tool-detail/index?id=reports')}` }) }
 async function chooseImage() {
-  if (!await ensurePrivacyAuthorization()) return
+  if (!current() || !await ensurePrivacyAuthorization() || !current()) return
   uni.chooseImage({ count: 1, sizeType: ['original'], sourceType: ['camera', 'album'], success: result => {
     if (!current()) return
     const files = result.tempFiles as { size: number }[]

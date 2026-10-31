@@ -83,6 +83,10 @@ async function request<T = unknown>(options: RequestOptions): Promise<T> {
       header,
       timeout: options.timeout,
       success: async (res) => {
+        if (token && uni.getStorageSync('token') !== token) {
+          reject(new Error('账号已变化，请重新操作'))
+          return
+        }
         const statusCode = res.statusCode
         const body = parseResponseBody<T>(res.data) as ApiResponse<T>
 
@@ -131,6 +135,10 @@ async function upload<T = unknown>(
       formData: formData as AnyObject,
       header,
       success: (res) => {
+        if (token && uni.getStorageSync('token') !== token) {
+          reject(new Error('账号已变化，请重新操作'))
+          return
+        }
         const statusCode = res.statusCode
         const body = parseResponseBody<T>(res.data)
 

@@ -117,7 +117,7 @@
 
     <ReportArchive v-else-if="tool.id === 'reports'" :key="reportScope" ref="reportPanel" :owner="reportScope" :history-only="activePanel === 'history'" @count="reportCount = $event" @latest="reportLatest = $event" @saved="activePanel = 'history'" />
 
-    <StagePoster v-else-if="tool.id === 'poster'" :week="currentWeek" @saved="onPosterSaved" />
+    <StagePoster v-else-if="tool.id === 'poster'" :key="reportScope" :week="currentWeek" @saved="onPosterSaved" />
 
     <DiaryJournal v-else-if="tool.id === 'diary'" :key="reportScope" :records="displayRecords" :owner="reportScope" @saved="onDiarySaved" @view-record="viewSourceRecord" @review-week="reviewDiaryWeek" />
 
@@ -192,7 +192,7 @@ import { summarizeDiaryWeek } from '@/utils/diary-week'
 import { expenseApiInput, expenseFromRemote } from '@/utils/expense-ledger'
 import { saveToolImage, removeUnusedToolImage } from '@/utils/tool-media'
 import { TOOL_CLOUD_ENABLED } from '@/config/features'
-import { contractionIntervalSeconds, summarizeContractionHistory } from '@/utils/contraction-sessions'
+import { contractionIntervalSeconds, summarizeContractionHistory, readContractionStart, writeContractionStart } from '@/utils/contraction-sessions'
 import { MOVEMENT_MODES, clearMovementSession, movementElapsedSeconds, movementModeLabel, readMovementSession, type MovementMode, writeMovementSession } from '@/utils/movement-session'
 import { PACKING_GROUPS, PACKING_ITEMS, buildPackingShareText, packingDoneCount as countPackingDone, type PackingGroup } from '@/utils/packing-items'
 import { currentToolPeriod, parseToolPeriod, periodTools, toolPeriodLabel, type ToolPeriod } from '@/utils/tool-period'
@@ -515,11 +515,11 @@ function toggleContraction() {
     void syncServer(record)
     contractionStart.value = null
     if (contractionTimer) clearInterval(contractionTimer)
-    uni.removeStorageSync('beihu:contraction-start')
+    writeContractionStart(null)
     return
   }
   const startedAt = new Date().toISOString()
-  try { uni.setStorageSync('beihu:contraction-start', startedAt) }
+  try { writeContractionStart(startedAt) }
   catch { showNotice('未能保存计时起点，请检查本机空间'); return }
   contractionStart.value = startedAt
   contractionNow.value = Date.now()
@@ -634,8 +634,11 @@ function completeVaccine(record: LocalToolRecord) {
 }
 function saveFood() { if (!foodName.value.trim()) { showNotice('请填写食材名称'); return }; const record = save('trial', { name: foodName.value.trim(), note: foodNote.value || null, date: recordDate.value }, `${foodName.value.trim()} · 已记录观察`); if (record) { void syncServer(record); foodName.value = ''; foodNote.value = '' } }
 async function chooseAlbumImage() {
-  if (!await ensurePrivacyAuthorization()) return
-  uni.chooseImage({ count: 1, sourceType: ['album', 'camera'], success: result => { albumPreview.value = result.tempFilePaths[0] || '' } })
+  const owner = reportOwner()
+  if (!await ensurePrivacyAuthorization() || owner !== reportOwner()) return
+  uni.chooseImage({ count: 1, sourceType: ['album', 'camera'], success: result => {
+    if (owner === reportOwner()) albumPreview.value = result.tempFilePaths[0] || ''
+  } })
 }
 async function saveAlbum() {
   if (!albumPreview.value || albumSaving.value) return
@@ -653,21 +656,32 @@ onLoad((options) => {
   reload()
   void openRequestedRecord()
   void loadRemoteRecords()
-  if (toolId.value === 'movement') {
-    const session = readMovementSession()
-    movementTaps.value = session.taps
-    movementMode.value = session.mode
-    movementStartedAt.value = session.startedAt
-    movementNow.value = Date.now()
-    if (movementTaps.value.length) startMovementTimer()
-  }
-  const startedAt = uni.getStorageSync('beihu:contraction-start')
-  if (toolId.value === 'contractions' && typeof startedAt === 'string' && Number.isFinite(Date.parse(startedAt)) && Date.parse(startedAt) <= Date.now()) {
-    contractionStart.value = startedAt
-    contractionTimer = setInterval(() => { contractionNow.value = Date.now() }, 1000)
-  }
 })
-onShow(() => { reload(); pinnedIds.value = readHomeTools(); reportScope.value = reportOwner(); reportPanel.value?.refresh?.(); void openRequestedRecord() })
+function restoreTimers() {
+  if (contractionTimer) clearInterval(contractionTimer)
+  if (movementTimer) clearInterval(movementTimer)
+  contractionStart.value = toolId.value === 'contractions' ? readContractionStart() : null
+  contractionNow.value = Date.now()
+  if (contractionStart.value) contractionTimer = setInterval(() => { contractionNow.value = Date.now() }, 1000)
+  const session = readMovementSession()
+  movementTaps.value = session.taps
+  movementMode.value = session.mode
+  movementStartedAt.value = session.startedAt
+  movementNow.value = Date.now()
+  if (toolId.value === 'movement' && movementTaps.value.length) startMovementTimer()
+}
+onShow(() => {
+  const owner = reportOwner()
+  if (owner !== reportScope.value) {
+    albumPreview.value = ''; weightValue.value = ''; growthValue.value = ''
+    vaccineName.value = ''; foodName.value = ''; foodNote.value = ''; notice.value = ''
+    reportCount.value = 0; reportLatest.value = null; requestedRecordId.value = ''
+    recordDate.value = today()
+  }
+  reportScope.value = owner
+  restoreTimers()
+  reload(); pinnedIds.value = readHomeTools(); reportPanel.value?.refresh?.(); void openRequestedRecord()
+})
 onBeforeUnmount(() => { if (contractionTimer) clearInterval(contractionTimer); if (movementTimer) clearInterval(movementTimer) })
 onShareAppMessage(() => ({ title: `贝护 · ${tool.value.title}`, path: `/pages/tool-detail/index?id=${toolId.value}` }))
 onShareTimeline(() => ({ title: `贝护 · ${tool.value.title}` }))

@@ -1,3 +1,5 @@
+import { reportOwner } from './report-drafts'
+
 export type MovementMode = 'free' | 'one_hour_morning' | 'one_hour_midday' | 'one_hour_evening'
 
 export const MOVEMENT_MODES: Array<{ value: MovementMode; label: string }> = [
@@ -15,6 +17,7 @@ export interface MovementDraft {
 
 const SESSION_KEY = 'beihu:movement-session:v2'
 const LEGACY_KEY = 'beihu:movement-session:v1'
+const ownerKey = () => `beihu:movement-session:v3:${reportOwner()}`
 
 function validTap(value: unknown): value is string {
   return typeof value === 'string' && Number.isFinite(Date.parse(value))
@@ -25,13 +28,15 @@ function validMode(value: unknown): value is MovementMode {
 }
 
 export function readMovementSession(): MovementDraft {
-  const stored: unknown = uni.getStorageSync(SESSION_KEY)
+  let stored: unknown = uni.getStorageSync(ownerKey())
+  // Old device-wide drafts belong to guests, never to the next signed-in user.
+  if (!stored && reportOwner() === 'guest') stored = uni.getStorageSync(SESSION_KEY)
   if (stored && typeof stored === 'object') {
     const value = stored as Partial<MovementDraft>
     const taps = Array.isArray(value.taps) ? value.taps.filter(validTap).slice(0, 10000) : []
     return { taps, mode: validMode(value.mode) ? value.mode : 'free', startedAt: validTap(value.startedAt) ? value.startedAt : taps[0] || null }
   }
-  const legacy: unknown = uni.getStorageSync(LEGACY_KEY)
+  const legacy: unknown = reportOwner() === 'guest' ? uni.getStorageSync(LEGACY_KEY) : null
   const taps = Array.isArray(legacy) ? legacy.filter(validTap).slice(0, 10000) : []
   return { taps, mode: 'free', startedAt: taps[0] || null }
 }
@@ -42,12 +47,15 @@ export function writeMovementSession(draft: MovementDraft): void {
     clearMovementSession()
     return
   }
-  uni.setStorageSync(SESSION_KEY, { taps, mode: validMode(draft.mode) ? draft.mode : 'free', startedAt: validTap(draft.startedAt) ? draft.startedAt : taps[0] })
+  uni.setStorageSync(ownerKey(), { taps, mode: validMode(draft.mode) ? draft.mode : 'free', startedAt: validTap(draft.startedAt) ? draft.startedAt : taps[0] })
 }
 
 export function clearMovementSession(): void {
-  uni.removeStorageSync(SESSION_KEY)
-  uni.removeStorageSync(LEGACY_KEY)
+  uni.removeStorageSync(ownerKey())
+  if (reportOwner() === 'guest') {
+    uni.removeStorageSync(SESSION_KEY)
+    uni.removeStorageSync(LEGACY_KEY)
+  }
 }
 
 export function movementModeLabel(mode: unknown): string {

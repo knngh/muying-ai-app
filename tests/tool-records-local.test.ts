@@ -35,3 +35,15 @@ it('keeps legacy records in the guest namespace and isolates account records', (
   useOwner('guest');
   expect(readToolRecords().map(item => item.payload.value)).toEqual([61]);
 });
+
+it('migrates guest records when uni returns an empty string for a missing storage key', () => {
+  const uniStore = (globalThis as unknown as { uni: { getStorageSync: (key: string) => unknown } }).uni;
+  const previous = uniStore.getStorageSync;
+  uniStore.getStorageSync = key => storage.has(key) ? storage.get(key) : '';
+  try {
+    storage.set('beihu:tool-records:v1', [{ id: 'legacy', toolId: 'weight', recordType: 'measurement', createdAt: '2026-09-21', updatedAt: '2026-09-21', syncStatus: 'local', payload: { value: 61 } }]);
+    expect(readToolRecords().map(item => item.id)).toEqual(['legacy']);
+    storage.set('beihu:tool-records:v2:guest', []);
+    expect(readToolRecords()).toEqual([]);
+  } finally { uniStore.getStorageSync = previous; }
+});
