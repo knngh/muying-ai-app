@@ -6,6 +6,7 @@ import {
 import {
   __authoritySyncTestUtils,
   diagnoseAuthorityUrlDiscovery,
+  discoverAuthorityUrls,
   normalizeAuthorityDocument,
   shouldExportAuthoritySnapshotDocument,
 } from '../src/services/authority-sync.service';
@@ -13,6 +14,27 @@ import { detectAudience, detectTopic, extractTitle, shouldPublishDocument } from
 import { inferAuthorityStages } from '../src/utils/authority-stage';
 
 describe('authority index discovery', () => {
+  test('reports a blocked discovery endpoint instead of a successful empty crawl', async () => {
+    const originalFetch = global.fetch;
+    global.fetch = jest.fn().mockResolvedValue(new Response('Access denied', { status: 403 }));
+    try {
+      await expect(discoverAuthorityUrls(getAuthoritySourceConfig('cdc')!, 'incremental'))
+        .rejects.toThrow('HTTP 403');
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  test('accepts a reachable but empty sitemap without reporting a network failure', async () => {
+    const originalFetch = global.fetch;
+    global.fetch = jest.fn().mockImplementation(() => Promise.resolve(new Response('<urlset></urlset>', { status: 200 })));
+    try {
+      await expect(discoverAuthorityUrls(getAuthoritySourceConfig('cdc')!, 'incremental')).resolves.toEqual([]);
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
   test('includes controlled official Chinese sources in automatic authority sync', () => {
     const enabled = listEnabledAuthoritySources();
     const enabledIds = enabled.map((source) => source.id);

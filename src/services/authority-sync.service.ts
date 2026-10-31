@@ -99,6 +99,7 @@ export interface AuthoritySyncSummary {
   notModified?: number;
   pending?: number;
   skippedBeforeFetch?: number;
+  requeued?: number;
   error?: string;
 }
 
@@ -1743,6 +1744,12 @@ export async function discoverAuthorityUrls(
   const diagnosis = await diagnoseAuthorityUrlDiscovery(source, mode, {
     strictFetchErrors: true,
   });
+  if (diagnosis.discovered.length === 0
+    && diagnosis.entryDiagnostics.length > 0
+    && diagnosis.entryDiagnostics.every((entry) => !entry.ok)) {
+    const failures = diagnosis.entryDiagnostics.map((entry) => `${entry.entryUrl}: ${entry.error || `HTTP ${entry.status}`}`);
+    throw new Error(`Authority discovery unavailable (${source.id}): ${failures.join('; ')}`);
+  }
   return diagnosis.discovered;
 }
 
@@ -1865,6 +1872,44 @@ async function countPendingDiscoveredUrls(sourceId: string): Promise<number> {
     sourceId,
   );
   return rows.length > 0 ? Number(rows[0]?.count) : 0;
+}
+
+export async function requeueStaleAuthorityUrls(
+  source: AuthoritySourceConfig,
+  budget: number,
+  now = new Date(),
+): Promise<number> {
+  await ensureAuthoritySyncTables();
+  const pending = await countPendingDiscoveredUrls(source.id);
+  const limit = Math.max(0, Math.min(50, Math.floor(budget) - pending));
+  if (limit === 0) {
+    return 0;
+  }
+
+  // A sitemap lastmod is optional and index pages often never provide one.
+  // Revalidate existing content weekly and retry failures daily, filling only
+  // unused fetch capacity so fresh discoveries always keep their place.
+  const refreshMinutes = Math.max(source.fetchIntervalMinutes, 7 * 24 * 60);
+  const retryMinutes = Math.max(source.fetchIntervalMinutes, 24 * 60);
+  const updated = await prisma.$executeRawUnsafe(
+    `UPDATE authority_discovered_urls
+     SET status = 'pending'
+     WHERE source_id = ? AND (
+       (status = 'done' AND last_fetched_at <= ? AND EXISTS (
+         SELECT 1 FROM authority_normalized_documents AS document
+         WHERE document.source_id = authority_discovered_urls.source_id
+           AND document.source_url = authority_discovered_urls.url
+           AND document.publish_status <> 'rejected'
+       ))
+       OR (status = 'failed' AND last_fetched_at <= ?)
+     )
+     ORDER BY (status = 'done') DESC, last_fetched_at ASC, id ASC
+     LIMIT ${limit}`,
+    source.id,
+    toMysqlDateTime(new Date(now.getTime() - refreshMinutes * 60 * 1000).toISOString()),
+    toMysqlDateTime(new Date(now.getTime() - retryMinutes * 60 * 1000).toISOString()),
+  );
+  return Number(updated);
 }
 
 export async function fetchAuthorityDocument(source: AuthoritySourceConfig, url: string): Promise<AuthorityRawDocument | null> {
@@ -2158,6 +2203,8 @@ export async function syncAuthoritySource(
     1,
     Math.min(source.maxPagesPerRun, getTierFetchBudget(source.qualityTier)),
   );
+  summary.requeued = await requeueStaleAuthorityUrls(source, budget);
+  console.log(`[Authority Sync] source=${source.id}, discovered=${summary.discovered}, requeued=${summary.requeued}, budget=${budget}`);
   const batch = await loadPendingDiscoveredUrls(source, getPendingAuthorityUrlScanLimit(source, budget));
   let fetchedOrAttemptedThisRun = 0;
 
@@ -2259,6 +2306,7 @@ export async function syncAuthoritySource(
     publishVectors: options.publishVectorSnapshot ?? true,
   });
 
+  console.log('[Authority Sync] source result:', JSON.stringify(summary));
   return summary;
 }
 

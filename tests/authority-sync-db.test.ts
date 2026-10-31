@@ -25,6 +25,7 @@ import {
   loadPendingDiscoveredUrls,
   persistDiscoveredAuthorityUrls,
   persistNormalizedAuthorityDocument,
+  requeueStaleAuthorityUrls,
 } from '../src/services/authority-sync.service';
 
 // information_schema lookups in ensureAuthoritySyncTables / ensureTableColumn
@@ -40,10 +41,44 @@ beforeEach(() => {
   queryRawUnsafe.mockReset();
   executeRawUnsafe.mockReset();
   queryRawUnsafe.mockImplementation((sql: string) => defaultQueryImpl(sql));
-  executeRawUnsafe.mockResolvedValue(undefined);
+  executeRawUnsafe.mockResolvedValue(0);
 });
 
 describe('discovered-url backlog rotation', () => {
+  it('rechecks old completed pages without lastmod and retries failures within a bounded budget', async () => {
+    const source = getAuthoritySourceConfig('who')!;
+    const now = new Date('2026-10-31T00:00:00Z');
+    executeRawUnsafe.mockResolvedValue(3);
+
+    expect(await requeueStaleAuthorityUrls(source, 200, now)).toBe(3);
+
+    const update = executeRawUnsafe.mock.calls.find(([sql]) => /UPDATE authority_discovered_urls/.test(sql));
+    expect(update).toBeDefined();
+    expect(update![0]).toMatch(/status = 'done'[\s\S]*last_fetched_at <= \?/);
+    expect(update![0]).toMatch(/status = 'failed'[\s\S]*last_fetched_at <= \?/);
+    expect(update![0]).toContain("publish_status <> 'rejected'");
+    expect(update![0]).not.toContain('last_modified IS NOT NULL');
+    expect(update![0]).toContain('LIMIT 50');
+    expect(update!.slice(1)).toEqual(['who', '2026-10-24 00:00:00', '2026-10-30 00:00:00']);
+  });
+
+  it('preserves room for new pending pages and does not expand an already full queue', async () => {
+    const source = getAuthoritySourceConfig('who')!;
+    queryRawUnsafe.mockImplementation((sql: string) => /SELECT COUNT\(\*\) AS count[\s\S]*status = 'pending'/.test(sql)
+      ? [{ count: 195n }]
+      : defaultQueryImpl(sql));
+    await requeueStaleAuthorityUrls(source, 200);
+    const update = executeRawUnsafe.mock.calls.find(([sql]) => /UPDATE authority_discovered_urls/.test(sql));
+    expect(update![0]).toContain('LIMIT 5');
+
+    executeRawUnsafe.mockClear();
+    queryRawUnsafe.mockImplementation((sql: string) => /SELECT COUNT\(\*\) AS count[\s\S]*status = 'pending'/.test(sql)
+      ? [{ count: 200n }]
+      : defaultQueryImpl(sql));
+    expect(await requeueStaleAuthorityUrls(source, 200)).toBe(0);
+    expect(executeRawUnsafe.mock.calls.some(([sql]) => /UPDATE authority_discovered_urls/.test(sql))).toBe(false);
+  });
+
   it('loads only pending rows scoped to the source with the budget LIMIT', async () => {
     const source = getAuthoritySourceConfig('chinacdc-nutrition')!;
     queryRawUnsafe.mockImplementation((sql: string) => {
@@ -234,7 +269,7 @@ describe('authority snapshot publishing cadence', () => {
           }
           return Promise.resolve([]);
         },
-        $executeRawUnsafe: jest.fn().mockResolvedValue(undefined),
+        $executeRawUnsafe: jest.fn().mockResolvedValue(0),
       },
     }));
     jest.doMock('../src/config/authority-sources', () => {
