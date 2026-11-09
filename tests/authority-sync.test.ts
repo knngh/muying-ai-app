@@ -681,7 +681,30 @@ describe('authority index discovery', () => {
     expect(chineseSource).toBeDefined();
 
     expect(__authoritySyncTestUtils.getPendingAuthorityUrlScanLimit(nhsSource!, 200)).toBe(2000);
-    expect(__authoritySyncTestUtils.getPendingAuthorityUrlScanLimit(chineseSource!, 120)).toBe(120);
+    expect(__authoritySyncTestUtils.getPendingAuthorityUrlScanLimit(chineseSource!, 120)).toBeGreaterThan(120);
+  });
+
+  test.each([
+    '/jkkp/yyjk/swyy/202602/t20260224_315186.html',
+    '/jkkp/yyjk/wlyy/202408/t20240825_295603.html',
+    '/jkkp/yyjk/jbyy/202408/t20240825_295601.html',
+    '/gzdt/zsdw/202603/t20260319_315642.html',
+  ])('skips retired China CDC nutrition backlog path %s before fetching', pathname => {
+    const source = getAuthoritySourceConfig('chinacdc-nutrition')!;
+    expect(__authoritySyncTestUtils.shouldSkipPendingAuthorityUrlBeforeFetch(
+      source,
+      `https://www.chinacdc.cn${pathname}`,
+    )).toBe(true);
+  });
+
+  test('keeps in-scope China CDC URLs without anchor text and scans past stale rows', () => {
+    const source = getAuthoritySourceConfig('chinacdc-nutrition')!;
+    expect(__authoritySyncTestUtils.shouldSkipPendingAuthorityUrlBeforeFetch(
+      source,
+      'https://www.chinacdc.cn/jkkp/yyjk/rqyy/202609/t20260910_1839987.html',
+    )).toBe(false);
+    // A page of 24 retired links must not hide the next 24 eligible pages.
+    expect(__authoritySyncTestUtils.getPendingAuthorityUrlScanLimit(source, 24)).toBeGreaterThanOrEqual(48);
   });
 
   test('extracts pagination links from category pages without following other channel tabs', () => {

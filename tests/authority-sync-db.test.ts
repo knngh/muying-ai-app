@@ -191,6 +191,17 @@ describe('conditional fetch 304 handling', () => {
     global.fetch = originalFetch;
   });
 
+  it('can fetch the complete body again after a parser repair without changing stored validators', async () => {
+    queryRawUnsafe.mockResolvedValue([{ etag: '"abc"', lastModified: 'Wed, 01 Jan 2025 00:00:00 GMT' }]);
+    const fetchMock = jest.fn().mockResolvedValue(new Response('<p>完整正文</p>', { status: 200 }));
+    global.fetch = fetchMock;
+    const result = await fetchAuthorityDocument(getAuthoritySourceConfig('who')!, 'https://www.who.int/example', { ignoreValidators: true });
+    expect(fetchMock.mock.calls[0][1].headers['If-None-Match']).toBeUndefined();
+    expect(fetchMock.mock.calls[0][1].headers['If-Modified-Since']).toBeUndefined();
+    expect(result?.rawBody).toContain('完整正文');
+    expect(result?.httpStatus).toBe(200);
+  });
+
   it('sends prior validators and returns a not-modified marker on 304 without a body', async () => {
     const source = getAuthoritySourceConfig('who')!;
     const url = 'https://www.who.int/example';

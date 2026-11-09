@@ -99,6 +99,8 @@ export interface AuthoritySyncSummary {
   notModified?: number;
   pending?: number;
   skippedBeforeFetch?: number;
+  filtered?: number;
+  gone?: number;
   requeued?: number;
   error?: string;
 }
@@ -134,6 +136,7 @@ export interface ListAuthorityDocumentsOptions {
 
 interface SyncAuthoritySourceOptions {
   publishVectorSnapshot?: boolean;
+  reprocessUnchanged?: boolean;
 }
 
 interface ExportPublishedAuthoritySnapshotOptions {
@@ -929,6 +932,15 @@ function selectDiverseAuthorityUrls(
 }
 
 function shouldSkipPendingAuthorityUrlBeforeFetch(source: AuthoritySourceConfig, url: string): boolean {
+  if (source.id === 'chinacdc-nutrition') {
+    // Old queue entries outlive source configuration. Only the current column
+    // is eligible; a queued URL no longer has its discovery anchor text.
+    try {
+      const parsed = new URL(url);
+      return !/(^|\.)chinacdc\.cn$/i.test(parsed.hostname)
+        || !/^\/jkkp\/yyjk\/rqyy\/\d{6}\/t\d{8}_\d+\.s?html?$/i.test(parsed.pathname);
+    } catch { return true; }
+  }
   // Some sources require anchor/title text to prove maternal-infant relevance.
   // NHS URL paths are structured enough to re-evaluate old pending rows safely.
   if (source.id !== 'nhs') {
@@ -941,7 +953,7 @@ function shouldSkipPendingAuthorityUrlBeforeFetch(source: AuthoritySourceConfig,
 function getPendingAuthorityUrlScanLimit(source: AuthoritySourceConfig, fetchBudget: number): number {
   const budget = Math.max(1, Math.floor(fetchBudget));
 
-  if (source.id !== 'nhs') {
+  if (source.id !== 'nhs' && source.id !== 'chinacdc-nutrition') {
     return budget;
   }
 
@@ -1852,7 +1864,7 @@ export async function loadPendingDiscoveredUrls(
 async function markDiscoveredUrlStatus(
   sourceId: string,
   url: string,
-  status: 'done' | 'failed',
+  status: 'done' | 'failed' | 'gone',
   options: { contentHash?: string | null } = {},
 ): Promise<void> {
   await prisma.$executeRawUnsafe(
@@ -1917,7 +1929,11 @@ export async function requeueStaleAuthorityUrls(
   return Number(updated);
 }
 
-export async function fetchAuthorityDocument(source: AuthoritySourceConfig, url: string): Promise<AuthorityRawDocument | null> {
+export async function fetchAuthorityDocument(
+  source: AuthoritySourceConfig,
+  url: string,
+  options: { ignoreValidators?: boolean } = {},
+): Promise<AuthorityRawDocument | null> {
   // Reuse the most recent validators so the origin can answer 304 Not Modified
   // and we can skip re-normalizing unchanged content.
   const priorRows = await prisma.$queryRawUnsafe<Array<{
@@ -1934,10 +1950,10 @@ export async function fetchAuthorityDocument(source: AuthoritySourceConfig, url:
   );
   const prior = priorRows[0];
   const conditionalHeaders: Record<string, string> = {};
-  if (prior?.etag) {
+  if (prior?.etag && !options.ignoreValidators) {
     conditionalHeaders['If-None-Match'] = prior.etag;
   }
-  if (prior?.lastModified) {
+  if (prior?.lastModified && !options.ignoreValidators) {
     conditionalHeaders['If-Modified-Since'] = prior.lastModified;
   }
 
@@ -2186,6 +2202,8 @@ export async function syncAuthoritySource(
     notModified: 0,
     pending: 0,
     skippedBeforeFetch: 0,
+    filtered: 0,
+    gone: 0,
   };
 
   // 1) Discovery seeds/refreshes the FULL candidate backlog (status=pending).
@@ -2212,6 +2230,7 @@ export async function syncAuthoritySource(
   console.log(`[Authority Sync] source=${source.id}, discovered=${summary.discovered}, requeued=${summary.requeued}, budget=${budget}`);
   const batch = await loadPendingDiscoveredUrls(source, getPendingAuthorityUrlScanLimit(source, budget));
   let fetchedOrAttemptedThisRun = 0;
+  let consecutiveAccessDenials = 0;
 
   for (const discovered of batch) {
     try {
@@ -2226,12 +2245,16 @@ export async function syncAuthoritySource(
       }
       fetchedOrAttemptedThisRun += 1;
 
-      const raw = await fetchAuthorityDocument(source, discovered.url);
+      const raw = await fetchAuthorityDocument(source, discovered.url, { ignoreValidators: options.reprocessUnchanged });
       if (!raw) {
+        consecutiveAccessDenials = 0;
         summary.failed += 1;
         await markDiscoveredUrlStatus(source.id, discovered.url, 'failed');
         continue;
       }
+
+      consecutiveAccessDenials = raw.httpStatus === 403 || raw.httpStatus === 429
+        ? consecutiveAccessDenials + 1 : 0;
 
       if (raw.notModified) {
         // Content unchanged at the origin: keep the existing record, just mark
@@ -2242,16 +2265,26 @@ export async function syncAuthoritySource(
       }
 
       if (raw.httpStatus >= 400) {
-        summary.failed += 1;
-        await markDiscoveredUrlStatus(source.id, discovered.url, 'failed');
+        // Removed pages may be rediscovered if the sitemap lastmod advances;
+        // retrying the same 404 every day cannot recover their missing content.
+        const gone = raw.httpStatus === 404 || raw.httpStatus === 410;
+        if (gone) summary.gone = (summary.gone || 0) + 1;
+        else summary.failed += 1;
+        await markDiscoveredUrlStatus(source.id, discovered.url, gone ? 'gone' : 'failed');
+        console.warn(`[Authority Sync] HTTP ${raw.httpStatus}: ${source.id} -> ${discovered.url}`);
+        if (consecutiveAccessDenials >= 3) {
+          summary.error = `HTTP ${raw.httpStatus}: source denied three consecutive requests; remaining queue deferred`;
+          break;
+        }
         continue;
       }
       summary.fetched += 1;
 
       const normalized = normalizeAuthorityDocument(source, raw);
       if (!normalized) {
-        summary.failed += 1;
-        // Fetched fine but unparseable; mark done so we don't loop on it.
+        summary.filtered = (summary.filtered || 0) + 1;
+        // An HTTP-success document excluded by the content adapter is not a
+        // network failure. Keep its raw snapshot available for later audits.
         await markDiscoveredUrlStatus(source.id, discovered.url, 'done', {
           contentHash: raw.contentHash,
         });
@@ -2299,6 +2332,7 @@ export async function syncAuthoritySource(
         }
       }
     } catch (error) {
+      consecutiveAccessDenials = 0;
       summary.failed += 1;
       await markDiscoveredUrlStatus(source.id, discovered.url, 'failed').catch(() => {});
       console.error(`[Authority Sync] Failed: ${source.id} -> ${discovered.url}`, error);
