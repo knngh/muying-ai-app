@@ -2,7 +2,10 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App'
+import { installAssetRecovery } from './utils/assetRecovery'
 import './styles/index.css'
+
+installAssetRecovery()
 
 // Keep other tabs from retaining a previous account after sign-out/sign-in.
 window.addEventListener('storage', (event) => {

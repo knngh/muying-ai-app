@@ -128,7 +128,7 @@ export function Knowledge() {
   }
 
   const goToDetail = (slug: string) => {
-    navigate(`/knowledge/${slug}`)
+    navigate(`/knowledge/${slug}`, { state: { knowledgeSearch: searchParams.toString() } })
   }
 
   const getDisplayTitle = (article: Article) => {

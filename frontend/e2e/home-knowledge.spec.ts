@@ -38,3 +38,32 @@ test('knowledge filters survive direct links, reload and browser history', async
   await expect(page).toHaveURL(/\/knowledge$/)
   await expect(page.getByLabel('原文语言', { exact: true })).toHaveValue('')
 })
+
+test('article reading shows original source, honest dates and returns to the filtered list', async ({ page }) => {
+  await page.goto('/knowledge?stage=first-trimester&language=zh')
+  await page.getByRole('link', { name: ARTICLE_TITLE, exact: true }).click()
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(ARTICLE_TITLE)
+  await expect(page.getByRole('link', { name: '阅读原文', exact: true })).toHaveAttribute('href', 'https://example.invalid/folic-acid')
+  await expect(page.getByText(/收录日期：/).first()).toBeVisible()
+  await expect(page.getByText('来源更新：')).toHaveCount(0)
+  await page.getByRole('button', { name: '返回列表', exact: true }).click()
+  await expect(page).toHaveURL(/\/knowledge\?stage=first-trimester&language=zh$/)
+})
+
+test('HTML returned from an API never crashes knowledge navigation and can be retried', async ({ page }) => {
+  let unavailable = true
+  await page.route('**/api/v1/{articles,categories,tags}*', async route => {
+    if (unavailable) await route.fulfill({ status: 200, contentType: 'text/html', body: '<!DOCTYPE html><html><body>SPA fallback</body></html>' })
+    else await route.fallback()
+  })
+  await page.goto('/')
+  await page.getByRole('link', { name: '浏览知识库', exact: true }).click()
+  await expect(page.getByRole('heading', { name: '知识库', exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '页面出错了', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('alert')).toContainText('服务暂时不可用')
+  unavailable = false
+  await page.getByRole('button', { name: '重新加载', exact: true }).click()
+  await expect(page.getByRole('heading', { name: ARTICLE_TITLE })).toBeVisible()
+  await page.getByRole('navigation', { name: '主导航' }).getByRole('button', { name: '首页', exact: true }).click()
+  await expect(page.getByRole('link', { name: '浏览知识库', exact: true })).toBeVisible()
+})

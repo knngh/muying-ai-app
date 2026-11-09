@@ -115,119 +115,27 @@
 }
 
 .readingMetaCard {
-  margin: 0 0 24px;
-  padding: 18px;
-  border-radius: 24px;
-  border: 1px solid rgba(96, 128, 136, 0.12);
-  background:
-    radial-gradient(circle at top left, rgba(220, 236, 238, 0.8), transparent 28%),
-    rgba(248, 252, 252, 0.96);
-}
-
-.readingMetaHeader {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
-  margin-bottom: 14px;
-}
-
-.readingMetaHeader strong {
-  color: #375764;
+  margin: 0 0 24px;
+  color: var(--ui-muted);
   font-size: 13px;
 }
 
-.readingMetaKicker {
-  color: #4f7781;
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+.readingMetaCard a,
+.sourceBox a {
+  color: var(--ui-accent);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 4px;
 }
 
-.readingMetaGrid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.readingMetaItem {
-  display: grid;
-  gap: 6px;
-  padding: 14px 16px;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.84);
-  border: 1px solid rgba(96, 128, 136, 0.08);
-}
-
-.readingMetaItem span {
-  color: #7a9097;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.readingMetaItem strong {
-  color: #2f3d44;
-  line-height: 1.5;
-}
-
-.readingPathCard {
-  margin: 0 0 24px;
-  padding: 22px;
-  border-radius: 26px;
-  border: 1px solid rgba(154, 112, 82, 0.12);
-  background:
-    radial-gradient(circle at top right, rgba(255, 226, 205, 0.72), transparent 28%),
-    rgba(255, 250, 246, 0.95);
-}
-
-.readingPathKicker {
-  display: inline-block;
-  color: #b16243;
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-
-.readingPathTitle {
-  margin: 12px 0 8px;
-  color: #31241f;
-  font-size: 24px;
-  line-height: 1.25;
-}
-
-.readingPathDesc {
-  margin: 0;
-  color: #7a645a;
-  line-height: 1.8;
-}
-
-.readingPathList {
-  margin: 18px 0 0;
-  padding: 0;
-  list-style: none;
-  display: grid;
-  gap: 12px;
-}
-
-.readingPathItem {
-  display: grid;
-  gap: 4px;
-  padding: 14px 16px;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.82);
-  border: 1px solid rgba(154, 112, 82, 0.08);
-}
-
-.readingPathItem strong {
-  color: #3a2b25;
-  font-size: 15px;
-}
-
-.readingPathItem span {
-  color: #6f5a50;
-  line-height: 1.75;
+.readingMetaCard a:focus-visible,
+.sourceBox a:focus-visible {
+  outline: 2px solid var(--ui-accent);
+  outline-offset: 4px;
 }
 
 .outlineCard {
@@ -575,9 +483,6 @@
 }
 
 @media (max-width: 640px) {
-  .readingMetaGrid {
-    grid-template-columns: 1fr;
-  }
 
   .actions {
     flex-direction: column;

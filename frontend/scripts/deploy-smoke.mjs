@@ -27,6 +27,15 @@ const sw = await fetch(new URL('/notifications-sw.js', baseURL))
 assert.ok(sw.ok)
 assert.match(sw.headers.get('content-type') || '', /javascript/)
 
+// Introduction and knowledge library have separate canonical URLs.
+for (const [path, title] of [['/', '陪伴每一步孕育日常'], ['/knowledge', '权威母婴知识库']]) {
+  const response = await fetch(new URL(path, baseURL))
+  assert.ok(response.ok())
+  const html = await response.text()
+  assert.ok(html.includes(title), `${path}: page title must match its purpose`)
+  assert.ok(html.includes(`rel="canonical" href="https://hibeihu.com${path}"`), `${path}: canonical must point to itself`)
+}
+
 // SEO 基建：robots / llms.txt / sitemap / 文章页 meta 注入
 const robots = await fetch(new URL('/robots.txt', baseURL))
 assert.ok(robots.ok, '/robots.txt must be served')
@@ -42,6 +51,7 @@ assert.ok(sitemap.ok, '/sitemap.xml must be served')
 assert.match(sitemap.headers.get('content-type') || '', /xml/)
 const sitemapBody = await sitemap.text()
 assert.match(sitemapBody, /<urlset/, 'sitemap must be valid XML urlset')
+assert.ok(sitemapBody.includes('https://hibeihu.com/</loc>'), 'sitemap must list the introduction page')
 assert.ok(sitemapBody.includes('/knowledge</loc>'), 'sitemap must list /knowledge')
 const firstSlug = articles.data.list[0]?.slug
 if (firstSlug) {
@@ -65,7 +75,7 @@ const pageErrors = []
 try {
   const page = await browser.newPage({ baseURL })
   page.on('pageerror', error => pageErrors.push(error.message))
-  for (const path of ['/login', '/knowledge', '/tools/growth']) {
+  for (const path of ['/', '/login', '/knowledge', '/tools/growth']) {
     const response = await page.goto(path)
     assert.ok(response.ok(), `${path}: deep link must return HTML`)
     await page.locator('#root').waitFor()

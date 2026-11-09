@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import DOMPurify from 'dompurify'
 import { useKnowledgeStore } from '@/stores/knowledgeStore'
 import { usePageTitle } from '@/hooks'
@@ -7,7 +7,6 @@ import { storage } from '@/utils/storage'
 import {
   addArticleHeadingAnchors,
   buildKnowledgeReadingMeta,
-  buildKnowledgeReadingPath,
   extractArticleOutline,
   formatKnowledgeStageLabel,
   formatRichArticleContent,
@@ -23,6 +22,7 @@ import styles from './KnowledgeDetail.module.css'
 export function KnowledgeDetail() {
   const { id: slug } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
   const [toast, setToast] = useState('')
   const [scrollProgress, setScrollProgress] = useState(0)
   const [showBackToTop, setShowBackToTop] = useState(false)
@@ -60,7 +60,8 @@ export function KnowledgeDetail() {
   }
 
   const goBack = () => {
-    navigate('/knowledge')
+    const query = location.state?.knowledgeSearch
+    navigate(typeof query === 'string' && query ? `/knowledge?${query}` : '/knowledge')
   }
 
   const isLoggedIn = Boolean(storage.getItem('token'))
@@ -105,7 +106,6 @@ export function KnowledgeDetail() {
       window.removeEventListener('resize', updateReadingProgress)
     }
   }, [contentHtml])
-  const readingPath = useMemo(() => buildKnowledgeReadingPath(currentArticle), [currentArticle])
   const contentOutline = useMemo(() => {
     const rawContent = displayContent.content || displayContent.summary || ''
     return extractArticleOutline(rawContent)
@@ -137,10 +137,16 @@ export function KnowledgeDetail() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
+  const copyLink = async (url: string, message: string) => {
+    try {
+      await navigator.clipboard.writeText(url)
+      setToast(message)
+    } catch {
+      setToast('复制失败，请手动复制浏览器地址或原文链接')
+    }
+  }
   const handleCopySourceLink = () => {
-    if (!displaySourceUrl) return
-    navigator.clipboard.writeText(displaySourceUrl)
-    setToast('来源链接已复制')
+    if (displaySourceUrl) void copyLink(displaySourceUrl, '来源链接已复制')
   }
 
   if (loading) {
@@ -170,7 +176,7 @@ export function KnowledgeDetail() {
       <div className={styles.progressRail} aria-hidden="true">
         <span className={styles.progressFill} style={{ width: `${scrollProgress}%` }} />
       </div>
-      {toast ? <div className={styles.toast}>{toast}</div> : null}
+      {toast ? <div role="status" className={styles.toast}>{toast}</div> : null}
 
       <button type="button" className={styles.backButton} onClick={goBack}>
         返回列表
@@ -202,7 +208,7 @@ export function KnowledgeDetail() {
 
           <div className={styles.metaRow}>
             {currentArticle.author ? <span>作者：{currentArticle.author}</span> : null}
-            {displayDate ? <span>来源更新：{displayDate}</span> : null}
+            {displayDate ? <span>{currentArticle.sourceUpdatedAt ? '来源日期' : '收录日期'}：{displayDate}</span> : null}
             <span>{currentArticle.viewCount} 阅读</span>
             <span>{currentArticle.likeCount} 点赞</span>
           </div>
@@ -218,40 +224,12 @@ export function KnowledgeDetail() {
 
         <p className={styles.summary}>{summaryText}</p>
 
-        <section className={styles.readingMetaCard}>
-          <div className={styles.readingMetaHeader}>
-            <span className={styles.readingMetaKicker}>阅读速览</span>
-            <strong>{readingMeta.contentModeLabel}</strong>
-          </div>
-          <div className={styles.readingMetaGrid}>
-            <div className={styles.readingMetaItem}>
-              <span>建议阅读</span>
-              <strong>{readingMeta.estimatedMinutesLabel}</strong>
-            </div>
-            <div className={styles.readingMetaItem}>
-              <span>正文体量</span>
-              <strong>{readingMeta.textLengthLabel}</strong>
-            </div>
-            <div className={styles.readingMetaItem}>
-              <span>结构信息</span>
-              <strong>{readingMeta.sectionLabel}</strong>
-            </div>
-          </div>
-        </section>
-
-        <section className={styles.readingPathCard}>
-          <span className={styles.readingPathKicker}>{readingPath.kicker}</span>
-          <h2 className={styles.readingPathTitle}>{readingPath.title}</h2>
-          <p className={styles.readingPathDesc}>{readingPath.description}</p>
-          <ol className={styles.readingPathList}>
-            {readingPath.items.map((item) => (
-              <li key={item.title} className={styles.readingPathItem}>
-                <strong>{item.title}</strong>
-                <span>{item.description}</span>
-              </li>
-            ))}
-          </ol>
-        </section>
+        <div className={styles.readingMetaCard}>
+          <span>{readingMeta.estimatedMinutesLabel}</span>
+          <span>{readingMeta.contentModeLabel}</span>
+          {currentArticle.sourceLanguage ? <span>{currentArticle.sourceLanguage === 'zh' ? '中文原文' : '英文原文'}</span> : null}
+          {displaySourceUrl ? <a href={displaySourceUrl} target="_blank" rel="noopener noreferrer">阅读原文</a> : null}
+        </div>
 
         {contentOutline.length > 0 ? (
           <section className={styles.outlineCard}>
@@ -297,6 +275,7 @@ export function KnowledgeDetail() {
         {displaySourceUrl ? (
           <section className={styles.sourceBox}>
             <span>原始来源</span>
+            <a href={displaySourceUrl} target="_blank" rel="noopener noreferrer">打开原始来源 <span aria-hidden="true">↗</span></a>
             <strong>{toReadableUrl(displaySourceUrl)}</strong>
             <button type="button" onClick={handleCopySourceLink}>
               复制来源链接
@@ -323,8 +302,7 @@ export function KnowledgeDetail() {
             type="button"
             className={styles.secondaryButton}
             onClick={() => {
-              navigator.clipboard.writeText(window.location.href)
-              setToast('链接已复制')
+              void copyLink(window.location.href, '链接已复制')
             }}
           >
             分享

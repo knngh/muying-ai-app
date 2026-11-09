@@ -94,6 +94,10 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
         keyword: state.keyword || undefined,
       })) as PaginatedResponse<Article>
 
+      if (!Array.isArray(response?.list) || !response.pagination || typeof response.pagination.total !== 'number') {
+        throw new Error('知识库服务暂时不可用，请稍后重试')
+      }
+
       if (requestId !== knowledgeListRequestId) {
         return
       }

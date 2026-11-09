@@ -44,7 +44,10 @@ function calendarPayload(data: CalendarEventInput) {
 
 export const categoryApi = {
   getAll: (params?: ParentCategoryParams) =>
-    api.get<{ list: Category[] }>('/categories', { params }).then((res) => res.list),
+    api.get<{ list: Category[] }>('/categories', { params }).then((res) => {
+      if (!Array.isArray(res?.list)) throw new Error('分类暂时不可用，请稍后重试')
+      return res.list
+    }),
 
   getBySlug: (slug: string) =>
     api.get<Category>(`/categories/${slug}`),
@@ -53,7 +56,10 @@ export const categoryApi = {
 // ==================== 标签 API ====================
 
 export const tagApi = {
-  getAll: () => api.get<{ list: Tag[] }>('/tags').then((res) => res.list),
+  getAll: () => api.get<{ list: Tag[] }>('/tags').then((res) => {
+    if (!Array.isArray(res?.list)) throw new Error('标签暂时不可用，请稍后重试')
+    return res.list
+  }),
 
   getArticlesByTag: (slug: string, params?: PaginationParams) =>
     api.get<{ tag: Tag; articles: PaginatedResponse<Article> }>(`/tags/${slug}/articles`, { params }).then((res) => res.articles),

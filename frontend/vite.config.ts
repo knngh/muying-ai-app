@@ -30,6 +30,14 @@ export default defineConfig({
     host: true,
     open: true,
   },
+  preview: {
+    proxy: {
+      '/api/': {
+        target: process.env.PREVIEW_API_TARGET || 'https://beihu.me',
+        changeOrigin: true,
+      },
+    },
+  },
   build: {
     outDir: 'dist',
     sourcemap: false,

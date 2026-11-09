@@ -16,7 +16,7 @@ npm run test:e2e
 
 Playwright 自动构建生产版本并在 4178 端口预览。在 macOS 自动使用已安装的 Chrome；其他环境先运行 `npx playwright install --with-deps chromium`。也可设置 `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`。日常 E2E 拦截接口，不访问生产数据或调用 AI；覆盖账号隔离、错误恢复、日期、提醒、资料、知识库、工具和真实 Service Worker 生命周期。CI 工作流为 `.github/workflows/web.yml`。
 
-开发 API 使用 `VITE_API_BASE_URL`，路径需以 `/api/v1` 结尾。部署时 `.env.production` 使用 `/api/v1`，由 Worker 同源转发到现有后端。需要本地完整代理时先构建，再运行 `npx wrangler dev --port 4188`。
+开发 API 使用 `VITE_API_BASE_URL`，路径需以 `/api/v1` 结尾。部署时 `.env.production` 使用 `/api/v1`，由 Worker 同源转发到现有后端。`npm run preview` 会将 `/api/` 转发到 `https://beihu.me`，避免接口被 SPA HTML 回退吞掉；可用 `PREVIEW_API_TARGET=http://127.0.0.1:4000` 指定本地后端。需要验证完整 Worker 行为时先构建，再运行 `npx wrangler dev --port 4188`。
 
 ## 发布与回滚
 

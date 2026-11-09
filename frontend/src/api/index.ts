@@ -62,6 +62,12 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => {
     const res = response.data
+    // SPA hosts can return index.html with HTTP 200 for a missing API proxy.
+    // Reject that response before it reaches components expecting JSON lists.
+    if (String(response.headers['content-type'] || '').includes('text/html')
+      || (typeof res === 'string' && /^\s*(?:<!doctype\s+html|<html\b)/i.test(res))) {
+      return Promise.reject(new Error('服务暂时不可用，请稍后重试'))
+    }
     // 后端统一返回 { code: 0, message: 'success', data: ... }
     if (res && typeof res === 'object' && 'code' in res) {
       if (res.code === 0) {

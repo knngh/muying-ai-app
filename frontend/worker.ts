@@ -40,6 +40,8 @@ const LLMS_CACHE_TTL_SEC = 12 * 3600
 const LLMS_MAX_ARTICLES = 300 // 精选清单上限（全文目录靠 API/sitemap）
 
 const SITE_NAME = '贝护妈妈'
+const HOME_TITLE = `${SITE_NAME} · 陪伴每一步孕育日常`
+const HOME_DESCRIPTION = '贝护妈妈陪伴每一步孕育日常：查找有出处的孕育知识、向 AI 提问，用孕育日历和实用工具记录从备孕到育儿的每一天。'
 const DEFAULT_TITLE = `${SITE_NAME} · 权威母婴知识库`
 const DEFAULT_DESCRIPTION =
   '贝护妈妈权威母婴知识库：WHO、美国儿科学会、英国 NHS、国家卫健委等权威机构的孕育科普，覆盖备孕、孕期、产后与 0-3 岁育儿，持续同步更新。'
@@ -228,8 +230,8 @@ const ORG_JSONLD: Record<string, unknown> = {
 }
 
 const DEFAULT_META: PageMeta = {
-  title: `${SITE_NAME} · 陪伴每一步孕育日常`,
-  description: '贝护妈妈陪伴每一步孕育日常：查找有出处的孕育知识、向 AI 提问，用孕育日历和实用工具记录从备孕到育儿的每一天。',
+  title: HOME_TITLE,
+  description: HOME_DESCRIPTION,
   canonicalPath: '/',
   ogType: 'website',
   jsonLd: [
@@ -240,7 +242,7 @@ const DEFAULT_META: PageMeta = {
       '@id': SITE_ORIGIN + '/#site',
       name: SITE_NAME,
       url: SITE_ORIGIN + '/',
-      description: DEFAULT_DESCRIPTION,
+      description: HOME_DESCRIPTION,
       inLanguage: 'zh-CN',
       publisher: { '@id': SITE_ORIGIN + '/#org' },
     },
