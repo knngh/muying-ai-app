@@ -77,4 +77,14 @@ describe('authority knowledge browsing', () => {
     expect(authorityListCacheKey({ ...baseline, category: 'a:b', tag: 'c' }))
       .not.toBe(authorityListCacheKey({ ...baseline, category: 'a', tag: 'b:c' }));
   });
+
+  it('recommends systematic guidance before short answers, personal stories and interactive teasers', () => {
+    const guide = authorityBrowsePriority('https://www.acog.org/womens-health/faqs/healthy-eating-during-pregnancy', '孕期', 'Healthy Eating During Pregnancy');
+    const brief = authorityBrowsePriority('https://www.acog.org/womens-health/experts-and-stories/ask-acog/should-i-get-the-rsv-vaccine-during-pregnancy', '孕期', 'RSV vaccine during pregnancy');
+    const story = authorityBrowsePriority('https://www.acog.org/womens-health/experts-and-stories/the-latest/my-experience-having-a-baby-during-the-covid19-pandemic', '孕期', 'My experience having a baby');
+    const quiz = authorityBrowsePriority('https://www.acog.org/womens-health/healthy-living/nutrition-during-pregnancy', '孕期', 'Nutrition During Pregnancy');
+    expect(guide).toBeLessThan(brief);
+    expect(guide).toBeLessThan(story);
+    expect(guide).toBeLessThan(quiz);
+  });
 });

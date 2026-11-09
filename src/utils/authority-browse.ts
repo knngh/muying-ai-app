@@ -45,12 +45,15 @@ export function authorityBrowsePriority(sourceUrl?: string, topic?: string, titl
   let topicPriority = !topic || ['孕期', '产后恢复', '新生儿', '喂养', '疫苗', '成长发育', '常见症状'].includes(topic) ? 0 : 1;
   if (!sourceUrl) return topicPriority;
   let pathname: string;
-  try { pathname = new URL(sourceUrl).pathname; } catch { return topicPriority; }
+  let hostname: string;
+  try { const url = new URL(sourceUrl); pathname = url.pathname; hostname = url.hostname; } catch { return topicPriority; }
   if (title !== undefined && !/pregnan|preconcep|postpartum|breastfeed|newborn|infant|\bbab(?:y|ies)\b|toddler|childbirth|morning.sickness|孕|产后|哺乳|母乳|婴|宝宝|分娩|辅食/i.test(`${title} ${pathname}`)) {
     topicPriority = Math.max(1, topicPriority);
   }
   // Professional references remain searchable; family-facing guidance leads recommendations.
   if (/\/(?:clinical|professional|practice-bulletin|committee-opinion)(?:\/|$)|guidelines-review-committee|\/maternal_child_adolescent\/documents\//i.test(pathname)) return 2;
+  if (/(^|\.)acog\.org$/i.test(hostname)
+    && /^\/womens-health\/(?:experts-and-stories|healthy-living|videos)(?:\/|$)/i.test(pathname)) return Math.max(1, topicPriority);
   // News remains accessible. This only orders the recommended reading list.
   if (/\/fact-sheets\/|\/questions-and-answers\/|\/q-a-detail\//i.test(pathname)) return topicPriority;
   return /\/news-room\/(?:detail|feature-stories|commentaries|events|spotlight)\/|\/news\/item\/|\/(?:press-releases|news-releases)\//i.test(pathname) ? 3 : topicPriority;

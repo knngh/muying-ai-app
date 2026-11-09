@@ -25,8 +25,10 @@ interface Ctx {
 const SITE_ORIGIN = 'https://hibeihu.com'
 const UPSTREAM_ORIGIN = 'https://beihu.me'
 
-const CACHE_INDEX_KEY = new Request(SITE_ORIGIN + '/__seo/index.json')
-const CACHE_SITEMAP_KEY = new Request(SITE_ORIGIN + '/__seo/sitemap.xml')
+// Rebuild cached indexes and embedded bodies after source cleanup and quality filtering.
+const SEO_CACHE_VERSION = '20261109-clean-body'
+const CACHE_INDEX_KEY = new Request(`${SITE_ORIGIN}/__seo/${SEO_CACHE_VERSION}/index.json`)
+const CACHE_SITEMAP_KEY = new Request(`${SITE_ORIGIN}/__seo/${SEO_CACHE_VERSION}/sitemap.xml`)
 const INDEX_TTL_SEC = 12 * 3600 // 索引软过期
 const SITEMAP_CACHE_TTL_SEC = 24 * 3600 // sitemap 物理缓存
 const SITEMAP_SOFT_TTL_SEC = 12 * 3600 // 超过则后台重建
@@ -35,7 +37,7 @@ const MAX_PULL_PAGES = 40 // 子请求保险（免费版上限 50）
 const ARTICLE_CACHE_TTL_SEC = 2 * 3600 // 文章详情缓存（源站 6h 同步，留余量）
 const ARTICLE_MEM_MAX = 2000 // isolate 内存缓存条数上限（约等于全库量级）
 const ARTICLE_BODY_JSONLD_MAX = 25000 // JSON-LD articleBody 截断长度
-const LLMS_CACHE_KEY = new Request(SITE_ORIGIN + '/__seo/llms.txt')
+const LLMS_CACHE_KEY = new Request(`${SITE_ORIGIN}/__seo/${SEO_CACHE_VERSION}/llms.txt`)
 const LLMS_CACHE_TTL_SEC = 12 * 3600
 const LLMS_MAX_ARTICLES = 300 // 精选清单上限（全文目录靠 API/sitemap）
 
@@ -473,7 +475,7 @@ async function getArticleDetail(slug: string): Promise<ArticleDetailPayload | nu
   const mem = articleMemCache.get(slug)
   if (mem && now - mem.fetchedAt < ARTICLE_CACHE_TTL_SEC * 1000) return mem.payload
 
-  const key = new Request(`${SITE_ORIGIN}/__seo/article/${encodeURIComponent(slug)}`)
+  const key = new Request(`${SITE_ORIGIN}/__seo/${SEO_CACHE_VERSION}/article/${encodeURIComponent(slug)}`)
   const cached = await caches.default.match(key)
   if (cached) {
     try {

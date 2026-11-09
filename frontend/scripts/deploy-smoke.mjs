@@ -70,7 +70,16 @@ if (firstSlug) {
   // GEO：正文必须进 HTML（AI 爬虫不执行 JS）
   const articleBlock = html.match(/<article>[\s\S]*?<\/article>/)
   assert.ok(articleBlock, 'article page must embed <article> body block')
-  assert.ok(articleBlock[0].length > 1500, 'embedded article body must be substantial (>1.5KB)')
+  // Complete official FAQs may be brief after navigation and related cards are removed.
+  const structuredArticles = [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)]
+    .flatMap((match) => JSON.parse(match[1]))
+    .filter((entry) => entry['@type'] === 'Article')
+  const bodyText = structuredArticles[0]?.articleBody?.trim()
+  assert.ok(bodyText?.length >= 80, 'article JSON-LD must contain the medical body')
+  const readableText = (value) => value.replace(/<[^>]+>/g, ' ')
+    .replace(/&(?:nbsp|amp|lt|gt|quot|#39);/g, (entity) => ({ '&nbsp;': ' ', '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'" })[entity])
+    .replace(/\s+/g, '')
+  assert.ok(readableText(articleBlock[0]).includes(readableText(bodyText)), 'embedded article must contain the same text as its structured body')
   assert.match(articleBlock[0], /<h1>/, 'article body must have heading')
 }
 

@@ -1,3 +1,4 @@
+import { isAcogSource, stripAcogArticleChrome } from './acog-content';
 import { getMedicalPlatformQualityDropReason } from './medical-platform-quality';
 import { getOfficialChineseAuthorityQualityDropReason } from './official-chinese-authority-quality';
 import {
@@ -168,7 +169,8 @@ function countEnglishWords(text: string): number {
 }
 
 function getAuthorityBodyText(record: KnowledgeGuardRecord): string {
-  return normalizePlainText(record.contentText || record.answer || record.content || '');
+  const body = record.contentText || record.answer || record.content || '';
+  return normalizePlainText(isAcogSource(record) ? stripAcogArticleChrome(body) : body);
 }
 
 function isPredominantlyEnglishAuthorityRecord(record: KnowledgeGuardRecord): boolean {
@@ -206,19 +208,6 @@ export function getAuthorityThinContentDropReason(record: KnowledgeGuardRecord):
   }
 
   const wordCount = countEnglishWords(body);
-  // Ask ACOG publishes complete, deliberately brief answers. Judge their medical
-  // body after removing page controls, without requiring unrelated footer text.
-  const sourceId = record.sourceId || record.source_id;
-  let isOfficialShortAnswer = false;
-  try {
-    const url = new URL(record.sourceUrl || record.source_url || record.url || '');
-    isOfficialShortAnswer = sourceId === 'acog'
-      && /(^|\.)acog\.org$/i.test(url.hostname)
-      && /^\/womens-health\/experts-and-stories\/ask-acog\/[^/]+\/?$/i.test(url.pathname);
-  } catch { /* Invalid sources retain the standard quality threshold. */ }
-  if (isOfficialShortAnswer && wordCount >= 40 && (body.match(/[.!?](?:\s|$)/g) || []).length >= 2) {
-    return null;
-  }
   if (wordCount > 0 && wordCount < ENGLISH_AUTHORITY_MIN_BODY_WORDS) {
     return 'english_authority_short_content';
   }

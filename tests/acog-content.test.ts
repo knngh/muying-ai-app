@@ -11,8 +11,14 @@ describe('ACOG source chrome removal', () => {
     const input = `Ask ACOG Why does my newborn need vitamin K? Share Facebook Email Link URL has been copied to the clipboard Close Print ${body} About Ask ACOG Do you have a question about women’s health? ACOG is here with answers to help you stay healthy. Browse all questions. Go Published: April 2026 What to Read Next Ask ACOG Is acetaminophen safe during pregnancy?`;
     expect(stripAcogArticleChrome(input)).toBe(body);
   });
-  it.each(['关于问ACOG', '关于询问 ACOG', 'ACOG在这里为您提供答案，帮助您保持健康。浏览所有问题。', '接下来阅读', '接下来阅读什么'])('cleans legacy translated footer: %s', marker => {
+  it.each(['关于问ACOG', '关于询问 ACOG', '关于Ask ACOG', '关于ACOG 你对女性健康有疑问吗？', '关于ACOG问答 你对女性健康有疑问吗？', 'ACOG在这里为您提供答案，帮助您保持健康。浏览所有问题。', '接下来阅读', '接下来阅读什么'])('cleans legacy translated footer: %s', marker => {
     expect(sanitizeTranslationText(`${chineseBody}\n\n${marker}\n问ACOG 孕期服用对乙酰氨基酚安全吗？\n问ACOG 我应该在孕期接种RSV疫苗吗？`, 'content')).toBe(chineseBody);
+  });
+  it.each(['分享到Facebook 电子邮件 链接URL已复制到剪贴板 关闭 打印', '分享 Facebook 电子邮件 链接 URL 已复制到剪贴板 关闭 打印'])('removes translated toolbar variants: %s', toolbar => {
+    expect(stripAcogArticleChrome(`问ACOG 孕期接种疫苗安全吗？ ${toolbar} ${chineseBody}`)).toBe(chineseBody);
+  });
+  it.each(['Leer en español', '广告 ACOG不认可任何公司或产品。', 'Advertisement ACOG does not endorse any companies or products.'])('removes source controls without changing medical body: %s', control => {
+    expect(stripAcogArticleChrome(`${control} ${chineseBody}`)).toBe(chineseBody);
   });
   it('keeps an ACOG article title, medical questions, warnings, dates and citations in the actual body', () => {
     const input = `问ACOG 孕期服用对乙酰氨基酚安全吗？\n${chineseBody}\n何时应咨询医生？\n2025年1月的研究引用了ACOG指南。不要自行停用医生开的药物。`;
