@@ -1,3 +1,4 @@
+import { isAcogSource, stripAcogArticleChrome } from '../utils/acog-content';
 import fs from 'fs';
 import path from 'path';
 import {
@@ -384,6 +385,11 @@ function normalizeAuthorityCacheRecord(record: AuthorityCacheRecord): AuthorityC
 
     const cleanedSummary = normalizeAapCachedContent(normalizedSummary || '');
     normalizedSummary = cleanedSummary || normalizedAnswer.slice(0, 300) || normalizedSummary;
+  }
+
+  if (isAcogSource(record)) {
+    normalizedAnswer = stripAcogArticleChrome(normalizedAnswer);
+    normalizedSummary = stripAcogArticleChrome(normalizedSummary || '');
   }
 
   const cleanedAnswer = stripAuthorityPageChrome(normalizedAnswer);

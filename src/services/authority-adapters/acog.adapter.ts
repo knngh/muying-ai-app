@@ -1,3 +1,5 @@
+import { stripAcogArticleChrome } from '../../utils/acog-content';
+import { extractHtmlContainers } from './html-content';
 import type { AuthoritySourceConfig } from '../../config/authority-sources';
 import type { AuthorityRawDocument, NormalizedAuthorityDocument } from '../authority-sync.service';
 import {
@@ -13,17 +15,12 @@ import {
 } from './base.adapter';
 
 function extractAcogContent(rawBody: string): string {
-  const candidates = [
-    rawBody.match(/<main[\s\S]*?>([\s\S]*?)<\/main>/i)?.[1],
-    rawBody.match(/<article[\s\S]*?>([\s\S]*?)<\/article>/i)?.[1],
-    rawBody.match(/<div[^>]+class=["'][^"']*(rich-text|article-body|wysiwyg|content-body)[^"']*["'][\s\S]*?>([\s\S]*?)<\/div>/i)?.[1],
-  ].filter(Boolean) as string[];
-
-  if (candidates.length > 0) {
-    return stripHtml(candidates[0]);
-  }
-
-  return stripHtml(rawBody);
+  const candidates = extractHtmlContainers(rawBody, [
+    { tag: 'main' },
+    { tag: 'article' },
+    { tag: 'div', className: /\b(?:rich-text|article-body|wysiwyg(?:-content)?|content-body)\b/i },
+  ]);
+  return stripAcogArticleChrome(stripHtml(candidates[0] || rawBody));
 }
 
 function isEligibleAcogUrl(url: string): boolean {

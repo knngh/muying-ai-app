@@ -1,3 +1,4 @@
+import { isAcogSource, stripAcogArticleChrome } from '../utils/acog-content';
 import { authorityBrowsePriority, matchesAuthoritySourceLanguage, authorityListCacheKey, matchesAuthorityBrowseCategory } from '../utils/authority-browse';
 import fs from 'fs';
 import path from 'path';
@@ -613,6 +614,11 @@ function normalizeAuthorityCacheRecord(record: AuthorityCacheRecord): AuthorityC
 
     const cleanedSummary = normalizeAapCachedContent(normalizedSummary || '');
     normalizedSummary = cleanedSummary || normalizedAnswer.slice(0, 300) || normalizedSummary;
+  }
+
+  if (isAcogSource(record)) {
+    normalizedAnswer = stripAcogArticleChrome(normalizedAnswer);
+    normalizedSummary = stripAcogArticleChrome(normalizedSummary || '');
   }
 
   const cleanedAnswer = stripAuthorityPageChrome(normalizedAnswer);
