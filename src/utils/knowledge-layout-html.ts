@@ -11,6 +11,9 @@ export function renderKnowledgeLayoutBlocksToHtml(blocks: KnowledgeLayoutBlock[]
     const text = escapeHtml(block.text);
     if (block.type === 'title' || block.type === 'heading') return `<h2>${text}</h2>`;
     if (block.type === 'list' || block.type === 'table') return `<div class="reading-lines">${text}</div>`;
+    if (block.type === 'chrome') return `<aside class="reading-source-notes">${text}</aside>`;
+    if (block.type === 'paragraph') return block.text.split(/\r?\n+/).filter(line => line.trim())
+      .map(line => `<p>${escapeHtml(line)}</p>`).join('');
     return `<p>${text}</p>`;
   }).join('');
 }

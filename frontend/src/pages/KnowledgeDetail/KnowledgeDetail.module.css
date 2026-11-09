@@ -250,6 +250,16 @@
   line-height: 1.95;
 }
 
+.content :global(.reading-source-notes) {
+  margin: 1.5em 0;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: #f8f6f3;
+  color: #756960;
+  font-size: 14px;
+  line-height: 1.8;
+}
+
 .content :global(p),
 .content :global(ul),
 .content :global(ol),

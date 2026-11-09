@@ -2184,7 +2184,7 @@ export const getArticles = async (req: Request, res: Response, next: NextFunctio
 
       const sorted = [...filtered].sort((left, right) => {
         if (sort === 'recommended') {
-          const readingPriority = authorityBrowsePriority(left.sourceUrl, left.topic) - authorityBrowsePriority(right.sourceUrl, right.topic);
+          const readingPriority = authorityBrowsePriority(left.sourceUrl, left.topic, left.title) - authorityBrowsePriority(right.sourceUrl, right.topic, right.title);
           if (readingPriority !== 0) return readingPriority;
           if (typeof keyword === 'string' && keyword.trim()) {
             const titleMatches = (article: AuthorityArticle) => Number(matchesExpandedSearch(keyword, [article.title, getCachedAuthorityArticleTranslation(article)?.translatedTitle].join(' ')));

@@ -49,6 +49,8 @@ describe('verified knowledge reading layout', () => {
     expect(html).not.toContain('<img');
     expect(html).toContain('&lt;img');
     expect(html).toContain('来源说明');
+    const paragraphs = renderKnowledgeLayoutBlocksToHtml([{ type: 'paragraph', text: '第一段原文。\n第二段原文。' }]);
+    expect(paragraphs).toBe('<p>第一段原文。</p><p>第二段原文。</p>');
   });
   it('rejects unverifiable provider output without saving it', async () => {
     const { formatKnowledgeLayoutWithAI } = require('../src/services/knowledge-layout.service');

@@ -59,6 +59,15 @@ describe('authority knowledge browsing', () => {
     expect(publicHealth).toBeLessThan(news);
   });
 
+  it('prioritizes maternal and infant topics over broad gynecology and adolescent contraception', () => {
+    const feeding = authorityBrowsePriority('https://www.chinacdc.cn/jkkp/yyjk/rqyy/202408/t20240825_295584.html', '喂养', '6-23月龄婴幼儿辅食喂养指南');
+    const pregnancy = authorityBrowsePriority('https://www.acog.org/womens-health/faqs/morning-sickness', '孕期', 'Morning Sickness: Nausea and Vomiting of Pregnancy');
+    const menopause = authorityBrowsePriority('https://www.acog.org/womens-health/experts-and-stories/perimenopause', '孕期', 'Bleeding Changes in Perimenopause');
+    const teens = authorityBrowsePriority('https://www.acog.org/womens-health/experts-and-stories/ask-acog/can-teens-get-an-iud', '孕期', 'Can teens get an IUD?');
+    expect(feeding).toBeLessThan(menopause);
+    expect(pregnancy).toBeLessThan(teens);
+  });
+
   it('does not share first-page responses across page sizes, sort orders or filters', () => {
     const baseline = { page: 1, pageSize: 10, sort: 'recommended' };
     const key = authorityListCacheKey(baseline);
