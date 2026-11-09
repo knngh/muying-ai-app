@@ -79,10 +79,13 @@ export function KnowledgeDetail() {
     || '当前文章暂未提供摘要，可先查看正文和来源信息。'
   ), [displayContent.summary])
 
+  const readingContent = currentArticle?.readingLayout?.verified
+    ? currentArticle.readingLayout.html
+    : displayContent.content || displayContent.summary || ''
   const contentHtml = useMemo(() => {
-    const rawContent = displayContent.content || displayContent.summary || ''
+    const rawContent = readingContent
     return DOMPurify.sanitize(addArticleHeadingAnchors(formatRichArticleContent(rawContent)))
-  }, [displayContent.content, displayContent.summary])
+  }, [readingContent])
   const readingMeta = useMemo(() => buildKnowledgeReadingMeta(currentArticle), [currentArticle])
 
   useEffect(() => {
@@ -107,9 +110,8 @@ export function KnowledgeDetail() {
     }
   }, [contentHtml])
   const contentOutline = useMemo(() => {
-    const rawContent = displayContent.content || displayContent.summary || ''
-    return extractArticleOutline(rawContent)
-  }, [displayContent.content, displayContent.summary])
+    return extractArticleOutline(contentHtml)
+  }, [contentHtml])
 
   const displayDate = useMemo(() => {
     const value = currentArticle?.sourceUpdatedAt || currentArticle?.publishedAt || currentArticle?.createdAt

@@ -79,6 +79,7 @@ interface IsolateIndex {
 
 // 文章详情最小字段（来自 GET /api/v1/articles/{slug}，供正文注入与 articleBody）
 interface ArticleDetailPayload {
+  readingLayout?: { verified: boolean; html: string } | null
   title?: string
   content?: string
   displayTitle?: string
@@ -553,7 +554,7 @@ function buildArticleBodyRender(detail: ArticleDetailPayload): ArticleBodyRender
     `<article>` +
     `<h1>${escapeHtmlAttr(title)}</h1>` +
     `<p>${meta}</p>` +
-    display.content +
+    (detail.readingLayout?.verified ? detail.readingLayout.html : display.content) +
     `</article>`
 
   const plainText = stripHtmlTags(display.content).trim().slice(0, ARTICLE_BODY_JSONLD_MAX)

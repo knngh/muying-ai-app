@@ -492,6 +492,7 @@ function buildTaskModelMessages(params: {
   currentDraft: TrustedStructuredAnswer;
 }): Array<{ role: 'system' | 'user'; content: string }> {
   const taskInstructionMap: Record<AITaskModelRole, string[]> = {
+    knowledge_format: ['仅标注文章排版结构，不得改动原文。'],
     deepseek_translate: [
       '你负责权威资料翻译/压缩层。',
       '只根据输入资料转写，不要扩展成诊断建议。',

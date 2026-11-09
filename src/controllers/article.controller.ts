@@ -20,6 +20,7 @@ import {
   sanitizeAuthorityTitle,
 } from '../services/authority-adapters/base.adapter';
 import { textToRichParagraphHtml } from '../utils/article-format';
+import { getCachedKnowledgeReadingLayout } from '../services/knowledge-layout.service';
 import { awardBehaviorPoints } from '../services/checkin.service';
 import {
   buildAuthorityDisplayTags,
@@ -2059,6 +2060,7 @@ function toAuthorityArticleListItem(article: ReturnType<typeof mapAuthorityRecor
   };
 }
 
+
 async function filterAuthorityArticles(
   articles: Array<ReturnType<typeof mapAuthorityRecordToArticle>>,
   filters: {
@@ -2383,7 +2385,10 @@ export const getArticleBySlug = async (req: Request, res: Response, next: NextFu
       }
 
       prewarmAuthorityTranslation(canonicalSlug, authorityMatch.record, fallbackSlugs);
-      const viewCount = incrementAuthorityViewCountBySlug(canonicalSlug) ?? authorityArticle.viewCount ?? 0;
+      const isLayoutWarmup = req.headers?.['x-knowledge-layout'] === 'warmup'
+        && ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket?.remoteAddress || '');
+      const viewCount = isLayoutWarmup ? authorityArticle.viewCount || 0
+        : incrementAuthorityViewCountBySlug(canonicalSlug) ?? authorityArticle.viewCount ?? 0;
       let isLiked = false;
       let likeCount = authorityArticle.likeCount || 0;
 
@@ -2407,11 +2412,15 @@ export const getArticleBySlug = async (req: Request, res: Response, next: NextFu
         likeCount = totalLikes;
       }
 
-      return res.json(successResponse({
-        ...stripAuthorityInternalFields(withAuthorityDisplayTranslation(authorityArticle, {
+      const displayArticle = stripAuthorityInternalFields(withAuthorityDisplayTranslation(authorityArticle, {
           includeContent: true,
           includeTranslation: true,
-        })),
+        }));
+      const layoutContent = 'displayContent' in displayArticle && typeof displayArticle.displayContent === 'string'
+        ? displayArticle.displayContent : displayArticle.content;
+      return res.json(successResponse({
+        ...displayArticle,
+        readingLayout: getCachedKnowledgeReadingLayout(canonicalSlug, layoutContent || displayArticle.content),
         viewCount,
         isLiked,
         likeCount,

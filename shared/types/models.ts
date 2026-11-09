@@ -30,6 +30,7 @@ export interface Article {
   displayTitle?: string
   displaySummary?: string
   displayContent?: string
+  readingLayout?: { verified: true; html: string } | null
   translation?: AuthorityArticleTranslation
   hasChineseTranslation?: boolean
   coverImage?: string

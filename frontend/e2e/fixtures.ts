@@ -39,6 +39,7 @@ export function deferred() {
 }
 
 export class FixtureApi {
+  readingLayout?: { verified: true; html: string }
   meRequests = 0
   refreshRequests = 0
   failLogin = false
@@ -111,7 +112,7 @@ export class FixtureApi {
     if (endpoint === '/ai/conversations/conversation-older') return reply(olderConversation)
     if (endpoint === '/categories') return reply({ list: [article.category] })
     if (endpoint === '/tags') return reply({ list: [] })
-    if (endpoint === '/articles/folic-acid') return reply(article)
+    if (endpoint === '/articles/folic-acid') return reply({ ...article, readingLayout: this.readingLayout })
     if (endpoint === '/articles' || endpoint === '/articles/search') {
       this.articleQueries.push(url.searchParams)
       if (this.failArticles) return reply(null, 500, '知识库暂时不可用，请重试')

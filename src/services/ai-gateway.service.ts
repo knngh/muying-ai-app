@@ -309,7 +309,7 @@ export function getAIGatewayProviderCircuitBreakerStatus(): AIGatewayProviderBlo
     .sort((left, right) => `${left.provider}/${left.model}`.localeCompare(`${right.provider}/${right.model}`));
 }
 
-export type AITaskModelRole = 'deepseek_translate' | 'glm_classify' | 'kimi_reason' | 'minimax_render';
+export type AITaskModelRole = 'deepseek_translate' | 'glm_classify' | 'kimi_reason' | 'minimax_render' | 'knowledge_format';
 
 export interface AIGatewayRouteInfo {
   provider: string;
@@ -547,6 +547,14 @@ function buildKimiTaskProvider(): GatewayProvider | null {
   return buildTaskProvider('task-kimi', 'task-kimi', AI_KIMI_URL, AI_KIMI_KEY, AI_KIMI_MODEL, AI_KIMI_PROVIDER);
 }
 
+function buildKnowledgeFormatTaskProvider(): GatewayProvider | null {
+  const url = process.env.AI_KNOWLEDGE_FORMAT_URL;
+  const key = process.env.AI_KNOWLEDGE_FORMAT_KEY;
+  if (!url || !key) return null;
+  return buildTaskProvider('task-knowledge-format', 'task-knowledge-format', url, key,
+    process.env.AI_KNOWLEDGE_FORMAT_MODEL || 'auto', process.env.AI_KNOWLEDGE_FORMAT_PROVIDER || 'freellm');
+}
+
 function buildMiniMaxTaskProvider(): GatewayProvider | null {
   return buildTaskProvider('task-minimax', 'task-minimax', AI_MINIMAX_URL, AI_MINIMAX_KEY, AI_MINIMAX_MODEL, AI_MINIMAX_PROVIDER);
 }
@@ -674,6 +682,8 @@ function resolveTaskProviderChain(
   options: { primaryOnly?: boolean } = {},
 ): GatewayProvider[] {
   switch (taskRole) {
+    case 'knowledge_format':
+      return dedupeProviders([buildKnowledgeFormatTaskProvider()]);
     case 'deepseek_translate':
       return dedupeProviders(options.primaryOnly
         ? [hasConfiguredDeepSeekTaskKey() ? buildDeepSeekTranslationTaskProvider() : null]
@@ -1242,6 +1252,7 @@ export function getTaskModelBindings(): AITaskModelBinding[] {
     { role: 'glm_classify', provider: buildGLMTaskProvider() },
     { role: 'kimi_reason', provider: buildKimiTaskProvider() },
     { role: 'minimax_render', provider: buildMiniMaxTaskProvider() },
+    { role: 'knowledge_format', provider: buildKnowledgeFormatTaskProvider() },
   ];
 
   return bindings.map(({ role, provider }) => ({
