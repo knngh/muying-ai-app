@@ -7,6 +7,7 @@ import { storage } from './utils/storage'
 // 网页版页面开放状态（2026-09-28 决策）：
 // - 开放：登录/注册、权威知识库、AI 问答、孕育日历、我的、工具箱（生长曲线/疫苗/打卡/起名）
 // - 暂不开放：社区（Community）
+const Home = lazy(() => import('./pages/Home').then((module) => ({ default: module.Home })))
 const Knowledge = lazy(() => import('./pages/Knowledge').then((module) => ({ default: module.Knowledge })))
 const KnowledgeDetail = lazy(() => import('./pages/KnowledgeDetail').then((module) => ({ default: module.KnowledgeDetail })))
 const Chat = lazy(() => import('./pages/Chat').then((module) => ({ default: module.Chat })))
@@ -28,10 +29,8 @@ const LayoutRoute = () => {
   )
 }
 
-// 首页入口：知识库免费开放作为网站主页（2026-09-28 产品逻辑：内容优先，AI 问答/工具等登录后可用）
-const RootRedirect = () => {
-  return <Navigate to="/knowledge" replace />
-}
+// 未识别的路径返回产品介绍页。
+const RootRedirect = () => <Navigate to="/" replace />
 
 // 需要登录的路由守卫
 const ProtectedRoute = () => {
@@ -51,7 +50,7 @@ function App() {
 
           {/* 公开页面 */}
           <Route element={<LayoutRoute />}>
-            <Route index element={<RootRedirect />} />
+            <Route index element={<Home />} />
             <Route path="knowledge" element={<Knowledge />} />
             <Route path="knowledge/:id" element={<KnowledgeDetail />} />
           </Route>

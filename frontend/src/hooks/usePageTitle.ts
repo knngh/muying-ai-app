@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 
 const BASE_TITLE = '贝护妈妈'
-const DEFAULT_TITLE = `${BASE_TITLE} · 权威母婴知识库`
+const DEFAULT_TITLE = `${BASE_TITLE} · 陪伴每一步孕育日常`
 
 /**
  * 设置文档标题；卸载或变化时还原/更新。

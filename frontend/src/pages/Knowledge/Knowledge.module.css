@@ -790,3 +790,11 @@
     animation: none;
   }
 }
+
+.filterHeading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.sourceNote { margin-top: 16px; color: var(--ui-muted); font-size: 12px; line-height: 1.7; }
+@media (max-width: 767px) {
+  .sourceNote { display: none; }
+  .filterGrid { gap: 10px; }
+  .filterField select { padding: 10px 8px; font-size: 13px; }
+}

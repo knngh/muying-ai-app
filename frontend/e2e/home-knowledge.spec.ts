@@ -1,0 +1,40 @@
+import { test, expect, ARTICLE_TITLE } from './fixtures'
+
+test('public home introduces the product and opens knowledge at the selected stage', async ({ page, api }) => {
+  await page.goto('/')
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('孕育')
+  await expect(page.getByRole('link', { name: '浏览知识库', exact: true })).toBeVisible()
+  expect(api.articleQueries).toHaveLength(0)
+  const nav = page.getByRole('navigation', { name: '主导航' })
+  await expect(nav.getByRole('button', { name: '首页', exact: true })).toHaveAttribute('aria-current', 'page')
+  for (const width of [320, 375, 768, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 900 })
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  }
+  await page.getByRole('link', { name: /孕早期.*1.*12/ }).click()
+  await expect(page).toHaveURL(/\/knowledge\?stage=first-trimester$/)
+  await expect(page.getByLabel('阶段', { exact: true })).toHaveValue('first-trimester')
+  await expect(page.getByRole('heading', { name: ARTICLE_TITLE })).toBeVisible()
+  expect(api.articleQueries.at(-1)?.get('stage')).toBe('first-trimester')
+  await nav.getByRole('button', { name: '首页', exact: true }).click()
+  await expect(page).toHaveURL(/\/$/)
+})
+
+test('knowledge filters survive direct links, reload and browser history', async ({ page, api }) => {
+  await page.goto('/knowledge?stage=postpartum&keyword=母乳&language=zh&sort=latest')
+  await expect(page.getByLabel('阶段', { exact: true })).toHaveValue('postpartum')
+  await expect(page.getByRole('textbox', { name: '搜索知识关键词' })).toHaveValue('母乳')
+  await expect(page.getByLabel('原文语言', { exact: true })).toHaveValue('zh')
+  await expect(page.getByLabel('排序', { exact: true })).toHaveValue('latest')
+  await expect.poll(() => api.articleQueries.at(-1)?.get('language')).toBe('zh')
+  await page.getByLabel('阶段', { exact: true }).selectOption('0-6-months')
+  await expect(page).toHaveURL(/stage=0-6-months/)
+  await page.reload()
+  await expect(page.getByLabel('阶段', { exact: true })).toHaveValue('0-6-months')
+  await page.goBack()
+  await expect(page.getByLabel('阶段', { exact: true })).toHaveValue('postpartum')
+  await expect.poll(() => api.articleQueries.at(-1)?.get('stage')).toBe('postpartum')
+  await page.getByRole('button', { name: '重置筛选', exact: true }).click()
+  await expect(page).toHaveURL(/\/knowledge$/)
+  await expect(page.getByLabel('原文语言', { exact: true })).toHaveValue('')
+})

@@ -46,6 +46,8 @@
 }
 
 .brandBlock {
+  text-decoration: none;
+  color: inherit;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -135,6 +137,7 @@
 }
 
 @media (max-width: 900px) {
+  .navItem { padding-inline: 12px; font-size: 14px; }
   .tagline {
     display: none;
   }
@@ -161,8 +164,8 @@
   }
   .nav {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: 4px;
+    grid-template-columns: 0.8fr 1fr 1.1fr 1.5fr 0.8fr 0.8fr;
+    gap: 0;
     padding: 4px 0 8px;
   }
   .navItem {

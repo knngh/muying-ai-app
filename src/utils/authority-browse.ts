@@ -46,12 +46,19 @@ export function authorityBrowsePriority(sourceUrl?: string, topic?: string): num
   if (!sourceUrl) return topicPriority;
   let pathname: string;
   try { pathname = new URL(sourceUrl).pathname; } catch { return topicPriority; }
+  // Professional references remain searchable; family-facing guidance leads recommendations.
+  if (/\/(?:clinical|professional|practice-bulletin|committee-opinion)(?:\/|$)|guidelines-review-committee/i.test(pathname)) return 2;
   // News remains accessible. This only orders the recommended reading list.
   if (/\/fact-sheets\/|\/questions-and-answers\/|\/q-a-detail\//i.test(pathname)) return topicPriority;
-  return /\/news-room\/(?:detail|feature-stories|commentaries|events|spotlight)\/|\/news\/item\/|\/press-releases\//i.test(pathname) ? 2 : topicPriority;
+  return /\/news-room\/(?:detail|feature-stories|commentaries|events|spotlight)\/|\/news\/item\/|\/(?:press-releases|news-releases)\//i.test(pathname) ? 3 : topicPriority;
 }
 
 export function authorityListCacheKey(params: Record<string, unknown>): string {
-  const fields = ['category', 'tag', 'stage', 'difficulty', 'keyword', 'source', 'sort', 'page', 'pageSize'];
+  const fields = ['category', 'tag', 'stage', 'difficulty', 'keyword', 'source', 'language', 'sort', 'page', 'pageSize'];
   return CacheKeys.ARTICLES_AUTHORITY_FILTERED(JSON.stringify(fields.map(key => params[key] ?? null)));
+}
+
+/** Filter the original source language, independently of cached translations. */
+export function matchesAuthoritySourceLanguage(sourceLanguage: string | undefined, language: unknown): boolean {
+  return !language || (typeof language === 'string' && sourceLanguage === language);
 }

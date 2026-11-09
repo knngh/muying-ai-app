@@ -1,4 +1,4 @@
-import { authorityBrowsePriority, authorityListCacheKey, matchesAuthorityBrowseCategory } from '../utils/authority-browse';
+import { authorityBrowsePriority, matchesAuthoritySourceLanguage, authorityListCacheKey, matchesAuthorityBrowseCategory } from '../utils/authority-browse';
 import fs from 'fs';
 import path from 'path';
 import { Prisma } from '@prisma/client';
@@ -2068,6 +2068,7 @@ async function filterAuthorityArticles(
     difficulty?: unknown;
     keyword?: unknown;
     source?: unknown;
+    language?: unknown;
   },
 ) {
   const keyword = typeof filters.keyword === 'string' ? filters.keyword.trim().toLowerCase() : '';
@@ -2080,6 +2081,7 @@ async function filterAuthorityArticles(
   // already expands Chinese/English maternal and infant health terms.
 
   return articles.filter((article) => {
+    if (!matchesAuthoritySourceLanguage(article.sourceLanguage, filters.language)) return false;
     const articleStages = Array.isArray(article.targetStages) && article.targetStages.length > 0
       ? article.targetStages
       : (article.stage ? [article.stage] : []);
@@ -2151,6 +2153,7 @@ export const getArticles = async (req: Request, res: Response, next: NextFunctio
       contentType,
       keyword,
       source,
+      language,
       sort = 'latest',
       page = 1,
       pageSize = 20
@@ -2162,8 +2165,8 @@ export const getArticles = async (req: Request, res: Response, next: NextFunctio
       const skip = (currentPage - 1) * currentPageSize;
 
       // Cache authority articles — unfiltered first page uses MEDIUM TTL, filtered uses SHORT TTL
-      const isAuthorityFirstPage = currentPage === 1 && !category && !tag && !stage && !difficulty && !keyword && !source;
-      const filteredCacheKey = authorityListCacheKey({ category, tag, stage, difficulty, keyword, source, sort, page, pageSize });
+      const isAuthorityFirstPage = currentPage === 1 && !category && !tag && !stage && !difficulty && !keyword && !source && !language;
+      const filteredCacheKey = authorityListCacheKey({ category, tag, stage, difficulty, keyword, source, language, sort, page, pageSize });
       const cached = cache.get<unknown>(filteredCacheKey);
       if (cached) return res.json(cached);
 
@@ -2174,6 +2177,7 @@ export const getArticles = async (req: Request, res: Response, next: NextFunctio
         difficulty,
         keyword,
         source,
+        language,
       });
 
       const sorted = [...filtered].sort((left, right) => {

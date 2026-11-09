@@ -21,6 +21,11 @@ describe('article schemas and cache keys', () => {
     expect(relatedArticlesQuery.safeParse({ limit: '21' }).success).toBe(false);
   });
 
+  it('accepts only supported source languages', () => {
+    expect(getArticlesQuery.parse({ language: 'zh' }).language).toBe('zh');
+    expect(getArticlesQuery.safeParse({ language: 'xx' }).success).toBe(false);
+  });
+
   it('includes related limit in cache key', () => {
     expect(CacheKeys.ARTICLE_RELATED('123', 1)).toBe('article:related:123:1');
     expect(CacheKeys.ARTICLE_RELATED('123', 5)).toBe('article:related:123:5');

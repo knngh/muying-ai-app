@@ -18,6 +18,7 @@ export interface ArticleListParams extends PaginationParams {
   sort?: string
   keyword?: string
   source?: string
+  language?: 'zh' | 'en'
 }
 
 export interface CalendarEventQueryParams {

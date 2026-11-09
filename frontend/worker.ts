@@ -228,9 +228,9 @@ const ORG_JSONLD: Record<string, unknown> = {
 }
 
 const DEFAULT_META: PageMeta = {
-  title: DEFAULT_TITLE,
-  description: DEFAULT_DESCRIPTION,
-  canonicalPath: '/knowledge',
+  title: `${SITE_NAME} · 陪伴每一步孕育日常`,
+  description: '贝护妈妈陪伴每一步孕育日常：查找有出处的孕育知识、向 AI 提问，用孕育日历和实用工具记录从备孕到育儿的每一天。',
+  canonicalPath: '/',
   ogType: 'website',
   jsonLd: [
     ORG_JSONLD,
@@ -253,8 +253,8 @@ function noindexMeta(): PageMeta {
 
 // 登录墙/无搜索价值页面：noindex
 const STATIC_PAGE_META: Record<string, PageMeta> = {
-  '/': DEFAULT_META, // 客户端重定向 → /knowledge，canonical 指向 /knowledge
-  '/knowledge': DEFAULT_META,
+  '/': DEFAULT_META,
+  '/knowledge': { ...DEFAULT_META, title: DEFAULT_TITLE, description: DEFAULT_DESCRIPTION, canonicalPath: '/knowledge' },
   '/login': noindexMeta(),
   '/chat': noindexMeta(),
   '/calendar': noindexMeta(),
@@ -619,7 +619,8 @@ async function rebuildSitemap(ctx: Ctx): Promise<Response> {
 
 function buildSitemapXml(items: SeoIndexItem[]): string {
   const urls: string[] = [
-    `  <url>\n    <loc>${SITE_ORIGIN}/knowledge</loc>\n    <changefreq>daily</changefreq>\n    <priority>1.0</priority>\n  </url>`,
+    `  <url>\n    <loc>${SITE_ORIGIN}/</loc>\n    <changefreq>weekly</changefreq>\n    <priority>1.0</priority>\n  </url>`,
+    `  <url>\n    <loc>${SITE_ORIGIN}/knowledge</loc>\n    <changefreq>daily</changefreq>\n    <priority>0.9</priority>\n  </url>`,
   ]
   for (const item of items) {
     const modified = isoDate(item.sourceUpdatedAt || item.updatedAt || item.publishedAt)
@@ -632,7 +633,7 @@ function buildSitemapXml(items: SeoIndexItem[]): string {
 }
 
 function minimalSitemap(): Response {
-  const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url>\n    <loc>${SITE_ORIGIN}/knowledge</loc>\n  </url>\n</urlset>\n`
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url>\n    <loc>${SITE_ORIGIN}/</loc>\n  </url>\n  <url>\n    <loc>${SITE_ORIGIN}/knowledge</loc>\n  </url>\n</urlset>\n`
   return new Response(xml, {
     headers: { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': 'no-store' },
   })

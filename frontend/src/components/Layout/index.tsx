@@ -1,5 +1,5 @@
 import { ReactNode } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import styles from './Layout.module.css'
 import { useCalendarNotifications } from '@/hooks/useCalendarNotifications'
 
@@ -22,8 +22,9 @@ export function Layout({ children }: LayoutProps) {
   const navigate = useNavigate()
   const location = useLocation()
 
-  // 网页版导航（2026-09-28）：知识库 / AI问答 / 孕育日历 / 工具 / 我的；未登录访问受限页自动跳登录
+  // 介绍页与知识库公开访问，记录与问答沿用登录守卫。
   const menuItems = [
+    { key: '/', label: '首页' },
     { key: '/knowledge', label: '知识库' },
     { key: '/chat', label: 'AI问答' },
     { key: '/calendar', label: '孕育日历' },
@@ -41,13 +42,13 @@ export function Layout({ children }: LayoutProps) {
       <a className={styles.skipLink} href="#main-content">跳到正文</a>
       <header className={styles.header}>
         <div className={styles.headerInner}>
-          <div className={styles.brandBlock}>
+          <Link to="/" className={styles.brandBlock} aria-label="贝护妈妈首页">
             <div className={styles.brandBadge}>MY</div>
             <div>
-              <div className={styles.logo}>母婴AI助手</div>
-              <p className={styles.tagline}>孕育知识、记录与支持，集中在一个入口里。</p>
+              <div className={styles.logo}>贝护妈妈</div>
+              <p className={styles.tagline}>陪伴每一步孕育日常</p>
             </div>
-          </div>
+          </Link>
           <nav className={styles.nav} aria-label="主导航">
             {menuItems.map((item) => {
               const active = item.key === activeMenuKey
@@ -71,7 +72,7 @@ export function Layout({ children }: LayoutProps) {
       </main>
       <footer className={styles.footer}>
         <div className={styles.footerInner}>
-          <p>母婴AI助手 ©{new Date().getFullYear()}</p>
+          <p>贝护妈妈 ©{new Date().getFullYear()}</p>
           <p>本平台内容仅供参考，不构成医疗建议。如有不适请立即就医。</p>
         </div>
       </footer>

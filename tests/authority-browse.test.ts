@@ -1,7 +1,13 @@
-import { authorityBrowsePriority, authorityListCacheKey, matchesAuthorityBrowseCategory } from '../src/utils/authority-browse';
+import { authorityBrowsePriority, authorityListCacheKey, matchesAuthorityBrowseCategory, matchesAuthoritySourceLanguage } from '../src/utils/authority-browse';
 import { matchesExpandedSearch } from '../src/utils/search-query-expansion';
 
 describe('authority knowledge browsing', () => {
+  it('filters source language independently of translated presentation', () => {
+    expect(matchesAuthoritySourceLanguage('en', 'zh')).toBe(false);
+    expect(matchesAuthoritySourceLanguage('zh', 'zh')).toBe(true);
+    expect(matchesAuthoritySourceLanguage(undefined, 'zh')).toBe(false);
+    expect(matchesAuthoritySourceLanguage('en', undefined)).toBe(true);
+  });
   it('maps frontend category slugs onto authority topics and stages', () => {
     const article = { title: '婴儿母乳喂养', topic: '喂养', targetStages: ['0-6-months'] };
     expect(matchesAuthorityBrowseCategory(article, 'nutrition-baby')).toBe(true);
@@ -32,6 +38,15 @@ describe('authority knowledge browsing', () => {
     expect(authorityBrowsePriority('https://www.who.int/news/item/announcement')).toBeGreaterThan(0);
   });
 
+  it('puts family guidance before professional protocols and regulatory notices', () => {
+    const family = authorityBrowsePriority('https://www.acog.org/womens-health/faqs/morning-sickness', '孕期');
+    const professional = authorityBrowsePriority('https://www.acog.org/clinical/clinical-guidance/practice-bulletin/articles/fetal-growth', '孕期');
+    const committee = authorityBrowsePriority('https://www.who.int/maternal_child_adolescent/documents/guidelines-review-committee', '孕期');
+    expect(family).toBeLessThan(professional);
+    expect(family).toBeLessThan(committee);
+    expect(authorityBrowsePriority('https://www.acog.org/news/news-releases/2026/notice', '孕期')).toBeGreaterThan(family);
+  });
+
   it('puts practical feeding and pregnancy guidance before broad public-health reading', () => {
     const publicHealth = authorityBrowsePriority('https://www.who.int/news-room/fact-sheets/detail/violence-against-children', '母婴知识');
     const feeding = authorityBrowsePriority('https://www.nhs.uk/baby/breastfeeding/', '喂养');
@@ -45,7 +60,7 @@ describe('authority knowledge browsing', () => {
   it('does not share first-page responses across page sizes, sort orders or filters', () => {
     const baseline = { page: 1, pageSize: 10, sort: 'recommended' };
     const key = authorityListCacheKey(baseline);
-    for (const change of [{ pageSize: 2 }, { sort: 'latest' }, { stage: 'postpartum' }, { keyword: '辅食' }]) {
+    for (const change of [{ pageSize: 2 }, { sort: 'latest' }, { stage: 'postpartum' }, { keyword: '辅食' }, { language: 'zh' }]) {
       expect(authorityListCacheKey({ ...baseline, ...change })).not.toBe(key);
     }
     expect(authorityListCacheKey({ ...baseline, category: 'a:b', tag: 'c' }))

@@ -28,7 +28,16 @@ function mergeArticlePages(existing: Article[], incoming: Article[]) {
   return Array.from(articleMap.values())
 }
 
-interface KnowledgeState {
+interface KnowledgeFilters {
+  selectedCategory: string | null
+  selectedTag: string | null
+  selectedStage: string | null
+  keyword: string
+  language: '' | 'zh' | 'en'
+  sort: 'recommended' | 'latest'
+}
+
+interface KnowledgeState extends KnowledgeFilters {
   articles: Article[]
   categories: Category[]
   tags: Tag[]
@@ -36,21 +45,13 @@ interface KnowledgeState {
   total: number
   page: number
   pageSize: number
-  selectedCategory: string | null
-  selectedTag: string | null
-  selectedStage: string | null
-  keyword: string
   loading: boolean
   error: string | null
   fetchArticles: (params?: { page?: number; reset?: boolean }) => Promise<void>
   fetchCategories: () => Promise<void>
   fetchTags: () => Promise<void>
   fetchArticleDetail: (slug: string) => Promise<void>
-  setCategory: (categorySlug: string | null) => void
-  setTag: (tagSlug: string | null) => void
-  setStage: (stage: string | null) => void
-  setKeyword: (keyword: string) => void
-  search: (keyword: string) => Promise<void>
+  applyFilters: (filters: KnowledgeFilters) => Promise<void>
   likeArticle: (id: number) => Promise<boolean>
   favoriteArticle: (id: number) => Promise<boolean>
   reset: () => void
@@ -68,6 +69,8 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
   selectedTag: null,
   selectedStage: null,
   keyword: '',
+  language: '',
+  sort: 'recommended',
   loading: false,
   error: null,
 
@@ -83,7 +86,8 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
         page,
         pageSize: state.pageSize,
         contentType: 'authority',
-        sort: 'recommended',
+        sort: state.sort,
+        language: state.language || undefined,
         category: state.selectedCategory || undefined,
         tag: state.selectedTag || undefined,
         stage: state.selectedStage || undefined,
@@ -165,27 +169,8 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
     }
   },
 
-  setCategory: (categorySlug) => {
-    set({ selectedCategory: categorySlug, page: 1 })
-    get().fetchArticles({ reset: true })
-  },
-
-  setTag: (tagSlug) => {
-    set({ selectedTag: tagSlug, page: 1 })
-    get().fetchArticles({ reset: true })
-  },
-
-  setStage: (stage) => {
-    set({ selectedStage: stage, page: 1 })
-    get().fetchArticles({ reset: true })
-  },
-
-  setKeyword: (keyword) => {
-    set({ keyword })
-  },
-
-  search: async (keyword: string) => {
-    set({ keyword, page: 1 })
+  applyFilters: async (filters) => {
+    set({ ...filters, articles: [], total: 0, page: 1 })
     await get().fetchArticles({ page: 1, reset: true })
   },
 
@@ -277,6 +262,8 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
       selectedTag: null,
       selectedStage: null,
       keyword: '',
+      language: '',
+      sort: 'recommended',
       error: null,
     })
   },

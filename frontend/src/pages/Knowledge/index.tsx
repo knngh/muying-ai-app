@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useKnowledgeStore } from '@/stores/knowledgeStore'
 import { usePageTitle } from '@/hooks'
 import type { Article } from '@/api/modules'
@@ -50,6 +50,7 @@ const variantSortOptions = [
 export function Knowledge() {
   usePageTitle('权威母婴知识库')
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const {
     articles,
     categories,
@@ -62,14 +63,12 @@ export function Knowledge() {
     selectedCategory,
     selectedTag,
     selectedStage,
+    language,
+    sort,
     fetchArticles,
     fetchCategories,
     fetchTags,
-    setCategory,
-    setTag,
-    setStage,
-    setKeyword,
-    search,
+    applyFilters,
     likeArticle,
     favoriteArticle,
   } = useKnowledgeStore()
@@ -79,31 +78,47 @@ export function Knowledge() {
   const [variantSortModes, setVariantSortModes] = useState<Record<string, 'recommended' | 'recent' | 'zhFirst'>>({})
 
   useEffect(() => {
-    fetchArticles({ reset: true })
     fetchCategories()
     fetchTags()
-  }, [fetchArticles, fetchCategories, fetchTags])
+  }, [fetchCategories, fetchTags])
 
   useEffect(() => {
     setSearchInput(keyword)
   }, [keyword])
 
-  const handleSearchSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    const nextKeyword = searchInput.trim()
-    if (nextKeyword) {
-      await search(nextKeyword)
-      return
-    }
+  useEffect(() => {
+    const stage = searchParams.get('stage') || ''
+    const rawLanguage = searchParams.get('language')
+    void applyFilters({
+      selectedCategory: searchParams.get('category')?.slice(0, 80) || null,
+      selectedTag: searchParams.get('tag')?.slice(0, 80) || null,
+      selectedStage: stageOptions.some(option => option.value === stage) ? stage || null : null,
+      keyword: searchParams.get('keyword')?.trim().slice(0, 100) || '',
+      language: rawLanguage === 'zh' || rawLanguage === 'en' ? rawLanguage : '',
+      sort: searchParams.get('sort') === 'latest' ? 'latest' : 'recommended',
+    })
+  }, [searchParams, applyFilters])
 
-    setKeyword('')
-    fetchArticles({ reset: true })
+  const updateFilter = (key: string, value: string | null) => {
+    setSearchParams(current => {
+      const next = new URLSearchParams(current)
+      if (value) next.set(key, value)
+      else next.delete(key)
+      return next
+    })
+  }
+  const setCategory = (value: string | null) => updateFilter('category', value)
+  const setTag = (value: string | null) => updateFilter('tag', value)
+  const setStage = (value: string | null) => updateFilter('stage', value)
+
+  const handleSearchSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    updateFilter('keyword', searchInput.trim().slice(0, 100))
   }
 
   const handleSearchClear = () => {
     setSearchInput('')
-    setKeyword('')
-    fetchArticles({ reset: true })
+    updateFilter('keyword', null)
   }
 
   const loadMore = () => {
@@ -181,7 +196,7 @@ export function Knowledge() {
         <div>
           <span className={styles.eyebrow}>Knowledge Index</span>
           <h1>知识库</h1>
-          <p>浏览专业母婴知识，按阶段和主题快速找到更贴近当前处境的内容。</p>
+          <p>按阶段和主题查找有出处的孕育知识，优先阅读日常照护科普。</p>
         </div>
         <div className={styles.heroMeta}>
           <strong>{total || articles.length}</strong>
@@ -192,7 +207,10 @@ export function Knowledge() {
       <div className={styles.browseLayout}>
       <aside className={styles.filters} aria-label="知识筛选">
       <section className={styles.filterPanel}>
-        <h2 className={styles.filterTitle}>查找知识</h2>
+        <div className={styles.filterHeading}>
+          <h2 className={styles.filterTitle}>查找知识</h2>
+          {searchParams.size > 0 ? <button type="button" className={styles.textButton} onClick={() => setSearchParams({})}>重置筛选</button> : null}
+        </div>
         <form className={styles.searchForm} role="search" aria-label="搜索知识" onSubmit={handleSearchSubmit}>
           <input
             value={searchInput}
@@ -215,6 +233,7 @@ export function Knowledge() {
           <label className={styles.filterField}>
             <span>分类</span>
             <select
+              aria-label="分类"
               value={selectedCategory || ''}
               onChange={(event) => setCategory(event.target.value || null)}
             >
@@ -230,6 +249,7 @@ export function Knowledge() {
           <label className={styles.filterField}>
             <span>阶段</span>
             <select
+              aria-label="阶段"
               value={selectedStage || ''}
               onChange={(event) => setStage(event.target.value || null)}
             >
@@ -240,7 +260,23 @@ export function Knowledge() {
               ))}
             </select>
           </label>
+          <label className={styles.filterField}>
+            <span>原文语言</span>
+            <select aria-label="原文语言" value={language} onChange={event => updateFilter('language', event.target.value)}>
+              <option value="">全部语言</option>
+              <option value="zh">中文原文</option>
+              <option value="en">英文原文</option>
+            </select>
+          </label>
+          <label className={styles.filterField}>
+            <span>排序</span>
+            <select aria-label="排序" value={sort} onChange={event => updateFilter('sort', event.target.value === 'recommended' ? null : event.target.value)}>
+              <option value="recommended">推荐阅读</option>
+              <option value="latest">最近发布 / 更新</option>
+            </select>
+          </label>
         </div>
+        <p className={styles.sourceNote}>原文语言按来源区分，外文资料如有中文翻译会在详情标注。阅读时请留意原文日期与适用地区。</p>
       </section>
 
       {tags.length > 0 ? (
@@ -479,7 +515,7 @@ export function Knowledge() {
 
                     <div className={styles.articleFooter}>
                       <div className={styles.articleStats}>
-                        {getDisplayDate(article) ? <span>{getDisplayDate(article)}</span> : null}
+                        {getDisplayDate(article) ? <span>{article.sourceUpdatedAt ? '来源日期' : '收录日期'}：{getDisplayDate(article)}</span> : null}
                         <span>阅读 {article.viewCount}</span>
                         <span>点赞 {article.likeCount}</span>
                         <span>收藏 {article.collectCount}</span>

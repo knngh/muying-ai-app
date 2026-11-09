@@ -5,6 +5,7 @@ export const getArticlesQuery = paginationQuery.extend({
   category: z.string().max(80).optional(),
   tag: z.string().max(80).optional(),
   stage: z.string().max(80).optional(),
+  language: z.enum(['zh', 'en']).optional(),
   source: z.string().max(120).optional(),
   difficulty: z.string().max(40).optional(),
   contentType: z.string().max(40).optional(),
