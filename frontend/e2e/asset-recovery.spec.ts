@@ -7,7 +7,7 @@ test('a stale route module reloads the destination once and restores article nav
   let moduleRequests = 0
   await page.route('**/assets/KnowledgeDetail-*.js', async route => {
     moduleRequests += 1
-    if (moduleRequests === 1) await route.fulfill({ status: 404, contentType: 'text/html', body: '<html>Old asset removed</html>' })
+    if (moduleRequests === 1) await route.fulfill({ status: 200, contentType: 'text/html', body: '<html>Old asset removed</html>' })
     else await route.fallback()
   })
   await page.goto('/knowledge')
@@ -24,7 +24,7 @@ test('a persistently unavailable route stops after one automatic reload', async 
   let moduleRequests = 0
   await page.route('**/assets/KnowledgeDetail-*.js', async route => {
     moduleRequests += 1
-    await route.fulfill({ status: 404, contentType: 'text/html', body: '<html>Asset unavailable</html>' })
+    await route.fulfill({ status: 200, contentType: 'text/html', body: '<html>Asset unavailable</html>' })
   })
   await page.goto('/knowledge')
   await page.getByRole('link', { name: ARTICLE_TITLE, exact: true }).click()

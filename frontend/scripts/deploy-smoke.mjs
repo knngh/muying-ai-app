@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import process from 'node:process'
 import { chromium } from '@playwright/test'
 import { existsSync } from 'node:fs'
+import { setTimeout } from 'node:timers/promises'
 
 const baseURL = process.env.WEB_SMOKE_BASE_URL
 const expectedCommit = process.env.WEB_EXPECTED_COMMIT
@@ -30,7 +31,7 @@ assert.match(sw.headers.get('content-type') || '', /javascript/)
 // Introduction and knowledge library have separate canonical URLs.
 for (const [path, title] of [['/', '陪伴每一步孕育日常'], ['/knowledge', '权威母婴知识库']]) {
   const response = await fetch(new URL(path, baseURL))
-  assert.ok(response.ok())
+  assert.ok(response.ok)
   const html = await response.text()
   assert.ok(html.includes(title), `${path}: page title must match its purpose`)
   assert.ok(html.includes(`rel="canonical" href="https://hibeihu.com${path}"`), `${path}: canonical must point to itself`)
@@ -40,9 +41,15 @@ for (const [path, title] of [['/', '陪伴每一步孕育日常'], ['/knowledge'
 const robots = await fetch(new URL('/robots.txt', baseURL))
 assert.ok(robots.ok, '/robots.txt must be served')
 assert.match(await robots.text(), /Sitemap: https:\/\/hibeihu\.com\/sitemap\.xml/)
-const llms = await fetch(new URL('/llms.txt', baseURL))
-assert.ok(llms.ok, '/llms.txt must be served')
-const llmsBody = await llms.text()
+// A cold Worker serves the static fallback while its article index builds.
+let llmsBody = ''
+for (let attempt = 0; attempt < 10; attempt += 1) {
+  const llms = await fetch(new URL('/llms.txt', baseURL))
+  assert.ok(llms.ok, '/llms.txt must be served')
+  llmsBody = await llms.text()
+  if (llmsBody.includes('精选中文文章')) break
+  if (attempt < 9) await setTimeout(2000)
+}
 assert.match(llmsBody, /贝护妈妈/)
 assert.match(llmsBody, /精选中文文章/, 'llms.txt must list curated Chinese articles')
 assert.match(llmsBody, /\[.*\]\(https:\/\/hibeihu\.com\/knowledge\//, 'llms.txt must include article links')

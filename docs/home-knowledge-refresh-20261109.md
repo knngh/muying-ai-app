@@ -18,7 +18,7 @@
 3. 中文抽取、有限来源配置、推荐及发现排序；Jest 回归，公开页面只读抽取核验。
 4. 前后端 lint、类型检查、构建及 web e2e；保存截图和验证结果。
 
-代码沿用现有 TypeScript 风格和设计变量；不增加依赖、不修改数据库结构。前端位于 `frontend/src`，API / 采集位于 `src`，回归测试位于 `frontend/e2e` 和 `tests`。不自动部署或修改线上数据。
+代码沿用现有 TypeScript 风格和设计变量；不增加依赖、不修改数据库结构。前端位于 `frontend/src`，API / 采集位于 `src`，回归测试位于 `frontend/e2e` 和 `tests`。初始预览阶段不部署；用户随后报告线上点击出错，发布范围纳入网页与配套知识接口，先准备回滚再验证线上。
 
 命令：根目录 `npm run build`、`npm run lint`、`npm test -- --runInBand <测试路径>`；frontend 内 `npm run lint`、`npm run typecheck:e2e`、`npm run test:e2e -- --workers=2`。
 
@@ -27,6 +27,7 @@
 - 前端生产构建、应用/Worker 类型检查、E2E 类型检查和 lint 通过；38 项 Playwright 测试通过。覆盖 320 / 375 / 768 / 1024 / 1440px 的首页与知识布局、阶段直达、刷新/后退、详情返回、工具与账号回归。
 - 后端构建、lint 通过；使用测试占位 JWT、不可连接的本机数据库地址以及 `RUN_INTEGRATION_TESTS=false` 运行全量 Jest：117 个套件、813 项通过，需真实数据库的 2 个套件 / 26 项未运行。日志位于 `/private/tmp/muying-backend-tests-20261109.log`。
 - 截图及只读链接检查：`/Users/zhugehao/muying-home-review-20261109/`。
+- 本地 Worker 完整发布冒烟通过：介绍页/知识库独立 canonical、API JSON/分页、401/no-store、通知脚本、动态 llms.txt、sitemap、文章正文/结构化数据及深链接。冷启动时索引异步预热，冒烟对静态 llms.txt 回退最多等待 18 秒，超时仍判失败。
 
 ### 真实中文来源核对（公开 GET，不写线上数据库）
 
