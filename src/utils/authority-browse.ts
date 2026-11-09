@@ -47,7 +47,7 @@ export function authorityBrowsePriority(sourceUrl?: string, topic?: string): num
   let pathname: string;
   try { pathname = new URL(sourceUrl).pathname; } catch { return topicPriority; }
   // Professional references remain searchable; family-facing guidance leads recommendations.
-  if (/\/(?:clinical|professional|practice-bulletin|committee-opinion)(?:\/|$)|guidelines-review-committee/i.test(pathname)) return 2;
+  if (/\/(?:clinical|professional|practice-bulletin|committee-opinion)(?:\/|$)|guidelines-review-committee|\/maternal_child_adolescent\/documents\//i.test(pathname)) return 2;
   // News remains accessible. This only orders the recommended reading list.
   if (/\/fact-sheets\/|\/questions-and-answers\/|\/q-a-detail\//i.test(pathname)) return topicPriority;
   return /\/news-room\/(?:detail|feature-stories|commentaries|events|spotlight)\/|\/news\/item\/|\/(?:press-releases|news-releases)\//i.test(pathname) ? 3 : topicPriority;

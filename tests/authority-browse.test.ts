@@ -42,8 +42,10 @@ describe('authority knowledge browsing', () => {
     const family = authorityBrowsePriority('https://www.acog.org/womens-health/faqs/morning-sickness', '孕期');
     const professional = authorityBrowsePriority('https://www.acog.org/clinical/clinical-guidance/practice-bulletin/articles/fetal-growth', '孕期');
     const committee = authorityBrowsePriority('https://www.who.int/maternal_child_adolescent/documents/guidelines-review-committee', '孕期');
+    const legacyReference = authorityBrowsePriority('http://www.who.int/maternal_child_adolescent/documents/adolescent-health-recommendations/en/', '孕期');
     expect(family).toBeLessThan(professional);
     expect(family).toBeLessThan(committee);
+    expect(family).toBeLessThan(legacyReference);
     expect(authorityBrowsePriority('https://www.acog.org/news/news-releases/2026/notice', '孕期')).toBeGreaterThan(family);
   });
 
