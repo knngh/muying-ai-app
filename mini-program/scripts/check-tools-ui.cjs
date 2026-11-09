@@ -1,6 +1,7 @@
 // Run against the local H5 server with Playwright available via NODE_PATH.
 // The same route matrix is useful before opening the generated mp-weixin package.
 const { chromium } = require('playwright')
+const { expect } = require('@playwright/test')
 const assert = require('node:assert/strict')
 const { existsSync } = require('node:fs')
 
@@ -41,6 +42,41 @@ function routeFor(tool) {
     page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
     await page.route('https://beihu.me/**', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 0, data: {} }) }))
 
+    await page.goto(`${baseUrl}/#/pages/tools/index`)
+    await page.locator('.tool-row').first().waitFor()
+    // Seed only this synthetic preference using uni-app H5's number encoding.
+    // The production bundle does not expose uni.setStorageSync on window.
+    await page.evaluate(() => localStorage.setItem('userPregnancyWeek', JSON.stringify({ type: 'number', data: 38 })))
+    await page.reload()
+    await expect(page.locator('.stage-label')).toHaveText('孕 38 周')
+    await expect(page.locator('.tool-row')).toHaveCount(15)
+    await expect(page.locator('.shortcut-button')).toHaveCount(5)
+    await page.locator('.filter-button').filter({ hasText: '阶段推荐' }).click()
+    await expect(page.locator('.tool-row')).toHaveCount(5)
+    await expect(page.locator('.tool-row').filter({ hasText: '宫缩计时' })).toBeVisible()
+    await page.locator('.search-input input').fill('喂奶')
+    await expect(page.locator('.empty-title')).toBeVisible()
+    await page.getByText('查看全部工具', { exact: true }).click()
+    await expect(page.locator('.tool-row')).toHaveCount(15)
+    await page.locator('.search-input input').fill('喂奶')
+    await expect(page.locator('.tool-row')).toHaveCount(1)
+    await page.locator('.pin-button').click()
+    await expect(page.locator('.shortcut-button').last()).toHaveText('喂养三件套')
+    await page.reload()
+    await expect(page.locator('.shortcut-button').last()).toHaveText('喂养三件套')
+    await page.getByText('管理排序', { exact: true }).click()
+    await page.locator('.editor-row').last().getByText('上移', { exact: true }).click()
+    await page.getByText('完成', { exact: true }).click()
+    await expect(page.locator('.shortcut-button').nth(4)).toHaveText('喂养三件套')
+    await page.reload()
+    await expect(page.locator('.shortcut-button').nth(4)).toHaveText('喂养三件套')
+    for (const width of [320, 375, 430]) {
+      await page.setViewportSize({ width, height: 812 })
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `directory: horizontal overflow at ${width}px`)
+    }
+    await page.locator('.shortcut-button').filter({ hasText: '喂养三件套' }).click()
+    await expect(page.locator('.care-tracker')).toBeVisible()
+
     for (const tool of tools) {
       // Hash-only navigation reuses onLoad state; each route needs a fresh document.
       await page.goto('about:blank')
@@ -54,7 +90,7 @@ function routeFor(tool) {
       }
     }
     assert.deepEqual(errors, [])
-    console.log(`PASS tools UI: ${tools.length} routes, title/entry/history surfaces, 320/375/430 widths, no page errors`)
+    console.log(`PASS tools UI: stage/search filters, shortcuts, add/reorder/reload/navigation; ${tools.length} detail routes, 320/375/430 widths, no page errors`)
   } finally {
     await browser.close()
   }

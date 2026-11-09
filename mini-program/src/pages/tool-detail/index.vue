@@ -1,21 +1,23 @@
 <template>
   <view class="tool-detail-page">
     <view class="detail-hero" :class="getToneClass(tool.tone)">
-      <button class="hero-back" @tap="goBack">‹ {{ sourcePeriod ? `返回${toolPeriodLabel(sourcePeriod)}` : '返回' }}</button>
+      <view class="hero-toolbar">
+        <button class="hero-back" @tap="goBack">‹ {{ sourcePeriod ? `返回${toolPeriodLabel(sourcePeriod)}` : '返回' }}</button>
+        <button class="home-pin-button" :aria-pressed="isOnHome" @tap="toggleHomeTool">{{ isOnHome ? '已添加首页 ✓' : '＋ 添加首页' }}</button>
+      </view>
       <view class="hero-heading">
         <view class="hero-icon"><ToolIcon :id="tool.id" /></view>
         <view><text class="hero-kicker">{{ tool.kicker }} · {{ statusLabel(tool.status) }}</text><text class="hero-title">{{ tool.title }}</text></view>
       </view>
       <text class="hero-description">{{ tool.description }}</text>
       <text class="hero-helper">{{ tool.helper }}</text>
-      <button class="home-pin-button" @tap="toggleHomeTool">{{ isOnHome ? '已添加到首页 ✓' : '＋ 添加到首页' }}</button>
     </view>
 
     <view v-if="sourcePeriod" class="source-context"><text>{{ toolPeriodLabel(sourcePeriod) }} · {{ sourceReason || '从孕育日历打开' }}</text><text class="source-context-note">新记录按实际填写日期保存。</text></view>
 
     <view class="record-tabs">
-      <button class="record-tab" :class="{ active: activePanel === 'entry' }" @tap="activePanel = 'entry'">{{ tool.id === 'poster' ? '制作海报' : tool.id === 'packing' ? '我的清单' : '记录' }}</button>
-      <button class="record-tab" :class="{ active: activePanel === 'history' }" @tap="activePanel = 'history'">历史记录{{ historyCount ? ` (${historyCount})` : '' }}</button>
+      <button class="record-tab" :class="{ active: activePanel === 'entry' }" :aria-pressed="activePanel === 'entry'" @tap="activePanel = 'entry'">{{ tool.id === 'poster' ? '制作海报' : tool.id === 'packing' ? '我的清单' : '记录' }}</button>
+      <button class="record-tab" :class="{ active: activePanel === 'history' }" :aria-pressed="activePanel === 'history'" @tap="activePanel = 'history'">历史记录{{ historyCount ? ` (${historyCount})` : '' }}</button>
     </view>
     <button v-if="activePanel === 'entry' && lastRecordTitle" class="last-record" @tap="activePanel = 'history'"><text class="last-record-title">上次保存：{{ lastRecordTitle }}</text><text>查看 ›</text></button>
     <view class="detail-summary">
@@ -700,14 +702,15 @@ onShareTimeline(() => ({ title: `贝护 · ${tool.value.title}` }))
 .detail-summary-item { flex: 1; min-width: 0; padding: 16rpx 12rpx; border-radius: 18rpx; background: rgba(255,255,255,.78); border: 1rpx solid #eee7e1; text-align: center; }
 .detail-summary-value, .detail-summary-label { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .detail-summary-value { color: #4b5d56; font-size: 27rpx; font-weight: 900; }
-.detail-summary-label { margin-top: 5rpx; color: #9a8f8a; font-size: 20rpx; }
-.home-pin-button { margin: 20rpx 0 0; width: auto; display: inline-block; padding: 18rpx 24rpx; min-height: 88rpx; background: #edf5f1; color: #166c5b; border-radius: 16rpx; font-size: 25rpx; line-height: 1.8; }
-.detail-hero { padding: 28rpx 28rpx 24rpx; box-sizing: border-box; }
+.detail-summary-label { margin-top: 5rpx; color: #766b68; font-size: 22rpx; }
+.hero-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; }
+.home-pin-button { flex-shrink: 0; margin: 0; padding: 18rpx 20rpx; min-height: 88rpx; background: rgba(255,255,255,.8); color: #166c5b; border-radius: 16rpx; font-size: 24rpx; line-height: 1.8; }
+.detail-hero { padding: 12rpx 28rpx 24rpx; box-sizing: border-box; }
 .detail-hero.tool-tone--rose { background: linear-gradient(135deg, #fff1f2 0%, #fbe4e5 100%); }
 .detail-hero.tool-tone--orange { background: linear-gradient(135deg, #fff4ec 0%, #fbe6d5 100%); }
 .detail-hero.tool-tone--green { background: linear-gradient(135deg, #eff8f3 0%, #dcefe7 100%); }
 .detail-hero.tool-tone--lilac { background: linear-gradient(135deg, #f8f2f8 0%, #eaddec 100%); }
-.hero-back { display: block; width: fit-content; color: #655a57; font-size: 24rpx; background: transparent; margin: 0; padding: 20rpx 16rpx 20rpx 0; min-height: 88rpx; line-height: 1.8; text-align: left; }
+.hero-back { min-width: 0; color: #655a57; font-size: 24rpx; background: transparent; margin: 0; padding: 20rpx 16rpx 20rpx 0; min-height: 88rpx; line-height: 1.8; text-align: left; }
 .source-context { margin: 20rpx 28rpx 0; padding: 20rpx 24rpx; border-radius: 20rpx; background: #edf5f1; color: #34584d; font-size: 24rpx; line-height: 1.6; }
 .source-context-note { display: block; color: #66766e; margin-top: 8rpx; font-size: 22rpx; }
 .hero-heading { display: flex; align-items: center; gap: 20rpx; margin-top: 8rpx; }

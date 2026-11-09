@@ -8,19 +8,25 @@
       <button v-if="query" class="text-button" @tap="query = ''">清除</button>
     </view>
     <view class="home-summary">
-      <view class="summary-head"><text class="summary-title">首页工具 · {{ homeIds.length }}/{{ MAX_HOME_TOOLS }}</text><button class="text-button" @tap="editing = !editing">{{ editing ? '完成' : '管理排序' }}</button></view>
+      <view class="summary-head"><text class="summary-title">首页常用 · {{ homeIds.length }}/{{ MAX_HOME_TOOLS }}</text><button class="text-button" :aria-expanded="editing" @tap="editing = !editing">{{ editing ? '完成' : '管理排序' }}</button></view>
+      <view v-if="!editing && homeIds.length" class="shortcut-grid">
+        <button v-for="id in homeIds" :key="id" class="shortcut-button" :aria-label="`打开常用工具${TOOL_BY_ID[id].title}`" @tap="openTool(id)">
+          <view class="shortcut-icon" :class="getToneClass(TOOL_BY_ID[id].tone)"><ToolIcon :id="id" /></view>
+          <text>{{ TOOL_BY_ID[id].title }}</text>
+        </button>
+      </view>
       <text v-if="!editing && !homeIds.length" class="summary-hint">点击下方“添加首页”选择常用工具</text>
       <HomeToolEditor v-if="editing" :ids="homeIds" @change="updateHome" @reset="restoreHome" />
     </view>
     <scroll-view class="filter-scroll" scroll-x>
       <view class="filter-list">
-        <button v-for="group in filters" :key="group.id" class="filter-button" :class="{ active: selectedGroup === group.id }" @tap="selectedGroup = group.id">{{ group.title }}</button>
+        <button v-for="group in filters" :key="group.id" class="filter-button" :class="{ active: selectedGroup === group.id }" :aria-pressed="selectedGroup === group.id" @tap="selectedGroup = group.id">{{ group.title }}<text class="filter-count">{{ group.count }}</text></button>
       </view>
     </scroll-view>
-    <text v-if="query.trim()" class="results-label">找到 {{ results.length }} 项工具</text>
+    <text class="results-label" aria-live="polite">{{ query.trim() ? '找到' : selectedGroup === 'recommended' ? '适合当前阶段的' : '共' }} {{ results.length }} 项工具{{ selectedGroup === 'recommended' ? ' · 可按需添加首页' : '' }}</text>
     <view v-if="!results.length" class="empty-card"><text class="empty-title">没有找到匹配工具</text><text class="summary-hint">试试更短的名称，或切回“全部”。</text><button class="text-button" @tap="query = ''; selectedGroup = 'all'">查看全部工具</button></view>
     <view v-for="group in visibleGroups" :key="group.id" class="tool-group">
-      <text class="group-title">{{ group.title }} <text class="group-count">{{ group.tools.length }}</text></text>
+      <view class="group-heading"><text class="group-title">{{ group.title }} <text class="group-count">{{ group.tools.length }}</text></text><text class="group-description">{{ group.description }}</text></view>
       <view class="tool-list">
         <view v-for="tool in group.tools" :key="tool.id" class="tool-row">
           <button class="open-tool" :aria-label="`打开${tool.title}`" @tap="openTool(tool.id)">
@@ -40,7 +46,7 @@ import { computed, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useAppStore } from '@/stores/app'
 import { calculatePregnancyWeekFromDueDate } from '@/utils'
-import { getStageLabel, getToolStage, getToneClass, TOOL_GROUPS, type ToolGroup, type ToolId } from '@/data/tool-catalog'
+import { getStageLabel, getToolStage, getToneClass, TOOL_BY_ID, TOOL_GROUPS, type ToolGroup, type ToolId } from '@/data/tool-catalog'
 import { findTools, MAX_HOME_TOOLS, openToolPage, readHomeTools, recommendedHomeTools, resetHomeTools, saveHomeTools } from '@/utils/home-tools'
 import HomeToolEditor from '@/components/tools/HomeToolEditor.vue'
 import ToolIcon from '@/components/tools/ToolIcon.vue'
@@ -48,15 +54,22 @@ import { currentToolPeriod, periodTools, toolPeriodLabel } from '@/utils/tool-pe
 import { trackMiniEvent } from '@/utils/analytics'
 const appStore = useAppStore()
 const storedWeek = ref<number | null>(null), query = ref(''), editing = ref(false)
-const selectedGroup = ref<ToolGroup | 'all'>('all'), customIds = ref<ToolId[] | null>(readHomeTools())
+const selectedGroup = ref<ToolGroup | 'all' | 'recommended'>('all'), customIds = ref<ToolId[] | null>(readHomeTools())
 const currentWeek = computed(() => appStore.user?.babyBirthday ? null : appStore.user?.dueDate ? calculatePregnancyWeekFromDueDate(appStore.user.dueDate) : storedWeek.value)
 const stage = computed(() => getToolStage(currentWeek.value, appStore.user?.babyBirthday))
 const stageLabel = computed(() => getStageLabel(stage.value))
 const period = computed(() => currentToolPeriod(currentWeek.value, appStore.user?.babyBirthday))
 const weeklyReasons = computed(() => Object.fromEntries(periodTools(period.value).map(item => [item.id, item.reason])))
 const homeIds = computed(() => customIds.value ?? recommendedHomeTools(stage.value, period.value))
-const filters: { id: ToolGroup | 'all'; title: string }[] = [{ id: 'all', title: '全部' }, ...TOOL_GROUPS]
-const results = computed(() => findTools(query.value, selectedGroup.value))
+const recommendedIds = computed(() => recommendedHomeTools(stage.value, period.value))
+const matchingTools = computed(() => findTools(query.value))
+const filters = computed(() => [
+  { id: 'all' as const, title: '全部', count: matchingTools.value.length },
+  { id: 'recommended' as const, title: '阶段推荐', count: matchingTools.value.filter(tool => recommendedIds.value.includes(tool.id)).length },
+  ...TOOL_GROUPS.map(group => ({ ...group, count: matchingTools.value.filter(tool => tool.group === group.id).length })),
+])
+const results = computed(() => matchingTools.value.filter(tool => selectedGroup.value === 'all'
+  || (selectedGroup.value === 'recommended' ? recommendedIds.value.includes(tool.id) : tool.group === selectedGroup.value)))
 const visibleGroups = computed(() => TOOL_GROUPS.map(group => ({ ...group, tools: results.value.filter(tool => tool.group === group.id) })).filter(group => group.tools.length))
 function updateHome(ids: ToolId[]) {
   try { saveHomeTools(ids); customIds.value = [...ids] }
@@ -90,14 +103,20 @@ onShow(() => {
 .search-input { flex: 1; min-width: 0; font-size: 27rpx; color: #443c3a; height: 88rpx; }
 .text-button { margin: 0; padding: 20rpx 8rpx; min-height: 88rpx; font-size: 25rpx; line-height: 1.8; color: #166c5b; background: transparent; flex-shrink: 0; }
 button::after { border: 0; }
-.home-summary { margin-top: 20rpx; padding: 0 20rpx; border-radius: 20rpx; background: #edf5f1; }
+.home-summary { margin-top: 20rpx; padding: 0 20rpx 16rpx; border-radius: 20rpx; background: #edf5f1; }
+.shortcut-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8rpx; }
+.shortcut-button { display: flex; flex-direction: column; align-items: center; gap: 10rpx; width: 100%; min-width: 0; margin: 0; padding: 12rpx 0; background: transparent; color: #34584d; font-size: 22rpx; line-height: 1.5; }
+.shortcut-icon { display: flex; align-items: center; justify-content: center; width: 64rpx; height: 64rpx; border-radius: 18rpx; }
 .summary-title { color: #34584d; font-size: 28rpx; font-weight: 800; }
 .summary-hint { display: block; color: #5f6e67; font-size: 24rpx; line-height: 1.65; }
 .filter-scroll { margin: 26rpx 0 12rpx; white-space: nowrap; }
 .filter-list { display: flex; width: max-content; gap: 12rpx; }
 .filter-button { margin: 0; padding: 20rpx 22rpx; min-height: 88rpx; border-radius: 18rpx; color: #766b67; background: #f2ede9; font-size: 25rpx; line-height: 1.8; }
 .filter-button.active { color: #fff; background: #16806a; }
-.group-title { display: block; padding: 22rpx 4rpx 16rpx; color: #514641; font-size: 30rpx; font-weight: 800; }
+.filter-count { margin-left: 8rpx; font-size: 22rpx; }
+.group-heading { padding: 26rpx 4rpx 16rpx; }
+.group-title { display: block; color: #514641; font-size: 30rpx; font-weight: 800; }
+.group-description { display: block; margin-top: 6rpx; color: #786e68; font-size: 23rpx; line-height: 1.6; }
 .group-count, .results-label { color: #786e68; font-size: 24rpx; font-weight: 400; margin-left: 8rpx; }
 .tool-list { background: #fffdfb; border-radius: 24rpx; padding: 0 18rpx; box-shadow: 0 8rpx 22rpx rgba(58,48,44,.035); }
 .tool-row { display: flex; align-items: center; gap: 6rpx; border-bottom: 1rpx solid #eee7e1; }
