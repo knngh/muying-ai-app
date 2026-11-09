@@ -30,7 +30,7 @@ export function stripHtml(input: string): string {
       .replace(/<script[\s\S]*?<\/script>/gi, ' ')
       .replace(/<style[\s\S]*?<\/style>/gi, ' ')
       .replace(/<noscript[\s\S]*?<\/noscript>/gi, ' ')
-      .replace(/<[^>]+>/g, ' '),
+      .replace(/<(?:[^"'<>]|"[^"]*"|'[^']*')*>/g, ' '),
   )
     .replace(/\s+/g, ' ')
     .trim();

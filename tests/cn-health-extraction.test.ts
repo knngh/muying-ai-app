@@ -41,6 +41,7 @@ describe('Chinese authority article extraction', () => {
     expect(document?.contentText).toContain(last);
     expect(document?.contentText).not.toContain('导航栏文字');
     expect(document?.contentText).not.toContain('版权和导航尾部');
+    expect(document?.contentText).not.toContain('b">');
     expect(document?.updatedAt).toBe('2023-11-23');
   });
 
