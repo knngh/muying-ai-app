@@ -134,6 +134,12 @@ const AUTHORITY_TRANSLATION_CACHE_PATHS = [
 ].filter(Boolean);
 
 let authorityCacheMemo: { path: string; mtimeMs: number; records: AuthorityCacheRecord[] } | null = null;
+let authorityPreparedRecordsMemo: {
+  signature: string; expiresAt: number; records: AuthorityCacheRecord[];
+} | null = null;
+let authorityArticlesMemo: {
+  records: AuthorityCacheRecord[]; articles: Array<ReturnType<typeof mapAuthorityRecordToArticle>>;
+} | null = null;
 let authorityTranslationCacheMemo: Record<string, AuthorityTranslationCacheRecord> | null = null;
 let authorityTranslationCacheMemoSignature = '';
 let translationCacheWriteQueue: Promise<void> = Promise.resolve();
@@ -695,6 +701,7 @@ function saveAuthorityCacheRecords(records: AuthorityCacheRecord[]): void {
 
 function incrementAuthorityViewCountBySlug(slug: string): number | null {
   const records = loadAuthorityCacheRecords();
+  const contentSignature = `${authorityCacheMemo?.path}:${authorityCacheMemo?.mtimeMs}`;
   if (records.length === 0) {
     return null;
   }
@@ -711,6 +718,12 @@ function incrementAuthorityViewCountBySlug(slug: string): number | null {
     view_count: nextValue,
   };
   saveAuthorityCacheRecords(records);
+  // A view count write does not change content. Keep the prepared corpus valid.
+  if (authorityPreparedRecordsMemo?.signature === contentSignature && authorityCacheMemo) {
+    authorityPreparedRecordsMemo.signature = `${authorityCacheMemo.path}:${authorityCacheMemo.mtimeMs}`;
+  }
+  const article = authorityArticlesMemo?.articles.find(item => item.slug === slug);
+  if (article) article.viewCount = nextValue;
   return nextValue;
 }
 
@@ -917,12 +930,17 @@ function isInvalidAuthoritySourceUrl(record: Pick<AuthorityCacheRecord, 'source_
 async function getAuthorityRecords(): Promise<AuthorityCacheRecord[]> {
   const cacheRecords = loadAuthorityCacheRecords();
   if (cacheRecords.length > 0) {
-    return cacheRecords
+    const signature = `${authorityCacheMemo?.path}:${authorityCacheMemo?.mtimeMs}`;
+    if (authorityPreparedRecordsMemo?.signature === signature
+      && authorityPreparedRecordsMemo.expiresAt > Date.now()) return authorityPreparedRecordsMemo.records;
+    const records = cacheRecords
       .map(normalizeAuthorityRecordTemporalFields)
       .filter((record) => !shouldFilterAuthoritySourceUrl(record))
       .filter((record) => !getAuthorityKnowledgeDropReason(record))
       .filter((record) => !isInvalidAuthoritySourceUrl(record))
       .filter((record) => !isAuthorityRecordLowValue(record));
+    authorityPreparedRecordsMemo = { signature, records, expiresAt: Date.now() + 60_000 };
+    return records;
   }
 
   const rows = await prisma.$queryRawUnsafe<Array<{
@@ -1853,6 +1871,7 @@ function pickBetterAuthorityArticle(
 
 async function getAuthorityArticles() {
   const records = await getAuthorityRecords();
+  if (authorityArticlesMemo?.records === records) return authorityArticlesMemo.articles;
   const deduped = new Map<string, ReturnType<typeof mapAuthorityRecordToArticle>>();
 
   records
@@ -1873,9 +1892,11 @@ async function getAuthorityArticles() {
       dedupeKeys.forEach(key => deduped.set(key, selected));
     });
 
-  return Array.from(new Map(
+  const articles = Array.from(new Map(
     Array.from(deduped.values()).map(article => [article.slug, article]),
   ).values());
+  authorityArticlesMemo = { records, articles };
+  return articles;
 }
 
 async function getAuthorityArticleByNumericId(id: number) {
