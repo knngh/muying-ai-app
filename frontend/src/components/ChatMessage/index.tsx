@@ -1,141 +1,220 @@
-import type { AIMessage } from '@/api/ai'
-import styles from './ChatMessage.module.css'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
+import type { AIMessage } from "@/api/ai";
+import styles from "./ChatMessage.module.css";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 interface ChatMessageProps {
-  message: AIMessage
+  message: AIMessage;
 }
 
 const reliabilityLabelMap = {
-  authoritative: '权威来源优先',
-  mixed: '权威 + 知识库',
-  dataset_only: '知识库兜底',
-  none: '未命中可靠来源',
-} as const
+  authoritative: "权威来源优先",
+  mixed: "结合权威资料与知识库",
+  dataset_only: "来自知识库",
+  none: "暂无可靠来源",
+} as const;
 
-const routeLabelMap = {
-  trusted_rag: '可信检索',
-  safety_fallback: '保守兜底',
-  emergency: '紧急规则',
-} as const
-
-function getRiskLabel(riskLevel: AIMessage['riskLevel']) {
-  if (riskLevel === 'red') return '红色风险'
-  if (riskLevel === 'yellow') return '黄色风险'
-  if (riskLevel === 'green') return '绿色风险'
-  return ''
+function getRiskLabel(riskLevel: AIMessage["riskLevel"]) {
+  if (riskLevel === "red") return "请及时就医";
+  if (riskLevel === "yellow") return "需要留意";
+  return "";
 }
 
-function getRiskClassName(riskLevel: AIMessage['riskLevel']) {
-  if (riskLevel === 'red') return styles.tagRiskRed
-  if (riskLevel === 'yellow') return styles.tagRiskYellow
-  if (riskLevel === 'green') return styles.tagRiskGreen
-  return ''
+function getRiskClassName(riskLevel: AIMessage["riskLevel"]) {
+  if (riskLevel === "red") return styles.tagRiskRed;
+  if (riskLevel === "yellow") return styles.tagRiskYellow;
+  return "";
+}
+
+function sourceHref(url?: string): string | undefined {
+  if (!url) return undefined;
+  try {
+    const parsed = new URL(url, window.location.origin);
+    return /^https?:$/.test(parsed.protocol) ? parsed.href : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+// Omit only text already present verbatim, ignoring Markdown and whitespace.
+function comparableText(text: string) {
+  return text.replace(/[*_`#>\s]/g, "");
 }
 
 export function ChatMessage({ message }: ChatMessageProps) {
-  const isUser = message.role === 'user'
-  const isEmergency = message.isEmergency
-  const authorityCount = message.sources?.filter((source) => source.sourceType === 'authority' || source.authoritative).length || 0
-  const wrapperClassName = `${styles.messageWrapper} ${isUser ? styles.userMessage : styles.assistantMessage}`
-  const cardClassName = `${styles.messageCard} ${isEmergency ? styles.emergencyCard : ''}`
+  const isUser = message.role === "user";
+  const contentText = comparableText(message.content);
+  const additional = (items: string[] = []) =>
+    items.filter(
+      (item) => item.trim() && !contentText.includes(comparableText(item)),
+    );
+  const conclusion = additional([
+    message.structuredAnswer?.conclusion || "",
+  ])[0];
+  const reasons = additional(message.structuredAnswer?.reasons);
+  const actions = additional(message.structuredAnswer?.actions);
+  const whenToSeekCare = additional(message.structuredAnswer?.whenToSeekCare);
+  const uncertainty =
+    message.uncertainty?.message || message.structuredAnswer?.uncertaintyNote;
+  const hasSupplement = conclusion || reasons.length > 0 || actions.length > 0;
+  const hasTrustInfo =
+    message.sourceReliability ||
+    getRiskLabel(message.riskLevel) ||
+    hasSupplement ||
+    whenToSeekCare.length > 0 ||
+    uncertainty;
 
   return (
-    <div className={wrapperClassName}>
+    <div
+      className={`${styles.messageWrapper} ${isUser ? styles.userMessage : styles.assistantMessage}`}
+    >
       <div className={styles.avatar} aria-hidden="true">
-        {isUser ? '我' : 'AI'}
+        {isUser ? "我" : "AI"}
       </div>
-      <article className={cardClassName}>
-        {isEmergency ? (
+      <article
+        className={`${styles.messageCard} ${message.isEmergency ? styles.emergencyCard : ""}`}
+        aria-label={isUser ? "我的问题" : "AI 回答"}
+      >
+        {message.isEmergency ? (
           <div className={styles.emergencyAlert}>
             <strong>紧急情况警告</strong>
             <span>如出现明显不适、持续加重或危险信号，请立即就医。</span>
           </div>
         ) : null}
 
-        <div className="prose prose-sm md:prose-base dark:prose-invert max-w-none">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-            {message.content}
-          </ReactMarkdown>
-        </div>
+        {isUser ? (
+          <div className={styles.userText}>{message.content}</div>
+        ) : (
+          <div className={styles.markdown}>
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                h1: ({ children }) => <h2>{children}</h2>,
+                table: ({ children }) => (
+                  <div
+                    className={styles.tableScroll}
+                    tabIndex={0}
+                    role="region"
+                    aria-label="回答中的表格，可横向滚动"
+                  >
+                    <table>{children}</table>
+                  </div>
+                ),
+                a: ({ href, children }) =>
+                  sourceHref(href) ? (
+                    <a
+                      href={sourceHref(href)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {children}
+                    </a>
+                  ) : (
+                    <span>{children}</span>
+                  ),
+              }}
+            >
+              {message.content}
+            </ReactMarkdown>
+          </div>
+        )}
 
-        {!isUser ? (
+        {!isUser && hasTrustInfo ? (
           <div className={styles.trustPanel}>
             <div className={styles.tagGroup}>
               {message.sourceReliability ? (
-                <span className={`${styles.tag} ${message.sourceReliability === 'authoritative' ? styles.tagAuthority : ''}`}>
+                <span
+                  className={`${styles.tag} ${message.sourceReliability === "authoritative" ? styles.tagAuthority : ""}`}
+                >
                   {reliabilityLabelMap[message.sourceReliability]}
                 </span>
               ) : null}
-              {message.riskLevel ? (
-                <span className={`${styles.tag} ${getRiskClassName(message.riskLevel)}`}>
+              {getRiskLabel(message.riskLevel) ? (
+                <span
+                  className={`${styles.tag} ${getRiskClassName(message.riskLevel)}`}
+                >
                   {getRiskLabel(message.riskLevel)}
                 </span>
               ) : null}
-              {message.route ? (
-                <span className={styles.tag}>
-                  {routeLabelMap[message.route as keyof typeof routeLabelMap] || message.route}
-                </span>
-              ) : null}
-              {message.sources?.length ? (
-                <span className={styles.tag}>
-                  {authorityCount > 0 ? `命中权威来源 ${authorityCount} 条` : `命中来源 ${message.sources.length} 条`}
-                </span>
-              ) : null}
             </div>
-
-            {message.structuredAnswer ? (
-              <div className={styles.trustSummary}>
-                <strong>本轮可信判断</strong>
-                <div className={styles.trustSummaryText}>{message.structuredAnswer.conclusion}</div>
-                {message.structuredAnswer.actions?.length ? (
+            {hasSupplement ? (
+              <section className={styles.trustSummary} aria-label="补充建议">
+                <strong>补充建议</strong>
+                {conclusion ? <p>{conclusion}</p> : null}
+                {reasons.length ? (
                   <ul className={styles.trustList}>
-                    {message.structuredAnswer.actions.slice(0, 3).map((action) => (
-                      <li key={action}>{action}</li>
+                    {reasons.map((reason, index) => (
+                      <li key={index}>{reason}</li>
                     ))}
                   </ul>
                 ) : null}
-              </div>
+                {actions.length ? (
+                  <ol className={styles.trustList}>
+                    {actions.map((action, index) => (
+                      <li key={index}>{action}</li>
+                    ))}
+                  </ol>
+                ) : null}
+              </section>
             ) : null}
-
-            {message.uncertainty?.message ? (
+            {whenToSeekCare.length ? (
+              <section className={styles.careAlert} aria-label="何时就医">
+                <strong>何时就医</strong>
+                <ul className={styles.trustList}>
+                  {whenToSeekCare.map((item, index) => (
+                    <li key={index}>{item}</li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
+            {uncertainty ? (
               <div className={styles.uncertaintyAlert}>
-                <strong>不确定性说明</strong>
-                <span>{message.uncertainty.message}</span>
+                <strong>需要进一步确认</strong>
+                <span>{uncertainty}</span>
               </div>
             ) : null}
           </div>
         ) : null}
 
-        {message.sources && message.sources.length > 0 ? (
-          <div className={styles.sources}>
-            <span className={styles.sourcesTitle}>参考来源：</span>
-            <div className={styles.tagGroup}>
-              {message.sources.map((source, index) => (
-                <button
-                  key={`${source.title}-${index}`}
-                  type="button"
-                  className={`${styles.sourceTag} ${source.url ? styles.sourceTagLink : ''}`}
-                  disabled={!source.url}
-                  onClick={() => {
-                    if (source.url) {
-                      window.open(source.url, '_blank', 'noopener,noreferrer')
-                    }
-                  }}
-                >
-                  {source.title}
-                  {source.url ? ' ↗' : ''}
-                </button>
-              ))}
-            </div>
-          </div>
+        {message.sources?.length ? (
+          <section className={styles.sources} aria-label="参考来源">
+            <strong className={styles.sourcesTitle}>
+              参考来源 · {message.sources.length}
+            </strong>
+            <ol className={styles.sourceList}>
+              {message.sources.map((source, index) => {
+                const href = sourceHref(source.url);
+                return (
+                  <li key={`${source.title}-${index}`}>
+                    {href ? (
+                      <a
+                        className={styles.sourceLink}
+                        href={href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {source.title}
+                        <span aria-hidden="true"> ↗</span>
+                      </a>
+                    ) : (
+                      <span>{source.title}</span>
+                    )}
+                    {source.sourceOrg || source.source ? (
+                      <small>{source.sourceOrg || source.source}</small>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ol>
+          </section>
         ) : null}
-
         <time className={styles.timestamp} dateTime={message.createdAt}>
-          {new Date(message.createdAt).toLocaleTimeString()}
+          {new Date(message.createdAt).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          })}
         </time>
       </article>
     </div>
-  )
+  );
 }

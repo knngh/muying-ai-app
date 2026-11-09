@@ -1,21 +1,21 @@
-import { useState, useRef, useEffect, type KeyboardEvent } from 'react'
-import { useChatStore } from '@/stores/chatStore'
-import { ChatMessage } from '@/components/ChatMessage'
-import { getDisclaimer } from '@/api/ai'
-import { usePageTitle } from '@/hooks'
-import styles from './Chat.module.css'
+import { useState, useRef, useEffect, type KeyboardEvent } from "react";
+import { useChatStore } from "@/stores/chatStore";
+import { ChatMessage } from "@/components/ChatMessage";
+import { getDisclaimer } from "@/api/ai";
+import { usePageTitle } from "@/hooks";
+import styles from "./Chat.module.css";
 
 const quickQuestions = [
-  '孕早期有哪些注意事项？',
-  '宝宝发烧怎么办？',
-  '孕期营养应该怎么补充？',
-  '新生儿护理要点有哪些？',
-]
+  "孕早期有哪些注意事项？",
+  "宝宝发烧怎么办？",
+  "孕期营养应该怎么补充？",
+  "新生儿护理要点有哪些？",
+];
 
 export function Chat() {
-  usePageTitle('AI 问答')
-  const [inputValue, setInputValue] = useState('')
-  const messagesEndRef = useRef<HTMLDivElement>(null)
+  usePageTitle("AI 问答");
+  const [inputValue, setInputValue] = useState("");
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const {
     messages,
@@ -30,41 +30,43 @@ export function Chat() {
     clearMessages,
     loadHistory,
     deleteConversation,
-  } = useChatStore()
+  } = useChatStore();
 
   useEffect(() => {
-    initialize()
-  }, [initialize])
+    initialize();
+  }, [initialize]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   const handleSend = async () => {
-    if (!inputValue.trim() || loading) return
+    if (!inputValue.trim() || loading) return;
 
-    const content = inputValue.trim()
-    setInputValue('')
-    await sendMessage(content)
-  }
+    const content = inputValue.trim();
+    setInputValue("");
+    await sendMessage(content);
+  };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key === 'Enter' && !event.shiftKey) {
-      event.preventDefault()
-      handleSend()
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      handleSend();
     }
-  }
+  };
 
   const handleDeleteConversation = (conversationId: string) => {
-    if (window.confirm('删除这段对话？')) {
-      deleteConversation(conversationId)
+    if (window.confirm("删除这段对话？")) {
+      deleteConversation(conversationId);
     }
-  }
+  };
 
   return (
     <div className={styles.chatContainer}>
       <section className={styles.header}>
-        <div className={styles.headerIcon} aria-hidden="true">?</div>
+        <div className={styles.headerIcon} aria-hidden="true">
+          ?
+        </div>
         <div>
           <h1>AI 智能问答</h1>
           <p>把此刻的担心告诉我，我会陪您一起梳理。</p>
@@ -72,8 +74,12 @@ export function Chat() {
       </section>
 
       <section className={styles.disclaimer}>
-        <strong>重要提示</strong>
-        <p>{getDisclaimer()}</p>
+        <strong>AI 回答仅供参考，不能替代医生诊疗。</strong>
+        <p>明显不适或症状加重请及时就医，紧急情况拨打 120。</p>
+        <details>
+          <summary>查看完整使用说明</summary>
+          <p>{getDisclaimer()}</p>
+        </details>
       </section>
 
       <section className={styles.messagesCard}>
@@ -83,7 +89,9 @@ export function Chat() {
               <span className={styles.historyEyebrow}>History</span>
               <strong>最近对话</strong>
             </div>
-            {loadingHistory ? <span className={styles.inlineLoading}>加载中...</span> : null}
+            {loadingHistory ? (
+              <span className={styles.inlineLoading}>加载中...</span>
+            ) : null}
           </div>
 
           {conversations.length > 0 ? (
@@ -95,8 +103,12 @@ export function Chat() {
                     className={styles.historyButton}
                     onClick={() => loadHistory(item.id)}
                   >
-                    <span className={styles.historyTitle}>{item.title || '新的对话'}</span>
-                    <span className={styles.historySummary}>{item.summary || '暂无摘要'}</span>
+                    <span className={styles.historyTitle}>
+                      {item.title || "新的对话"}
+                    </span>
+                    <span className={styles.historySummary}>
+                      {item.summary || "暂无摘要"}
+                    </span>
                   </button>
                   <button
                     type="button"
@@ -110,7 +122,9 @@ export function Chat() {
               ))}
             </div>
           ) : (
-            <div className={styles.historyEmpty}>{loadingHistory ? '正在加载历史对话' : '还没有历史对话'}</div>
+            <div className={styles.historyEmpty}>
+              {loadingHistory ? "正在加载历史对话" : "还没有历史对话"}
+            </div>
           )}
         </div>
 
@@ -118,7 +132,9 @@ export function Chat() {
           <div className={styles.emptyState}>
             <div className={styles.emptyCard}>
               <strong>您好，我是母婴 AI 助手</strong>
-              <p>您可以直接说说现在最担心的情况，我会尽力给您温和、清晰的参考建议。</p>
+              <p>
+                您可以直接说说现在最担心的情况，我会尽力给您温和、清晰的参考建议。
+              </p>
               <div className={styles.quickQuestions}>
                 <span>快捷问题：</span>
                 <div>
@@ -156,6 +172,7 @@ export function Chat() {
       <section className={styles.inputCard}>
         <div className={styles.inputRow}>
           <textarea
+            aria-label="输入问题"
             value={inputValue}
             onChange={(event) => setInputValue(event.target.value)}
             onKeyDown={handleKeyDown}
@@ -170,7 +187,7 @@ export function Chat() {
             disabled={loading || !inputValue.trim()}
             className={styles.sendButton}
           >
-            {loading ? '发送中' : '发送'}
+            {loading ? "发送中" : "发送"}
           </button>
         </div>
 
@@ -180,13 +197,13 @@ export function Chat() {
           </button>
           <span className={styles.usageHint}>
             {quotaExhausted
-              ? '今日免费额度已用完，明天再来'
+              ? "今日免费额度已用完，明天再来"
               : todayUsage > 0
                 ? `今日已获得 ${todayUsage} 次回答`
-                : '免费用户每日 3 次 AI 问答'}
+                : "免费用户每日 3 次 AI 问答"}
           </span>
         </div>
       </section>
     </div>
-  )
+  );
 }

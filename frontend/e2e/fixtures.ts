@@ -1,4 +1,5 @@
 import { test as base, expect, type Page, type Route } from '@playwright/test'
+import type { AIMessage } from '../src/api/ai'
 
 export const TODAY = '2026-09-28'
 export const PRIVATE_MESSAGE = '仅属于 A 账号的孕期健康记录'
@@ -39,6 +40,7 @@ export function deferred() {
 }
 
 export class FixtureApi {
+  chatMessages?: AIMessage[]
   readingLayout?: { verified: true; html: string }
   meRequests = 0
   refreshRequests = 0
@@ -108,7 +110,7 @@ export class FixtureApi {
       })) : []
       return reply({ list, pagination: { page: 1, pageSize: 20, total: list.length, totalPages: list.length ? 1 : 0 } })
     }
-    if (endpoint === '/ai/conversations/conversation-A') return reply(conversation)
+    if (endpoint === '/ai/conversations/conversation-A') return reply({ ...conversation, messages: this.chatMessages ?? conversation.messages })
     if (endpoint === '/ai/conversations/conversation-older') return reply(olderConversation)
     if (endpoint === '/categories') return reply({ list: [article.category] })
     if (endpoint === '/tags') return reply({ list: [] })
