@@ -24,11 +24,11 @@ export function Layout({ children }: LayoutProps) {
 
   // 网页版导航（2026-09-28）：知识库 / AI问答 / 孕育日历 / 工具 / 我的；未登录访问受限页自动跳登录
   const menuItems = [
-    { key: '/knowledge', label: '知识库', hint: 'Knowledge' },
-    { key: '/chat', label: 'AI问答', hint: 'Chat' },
-    { key: '/calendar', label: '孕育日历', hint: 'Calendar' },
-    { key: '/tools', label: '工具', hint: 'Tools' },
-    { key: '/profile', label: '我的', hint: 'Profile' },
+    { key: '/knowledge', label: '知识库' },
+    { key: '/chat', label: 'AI问答' },
+    { key: '/calendar', label: '孕育日历' },
+    { key: '/tools', label: '工具' },
+    { key: '/profile', label: '我的' },
   ]
   const activeMenuKey = getActiveMenuKey(location.pathname, menuItems)
 
@@ -38,6 +38,7 @@ export function Layout({ children }: LayoutProps) {
 
   return (
     <div className={styles.layout}>
+      <a className={styles.skipLink} href="#main-content">跳到正文</a>
       <header className={styles.header}>
         <div className={styles.headerInner}>
           <div className={styles.brandBlock}>
@@ -54,10 +55,10 @@ export function Layout({ children }: LayoutProps) {
                 <button
                   key={item.key}
                   type="button"
+                  aria-current={active ? 'page' : undefined}
                   onClick={() => handleMenuClick(item.key)}
                   className={active ? `${styles.navItem} ${styles.navItemActive}` : styles.navItem}
                 >
-                  <span className={styles.navHint}>{item.hint}</span>
                   <span>{item.label}</span>
                 </button>
               )
@@ -65,7 +66,7 @@ export function Layout({ children }: LayoutProps) {
           </nav>
         </div>
       </header>
-      <main className={styles.content}>
+      <main id="main-content" className={styles.content} tabIndex={-1}>
         <div className={styles.container}>{children}</div>
       </main>
       <footer className={styles.footer}>

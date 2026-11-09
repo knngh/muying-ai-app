@@ -189,12 +189,16 @@ export function Knowledge() {
         </div>
       </section>
 
+      <div className={styles.browseLayout}>
+      <aside className={styles.filters} aria-label="知识筛选">
       <section className={styles.filterPanel}>
-        <form className={styles.searchForm} onSubmit={handleSearchSubmit}>
+        <h2 className={styles.filterTitle}>查找知识</h2>
+        <form className={styles.searchForm} role="search" aria-label="搜索知识" onSubmit={handleSearchSubmit}>
           <input
             value={searchInput}
             onChange={(event) => setSearchInput(event.target.value)}
             placeholder="搜索知识..."
+            aria-label="搜索知识关键词"
             className={styles.searchInput}
           />
           {searchInput ? (
@@ -267,6 +271,7 @@ export function Knowledge() {
         </section>
       ) : null}
 
+      </aside>
       <section className={styles.listSection}>
         <div className={styles.sectionHeader}>
           <div>
@@ -521,6 +526,7 @@ export function Knowledge() {
           <div className={styles.emptyState}>暂无相关内容</div>
         )}
       </section>
+      </div>
     </div>
   )
 }

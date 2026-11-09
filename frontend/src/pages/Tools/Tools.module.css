@@ -1,94 +1,180 @@
 .page {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 24px;
 }
-
-.hero,
-.toolCard {
-  border: 1px solid rgba(154, 112, 82, 0.12);
-  border-radius: 28px;
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 24px 60px rgba(130, 93, 69, 0.1);
-}
-
 .hero {
-  padding: 22px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 16px;
-  background:
-    radial-gradient(circle at top left, rgba(255, 223, 201, 0.82), transparent 28%),
-    linear-gradient(135deg, rgba(255, 251, 246, 0.98), rgba(250, 240, 232, 0.98));
+  flex-wrap: wrap;
+  gap: 20px;
+  padding: 28px;
+  border: 1px solid var(--ui-border);
+  border-radius: 16px;
+  background: #f6ede4;
 }
-
 .eyebrow {
-  display: inline-block;
+  display: block;
   margin-bottom: 8px;
-  color: #ab5d43;
+  color: var(--ui-accent);
   font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
-
 .hero h1 {
   margin: 0;
-  color: #30231f;
+  color: var(--ui-text);
+  font-size: clamp(28px, 3vw, 36px);
+  font-weight: 700;
 }
-
 .hero p {
-  margin: 10px 0 0;
-  color: #6d5a52;
+  margin-top: 12px;
+  color: var(--ui-muted);
   line-height: 1.8;
 }
-
+.calendarLink {
+  display: inline-flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  min-height: 44px;
+  padding: 10px 16px;
+  border: 1px solid #d8c3b3;
+  border-radius: 10px;
+  color: var(--ui-accent);
+  background: var(--ui-surface);
+  text-decoration: none;
+  font-weight: 600;
+}
+.sectionHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.sectionHeading h2 {
+  color: var(--ui-text);
+  font-size: 18px;
+  font-weight: 700;
+}
+.sectionHeading > span {
+  color: var(--ui-muted);
+  font-size: 13px;
+}
 .cardGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px;
+  gap: 16px;
 }
-
 .toolCard {
-  border: 1px solid rgba(154, 112, 82, 0.12);
-  padding: 22px;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-  transition: transform 0.16s ease, box-shadow 0.16s ease;
+  min-width: 0;
+  padding: 24px;
+  border: 1px solid var(--ui-border);
+  border-radius: 16px;
+  background: var(--ui-surface);
+  text-decoration: none;
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease;
 }
-
 .toolCard:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 28px 64px rgba(130, 93, 69, 0.16);
+  border-color: #c79d83;
+  background: #fffaf4;
 }
-
-.toolCard h2 {
-  margin: 0;
-  color: #3b2b24;
+.cardHeading {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+}
+.icon svg {
+  width: 26px;
+  height: 26px;
+}
+.green {
+  color: #286b55;
+  background: #eaf2ec;
+}
+.orange {
+  color: #9a5a32;
+  background: #faecdd;
+}
+.category {
+  color: var(--ui-muted);
+  font-size: 12px;
+}
+.toolCard h3 {
+  color: var(--ui-text);
+  font-size: 20px;
+  font-weight: 700;
+}
+.arrow {
+  margin-left: auto;
+  color: var(--ui-muted);
   font-size: 20px;
 }
-
 .toolCard p {
-  margin: 4px 0 10px;
-  color: #6d5a52;
-  line-height: 1.75;
+  margin: 20px 0 12px;
+  color: var(--ui-muted);
+  line-height: 1.8;
 }
-
+.detail {
+  display: block;
+  margin-bottom: 20px;
+  color: var(--ui-muted);
+  font-size: 12px;
+}
 .openHint {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
   margin-top: auto;
-  color: #c55c42;
-  font-weight: 700;
+  padding-top: 16px;
+  border-top: 1px solid var(--ui-border);
+  color: var(--ui-accent);
   font-size: 14px;
+  font-weight: 600;
 }
-
-@media (max-width: 768px) {
+.note {
+  color: var(--ui-muted);
+  font-size: 12px;
+  line-height: 1.8;
+}
+.toolCard:focus-visible,
+.calendarLink:focus-visible {
+  outline: 2px solid var(--ui-accent);
+  outline-offset: 4px;
+}
+@media (max-width: 640px) {
+  .hero {
+    padding: 20px;
+    gap: 16px;
+  }
   .cardGrid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+  .toolCard {
+    padding: 20px;
+  }
+  .toolCard p {
+    margin-top: 16px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .toolCard {
+    transition: none;
   }
 }
