@@ -27,7 +27,7 @@
 - 前端生产构建、应用/Worker 类型检查、E2E 类型检查和 lint 通过；38 项 Playwright 测试通过。覆盖 320 / 375 / 768 / 1024 / 1440px 的首页与知识布局、阶段直达、刷新/后退、详情返回、工具与账号回归。
 - 后端构建、lint 通过；使用测试占位 JWT、不可连接的本机数据库地址以及 `RUN_INTEGRATION_TESTS=false` 运行全量 Jest：117 个套件、813 项通过，需真实数据库的 2 个套件 / 26 项未运行。日志位于 `/private/tmp/muying-backend-tests-20261109.log`。
 - 截图及只读链接检查：`/Users/zhugehao/muying-home-review-20261109/`。
-- 本地 Worker 完整发布冒烟通过：介绍页/知识库独立 canonical、API JSON/分页、401/no-store、通知脚本、动态 llms.txt、sitemap、文章正文/结构化数据及深链接。冷启动时索引异步预热，冒烟对静态 llms.txt 回退最多等待 18 秒，超时仍判失败。
+- 本地 Worker 完整发布冒烟通过：介绍页/知识库独立 canonical、API JSON/分页、401/no-store、通知脚本、动态 llms.txt、sitemap、文章正文/结构化数据及深链接。冷启动时索引异步预热，独立冷缓存初次检查在 18 秒后尚未完成、随后确认已生成；冒烟对静态 llms.txt 回退最多等待 58 秒，超时仍判失败。
 
 ### 真实中文来源核对（公开 GET，不写线上数据库）
 

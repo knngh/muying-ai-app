@@ -43,12 +43,12 @@ assert.ok(robots.ok, '/robots.txt must be served')
 assert.match(await robots.text(), /Sitemap: https:\/\/hibeihu\.com\/sitemap\.xml/)
 // A cold Worker serves the static fallback while its article index builds.
 let llmsBody = ''
-for (let attempt = 0; attempt < 10; attempt += 1) {
+for (let attempt = 0; attempt < 30; attempt += 1) {
   const llms = await fetch(new URL('/llms.txt', baseURL))
   assert.ok(llms.ok, '/llms.txt must be served')
   llmsBody = await llms.text()
   if (llmsBody.includes('精选中文文章')) break
-  if (attempt < 9) await setTimeout(2000)
+  if (attempt < 29) await setTimeout(2000)
 }
 assert.match(llmsBody, /贝护妈妈/)
 assert.match(llmsBody, /精选中文文章/, 'llms.txt must list curated Chinese articles')
