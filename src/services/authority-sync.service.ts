@@ -588,8 +588,8 @@ function isAuthorityUrlMatched(url: string, source: AuthoritySourceConfig, ancho
     return !isIndexLikeAuthorityUrl(url)
       && isHtmlLikeDocumentUrl(url)
       && /(?:\/t\d{8}_\d+\.(?:html?|shtml)|\.pdf(?:$|[?#]))/i.test(url)
-      && /chinacdc\.cn/.test(normalized)
-      && /(营养|食养|饮食|膳食|食物|摄入|喂养|母乳|辅食|婴幼儿|新生儿|儿童|孩子|孕妇|孕产|乳母|配方奶|体重|肥胖|生长迟缓|减重|碘缺乏|微量元素)/.test(normalized);
+      && /chinacdc\.cn\/jkkp\/yyjk\/rqyy\//.test(normalized)
+      && /(婴幼儿|婴儿|新生儿|儿童|孩子|孕妇|孕产|备孕|孕期|产后|乳母|母乳|哺乳|辅食|配方奶)/.test(normalized);
   }
 
   if (source.id === 'govcn-muying' || source.id === 'govcn-jiedu-muying') {
@@ -667,6 +667,11 @@ function getAuthorityUrlRelevanceScore(url: string, source: AuthoritySourceConfi
 
   if (source.language === 'zh') {
     score += 5;
+  }
+
+  if (source.id === 'acog') {
+    if (/\/womens-health\/faqs\//.test(normalized)) score += 100;
+    if (/\/clinical\//.test(normalized)) score -= 60;
   }
 
   if (/(pregnan|prenatal|postpartum|birth|labou?r|delivery|newborn|infant|baby|toddler|child|children|breast|feeding|vaccine|vaccination|immunization|immunisation|fertility|contracept|妇产|孕|婴|儿童|新生儿|母乳|喂养|疫苗|接种)/u.test(normalized)) {

@@ -133,7 +133,9 @@ export function getOfficialChineseAuthorityQualityDropReason(
     return 'official_chinese_activity_or_admin';
   }
 
-  if (OFFICIAL_ACTIVITY_OR_ADMIN_PATTERN.test(signalText) && !CORE_GUIDANCE_TITLE_PATTERN.test(signalText)) {
+  // Physical activity is health guidance; the word 活动 alone is also used by event notices.
+  const adminSignalText = signalText.replace(/(?:身体|体力)活动/gu, '');
+  if (OFFICIAL_ACTIVITY_OR_ADMIN_PATTERN.test(adminSignalText) && !CORE_GUIDANCE_TITLE_PATTERN.test(signalText)) {
     return 'official_chinese_activity_or_admin';
   }
 

@@ -49,6 +49,7 @@ describe('authority index discovery', () => {
       'fda-women-health',
       'lactmed',
       'msd-manuals-cn',
+      'chinacdc-nutrition',
       'ndcpa-immunization',
       'cma-kepu-maternal-child',
     ]);
@@ -113,6 +114,21 @@ describe('authority index discovery', () => {
       lactmed!,
       'Drugs and Lactation Database',
     )).toBe(false);
+  });
+
+  test('prioritizes ACOG family FAQs within a bounded discovery budget', () => {
+    const source = getAuthoritySourceConfig('acog')!;
+    const clinical = 'https://www.acog.org/clinical/clinical-guidance/practice-bulletin/articles/pregnancy';
+    const family = 'https://www.acog.org/womens-health/faqs/nutrition-during-pregnancy';
+    expect(__authoritySyncTestUtils.prioritizeAuthorityUrls([clinical, family], source)).toEqual([family, clinical]);
+  });
+
+  test('keeps Chinese nutrition acquisition within family nutrition articles', () => {
+    const source = getAuthoritySourceConfig('chinacdc-nutrition')!;
+    const url = 'https://www.chinacdc.cn/jkkp/yyjk/rqyy/202408/t20240825_295584.html';
+    expect(__authoritySyncTestUtils.isAuthorityUrlMatched(url, source, '6-23月龄婴幼儿辅食喂养指南')).toBe(true);
+    expect(__authoritySyncTestUtils.isAuthorityUrlMatched(url, source, '老年人膳食营养')).toBe(false);
+    expect(__authoritySyncTestUtils.isAuthorityUrlMatched(url.replace('/rqyy/', '/swyy/'), source, '婴儿食物营养')).toBe(false);
   });
 
   test('keeps NICHD disabled after its crawl is retired', () => {
@@ -222,7 +238,8 @@ describe('authority index discovery', () => {
 
     expect(links).toContain(articleUrl);
     expect(links).toContain('https://www.chinacdc.cn/jkkp/yyjk/rqyy/202603/t20260309_315315.html');
-    expect(links).toContain('https://www.chinacdc.cn/jkkp/yyjk/rqyy/202408/t20240825_295583.html');
+    // The bounded maternal/infant feed excludes broad school-holiday nutrition pieces.
+    expect(links).not.toContain('https://www.chinacdc.cn/jkkp/yyjk/rqyy/202408/t20240825_295583.html');
     expect(links).not.toContain('https://www.chinacdc.cn/jkkp/yyjk/jbyy/202408/t20240825_295601.html');
     expect(__authoritySyncTestUtils.isAuthorityUrlMatched(
       articleUrl,

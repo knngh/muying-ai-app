@@ -1,3 +1,4 @@
+import { extractHtmlContainers, type HtmlContainerSelector } from './html-content';
 import type { AuthoritySourceConfig } from '../../config/authority-sources';
 import type { AuthorityRawDocument, NormalizedAuthorityDocument } from '../authority-sync.service';
 import {
@@ -24,91 +25,47 @@ function normalizeCnHealthContentText(text: string): string {
     .trim();
 }
 
-function extractCnHealthContent(rawBody: string): string {
-  const candidates = [
-    rawBody.match(/<div[^>]+id=["']xw_box["'][^>]*>([\s\S]*?)<\/div>\s*<\/div>\s*<\/div>/i)?.[1],
-    rawBody.match(/<div[^>]+id=["']xw_box["'][^>]*>([\s\S]*?)<\/div>/i)?.[1],
-    rawBody.match(/<div[^>]+id=["']detailContent["'][\s\S]*?>([\s\S]*?)<\/div>/i)?.[1],
-    rawBody.match(/<div[^>]+id=["']UCAP-CONTENT["'][\s\S]*?>([\s\S]*?)<\/div>/i)?.[1],
-    rawBody.match(/<div[^>]+class=["'][^"']*(pages_content|TRS_Editor|trs_editor_view|article-content|wp_articlecontent)[^"']*["'][\s\S]*?>([\s\S]*?)<\/div>/i)?.[2],
-    rawBody.match(/<article[\s\S]*?>([\s\S]*?)<\/article>/i)?.[1],
-    rawBody.match(/<main[\s\S]*?>([\s\S]*?)<\/main>/i)?.[1],
-    rawBody.match(/<div[^>]+id=["'][^"']*(zoom|article|content)[^"']*["'][\s\S]*?>([\s\S]*?)<\/div>/i)?.[2],
-    rawBody.match(/<div[^>]+class=["'][^"']*(content|content-box|detail)[^"']*["'][\s\S]*?>([\s\S]*?)<\/div>/i)?.[2],
-  ].filter(Boolean) as string[];
+const editorClasses = /\b(?:pages_content|TRS_Editor|trs_editor_view|article-content|wp_articlecontent)\b/i;
 
-  for (const candidate of candidates) {
-    const text = normalizeCnHealthContentText(stripHtml(candidate));
-    if (text.length >= 120) {
-      return text;
-    }
-  }
-
-  return normalizeCnHealthContentText(stripHtml(rawBody));
+function extractSourceSpecificCnContentCandidates(source: AuthoritySourceConfig, rawBody: string): string[] {
+  const selectors: Record<string, HtmlContainerSelector[]> = {
+    'nhc-fys': [{ tag: 'div', id: /^xw_box$/i }],
+    'nhc-rkjt': [{ tag: 'div', id: /^xw_box$/i }],
+    'ncwch-maternal-child-health': [{ tag: 'div', id: /^content$/i }, { tag: 'article' }],
+    'mchscn-monitoring': [{ tag: 'div', className: /\bnews-show\b/i }],
+    'cnsoc-dietary-guidelines': [{ tag: 'div', className: /\bcon\b/i }, { tag: 'div', className: /\bnews-show\b/i }],
+    'chinanutri-maternal-child': [{ tag: 'div', id: /^UCAP-CONTENT$/i }, { tag: 'div', className: editorClasses }],
+    'chinacdc-immunization': [{ tag: 'div', className: editorClasses }, { tag: 'div', id: /^UCAP-CONTENT$/i }],
+    'chinacdc-nutrition': [{ tag: 'div', className: editorClasses }, { tag: 'div', id: /^UCAP-CONTENT$/i }],
+  };
+  return extractHtmlContainers(rawBody, selectors[source.id] || []);
 }
 
-function extractSourceSpecificCnContentCandidates(source: AuthoritySourceConfig, rawBody: string): Array<string | undefined> {
-  if (source.id === 'nhc-fys' || source.id === 'nhc-rkjt') {
-    return [
-      rawBody.match(/<div[^>]+id=["']xw_box["'][^>]*>([\s\S]*?)<\/div>\s*<\/div>\s*<\/div>/i)?.[1],
-      rawBody.match(/<div[^>]+id=["']xw_box["'][^>]*>([\s\S]*?)<\/div>/i)?.[1],
-    ];
-  }
-
-  if (source.id === 'ncwch-maternal-child-health') {
-    return [
-      rawBody.match(/<div[^>]+id=["']content["'][^>]*>([\s\S]*?)<\/div>\s*<p>/i)?.[1],
-      rawBody.match(/<article[\s\S]*?>([\s\S]*?)<\/article>/i)?.[1],
-    ];
-  }
-
-  if (source.id === 'mchscn-monitoring') {
-    return [
-      rawBody.match(/<div[^>]+class=["'][^"']*news-show[^"']*["'][^>]*>([\s\S]*?)<\/div>\s*(?:<div[^>]+style=|<\/div>\s*<div class=["']clr)/i)?.[1],
-    ];
-  }
-
-  if (source.id === 'cnsoc-dietary-guidelines') {
-    return [
-      rawBody.match(/<div[^>]+class=["'][^"']*\bcon\b[^"']*["'][^>]*>([\s\S]*?)<\/div>\s*<\/div>\s*<\/div>/i)?.[1],
-      rawBody.match(/<div[^>]+class=["'][^"']*news-show[^"']*["'][^>]*>([\s\S]*?)<\/div>\s*<\/div>/i)?.[1],
-    ];
-  }
-
-  if (source.id === 'chinanutri-maternal-child') {
-    return [
-      rawBody.match(/<div[^>]+id=["']UCAP-CONTENT["'][^>]*>([\s\S]*?)<\/div>/i)?.[1],
-      rawBody.match(/<div[^>]+class=["'][^"']*(TRS_Editor|trs_editor_view|article-content|wp_articlecontent)[^"']*["'][\s\S]*?>([\s\S]*?)<\/div>/i)?.[2],
-    ];
-  }
-
-  if (source.id === 'chinacdc-immunization' || source.id === 'chinacdc-nutrition') {
-    return [
-      rawBody.match(/<div[^>]+class=(?:"[^"]*"|'[^']*'|\S*)?(?:TRS_Editor|trs_editor_view|article-content|wp_articlecontent)(?:"[^"]*"|'[^']*')?[^>]*>([\s\S]*?)<\/div>/i)?.[1],
-      rawBody.match(/<div[^>]+id=["']UCAP-CONTENT["'][^>]*>([\s\S]*?)<\/div>/i)?.[1],
-    ];
-  }
-
-  return [];
+function cnContentText(html: string): string {
+  return html
+    .replace(/<(script|style|noscript)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, '')
+    .split(/<\/(?:p|div|h[1-6]|li|section|tr)>|<br\s*\/?>/i)
+    .map(part => normalizeCnHealthContentText(stripHtml(part)))
+    .filter(Boolean)
+    .join('\n\n');
 }
 
 function extractSourceSpecificCnContent(source: AuthoritySourceConfig, rawBody: string): string {
-  const candidates = extractSourceSpecificCnContentCandidates(source, rawBody);
-
-  for (const candidate of candidates.filter(Boolean) as string[]) {
-    const text = normalizeCnHealthContentText(stripHtml(candidate));
-    if (text.length >= 80) {
-      return text;
-    }
-  }
-
-  return extractCnHealthContent(rawBody);
+  const specific = extractSourceSpecificCnContentCandidates(source, rawBody);
+  const candidates = specific.length ? specific : extractHtmlContainers(rawBody, [
+    { tag: 'div', id: /^(?:xw_box|detailContent|UCAP-CONTENT)$/i },
+    { tag: 'div', className: editorClasses },
+    { tag: 'article' },
+    { tag: 'main' },
+    { tag: 'div', id: /^(?:zoom|article|content)$/i },
+    { tag: 'div', className: /\b(?:content|content-box|detail)\b/i },
+  ]);
+  // A known but short body must remain short. Page navigation is not article content.
+  return cnContentText(candidates[0] ?? rawBody);
 }
 
 function countSourceSpecificContentImages(source: AuthoritySourceConfig, rawBody: string): number {
-  return extractSourceSpecificCnContentCandidates(source, rawBody)
-    .filter(Boolean)
-    .reduce((total, html) => total + (html?.match(/<img\b/gi)?.length || 0), 0);
+  return extractSourceSpecificCnContentCandidates(source, rawBody)[0]?.match(/<img\b/gi)?.length || 0;
 }
 
 function normalizeCnHealthTitle(title: string): string {
@@ -148,6 +105,7 @@ function extractSourceSpecificCnTitle(source: AuthoritySourceConfig, rawBody: st
     );
   } else if (source.id === 'chinacdc-immunization' || source.id === 'chinacdc-nutrition') {
     candidates.push(
+      rawBody.match(/<h5\b[^>]*>\s*<a\b[^>]*>([\s\S]*?)<\/a>\s*<\/h5>/i)?.[1],
       rawBody.match(/<div[^>]+class=(?:"[^"]*"|'[^']*'|\S*)?(?:TRS_Editor|trs_editor_view|article-content|wp_articlecontent)(?:"[^"]*"|'[^']*')?[^>]*>[\s\S]*?<p[^>]*>\s*(?:\u3000|&nbsp;|\s)*(?:<font[^>]*>\s*)?(?:<b[^>]*>\s*)?(?:<span[^>]*>)?([\s\S]*?)(?:<\/span>)?(?:\s*<\/b>)?(?:\s*<\/font>)?\s*<\/p>/i)?.[1],
       rawBody.match(/<div[^>]+id=["']UCAP-CONTENT["'][^>]*>[\s\S]*?<p[^>]*>\s*(?:\u3000|&nbsp;|\s)*(?:<strong[^>]*>|<b[^>]*>)?([\s\S]*?)(?:<\/strong>|<\/b>)?\s*<\/p>/i)?.[1],
     );
@@ -174,6 +132,12 @@ function normalizeCnHealthUpdatedAt(value?: string): string | undefined {
   }
 
   return normalized;
+}
+
+function extractVisibleCnSourceDate(source: AuthoritySourceConfig, rawBody: string): string | undefined {
+  if (source.id !== 'chinacdc-immunization' && source.id !== 'chinacdc-nutrition') return undefined;
+  // This is the displayed publication date. URL directory dates can reflect site migrations.
+  return rawBody.match(/<span\b[^>]*class=["'][^"']*\bfb\b[^"']*["'][^>]*>\s*时间[：:]\s*<em[^>]*>\s*(\d{4}-\d{2}-\d{2})\s*<\/em>/i)?.[1];
 }
 
 function isLikelyCnNavigationDocument(source: AuthoritySourceConfig, title: string, contentText: string): boolean {
@@ -229,12 +193,13 @@ export const cnHealthAdapter: AuthorityDocumentAdapter = {
       sourceUrl: raw.url,
       title,
       updatedAt: normalizeCnHealthUpdatedAt(
-        extractMetaContent(raw.rawBody, 'article:published_time')
-        || extractMetaContent(raw.rawBody, 'article:modified_time')
-        || extractMetaContent(raw.rawBody, 'firstpublishedtime')
+        extractMetaContent(raw.rawBody, 'article:modified_time')
+        || extractMetaContent(raw.rawBody, 'article:published_time')
         || extractMetaContent(raw.rawBody, 'lastmodifiedtime')
+        || extractMetaContent(raw.rawBody, 'firstpublishedtime')
         || extractMetaContent(raw.rawBody, 'publishdate')
         || extractMetaContent(raw.rawBody, 'PubDate')
+        || extractVisibleCnSourceDate(source, raw.rawBody)
         || raw.lastModified
       ),
       audience: detectAudience({ sourceUrl: raw.url, title, summary: description, contentText }, source),

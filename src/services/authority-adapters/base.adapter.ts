@@ -1,3 +1,4 @@
+import { decodeHtmlEntities, readHtmlAttributes } from './html-content';
 import type { AuthorityRawDocument, NormalizedAuthorityDocument } from '../authority-sync.service';
 import { OFFICIAL_AUTHORITY_SOURCE_IDS, type AuthoritySourceConfig } from '../../config/authority-sources';
 import { getAuthorityThinContentDropReason } from '../../utils/knowledge-content-guard';
@@ -24,13 +25,13 @@ export interface AuthorityDocumentQualityEvaluation {
 }
 
 export function stripHtml(input: string): string {
-  return input
-    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<noscript[\s\S]*?<\/noscript>/gi, ' ')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
+  return decodeHtmlEntities(
+    input
+      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<noscript[\s\S]*?<\/noscript>/gi, ' ')
+      .replace(/<[^>]+>/g, ' '),
+  )
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -64,15 +65,10 @@ export function extractTitle(rawBody: string): string {
 }
 
 export function extractMetaContent(rawBody: string, name: string): string | undefined {
-  const patterns = [
-    new RegExp(`<meta[^>]+name=["']${name}["'][^>]+content=["']([^"']+)["']`, 'i'),
-    new RegExp(`<meta[^>]+property=["']${name}["'][^>]+content=["']([^"']+)["']`, 'i'),
-  ];
-
-  for (const pattern of patterns) {
-    const match = rawBody.match(pattern);
-    if (match?.[1]) {
-      return stripHtml(match[1]).slice(0, 500);
+  for (const match of rawBody.matchAll(/<meta\b(?:[^"'<>]|"[^"]*"|'[^']*')*>/gi)) {
+    const attrs = readHtmlAttributes(match[0]);
+    if ((attrs.name || attrs.property || '').toLowerCase() === name.toLowerCase() && attrs.content) {
+      return decodeHtmlEntities(attrs.content).replace(/\s+/g, ' ').trim().slice(0, 500);
     }
   }
 
