@@ -26,7 +26,7 @@ const SITE_ORIGIN = 'https://hibeihu.com'
 const UPSTREAM_ORIGIN = 'https://beihu.me'
 
 // Rebuild cached indexes and embedded bodies after source cleanup and quality filtering.
-const SEO_CACHE_VERSION = '20261110-clean-footers-v5'
+const SEO_CACHE_VERSION = '20261110-clean-footers-v6'
 const CACHE_INDEX_KEY = new Request(`${SITE_ORIGIN}/__seo/${SEO_CACHE_VERSION}/index.json`)
 const CACHE_SITEMAP_KEY = new Request(`${SITE_ORIGIN}/__seo/${SEO_CACHE_VERSION}/sitemap.xml`)
 const INDEX_TTL_SEC = 12 * 3600 // 索引软过期

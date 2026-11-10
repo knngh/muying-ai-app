@@ -61,6 +61,13 @@ describe('source-aware article footer cleanup', () => {
     expect(cleaned).toBe(`验孕后可预约就诊。${advice}`);
   });
 
+  it('removes a terminal NHS link list from a previously cleaned translation', () => {
+    const text = `${medical}\n\n更多信息：\n发现怀孕后该做什么\n怀孕期间的NHS产科护理与福利`;
+    expect(stripAuthorityArticleChrome(text, { source_id: 'nhs' })).toBe(medical);
+    const advice = `${medical}\n\n更多信息：请访问BUMPS网站，了解孕期用药对您和宝宝的影响。`;
+    expect(stripAuthorityArticleChrome(advice, { source_id: 'nhs' })).toBe(advice);
+  });
+
   it('removes MSD quiz and copyright widgets while retaining the last treatment paragraph', () => {
     expect(stripAuthorityArticleChrome(`${medical} Test your Knowledge Take a Quiz! 版权所有 © 2026 Merck & Co., Inc. 关于 免责声明`, { source_id: 'msd-manuals-cn' })).toBe(medical);
   });

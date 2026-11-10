@@ -28,7 +28,8 @@ function sourceFamily(source: AuthorityArticleSource): string {
 
 function trimAtFirst(text: string, patterns: RegExp[]): string {
   const offsets = patterns.map(pattern => text.search(pattern)).filter(index => index >= 0);
-  return (offsets.length ? text.slice(0, Math.min(...offsets)) : text).trim();
+  return (offsets.length ? text.slice(0, Math.min(...offsets)) : text)
+    .replace(/\n\s*[*#>_-]+\s*$/u, '').trim();
 }
 
 // These are publisher UI boundaries, not medical keywords. Keep references and
@@ -64,6 +65,7 @@ export function stripAuthorityArticleChrome(input: string, source: AuthorityArti
       /更多关于\s*[“"「](?=[\s\S]{0,2500}页面(?:上次|最后)(?:审查|审核|审阅))/u,
       /(?:^|(?<=[。！？\n]))\s*更多(?:关于|相关内容|健康(?:相关)?内容)[^。！？\n]{0,80}(?=[\s\S]{0,2500}页面(?:上次|最后)(?:审查|审核|审阅))/u,
       /(?:^|(?<=\n))[^。！？\n]{1,60}的更多信息[:：]\s*\n(?=[\s\S]{0,2500}页面(?:上次|最后)(?:审查|审核|审阅))/u,
+      /(?:^|(?<=\n))\s*(?:\*\*)?(?:更多信息|更多相关信息请参阅|关于[^。！？\n]{1,60}的更多内容)[:：]?[^\S\n]*\n(?:[^\n。]+\n){1,20}[^\n。]*$/u,
       /\bPage last reviewed\s*:|\bNext review due\s*:/iu,
       /页面(?:上次|最后)(?:审查|审核|审阅)(?:日期|时间)?\s*[:：]|下次(?:审查|审核|审阅)(?:到期|截止)?(?:日期|时间|日)?\s*[:：]/u,
     ]);
