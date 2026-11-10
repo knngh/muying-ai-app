@@ -177,3 +177,40 @@ it.each([
     jest.restoreAllMocks();
   }
 });
+
+it('serves the verified translation layout without losing bullet markers in intermediate paragraph HTML', async () => {
+  const originalLayoutEnabled = process.env.KNOWLEDGE_AI_LAYOUT_ENABLED;
+  process.env.KNOWLEDGE_AI_LAYOUT_ENABLED = 'true';
+  try {
+    const record = { ...source, source_url: 'https://www.acog.org/womens-health/faqs/vitamin-k-reading-layout', answer: medicalBody };
+    const slug = buildStableAuthoritySlug(record, 0);
+    const translated = `新生儿护理要点\n• 保留1 mg剂量。\n• 出生后6小时内由医护人员安排。\n${translatedMedicalBody}`;
+    const layoutSource = getKnowledgeLayoutSourceText(translated)!;
+    const files: Record<string, unknown> = {
+      'authority-knowledge-cache.json': [record],
+      'authority-translation-cache.json': { [slug]: {
+        slug, sourceUpdatedAt: record.source_updated_at, translatedTitle: '新生儿维生素K护理',
+        translatedSummary: '了解新生儿维生素K注射的益处，并与产科团队讨论个体情况。',
+        translatedContent: translated, translationNotice: '中文译文', updatedAt: '2026-11-10', model: 'fixture', provider: 'freellm',
+      } },
+      'authority-layout-cache.json': { [slug]: {
+        slug, sourceFingerprint: buildKnowledgeLayoutSourceFingerprint(layoutSource),
+        blocks: [{ type: 'heading', text: '新生儿护理要点' }, { type: 'list', text: layoutSource.slice('新生儿护理要点\n'.length) }], updatedAt: '2026-11-10',
+      } },
+    };
+    const findFile = (pathname: unknown) => Object.keys(files).find(name => String(pathname).endsWith(name));
+    mockedFs.existsSync.mockImplementation(pathname => Boolean(findFile(pathname)));
+    mockedFs.statSync.mockImplementation(pathname => ({ mtimeMs: JSON.stringify(files[findFile(pathname) || ''] || {}).length + 100, size: 1 }) as fs.Stats);
+    mockedFs.readFileSync.mockImplementation(pathname => JSON.stringify(files[findFile(pathname) || ''] || {}));
+    const json = jest.fn();
+    const next = jest.fn();
+    await getArticleBySlug({ params: { slug }, headers: {}, socket: { remoteAddress: '127.0.0.1' } } as unknown as Request, { json } as unknown as Response, next);
+    expect(next).not.toHaveBeenCalled();
+    expect(json.mock.calls[0][0].data.readingLayout).toMatchObject({ verified: true });
+    expect(json.mock.calls[0][0].data.readingLayout.html).toContain('<li>• 保留1 mg剂量。</li>');
+  } finally {
+    if (originalLayoutEnabled === undefined) delete process.env.KNOWLEDGE_AI_LAYOUT_ENABLED;
+    else process.env.KNOWLEDGE_AI_LAYOUT_ENABLED = originalLayoutEnabled;
+    jest.restoreAllMocks();
+  }
+});

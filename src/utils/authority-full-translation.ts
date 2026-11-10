@@ -15,6 +15,7 @@ const MEDICAL_TERMS = [
   { source: /\bvalacyclovir\b/i, english: 'valacyclovir', chinese: '伐昔洛韦', translated: /伐昔洛韦/u, invalid: /万拉西韦/u },
   { source: /\bgroup\s+B\s+(?:streptococcus|strep)\b/i, english: 'group B streptococcus (GBS)', chinese: 'B组链球菌（GBS）', translated: /B\s*组链球菌/iu, invalid: /乙型链球菌/u },
   { source: /\brespiratory\s+syncytial\s+virus\b/i, english: 'respiratory syncytial virus (RSV)', chinese: '呼吸道合胞病毒（RSV）', translated: /呼吸道合胞病毒/u, invalid: /呼吸同步病毒/u },
+  { source: /\b(?:testis|testes|testicles)\b[^.!?]{0,120}\bdescend\s+(?:into|to)\b[^.!?]{0,80}\bscrotum\b/i, english: 'testes descend into the scrotum', chinese: '睾丸下降进入阴囊', translated: /睾丸[\s\S]{0,40}阴囊/u, invalid: /睾丸[^。！？]{0,20}从阴囊[^。！？]{0,20}下降/u },
 ];
 
 /** Source-scoped terminology prevents observed drug, virus and procedure substitutions. */
@@ -76,8 +77,11 @@ export function validateAuthorityTranslationSegment(source: string, translated: 
     throw new Error('分段译文过短或不是中文，未发布不完整正文');
   }
   const numbers = source.match(/\d+(?:[.,]\d+)*/g) || [];
-  const translatedNumbers = new Set(translated.match(/\d+(?:[.,]\d+)*/g) || []);
-  if (numbers.some(number => !translatedNumbers.has(number))) {
-    throw new Error('分段译文遗漏数字，未发布不完整正文');
+  const normalizeNumber = (number: string) => /^\d{1,3}(?:,\d{3})+(?:\.\d+)?$/u.test(number)
+    ? number.replace(/,/g, '') : number;
+  const translatedNumbers = new Set((translated.match(/\d+(?:[.,]\d+)*/g) || []).map(normalizeNumber));
+  const missing = [...new Set(numbers.filter(number => !translatedNumbers.has(normalizeNumber(number))))];
+  if (missing.length) {
+    throw new Error(`分段译文遗漏数字，未发布不完整正文（缺失：${missing.slice(0, 24).join('、')}）`);
   }
 }

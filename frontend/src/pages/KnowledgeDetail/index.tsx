@@ -72,6 +72,13 @@ export function KnowledgeDetail() {
 
   const displayContent = useMemo(() => resolveKnowledgeDisplayContent(currentArticle), [currentArticle])
   const displayTitle = displayContent.title
+  const sourceLabel = formatSourceLabel(currentArticle?.sourceOrg || currentArticle?.source || '')
+  const detailLabels = Array.from(new Set([
+    currentArticle?.category?.name,
+    currentArticle?.stage ? formatKnowledgeStageLabel(currentArticle.stage) : '',
+    currentArticle?.topic ? normalizeKnowledgeLabel(currentArticle.topic) : '',
+    ...(currentArticle?.tags?.map(tag => tag.name) || []),
+  ].filter((label): label is string => Boolean(label?.trim()) && formatSourceLabel(label) !== sourceLabel)))
   usePageTitle(displayTitle || undefined)
 
   const summaryText = useMemo(() => (
@@ -189,20 +196,11 @@ export function KnowledgeDetail() {
           <div className={styles.tagRow}>
             {(currentArticle.sourceOrg || currentArticle.source) ? (
               <span className={`${styles.metaTag} ${styles.metaTagSource}`}>
-                {formatSourceLabel(currentArticle.sourceOrg || currentArticle.source)}
+                {sourceLabel}
               </span>
             ) : null}
-            {currentArticle.category ? (
-              <span className={styles.metaTag}>{currentArticle.category.name}</span>
-            ) : null}
-            {currentArticle.stage ? (
-              <span className={styles.metaTag}>{formatKnowledgeStageLabel(currentArticle.stage)}</span>
-            ) : null}
-            {currentArticle.topic ? (
-              <span className={styles.metaTag}>{normalizeKnowledgeLabel(currentArticle.topic)}</span>
-            ) : null}
-            {currentArticle.tags?.map((tag) => (
-              <span key={tag.id} className={styles.metaTag}>{tag.name}</span>
+            {detailLabels.map(label => (
+              <span key={label} className={styles.metaTag}>{label}</span>
             ))}
           </div>
 

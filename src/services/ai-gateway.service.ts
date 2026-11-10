@@ -223,6 +223,11 @@ function isUsageLimitGatewayError(error: unknown): boolean {
     return false;
   }
 
+  if (gatewayError.gatewayProvider === 'freellm'
+    && resolveAiGatewayUsageLimitRetryAfterAt(getAIGatewayErrorOpsMessage(error))) {
+    return true;
+  }
+
   return /usage limit exceeded|weekly usage limit reached|monthly usage limit reached|daily usage limit reached/i
     .test(getAIGatewayErrorOpsMessage(error));
 }

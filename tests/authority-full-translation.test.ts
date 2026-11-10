@@ -40,6 +40,24 @@ it('decodes punctuation and numeric HTML entities before checking medical number
   expect(() => validateAuthorityTranslationSegment(text, '宝宝护理——使用1 mg ± 0.1 mg。')).not.toThrow();
 });
 
+it('accepts equivalent thousands separators while retaining decimal medical doses', () => {
+  const { validateAuthorityTranslationSegment } = require('../src/utils/authority-full-translation');
+  expect(() => validateAuthorityTranslationSegment('Take 1,000 mg, not 0.5 mg.', '服用1000 mg，而不是0.5 mg。')).not.toThrow();
+  expect(() => validateAuthorityTranslationSegment('Take 0.5 mg.', '服用5 mg。')).toThrow('0.5');
+});
+
+it('reports the exact missing numeric facts so a retry can repair them', () => {
+  const { validateAuthorityTranslationSegment } = require('../src/utils/authority-full-translation');
+  expect(() => validateAuthorityTranslationSegment('Give 2 mg within 6 hours.', '在6小时内给药。')).toThrow('缺失：2');
+});
+
+it('rejects an observed reversal of fetal anatomical movement', () => {
+  const { validateAuthorityTranslationTerminology } = require('../src/utils/authority-full-translation');
+  const source = 'In boys, the testes have begun to descend into the scrotum.';
+  expect(() => validateAuthorityTranslationTerminology(source, '在男孩中，睾丸已开始从阴囊下降。')).toThrow();
+  expect(() => validateAuthorityTranslationTerminology(source, '在男孩中，睾丸已开始下降进入阴囊。')).not.toThrow();
+});
+
 function mockTranslation(body: string) {
   let translated = body.replace(/Care section (\d+)\./g, '第$1节照护。');
   englishSentences.forEach((sentence, index) => {
@@ -123,6 +141,29 @@ describe('complete authority article translation', () => {
       provider: 'fixture',
     };
   }
+
+  it('upgrades old translations in background when independent review is enabled', async () => {
+    process.env.AUTHORITY_TRANSLATION_QUALITY_REVIEW_ENABLED = 'true';
+    const record = { ...source, id: 'full-translation-quality-upgrade', answer: longBody.replace(/\s+/g, ' ') };
+    const { buildStableAuthoritySlug } = require('../src/utils/authority-identity');
+    const { getAuthorityTranslationSource } = require('../src/utils/authority-full-translation');
+    const slug = buildStableAuthoritySlug(record, 0);
+    fs.writeFileSync(process.env.AUTHORITY_KNOWLEDGE_CACHE_PATH!, JSON.stringify([record]));
+    fs.writeFileSync(translationCachePath, JSON.stringify({ [slug]: {
+      ...legacyCachedTranslation(slug, record), translatedContent: JSON.parse(mockTranslation(record.answer).answer).translated_content,
+      translationCoverage: 'full', translationVersion: 2, sourceChars: getAuthorityTranslationSource(record.answer).length, translatedChunks: 3,
+    } }));
+    const { callModel, service } = loadService();
+    expect(service.getCachedAuthorityTranslation(slug, record.source_updated_at, buildAuthorityTranslationSourceFingerprint(record), [], record.answer)).toBeTruthy();
+    callModel.mockImplementation(async (role, messages) => role === 'knowledge_review' ? {
+      answer: JSON.stringify({ approved: true, confidence: 1, issues: [] }),
+      route: { provider: 'freellm', model: 'review-fixture', route: 'task', label: 'review-fixture' },
+    } : mockTranslation(sourceBodyFromMessages(messages)));
+    const result = await service.warmPublishedAuthorityTranslations({ limit: 1, delayMs: 0 });
+    expect(result.warmed).toBe(1);
+    expect(result.cached).toBe(0);
+    expect(Object.values(service.loadAuthorityTranslationCache()).some(item => item.qualityReview?.approved)).toBe(true);
+  });
 
   it('translates every source segment, preserves the final medical warning, and saves only the completed article', async () => {
     expect(longBody.length).toBeGreaterThan(6500);

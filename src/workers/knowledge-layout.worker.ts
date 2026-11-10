@@ -8,7 +8,7 @@ async function main() {
     try {
       const result = await warmKnowledgeLayoutBatch(Number(process.env.KNOWLEDGE_LAYOUT_BATCH_LIMIT || 30));
       console.log('[Knowledge layout] batch', JSON.stringify(result));
-      if (result.formatted + result.failed > 0) intervalMs = 60_000;
+      if (!result.providerUnavailable && result.formatted + result.failed > 0) intervalMs = 60_000;
     } catch {
       console.error('[Knowledge layout] batch unavailable; will retry next interval');
       if (once) process.exitCode = 1;

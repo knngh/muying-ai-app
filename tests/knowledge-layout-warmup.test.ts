@@ -77,10 +77,24 @@ it('processes the complete batch with at most three simultaneous model requests'
     peak = Math.max(peak, active);
     await new Promise(resolve => setTimeout(resolve, 5));
     active -= 1;
-    return { verified: false, blocks: [], reason: 'provider_error' };
+    return { verified: false, blocks: [], reason: 'validation_failed' };
   });
   expect((await warmKnowledgeLayoutBatch(5)).failed).toBe(5);
   expect(mocked.formatKnowledgeLayoutWithAI).toHaveBeenCalledTimes(5);
   expect(peak).toBe(3);
   expect(active).toBe(0);
+});
+
+it('pauses on provider outages without marking good articles as invalid or overwriting their layout', async () => {
+  inputs(text, 8);
+  const previous = { slug: 'article-0', sourceFingerprint: 'previous content', blocks: [{ type: 'paragraph' as const, text: 'previous content' }], inputRevision: 'old', updatedAt: '2020-01-01', layoutVersion: layout.KNOWLEDGE_LAYOUT_VERSION };
+  cache['article-0'] = previous;
+  mocked.formatKnowledgeLayoutWithAI.mockResolvedValue({ verified: false, blocks: [], reason: 'provider_error' });
+  const report = await warmKnowledgeLayoutBatch(8);
+  expect(report).toMatchObject({ providerUnavailable: true });
+  expect(mocked.formatKnowledgeLayoutWithAI.mock.calls.length).toBeLessThanOrEqual(3);
+  expect(cache['article-0']).toEqual(previous);
+  expect(Object.keys(cache)).toEqual(['article-0']);
+  mocked.formatKnowledgeLayoutWithAI.mockResolvedValue({ verified: true, blocks: [{ type: 'paragraph', text }], route: { provider: 'freellm', model: 'fixture', route: 'task', label: 'fixture' } });
+  expect((await warmKnowledgeLayoutBatch(1)).formatted).toBe(1);
 });

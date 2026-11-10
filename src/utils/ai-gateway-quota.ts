@@ -3,6 +3,13 @@ export function resolveAiGatewayUsageLimitRetryAfterAt(message: unknown): string
     return undefined;
   }
 
+  if (/rate.?limit|models exhausted/iu.test(message)) {
+    const retryAt = message.match(/"retryAtMs"\s*:\s*(\d{13})/u)?.[1];
+    if (retryAt && Number.isFinite(new Date(Number(retryAt)).getTime())) {
+      return new Date(Number(retryAt)).toISOString();
+    }
+  }
+
   if (!/usage limit exceeded|weekly usage limit reached|monthly usage limit reached|daily usage limit reached/i.test(message)) {
     return undefined;
   }

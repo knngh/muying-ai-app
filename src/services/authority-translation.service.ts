@@ -745,6 +745,8 @@ function shouldStopAfterTranslationTaskFailure(taskRole: AITaskModelRole, error:
 }
 
 function shouldStopAuthorityTranslationWarmupBatch(error: unknown): boolean {
+  if (isAIGatewayProviderError(error, 'freellm')
+    && (error as { gatewayStatus?: number }).gatewayStatus === 429) return true;
   if (isAIGatewayModalDirectRateLimitError(error) || isAIGatewayProviderError(error, 'modal-direct')) {
     return true;
   }
@@ -1309,7 +1311,7 @@ export function getOrCreateAuthorityTranslation(
 ): Promise<AuthorityTranslationCacheRecord> {
   const sourceUpdatedAt = resolveAuthorityTranslationSourceUpdatedAt(record);
   const sourceFingerprint = buildAuthorityTranslationSourceFingerprint(record);
-  const cached = getCachedAuthorityTranslation(slug, sourceUpdatedAt, sourceFingerprint, fallbackSlugs, record.answer);
+  const cached = options.force ? null : getCachedAuthorityTranslation(slug, sourceUpdatedAt, sourceFingerprint, fallbackSlugs, record.answer);
   if (cached) {
     return Promise.resolve(cached);
   }
@@ -1345,6 +1347,7 @@ export async function warmPublishedAuthorityTranslations(
     ),
   );
   const records = await getAuthorityRecordsForTranslation();
+  const requireQualityReview = /^(1|true|yes|on)$/i.test(process.env.AUTHORITY_TRANSLATION_QUALITY_REVIEW_ENABLED || '');
   const failures: WarmAuthorityTranslationsResult['failures'] = [];
   const candidates: Array<{ slug: string; record: AuthorityCacheRecord; fallbackSlugs: string[] }> = [];
   let cached = 0;
@@ -1368,7 +1371,8 @@ export async function warmPublishedAuthorityTranslations(
 
     const sourceUpdatedAt = resolveAuthorityTranslationSourceUpdatedAt(record);
     const sourceFingerprint = buildAuthorityTranslationSourceFingerprint(record);
-    if (getCachedAuthorityTranslation(slug, sourceUpdatedAt, sourceFingerprint, fallbackSlugs, record.answer)) {
+    const cachedTranslation = getCachedAuthorityTranslation(slug, sourceUpdatedAt, sourceFingerprint, fallbackSlugs, record.answer);
+    if (cachedTranslation && (!requireQualityReview || cachedTranslation.isSourceChinese || cachedTranslation.qualityReview?.approved)) {
       fallbackSlugs.forEach((candidateSlug) => clearAuthorityTranslationFailure(candidateSlug));
       cached += 1;
       return;
@@ -1396,7 +1400,7 @@ export async function warmPublishedAuthorityTranslations(
       const item = selected[index];
       attempted += 1;
       try {
-        await getOrCreateAuthorityTranslation(item.slug, item.record, { providerTimeoutMs }, item.fallbackSlugs);
+        await getOrCreateAuthorityTranslation(item.slug, item.record, { providerTimeoutMs, force: requireQualityReview }, item.fallbackSlugs);
         item.fallbackSlugs.forEach((candidateSlug) => clearAuthorityTranslationFailure(candidateSlug));
         warmed += 1;
       } catch (error) {

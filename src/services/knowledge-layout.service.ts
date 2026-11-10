@@ -220,6 +220,7 @@ export async function formatKnowledgeLayoutWithAI(
       } catch (error) {
         failureReason = error instanceof Error && error.name === 'KnowledgeLayoutValidationError'
           ? 'validation_failed' : 'provider_error';
+        if (failureReason === 'provider_error') break;
       }
     }
     if (!sectionBlocks) return { verified: false, blocks: [], reason: failureReason };

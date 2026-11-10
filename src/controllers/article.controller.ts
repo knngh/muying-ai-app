@@ -2002,8 +2002,11 @@ export const getArticleBySlug = async (req: Request, res: Response, next: NextFu
           includeContent: true,
           includeTranslation: true,
         }));
-      const layoutContent = 'displayContent' in displayArticle && typeof displayArticle.displayContent === 'string'
-        ? displayArticle.displayContent : displayArticle.content;
+      // Paragraph HTML consumes literal bullet markers. Match the verified
+      // layout against the original translation used by the quality pipeline.
+      const layoutContent = getCachedAuthorityArticleTranslation(authorityArticle)?.translatedContent
+        || ('displayContent' in displayArticle && typeof displayArticle.displayContent === 'string'
+          ? displayArticle.displayContent : displayArticle.content);
       return res.json(successResponse({
         ...displayArticle,
         readingLayout: getCachedKnowledgeReadingLayout(canonicalSlug, layoutContent || displayArticle.content),

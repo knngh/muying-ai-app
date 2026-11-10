@@ -7,7 +7,7 @@ import {
 } from './knowledge-layout.service';
 import { getKnowledgeLayoutSourceLines, getKnowledgeLayoutSourceText } from '../utils/knowledge-layout';
 
-interface LayoutArticle { slug: string; content?: string; displayContent?: string; sourceUpdatedAt?: string; updatedAt?: string; publishedAt?: string }
+interface LayoutArticle { slug: string; content?: string; displayContent?: string; translation?: { translatedContent?: string }; sourceUpdatedAt?: string; updatedAt?: string; publishedAt?: string }
 
 async function readApi<T>(path: string): Promise<T> {
   const base = process.env.KNOWLEDGE_LAYOUT_API_ORIGIN || 'http://127.0.0.1:3000';
@@ -23,17 +23,17 @@ async function readApi<T>(path: string): Promise<T> {
 /** One writer processes a bounded batch. Failed inputs wait six hours before retry. */
 export async function warmKnowledgeLayoutBatch(limit = 30) {
   const cache = loadKnowledgeLayoutCache();
-  const report = { scanned: 0, formatted: 0, failed: 0, skipped: 0 };
+  const report = { scanned: 0, formatted: 0, failed: 0, skipped: 0, providerUnavailable: false };
   const maximum = Number.isFinite(limit) ? Math.max(1, Math.min(30, Math.floor(limit))) : 30;
   let detailRequests = 0;
   let attempted = 0;
   const pending: Promise<void>[] = [];
-  for (let page = 1; page <= 30 && attempted < maximum && detailRequests < 100; page += 1) {
+  for (let page = 1; page <= 30 && attempted < maximum && detailRequests < 100 && !report.providerUnavailable; page += 1) {
     const list = await readApi<{ list: LayoutArticle[]; pagination: { totalPages: number } }>(
       `/articles?contentType=authority&sort=recommended&pageSize=100&page=${page}`,
     );
     for (const item of list.list) {
-      if (attempted >= maximum || detailRequests >= 100) break;
+      if (attempted >= maximum || detailRequests >= 100 || report.providerUnavailable) break;
       report.scanned += 1;
       const inputRevision = item.sourceUpdatedAt || item.updatedAt || item.publishedAt || '';
       const previous = cache[item.slug];
@@ -55,7 +55,7 @@ export async function warmKnowledgeLayoutBatch(limit = 30) {
         attempted += 1;
         continue;
       }
-      const source = getKnowledgeLayoutSourceText(article.displayContent || article.content || '');
+      const source = getKnowledgeLayoutSourceText(article.translation?.translatedContent || article.displayContent || article.content || '');
       if (!source || source.length > 200000 || getKnowledgeLayoutSourceLines(source).length > 2000) {
         cache[item.slug] = { slug: item.slug, sourceFingerprint: '', inputRevision,
           updatedAt: new Date().toISOString(), blocks: [], layoutVersion: KNOWLEDGE_LAYOUT_VERSION };
@@ -76,6 +76,11 @@ export async function warmKnowledgeLayoutBatch(limit = 30) {
       attempted += 1;
       pending.push((async () => {
         const result = await formatKnowledgeLayoutWithAI(source);
+        if (!result.verified && result.reason === 'provider_error') {
+          report.providerUnavailable = true;
+          report.failed += 1;
+          return;
+        }
         cache[item.slug] = {
           slug: item.slug, sourceFingerprint: fingerprint, inputRevision, updatedAt: new Date().toISOString(),
           blocks: result.blocks,

@@ -10,6 +10,10 @@ describe('AI gateway provider circuit breaker', () => {
     AI_KIMI_MODEL: process.env.AI_KIMI_MODEL,
     AI_KIMI_PROVIDER: process.env.AI_KIMI_PROVIDER,
     AI_PROVIDER_USAGE_LIMIT_BLOCK_MS: process.env.AI_PROVIDER_USAGE_LIMIT_BLOCK_MS,
+    AI_KNOWLEDGE_FORMAT_URL: process.env.AI_KNOWLEDGE_FORMAT_URL,
+    AI_KNOWLEDGE_FORMAT_KEY: process.env.AI_KNOWLEDGE_FORMAT_KEY,
+    AI_KNOWLEDGE_FORMAT_PROVIDER: process.env.AI_KNOWLEDGE_FORMAT_PROVIDER,
+    AI_KNOWLEDGE_FORMAT_MODEL: process.env.AI_KNOWLEDGE_FORMAT_MODEL,
   };
 
   function restoreEnv() {
@@ -94,5 +98,27 @@ describe('AI gateway provider circuit breaker', () => {
         blockedUntil: '2026-05-15T00:10:00.000Z',
       }),
     ]);
+  });
+
+  it('shares freellm cooldown across translation, review and layout and resumes at retryAtMs', async () => {
+    process.env.AI_KNOWLEDGE_FORMAT_URL = 'https://freellm.example/v1';
+    process.env.AI_KNOWLEDGE_FORMAT_KEY = 'offline-key';
+    process.env.AI_KNOWLEDGE_FORMAT_PROVIDER = 'freellm';
+    process.env.AI_KNOWLEDGE_FORMAT_MODEL = 'mistral-large-3';
+    const retryAtMs = Date.now() + 5000;
+    const fetchMock = jest.spyOn(globalThis, 'fetch').mockResolvedValueOnce(Response.json({
+      error: { message: 'All models exhausted: all routes rate-limited or on cooldown.', type: 'rate_limit_error', retryAtMs },
+    }, { status: 429 })).mockImplementation(async () => Response.json({ choices: [{ message: { content: 'ok' } }] }));
+    const gateway = require('../src/services/ai-gateway.service') as typeof import('../src/services/ai-gateway.service');
+    const options = { primaryOnly: true };
+    await expect(gateway.callTaskModelDetailed('knowledge_translate', [{ role: 'user', content: 'ping' }], options)).rejects.toThrow();
+    for (const role of ['knowledge_review', 'knowledge_format'] as const) {
+      await expect(gateway.callTaskModelDetailed(role, [{ role: 'user', content: 'ping' }], options)).rejects.toThrow(/temporarily blocked/);
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(gateway.getAIGatewayProviderCircuitBreakerStatus()[0].blockedUntil).toBe(new Date(retryAtMs).toISOString());
+    jest.setSystemTime(retryAtMs + 1);
+    await expect(gateway.callTaskModelDetailed('knowledge_review', [{ role: 'user', content: 'ping' }], options)).resolves.toMatchObject({ answer: 'ok' });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
