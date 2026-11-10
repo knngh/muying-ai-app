@@ -35,7 +35,7 @@ for (const width of [320, 375, 768, 1440]) {
         whenToSeekCare: ['如有呼吸困难，请立即就医。'],
       },
       sources: [
-        { title: '一条很长的参考来源标题'.repeat(8), url: 'https://example.org/guide', source: '测试来源', relevance: 1 },
+        { title: '一条很长的参考来源标题'.repeat(8), url: 'https://example.org/guide', source: '测试来源', sourceType: 'authority', relevance: 1 },
         { title: '不安全的来源链接', url: 'javascript:alert(1)', source: '测试来源', relevance: 1 },
       ],
     }]
@@ -46,6 +46,8 @@ for (const width of [320, 375, 768, 1440]) {
     await expect(answer.getByRole('heading', { name: '喂养观察建议' })).toBeVisible()
     await expect(answer.getByText('保留全部第四条建议。', { exact: true })).toBeVisible()
     await expect(answer.getByText('如有呼吸困难，请立即就医。', { exact: true })).toBeVisible()
+    await expect(answer.getByText('紧急规则', { exact: true })).toBeVisible()
+    await expect(answer.getByText('命中权威来源 1 条', { exact: true })).toBeVisible()
     await expect(answer.getByText('记录喂养时间。', { exact: true })).toHaveCount(1)
     await expect(answer.getByRole('link', { name: '参考资料', exact: true })).toHaveAttribute('rel', 'noopener noreferrer')
     await expect(answer.getByRole('link', { name: '不安全的来源链接' })).toHaveCount(0)

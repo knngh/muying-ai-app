@@ -17,12 +17,14 @@ const reliabilityLabelMap = {
 function getRiskLabel(riskLevel: AIMessage["riskLevel"]) {
   if (riskLevel === "red") return "请及时就医";
   if (riskLevel === "yellow") return "需要留意";
+  if (riskLevel === "green") return "风险较低";
   return "";
 }
 
 function getRiskClassName(riskLevel: AIMessage["riskLevel"]) {
   if (riskLevel === "red") return styles.tagRiskRed;
   if (riskLevel === "yellow") return styles.tagRiskYellow;
+  if (riskLevel === "green") return styles.tagRiskGreen;
   return "";
 }
 
@@ -55,11 +57,30 @@ export function ChatMessage({ message }: ChatMessageProps) {
   const actions = additional(message.structuredAnswer?.actions);
   const whenToSeekCare = additional(message.structuredAnswer?.whenToSeekCare);
   const uncertainty =
-    message.uncertainty?.message || message.structuredAnswer?.uncertaintyNote;
+    [message.uncertainty?.message, message.structuredAnswer?.uncertaintyNote]
+      .filter((value, index, values): value is string => Boolean(value?.trim()) && values.indexOf(value) === index)
+      .filter((item) => !contentText.includes(comparableText(item)))
+      .join("\n");
+  const authorityCount = message.sources?.filter(
+    (item) => item.sourceType === "authority" || item.authoritative,
+  ).length || 0;
+  const hitSourceLabel = message.sources?.length
+    ? authorityCount > 0
+      ? `命中权威来源 ${authorityCount} 条`
+      : `命中来源 ${message.sources.length} 条`
+    : "";
+  const routeLabel = message.route === "trusted_rag"
+    ? "可信检索"
+    : message.route === "safety_fallback"
+      ? "保守兜底"
+      : message.route === "emergency"
+        ? "紧急规则"
+        : "";
   const hasSupplement = conclusion || reasons.length > 0 || actions.length > 0;
   const hasTrustInfo =
     message.sourceReliability ||
     getRiskLabel(message.riskLevel) ||
+    hitSourceLabel || routeLabel ||
     hasSupplement ||
     whenToSeekCare.length > 0 ||
     uncertainty;
@@ -136,6 +157,8 @@ export function ChatMessage({ message }: ChatMessageProps) {
                   {getRiskLabel(message.riskLevel)}
                 </span>
               ) : null}
+              {routeLabel ? <span className={styles.tag}>{routeLabel}</span> : null}
+              {hitSourceLabel ? <span className={styles.tag}>{hitSourceLabel}</span> : null}
             </div>
             {hasSupplement ? (
               <section className={styles.trustSummary} aria-label="补充建议">
