@@ -143,7 +143,7 @@ describe('authority translation cache cleaner', () => {
     })).toBeNull();
   });
 
-  it('defaults to DeepSeek official API and GLM fallback without explicit paid fallback roles', () => {
+  it('defaults to freellm without explicit fallback roles', () => {
     const originalRoles = process.env.AUTHORITY_TRANSLATION_TASK_ROLES;
     const originalAllowPaidFallback = process.env.AUTHORITY_TRANSLATION_ALLOW_PAID_FALLBACK;
     try {
@@ -152,8 +152,6 @@ describe('authority translation cache cleaner', () => {
 
       expect(__authorityTranslationTestUtils.resolveAuthorityTranslationTaskRoles()).toEqual([
         'knowledge_translate',
-        'deepseek_translate',
-        'glm_classify',
       ]);
     } finally {
       if (originalRoles === undefined) {

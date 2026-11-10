@@ -22,6 +22,8 @@ export function getKnowledgeLayoutSourceText(content: string): string | null {
     .replace(/<(?:[^"'<>]|"[^"]*"|'[^']*')*>/g, '')
   ).replace(/\r\n?/g, '\n').replace(/[ \t]+/g, ' ')
     .replace(/([。！？；][”’」』）】]*)[ \t]*(?=\S)/gu, '$1\n')
+    .replace(/[ \t]+(?=[•●▪]\s|[-*]\s+|o\s+(?=[\u4e00-\u9fff]))/gu, '\n')
+    .replace(/([^\n])(?=[•●▪]\s|o\s+(?=[\u4e00-\u9fff]))/gu, '$1\n')
     .replace(/\n{2,}/g, '\n').trim();
 }
 
@@ -31,7 +33,7 @@ export type VerifiedKnowledgeLayout = {
 };
 
 const MAX_SOURCE_LENGTH = 200_000;
-const MAX_BLOCKS = 500;
+const MAX_BLOCKS = 2000;
 const MAX_BLOCK_TEXT_LENGTH = 20_000;
 
 export class KnowledgeLayoutValidationError extends Error {

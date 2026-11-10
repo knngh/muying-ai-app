@@ -1,4 +1,5 @@
 import { normalizeWhitespace } from './article-translation';
+import { decodeHtmlEntities } from '../services/authority-adapters/html-content';
 
 export interface FullTranslationCoverage {
   translationCoverage?: 'full';
@@ -12,6 +13,8 @@ const MEDICAL_TERMS = [
   { source: /\bacetaminophen\b/i, english: 'acetaminophen', chinese: '对乙酰氨基酚（扑热息痛）', translated: /对乙酰氨基酚|扑热息痛/u, invalid: /乙醇酰胺/u },
   { source: /\bcircumcision\b/i, english: 'circumcision', chinese: '包皮环切术（割礼）', translated: /包皮环切|割礼/u, invalid: /环龄手术/u },
   { source: /\bvalacyclovir\b/i, english: 'valacyclovir', chinese: '伐昔洛韦', translated: /伐昔洛韦/u, invalid: /万拉西韦/u },
+  { source: /\bgroup\s+B\s+(?:streptococcus|strep)\b/i, english: 'group B streptococcus (GBS)', chinese: 'B组链球菌（GBS）', translated: /B\s*组链球菌/iu, invalid: /乙型链球菌/u },
+  { source: /\brespiratory\s+syncytial\s+virus\b/i, english: 'respiratory syncytial virus (RSV)', chinese: '呼吸道合胞病毒（RSV）', translated: /呼吸道合胞病毒/u, invalid: /呼吸同步病毒/u },
 ];
 
 /** Source-scoped terminology prevents observed drug, virus and procedure substitutions. */
@@ -26,14 +29,18 @@ export function validateAuthorityTranslationTerminology(source: string, translat
   if (missing) throw new Error(`译文医学术语不符：${missing.english}`);
 }
 
-export function getAuthorityTranslationSource(input: string): string {
-  return normalizeWhitespace(input
+function extractAuthorityTranslationSource(input: string): string {
+  return input
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
     .replace(/<style[\s\S]*?<\/style>/gi, ' ')
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<\/(?:p|li|h[1-6]|section|article|div)>/gi, '\n')
     .replace(/<[^>]+>/g, ' ')
-    .replace(/[ \t]+/g, ' '));
+    .replace(/[ \t]+/g, ' ');
+}
+
+export function getAuthorityTranslationSource(input: string): string {
+  return normalizeWhitespace(decodeHtmlEntities(extractAuthorityTranslationSource(input)));
 }
 
 /** Every source character is assigned to a chunk; the limit bounds a request, never the article. */
@@ -56,12 +63,16 @@ export function hasFullAuthorityTranslation(cached: FullTranslationCoverage, sou
   if (source === undefined) return true;
   const text = getAuthorityTranslationSource(source);
   if (text.length <= maximum) return true;
-  return cached.translationCoverage === 'full' && cached.translationVersion === 2 && cached.sourceChars === text.length;
+  return cached.translationCoverage === 'full' && cached.translationVersion === 2
+    && (cached.sourceChars === text.length
+      || cached.sourceChars === normalizeWhitespace(extractAuthorityTranslationSource(source)).length);
 }
 
 /** Reject obviously shortened segments and missing numeric facts before publishing any long translation. */
 export function validateAuthorityTranslationSegment(source: string, translated: string): void {
-  if (!/[\u4e00-\u9fff]/u.test(translated) || translated.length < source.length * 0.12) {
+  const chinese = (translated.match(/[\u4e00-\u9fff]/gu) || []).length;
+  const latin = (translated.match(/[a-z]/giu) || []).length;
+  if (!chinese || chinese < latin * 0.3 || translated.length < source.length * 0.12) {
     throw new Error('分段译文过短或不是中文，未发布不完整正文');
   }
   const numbers = source.match(/\d+(?:[.,]\d+)*/g) || [];

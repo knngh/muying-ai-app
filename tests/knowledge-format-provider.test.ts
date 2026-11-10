@@ -1,7 +1,7 @@
 describe('freellm knowledge layout task', () => {
   const saved = { ...process.env };
   afterEach(() => { process.env = { ...saved }; jest.resetModules(); jest.restoreAllMocks(); });
-  it.each(['knowledge_format', 'knowledge_translate'])('routes %s to the configured freellm provider', async (role) => {
+  it.each(['knowledge_format', 'knowledge_translate', 'knowledge_review'])('routes %s to the configured freellm provider', async (role) => {
     process.env.AI_KNOWLEDGE_FORMAT_URL = 'https://layout.example/v1';
     process.env.AI_KNOWLEDGE_FORMAT_KEY = 'test-layout-key';
     process.env.AI_KNOWLEDGE_FORMAT_MODEL = 'auto';

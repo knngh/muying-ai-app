@@ -45,11 +45,19 @@ it('backs off failed inputs and retains originals instead of repeatedly calling 
 
 it('refreshes the check timestamp for unchanged verified content without another model call', async () => {
   inputs();
-  cache['article-0'] = { slug: 'article-0', sourceFingerprint: text, blocks: [{ type: 'paragraph', text }], inputRevision: revision, updatedAt: '2020-01-01' };
+  cache['article-0'] = { slug: 'article-0', sourceFingerprint: text, blocks: [{ type: 'paragraph', text }], inputRevision: revision, updatedAt: '2020-01-01', layoutVersion: layout.KNOWLEDGE_LAYOUT_VERSION };
   await warmKnowledgeLayoutBatch(1);
   expect(Date.parse(cache['article-0'].updatedAt)).toBeGreaterThan(Date.now() - 10000);
   expect(mocked.saveKnowledgeLayoutCache).toHaveBeenCalled();
   expect(mocked.formatKnowledgeLayoutWithAI).not.toHaveBeenCalled();
+});
+
+it('reformats a legacy layout even when its source and revision are unchanged', async () => {
+  inputs();
+  cache['article-0'] = { slug: 'article-0', sourceFingerprint: text, blocks: [{ type: 'paragraph', text }], inputRevision: revision, updatedAt: new Date().toISOString() };
+  await warmKnowledgeLayoutBatch(1);
+  expect(mocked.formatKnowledgeLayoutWithAI).toHaveBeenCalledTimes(1);
+  expect(cache['article-0'].layoutVersion).toBe(layout.KNOWLEDGE_LAYOUT_VERSION);
 });
 
 it('remembers unsupported rich content so it can reach later articles', async () => {

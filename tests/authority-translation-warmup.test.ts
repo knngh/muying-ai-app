@@ -36,7 +36,7 @@ describe('authority translation warmup', () => {
     restoreEnv();
   });
 
-  it('defaults knowledge translation to freellm before DeepSeek and GLM fallback', () => {
+  it('defaults knowledge translation to freellm without unrelated paid fallback', () => {
     delete process.env.AUTHORITY_TRANSLATION_TASK_ROLES;
 
     let resolveAuthorityTranslationTaskRoles: typeof import('../src/services/authority-translation.service').__authorityTranslationTestUtils.resolveAuthorityTranslationTaskRoles | null = null;
@@ -46,10 +46,10 @@ describe('authority translation warmup', () => {
     });
 
     expect(resolveAuthorityTranslationTaskRoles).not.toBeNull();
-    expect(resolveAuthorityTranslationTaskRoles!()).toEqual(['knowledge_translate', 'deepseek_translate', 'glm_classify']);
+    expect(resolveAuthorityTranslationTaskRoles!()).toEqual(['knowledge_translate']);
 
     process.env.AUTHORITY_TRANSLATION_TASK_ROLES = 'unknown_role';
-    expect(resolveAuthorityTranslationTaskRoles!()).toEqual(['knowledge_translate', 'deepseek_translate', 'glm_classify']);
+    expect(resolveAuthorityTranslationTaskRoles!()).toEqual(['knowledge_translate']);
   });
 
   it('honors explicitly configured paid translation fallback roles', () => {

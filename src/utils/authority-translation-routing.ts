@@ -11,7 +11,7 @@ const PAID_TRANSLATION_FALLBACK_ROLES = new Set<AITaskModelRole>([
   'kimi_reason',
   'minimax_render',
 ]);
-const DEFAULT_TRANSLATION_TASK_ROLES: AITaskModelRole[] = ['knowledge_translate', 'deepseek_translate', 'glm_classify'];
+const DEFAULT_TRANSLATION_TASK_ROLES: AITaskModelRole[] = ['knowledge_translate'];
 
 function envFlag(value: string | undefined): boolean {
   return /^(1|true|yes|on)$/i.test(value || '');
@@ -53,6 +53,6 @@ export function shouldUsePrimaryOnlyForAuthorityTranslation(
   taskRole: AITaskModelRole,
   env: NodeJS.ProcessEnv = process.env,
 ): boolean {
-  return DEFAULT_TRANSLATION_TASK_ROLES.includes(taskRole)
+  return ['knowledge_translate', 'deepseek_translate', 'glm_classify'].includes(taskRole)
     && !isAuthorityTranslationPaidFallbackAllowed(env);
 }

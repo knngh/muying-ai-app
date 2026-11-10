@@ -33,6 +33,13 @@ const source: AuthorityCacheRecord = {
 };
 const squashWhitespace = (value: string) => value.replace(/\s+/g, ' ').trim();
 
+it('decodes punctuation and numeric HTML entities before checking medical numbers', () => {
+  const { getAuthorityTranslationSource, validateAuthorityTranslationSegment } = require('../src/utils/authority-full-translation');
+  const text = getAuthorityTranslationSource('Baby&rsquo;s care &#8212; use 1 mg &plusmn; 0.1 mg.');
+  expect(text).toBe('Baby’s care — use 1 mg ± 0.1 mg.');
+  expect(() => validateAuthorityTranslationSegment(text, '宝宝护理——使用1 mg ± 0.1 mg。')).not.toThrow();
+});
+
 function mockTranslation(body: string) {
   let translated = body.replace(/Care section (\d+)\./g, '第$1节照护。');
   englishSentences.forEach((sentence, index) => {
@@ -55,6 +62,7 @@ describe('complete authority article translation', () => {
     'AUTHORITY_TRANSLATION_FAILURE_CACHE_PATH',
     'AUTHORITY_TRANSLATION_SOURCE_CHAR_LIMIT',
     'AUTHORITY_TRANSLATION_TASK_ROLES',
+    'AUTHORITY_TRANSLATION_QUALITY_REVIEW_ENABLED',
   ] as const;
   let originalEnv: Record<string, string | undefined>;
   let directory: string;
@@ -69,6 +77,7 @@ describe('complete authority article translation', () => {
     process.env.AUTHORITY_TRANSLATION_FAILURE_CACHE_PATH = path.join(directory, 'authority-translation-failures.json');
     process.env.AUTHORITY_TRANSLATION_SOURCE_CHAR_LIMIT = '3200';
     process.env.AUTHORITY_TRANSLATION_TASK_ROLES = 'deepseek_translate';
+    delete process.env.AUTHORITY_TRANSLATION_QUALITY_REVIEW_ENABLED;
     fs.writeFileSync(process.env.AUTHORITY_KNOWLEDGE_CACHE_PATH, JSON.stringify([source]), 'utf8');
     fs.writeFileSync(translationCachePath, '{}', 'utf8');
     fs.writeFileSync(process.env.AUTHORITY_TRANSLATION_FAILURE_CACHE_PATH, '{}', 'utf8');
@@ -150,13 +159,14 @@ describe('complete authority article translation', () => {
     expect(JSON.parse(fs.readFileSync(translationCachePath, 'utf8'))[slug]).toEqual(result);
   });
 
-  it('retries an incomplete freellm segment through the next configured model', async () => {
+  it('retries incomplete freellm output as JSON before using another provider', async () => {
     process.env.AUTHORITY_TRANSLATION_TASK_ROLES = 'knowledge_translate,deepseek_translate';
     const slug = 'authority-full-translation-model-fallback';
     const { callModel, service } = loadService();
     const roles: string[] = [];
-    callModel.mockImplementation(async (role, messages) => {
+    callModel.mockImplementation(async (role, messages, options) => {
       roles.push(role);
+      expect(options).toMatchObject({ responseFormat: 'json_object', thinking: 'disabled' });
       const body = sourceBodyFromMessages(messages);
       if (role === 'knowledge_translate' && roles.length === 1) {
         return {
@@ -169,9 +179,54 @@ describe('complete authority article translation', () => {
 
     const result = await service.translateAuthorityRecord(slug, source);
 
-    expect(roles.slice(0, 2)).toEqual(['knowledge_translate', 'deepseek_translate']);
+    expect(roles.slice(0, 2)).toEqual(['knowledge_translate', 'knowledge_translate']);
+    expect(roles).not.toContain('deepseek_translate');
     expect(result.translatedContent).toContain(finalChineseWarning);
     expect(result.translationCoverage).toBe('full');
+  });
+
+  it('rejects missing numeric facts in short articles and retries before caching', async () => {
+    process.env.AUTHORITY_TRANSLATION_TASK_ROLES = 'knowledge_translate';
+    const { callModel, service } = loadService();
+    const body = 'A newborn may receive 1 mg of vitamin K within 6 hours after birth. Do not stop a prescribed medicine without discussing it with your doctor.';
+    callModel.mockResolvedValueOnce({
+      answer: JSON.stringify({ translated_title: '新生儿护理', translated_summary: '了解新生儿护理。', translated_content: '新生儿可接受维生素K，未咨询医生前不要停用处方药。' }),
+      route: { provider: 'freellm', model: 'auto', route: 'task', label: 'fixture' },
+    }).mockResolvedValue({
+      answer: JSON.stringify({ translated_title: '新生儿护理', translated_summary: '了解新生儿护理。', translated_content: finalChineseWarning }),
+      route: { provider: 'freellm', model: 'auto', route: 'task', label: 'fixture' },
+    });
+    const result = await service.translateAuthorityRecord('short-numbers', { ...source, answer: body });
+    expect(callModel).toHaveBeenCalledTimes(2);
+    expect(result.translatedContent).toBe(finalChineseWarning);
+  });
+
+  it('retranslates a clinical meaning error found by the independent reviewer', async () => {
+    process.env.AUTHORITY_TRANSLATION_TASK_ROLES = 'knowledge_translate';
+    process.env.AUTHORITY_TRANSLATION_QUALITY_REVIEW_ENABLED = 'true';
+    const { callModel, service } = loadService();
+    let reviews = 0;
+    callModel.mockImplementation(async role => ({
+      answer: role === 'knowledge_review'
+        ? JSON.stringify({ approved: ++reviews > 2, confidence: 0.96, issues: reviews > 2 ? [] : [{ sourceQuote: finalEnglishWarning, translationQuote: finalChineseWarning, problem: '遗漏不要自行停药的警告' }] })
+        : JSON.stringify({ translated_title: '新生儿护理', translated_summary: '与医生讨论用药。', translated_content: finalChineseWarning }),
+      route: { provider: 'freellm', model: 'auto', route: 'task', label: 'fixture' },
+    }));
+    const result = await service.translateAuthorityRecord('meaning-review', { ...source, answer: finalEnglishWarning });
+    expect(callModel.mock.calls.map(call => call[0])).toEqual(['knowledge_translate', 'knowledge_review', 'knowledge_review', 'knowledge_translate', 'knowledge_review']);
+    expect(result.qualityReview).toMatchObject({ approved: true, reviewedChunks: 1 });
+  });
+
+  it('allows an explicit repair to replace a matching cache rather than silently reuse it', async () => {
+    const slug = 'forced-repair';
+    const record = { ...source, answer: finalEnglishWarning };
+    fs.writeFileSync(translationCachePath, JSON.stringify({ [slug]: legacyCachedTranslation(slug, record) }), 'utf8');
+    const { callModel, service } = loadService();
+    callModel.mockResolvedValue({ answer: JSON.stringify({ translated_title: '新生儿护理', translated_summary: '与医生讨论用药。', translated_content: finalChineseWarning }),
+      route: { provider: 'freellm', model: 'auto', route: 'task', label: 'fixture' } });
+    const result = await service.translateAuthorityRecord(slug, record, { force: true });
+    expect(callModel).toHaveBeenCalledTimes(1);
+    expect(result.translatedContent).toBe(finalChineseWarning);
   });
 
   it('does not save a partial translation when a later source segment fails', async () => {

@@ -82,6 +82,7 @@ describe('authority AI quality review', () => {
     });
 
     expect(reviewed.publishStatus).toBe('published');
+    expect(invokeModel).toHaveBeenCalledWith('knowledge_review', expect.any(Array), expect.objectContaining({ primaryOnly: true, responseFormat: 'json_object', thinking: 'disabled' }));
     expect(isAuthorityAiQualityReviewExportable(reviewed.metadataJson)).toBe(true);
     expect(reviewed.metadataJson.aiQualityReview).toMatchObject({
       decision: 'publish',
@@ -89,6 +90,18 @@ describe('authority AI quality review', () => {
       provider: 'test-provider',
       model: 'test-model',
     });
+  });
+
+  it('reviews the ending of long articles and retries malformed JSON', async () => {
+    const invokeModel = jest.fn().mockResolvedValueOnce({ answer: 'invalid' }).mockResolvedValue({
+      answer: JSON.stringify({ decision: 'review', reasons: ['文章尾部有推广内容'], confidence: 0.95, contentType: 'guidance' }),
+    });
+    const reviewed = await reviewAuthorityDocumentQualityWithAiIfNeeded(buildDocument({
+      contentText: '孕期健康指导。'.repeat(2000) + '注册邮件订阅领取优惠券',
+    }), raw, { enabled: true, cache: {}, invokeModel, maxContentChars: 2000 });
+    expect(invokeModel).toHaveBeenCalledTimes(2);
+    expect(invokeModel.mock.calls[0][1][1].content).toContain('注册邮件订阅领取优惠券');
+    expect(reviewed.publishStatus).toBe('review');
   });
 
   it('fails closed when AI is unsure, returns non-guidance, or errors', async () => {

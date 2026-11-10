@@ -25,6 +25,8 @@ export function stripAcogArticleChrome(input: string): string {
     /\bWhat to Read Next\b/iu,
     /\bMore To Explore\s+(?:Physician FAQ|Patient Resources)\b/iu,
     /\bArticle continues below\s+Advertisement\b/iu,
+    /\bArticle continues below\s+(?=If you have further questions)/iu,
+    /以下内容继续以下页\s*(?=如果[您你]有进一步的问题)/u,
     /文章(?:正文)?继续于?下文\s*(?:广告\s*)?如果[您你]有进一步的问题/u,
     /下?文章(?:正文|其余部分)?(?:继续|在|下|见|将)[^。！？\n]{0,30}?\s*(?:广告|advertisement)/iu,
     /下文将继续[。.]?\s*广告/u,

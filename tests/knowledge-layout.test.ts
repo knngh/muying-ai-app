@@ -63,7 +63,7 @@ describe('verified knowledge reading layout', () => {
     expect(html).toContain('&lt;img');
     expect(html).toContain('来源说明');
     const paragraphs = renderKnowledgeLayoutBlocksToHtml([{ type: 'paragraph', text: '第一段原文。\n第二段原文。' }]);
-    expect(paragraphs).toBe('<p>第一段原文。</p><p>第二段原文。</p>');
+    expect(paragraphs).toBe('<p>第一段原文。 第二段原文。</p>');
   });
   it('preserves medical prose even when the model calls it chrome and the webpage sanitizes the HTML', () => {
     const { renderKnowledgeLayoutBlocksToHtml } = require('../src/utils/knowledge-layout-html');
@@ -95,9 +95,30 @@ describe('verified knowledge reading layout', () => {
     const { formatKnowledgeLayoutWithAI } = require('../src/services/knowledge-layout.service');
     const longSource = Array.from({ length: 40 }, (_, i) => `第${i + 1}条原文。`).join('\n');
     const invokeModel = jest.fn().mockResolvedValueOnce({ answer: '{"blocks":[{"type":"paragraph","from":0,"to":31}]}', route: { provider: 'freellm', model: 'auto', route: 'task', label: 'layout' } })
-      .mockResolvedValueOnce({ answer: '{"blocks":[{"type":"paragraph","from":0,"to":0}]}', route: { provider: 'freellm', model: 'auto', route: 'task', label: 'layout' } });
+      .mockResolvedValue({ answer: '{"blocks":[{"type":"paragraph","from":0,"to":0}]}', route: { provider: 'freellm', model: 'auto', route: 'task', label: 'layout' } });
     const result = await formatKnowledgeLayoutWithAI(longSource, { invokeModel });
     expect(result).toEqual({ verified: false, blocks: [], reason: 'validation_failed' });
+  });
+
+  it('retries incomplete annotations and preserves all medical facts in semantic lists', async () => {
+    const { formatKnowledgeLayoutWithAI } = require('../src/services/knowledge-layout.service');
+    const { renderKnowledgeLayoutBlocksToHtml } = require('../src/utils/knowledge-layout-html');
+    const input = '接种前\n• 告知医生您曾出现的过敏反应。\n• 不要自行停用处方药。';
+    const invokeModel = jest.fn().mockResolvedValueOnce({ answer: '{"blocks":[{"type":"heading","from":0,"to":0}]}', route: { provider: 'freellm', model: 'auto', route: 'task', label: 'layout' } })
+      .mockResolvedValueOnce({ answer: '{"blocks":[{"type":"heading","from":0,"to":0},{"type":"list","from":1,"to":2}]}', route: { provider: 'freellm', model: 'auto', route: 'task', label: 'layout' } });
+    const result = await formatKnowledgeLayoutWithAI(input, { invokeModel });
+    expect(result.verified).toBe(true);
+    expect(invokeModel).toHaveBeenCalledTimes(2);
+    const html = renderKnowledgeLayoutBlocksToHtml(result.blocks);
+    expect(html).toContain('<ul');
+    expect(html.match(/<li/g)).toHaveLength(2);
+    expect(html).toContain('不要自行停用处方药。');
+  });
+
+  it('splits inline bullet markers without splitting decimals or inventing words', () => {
+    const { getKnowledgeLayoutSourceText } = require('../src/utils/knowledge-layout');
+    expect(getKnowledgeLayoutSourceText('注意事项： • 1.5 mg药物。 • 不要自行停药。'))
+      .toBe('注意事项：\n• 1.5 mg药物。\n• 不要自行停药。');
   });
 });
 

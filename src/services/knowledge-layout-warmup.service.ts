@@ -3,6 +3,7 @@ import {
   formatKnowledgeLayoutWithAI,
   loadKnowledgeLayoutCache,
   saveKnowledgeLayoutCache,
+  KNOWLEDGE_LAYOUT_VERSION,
 } from './knowledge-layout.service';
 import { getKnowledgeLayoutSourceLines, getKnowledgeLayoutSourceText } from '../utils/knowledge-layout';
 
@@ -37,7 +38,7 @@ export async function warmKnowledgeLayoutBatch(limit = 30) {
       const inputRevision = item.sourceUpdatedAt || item.updatedAt || item.publishedAt || '';
       const previous = cache[item.slug];
       const retryAfter = previous?.failedAt ? 6 * 3600_000 : 24 * 3600_000;
-      if (previous?.inputRevision === inputRevision && Date.now() - Date.parse(previous.updatedAt) < retryAfter) {
+      if (previous?.layoutVersion === KNOWLEDGE_LAYOUT_VERSION && previous.inputRevision === inputRevision && Date.now() - Date.parse(previous.updatedAt) < retryAfter) {
         report.skipped += 1;
         continue;
       }
@@ -48,22 +49,22 @@ export async function warmKnowledgeLayoutBatch(limit = 30) {
       } catch {
         const now = new Date().toISOString();
         cache[item.slug] = { slug: item.slug, sourceFingerprint: '', inputRevision, updatedAt: now,
-          failedAt: now, blocks: [] };
+          failedAt: now, blocks: [], layoutVersion: KNOWLEDGE_LAYOUT_VERSION };
         saveKnowledgeLayoutCache(cache);
         report.failed += 1;
         attempted += 1;
         continue;
       }
       const source = getKnowledgeLayoutSourceText(article.displayContent || article.content || '');
-      if (!source || source.length > 60000 || getKnowledgeLayoutSourceLines(source).length > 500) {
+      if (!source || source.length > 200000 || getKnowledgeLayoutSourceLines(source).length > 2000) {
         cache[item.slug] = { slug: item.slug, sourceFingerprint: '', inputRevision,
-          updatedAt: new Date().toISOString(), blocks: [] };
+          updatedAt: new Date().toISOString(), blocks: [], layoutVersion: KNOWLEDGE_LAYOUT_VERSION };
         saveKnowledgeLayoutCache(cache);
         report.skipped += 1;
         continue;
       }
       const fingerprint = buildKnowledgeLayoutSourceFingerprint(source);
-      if (previous?.sourceFingerprint === fingerprint
+      if (previous?.layoutVersion === KNOWLEDGE_LAYOUT_VERSION && previous.sourceFingerprint === fingerprint
         && (Array.isArray(previous.blocks) && previous.blocks.length > 0
           || (previous.failedAt && Date.now() - Date.parse(previous.failedAt) < 6 * 3600_000))) {
         previous.updatedAt = new Date().toISOString();
@@ -78,6 +79,7 @@ export async function warmKnowledgeLayoutBatch(limit = 30) {
         cache[item.slug] = {
           slug: item.slug, sourceFingerprint: fingerprint, inputRevision, updatedAt: new Date().toISOString(),
           blocks: result.blocks,
+          layoutVersion: KNOWLEDGE_LAYOUT_VERSION,
           ...(result.verified
             ? { model: result.route.model, provider: result.route.provider }
             : { failedAt: new Date().toISOString(), failureReason: result.reason }),

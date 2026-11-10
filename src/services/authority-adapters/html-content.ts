@@ -9,7 +9,10 @@ export function readHtmlAttributes(tag: string): Record<string, string> {
 }
 
 export function decodeHtmlEntities(value: string): string {
-  const named: Record<string, string> = { nbsp: ' ', amp: '&', quot: '"', apos: "'", lt: '<', gt: '>', ndash: '–', mdash: '—', hellip: '…' };
+  const named: Record<string, string> = { nbsp: ' ', amp: '&', quot: '"', apos: "'", lt: '<', gt: '>',
+    ndash: '–', mdash: '—', hellip: '…', lsquo: '‘', rsquo: '’', ldquo: '“', rdquo: '”',
+    copy: '©', reg: '®', trade: '™', bull: '•', middot: '·', times: '×', divide: '÷',
+    plusmn: '±', micro: 'µ', deg: '°', le: '≤', ge: '≥' };
   return value.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (entity, code: string) => {
     if (!code.startsWith('#')) return named[code.toLowerCase()] ?? entity;
     const point = code[1].toLowerCase() === 'x' ? parseInt(code.slice(2), 16) : Number(code.slice(1));
