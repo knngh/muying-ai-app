@@ -68,6 +68,25 @@ describe('source-aware article footer cleanup', () => {
     expect(stripAuthorityArticleChrome(advice, { source_id: 'nhs' })).toBe(advice);
   });
 
+  it('removes the observed flattened NHS fetal-movement related-link footer', () => {
+    const advice = 'Do not wait until the next day. Contact your midwife immediately, even at night.';
+    const footer = "Find out more Tommy’s: baby movements in pregnancy Royal College of Obstetricians and Gynaecologists (RCOG): your baby’s movements in pregnancy Signs that labour has begun";
+    expect(stripAuthorityArticleChrome(`${advice} ${footer}`, { source_id: 'nhs' })).toBe(advice);
+    const inline = 'Find out more about changes in movements by speaking to your midwife. Do not delay seeking urgent advice.';
+    expect(stripAuthorityArticleChrome(inline, { source_id: 'nhs' })).toBe(inline);
+  });
+
+  it('removes terminal NHS Find out more headings in source and existing Chinese translations', () => {
+    const links = 'Tommy’s: baby movements in pregnancy\nRoyal College of Obstetricians and Gynaecologists (RCOG): your baby’s movements in pregnancy';
+    for (const heading of ['Find out more', '了解更多', '了解更多信息']) {
+      expect(stripAuthorityArticleChrome(`${medical}\n\n${heading}\n\n${links}`, { source_id: 'nhs' })).toBe(medical);
+    }
+    const clinical = `${medical}\n\n了解更多信息，请立即联系您的助产士。\n\n胎动减少时不要等到第二天。`;
+    expect(stripAuthorityArticleChrome(clinical, { source_id: 'nhs' })).toBe(clinical);
+    const englishAdvice = 'Find out more\n\nCall your midwife if movements have changed.\nDo not wait until tomorrow.';
+    expect(stripAuthorityArticleChrome(englishAdvice, { source_id: 'nhs' })).toBe(englishAdvice);
+  });
+
   it('removes MSD quiz and copyright widgets while retaining the last treatment paragraph', () => {
     expect(stripAuthorityArticleChrome(`${medical} Test your Knowledge Take a Quiz! 版权所有 © 2026 Merck & Co., Inc. 关于 免责声明`, { source_id: 'msd-manuals-cn' })).toBe(medical);
   });

@@ -61,10 +61,12 @@ export function stripAuthorityArticleChrome(input: string, source: AuthorityArti
       .replace(/\bGet (?:Best Start in Life|Start4Life) pregnancy and baby emails\b(?:\s+Sign up for emails[^.\n]{0,350}\.)?/giu, '')
       .replace(/(?:获取|订阅|接收|注册(?:订阅)?)[“"「]?(?:人生最佳开端|生命最佳(?:开端|起点)|Best Start in Life|Start4Life)[”"」]?[^。！？\n]{0,60}(?:电子邮件|邮件)(?:\s*(?:注册接收|报名接收)[^。！？\n]{0,250}。|[，,]\s*(?:获取|获得|接收)[^。！？\n]{0,250}。)?/giu, '');
     text = trimAtFirst(text, [
+      /\bFind out more\s+(?=Tommy[’']s\s*[:：]|Royal College of Obstetricians and Gynaecologists\s*(?:\(RCOG\))?\s*[:：])/iu,
       /\bMore in\s+(?=[\s\S]{0,2500}\bPage last reviewed\s*:)/iu,
       /更多关于\s*[“"「](?=[\s\S]{0,2500}页面(?:上次|最后)(?:审查|审核|审阅))/u,
       /(?:^|(?<=[。！？\n]))\s*更多(?:关于|相关内容|健康(?:相关)?内容)[^。！？\n]{0,80}(?=[\s\S]{0,2500}页面(?:上次|最后)(?:审查|审核|审阅))/u,
       /(?:^|(?<=\n))[^。！？\n]{1,60}的更多信息[:：]\s*\n(?=[\s\S]{0,2500}页面(?:上次|最后)(?:审查|审核|审阅))/u,
+      /(?:^|(?<=\n))\s*(?:\*\*)?(?:Find out more|了解更多(?:信息)?)[:：]?[^\S\n]*\n(?![\s\S]*(?:[。！？]|[.!?](?:\s|$)))\s*(?:[^\n]+\n\s*){1,20}[^\n]*$/iu,
       /(?:^|(?<=\n))\s*(?:\*\*)?(?:更多信息|更多相关信息请参阅|关于[^。！？\n]{1,60}的更多内容)[:：]?[^\S\n]*\n(?:[^\n。]+\n){1,20}[^\n。]*$/u,
       /\bPage last reviewed\s*:|\bNext review due\s*:/iu,
       /页面(?:上次|最后)(?:审查|审核|审阅)(?:日期|时间)?\s*[:：]|下次(?:审查|审核|审阅)(?:到期|截止)?(?:日期|时间|日)?\s*[:：]/u,
