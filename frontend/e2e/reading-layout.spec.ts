@@ -8,6 +8,8 @@ test('verified reading layout displays headings and a working outline on mobile 
   await expect(content.getByRole('heading', { name: '辅食添加原则' })).toBeVisible()
   await expect(content.getByText('孩子满6月龄后，逐步添加多样化食物。')).toBeVisible()
   const outline = page.getByRole('button', { name: /章节.*日常观察/ })
+  await expect(outline).not.toBeVisible()
+  await page.getByText('正文目录', { exact: true }).click()
   await expect(outline).toBeVisible()
   for (const width of [320, 375, 768, 1440]) {
     await page.setViewportSize({ width, height: 900 })

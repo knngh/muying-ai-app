@@ -155,7 +155,30 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.outlineHeader::-webkit-details-marker {
+  display: none;
+}
+
+.outlineHeader:focus-visible {
+  outline: 2px solid var(--ui-accent);
+  outline-offset: 6px;
+}
+
+.outlineHeader strong::after {
+  content: '＋';
+  margin-left: 12px;
+}
+
+.outlineCard[open] .outlineHeader {
   margin-bottom: 14px;
+}
+
+.outlineCard[open] .outlineHeader strong::after {
+  content: '−';
 }
 
 .outlineHeader strong {

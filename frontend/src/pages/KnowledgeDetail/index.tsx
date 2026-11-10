@@ -234,11 +234,11 @@ export function KnowledgeDetail() {
         </div>
 
         {contentOutline.length > 0 ? (
-          <section className={styles.outlineCard}>
-            <div className={styles.outlineHeader}>
+          <details className={styles.outlineCard} key={slug}>
+            <summary className={styles.outlineHeader}>
               <span className={styles.outlineKicker}>正文目录</span>
               <strong>{contentOutline.length} 个章节</strong>
-            </div>
+            </summary>
             <div className={styles.outlineList}>
               {contentOutline.map((item) => (
                 <button
@@ -252,7 +252,7 @@ export function KnowledgeDetail() {
                 </button>
               ))}
             </div>
-          </section>
+          </details>
         ) : null}
 
         <div
