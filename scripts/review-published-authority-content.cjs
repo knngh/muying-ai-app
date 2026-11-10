@@ -28,7 +28,7 @@ for (const [key, file, seed] of [
       seed ? fs.readFileSync(app + "/data/" + seed) : "{}",
     );
 }
-process.env.AI_KNOWLEDGE_FORMAT_MODEL ||= "mistral-large-3";
+process.env.AI_KNOWLEDGE_FORMAT_MODEL ||= "auto";
 process.env.AUTHORITY_TRANSLATION_TASK_ROLES = "knowledge_translate";
 process.env.AUTHORITY_TRANSLATION_QUALITY_REVIEW_ENABLED = "true";
 // Shared pacing across translations, reviews, layout chunks and their retries.
