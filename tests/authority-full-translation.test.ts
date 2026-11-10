@@ -58,6 +58,18 @@ it('rejects an observed reversal of fetal anatomical movement', () => {
   expect(() => validateAuthorityTranslationTerminology(source, '在男孩中，睾丸已开始下降进入阴囊。')).not.toThrow();
 });
 
+it('keeps midwives distinct from generic nurses and doctors', () => {
+  const { buildAuthorityTranslationGlossary, validateAuthorityTranslationTerminology } = require('../src/utils/authority-full-translation');
+  const source = 'Contact your midwife or maternity unit immediately.';
+  for (const translated of ['立即联系您的产科护士或产科病房。', '立即联系您的产科医生或产科病房。']) {
+    expect(() => validateAuthorityTranslationTerminology(source, translated)).toThrow('midwife');
+  }
+  expect(() => validateAuthorityTranslationTerminology(source, '立即联系您的助产士或产科病房。')).not.toThrow();
+  expect(() => validateAuthorityTranslationTerminology('Midwives can help.', '助产师可以提供帮助。')).not.toThrow();
+  expect(buildAuthorityTranslationGlossary('Midwives can help.')).toContain('助产士');
+  expect(() => validateAuthorityTranslationTerminology('Contact your maternity nurse.', '联系您的产科护士。')).not.toThrow();
+});
+
 function mockTranslation(body: string) {
   let translated = body.replace(/Care section (\d+)\./g, '第$1节照护。');
   englishSentences.forEach((sentence, index) => {

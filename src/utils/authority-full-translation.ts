@@ -9,6 +9,7 @@ export interface FullTranslationCoverage {
 }
 
 const MEDICAL_TERMS = [
+  { source: /\b(?:midwife|midwives)\b/i, english: 'midwife / midwives', chinese: '助产士（助产师）', translated: /助产士|助产师/u },
   { source: /\bcytomegalovirus\b/i, english: 'cytomegalovirus (CMV)', chinese: '巨细胞病毒', translated: /巨细胞病毒/u, invalid: /单纯疱疹病毒\s*[（(]\s*CMV/iu },
   { source: /\bacetaminophen\b/i, english: 'acetaminophen', chinese: '对乙酰氨基酚（扑热息痛）', translated: /对乙酰氨基酚|扑热息痛/u, invalid: /乙醇酰胺/u },
   { source: /\bcircumcision\b/i, english: 'circumcision', chinese: '包皮环切术（割礼）', translated: /包皮环切|割礼/u, invalid: /环龄手术/u },
@@ -26,7 +27,7 @@ export function buildAuthorityTranslationGlossary(source: string): string {
 
 export function validateAuthorityTranslationTerminology(source: string, translated: string): void {
   const missing = MEDICAL_TERMS.find(term => term.source.test(source)
-    && (!term.translated.test(translated) || term.invalid.test(translated)));
+    && (!term.translated.test(translated) || term.invalid?.test(translated)));
   if (missing) throw new Error(`译文医学术语不符：${missing.english}`);
 }
 

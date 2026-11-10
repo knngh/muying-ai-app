@@ -1,4 +1,5 @@
 import { callTaskModelDetailed } from './ai-gateway.service';
+import { buildAuthorityTranslationGlossary, validateAuthorityTranslationTerminology } from '../utils/authority-full-translation';
 
 export interface AuthorityTranslationReview {
   approved: true;
@@ -15,11 +16,18 @@ export async function reviewAuthorityTranslation(
   translated: { title: string; summary: string; content: string },
   options: { invokeModel?: typeof callTaskModelDetailed; timeoutMs?: number } = {},
 ): Promise<AuthorityTranslationReview> {
+  const sourceText = `${source.title}\n${source.content}`;
+  try {
+    validateAuthorityTranslationTerminology(sourceText, `${translated.title}\n${translated.content}`);
+  } catch (error) {
+    throw new Error(`独立翻译审查未通过：${error instanceof Error ? error.message : '医学术语不符'}`);
+  }
   const invoke = options.invokeModel || callTaskModelDetailed;
   const messages = [
     { role: 'system', content: [
       '你是独立的医学翻译审核员。只核对输入原文与中文译文的忠实度，不添加医学建议。',
       '这是整篇文章或连续片段；content必须完整保留提供的事实、药名、病原体、剂量、单位、适用人群、否定、禁忌、风险与就医警告。不能用摘要替代content、漏译、反转含义或加入原文没有的医学建议。',
+      buildAuthorityTranslationGlossary(sourceText),
       'summary是允许生成的简短导读，不要求逐字翻译或覆盖全部要点，只要没有虚构医学事实即可。title是整篇标题，不要求在每个片段中得到完整论述。',
       '仅报告实质性的医学事实错误或漏译。措辞流畅度、排版、术语别名、数字单位等价换算、保留英文专有名称均不是拒绝理由。不要点评正确的译文。',
       '仅核对提供的片段，不得推测未提供的前后文。片段末尾的未完成句子或没有回答的问句不能作为漏译证据。',

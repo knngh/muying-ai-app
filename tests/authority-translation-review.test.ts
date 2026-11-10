@@ -29,3 +29,12 @@ it('accepts an independent correction of an unsupported complaint', async () => 
   await expect(reviewAuthorityTranslation(source, translated, { invokeModel })).resolves.toMatchObject({ approved: true });
   expect(invokeModel.mock.calls[1][1][2].content).not.toContain('Invented source text');
 });
+
+it('rejects a known medical role substitution even when the model would approve it', async () => {
+  const invokeModel = jest.fn().mockResolvedValue({ answer: '{"approved":true,"confidence":0.99,"issues":[]}', route });
+  const source = { title: 'Baby movements', content: 'Call your midwife immediately.' };
+  await expect(reviewAuthorityTranslation(source, { title: '胎动', summary: '及时就医。', content: '立即联系您的产科护士。' }, { invokeModel }))
+    .rejects.toThrow(/独立翻译审查未通过.*midwife/);
+  await expect(reviewAuthorityTranslation(source, { title: '胎动', summary: '及时就医。', content: '立即联系您的助产士。' }, { invokeModel }))
+    .resolves.toMatchObject({ approved: true });
+});
