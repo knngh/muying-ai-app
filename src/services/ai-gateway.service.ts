@@ -309,7 +309,7 @@ export function getAIGatewayProviderCircuitBreakerStatus(): AIGatewayProviderBlo
     .sort((left, right) => `${left.provider}/${left.model}`.localeCompare(`${right.provider}/${right.model}`));
 }
 
-export type AITaskModelRole = 'deepseek_translate' | 'glm_classify' | 'kimi_reason' | 'minimax_render' | 'knowledge_format';
+export type AITaskModelRole = 'deepseek_translate' | 'glm_classify' | 'kimi_reason' | 'minimax_render' | 'knowledge_format' | 'knowledge_translate';
 
 export interface AIGatewayRouteInfo {
   provider: string;
@@ -683,6 +683,7 @@ function resolveTaskProviderChain(
 ): GatewayProvider[] {
   switch (taskRole) {
     case 'knowledge_format':
+    case 'knowledge_translate':
       return dedupeProviders([buildKnowledgeFormatTaskProvider()]);
     case 'deepseek_translate':
       return dedupeProviders(options.primaryOnly
@@ -1253,6 +1254,7 @@ export function getTaskModelBindings(): AITaskModelBinding[] {
     { role: 'kimi_reason', provider: buildKimiTaskProvider() },
     { role: 'minimax_render', provider: buildMiniMaxTaskProvider() },
     { role: 'knowledge_format', provider: buildKnowledgeFormatTaskProvider() },
+    { role: 'knowledge_translate', provider: buildKnowledgeFormatTaskProvider() },
   ];
 
   return bindings.map(({ role, provider }) => ({

@@ -1,3 +1,4 @@
+import { getAuthorityTranslationSource, splitAuthorityTranslationSource, hasFullAuthorityTranslation, validateAuthorityTranslationSegment } from '../utils/authority-full-translation';
 import { isAcogSource, stripAcogArticleChrome } from '../utils/acog-content';
 import fs from 'fs';
 import path from 'path';
@@ -82,10 +83,15 @@ export interface AuthorityTranslationCacheRecord {
   model?: string;
   provider?: string;
   isSourceChinese?: boolean;
+  translationCoverage?: 'full';
+  translationVersion?: number;
+  sourceChars?: number;
+  translatedChunks?: number;
 }
 
 interface AuthorityTranslationExecutionOptions {
   providerTimeoutMs?: number;
+  segment?: boolean;
 }
 
 interface AuthorityTranslationFailureCacheRecord {
@@ -169,7 +175,7 @@ const AUTHORITY_TRANSLATION_SOURCE_CHAR_LIMIT = Math.max(
 );
 const AUTHORITY_TRANSLATION_MAX_TOKENS = Math.max(
   1000,
-  Number.parseInt(process.env.AUTHORITY_TRANSLATION_MAX_TOKENS || '1600', 10) || 1600,
+  Number.parseInt(process.env.AUTHORITY_TRANSLATION_MAX_TOKENS || '6000', 10) || 6000,
 );
 function parseNonNegativeInt(value: string | undefined, fallback: number): number {
   if (value === undefined || value.trim() === '') {
@@ -785,6 +791,7 @@ export function getCachedAuthorityTranslation(
   sourceUpdatedAt?: string,
   sourceFingerprint?: string,
   fallbackSlugs: string[] = [],
+  sourceContent?: string,
 ): AuthorityTranslationCacheRecord | null {
   const translationCache = loadAuthorityTranslationCache();
   const candidateSlugs = Array.from(new Set([
@@ -801,6 +808,7 @@ export function getCachedAuthorityTranslation(
 
   for (const candidateSlug of candidateSlugs) {
     const cached = translationCache[candidateSlug];
+    if (cached && !hasFullAuthorityTranslation(cached, sourceContent, AUTHORITY_TRANSLATION_SOURCE_CHAR_LIMIT)) continue;
     if (!isAuthorityTranslationCacheFresh(cached, { sourceUpdatedAt, sourceFingerprint })) {
       continue;
     }
@@ -840,31 +848,7 @@ function extractTaggedContent(input: string, tag: string): string {
 }
 
 function buildAuthorityTranslationSourceContent(input: string): { content: string; truncated: boolean } {
-  const plainText = normalizeWhitespace(input
-    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/(?:p|li|h[1-6]|section|article|div)>/gi, '\n')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/[ \t]+/g, ' '));
-
-  if (plainText.length <= AUTHORITY_TRANSLATION_SOURCE_CHAR_LIMIT) {
-    return { content: plainText, truncated: false };
-  }
-
-  const clipped = plainText.slice(0, AUTHORITY_TRANSLATION_SOURCE_CHAR_LIMIT);
-  const paragraphBreak = clipped.lastIndexOf('\n\n');
-  const sentenceBreak = Math.max(
-    clipped.lastIndexOf('. '),
-    clipped.lastIndexOf('! '),
-    clipped.lastIndexOf('? '),
-  );
-  const safeBreak = paragraphBreak >= AUTHORITY_TRANSLATION_SOURCE_CHAR_LIMIT * 0.65
-    ? paragraphBreak
-    : sentenceBreak;
-  const content = clipped.slice(0, safeBreak >= AUTHORITY_TRANSLATION_SOURCE_CHAR_LIMIT * 0.65 ? safeBreak + 1 : clipped.length).trim();
-
-  return { content, truncated: true };
+  return { content: getAuthorityTranslationSource(input), truncated: false };
 }
 
 function pickFirstNonEmptyString(...values: unknown[]): string {
@@ -1137,8 +1121,8 @@ export async function translateAuthorityRecord(
 ): Promise<AuthorityTranslationCacheRecord> {
   const sourceUpdatedAt = resolveAuthorityTranslationSourceUpdatedAt(record);
   const sourceFingerprint = buildAuthorityTranslationSourceFingerprint(record);
-  const cached = getCachedAuthorityTranslation(slug, sourceUpdatedAt, sourceFingerprint);
-  if (cached) {
+  const cached = options.segment ? null : getCachedAuthorityTranslation(slug, sourceUpdatedAt, sourceFingerprint, [], record.answer);
+  if (!options.segment && cached) {
     return cached;
   }
 
@@ -1147,6 +1131,27 @@ export async function translateAuthorityRecord(
   const { content: sourceContent, truncated: sourceContentTruncated } = buildAuthorityTranslationSourceContent(record.answer || '');
   const translationNotice = '以下内容由系统基于权威机构原文辅助翻译，仅用于阅读理解，不替代医疗建议。请以原始来源和线下医生意见为准。';
   const sourceTextForDetection = [sourceTitle, sourceSummary, sourceContent].join('\n');
+
+  const chunks = splitAuthorityTranslationSource(sourceContent, AUTHORITY_TRANSLATION_SOURCE_CHAR_LIMIT);
+  if (!options.segment && chunks.length > 1 && !isMostlyChineseText(sourceTextForDetection)) {
+    const translated: AuthorityTranslationCacheRecord[] = [];
+    for (let index = 0; index < chunks.length; index += 1) {
+      const part = await translateAuthorityRecord(`${slug}:part:${index}`, { ...record, answer: chunks[index], summary: index === 0 ? sourceSummary : '' }, { ...options, segment: true });
+      validateAuthorityTranslationSegment(chunks[index], part.translatedContent);
+      translated.push(part);
+    }
+    const payload: AuthorityTranslationCacheRecord = {
+      ...translated[0], slug, sourceUpdatedAt, sourceFingerprint,
+      translatedContent: translated.map(part => part.translatedContent).join('\n\n'),
+      translatedSummary: translated[0].translatedSummary,
+      translationCoverage: 'full', translationVersion: 2, sourceChars: sourceContent.length, translatedChunks: chunks.length,
+      translationNotice, updatedAt: new Date().toISOString(),
+    };
+    const translationCache = loadAuthorityTranslationCache();
+    translationCache[slug] = payload;
+    saveAuthorityTranslationCache(translationCache);
+    return payload;
+  }
 
   if (isMostlyChineseText(sourceTextForDetection)) {
     const payload: AuthorityTranslationCacheRecord = {
@@ -1162,9 +1167,15 @@ export async function translateAuthorityRecord(
       provider: 'local',
       isSourceChinese: true,
     };
-    const translationCache = loadAuthorityTranslationCache();
-    translationCache[slug] = payload;
-    saveAuthorityTranslationCache(translationCache);
+    payload.translationCoverage = 'full';
+    payload.translationVersion = 2;
+    payload.sourceChars = sourceContent.length;
+    payload.translatedChunks = 1;
+    if (!options.segment) {
+      const translationCache = loadAuthorityTranslationCache();
+      translationCache[slug] = payload;
+      saveAuthorityTranslationCache(translationCache);
+    }
     return payload;
   }
 
@@ -1181,7 +1192,8 @@ export async function translateAuthorityRecord(
             '你是母婴权威知识库的专业翻译助手。',
             '请把英文医学健康文章准确翻译成简体中文，保持谨慎、克制、忠实原文。',
             '不要补充原文没有的建议，不要改写成诊断结论，不要省略重要风险提示。',
-            '如果正文是节选，只翻译已提供内容，不要自行补全未提供段落。',
+            '本次输入是一篇完整文章或其中一个连续分段。必须逐段完整翻译全部输入，不要改写为摘要，不要省略任何段落。',
+            '保留原文所有阿拉伯数字、单位、否定语气和就医警告，数字仍使用阿拉伯数字。',
             'JSON 必须严格包含 translated_title, translated_summary, translated_content 三个字符串字段。',
             'translated_summary 只能写 1 到 2 句中文导读，控制在 80 到 100 个汉字内，必须明显短于正文。',
             '字段内必须填写真实完整译文，禁止使用省略号、占位符或“待翻译”等空内容。',
@@ -1191,7 +1203,8 @@ export async function translateAuthorityRecord(
             '你是母婴权威知识库的专业翻译助手。',
             '请把英文医学健康文章准确翻译成简体中文，保持谨慎、克制、忠实原文。',
             '不要补充原文没有的建议，不要改写成诊断结论，不要省略重要风险提示。',
-            '如果正文是节选，只翻译已提供内容，不要自行补全未提供段落。',
+            '本次输入是一篇完整文章或其中一个连续分段。必须逐段完整翻译全部输入，不要改写为摘要，不要省略任何段落。',
+            '保留原文所有阿拉伯数字、单位、否定语气和就医警告，数字仍使用阿拉伯数字。',
             'translated_summary 只能写 1 到 2 句中文导读，控制在 80 到 100 个汉字内，必须明显短于正文。',
             '标签内必须填写真实完整译文，禁止使用省略号、占位符或“待翻译”等空内容。',
             '输出必须严格使用以下标签，不要输出任何额外说明：',
@@ -1254,6 +1267,16 @@ export async function translateAuthorityRecord(
       continue;
     }
 
+    if (options.segment) {
+      try {
+        validateAuthorityTranslationSegment(sourceContent, content);
+      } catch (error) {
+        lastError = error;
+        console.error(`[Authority Translation] Incomplete segment for ${slug} via ${taskRole}; trying next model`);
+        continue;
+      }
+    }
+
     parsedTranslation = parsed;
     break;
   }
@@ -1282,9 +1305,15 @@ export async function translateAuthorityRecord(
     isSourceChinese: false,
   };
 
-  const translationCache = loadAuthorityTranslationCache();
-  translationCache[slug] = payload;
-  saveAuthorityTranslationCache(translationCache);
+  payload.translationCoverage = 'full';
+  payload.translationVersion = 2;
+  payload.sourceChars = sourceContent.length;
+  payload.translatedChunks = 1;
+  if (!options.segment) {
+    const translationCache = loadAuthorityTranslationCache();
+    translationCache[slug] = payload;
+    saveAuthorityTranslationCache(translationCache);
+  }
   return payload;
 }
 
@@ -1296,7 +1325,7 @@ export function getOrCreateAuthorityTranslation(
 ): Promise<AuthorityTranslationCacheRecord> {
   const sourceUpdatedAt = resolveAuthorityTranslationSourceUpdatedAt(record);
   const sourceFingerprint = buildAuthorityTranslationSourceFingerprint(record);
-  const cached = getCachedAuthorityTranslation(slug, sourceUpdatedAt, sourceFingerprint, fallbackSlugs);
+  const cached = getCachedAuthorityTranslation(slug, sourceUpdatedAt, sourceFingerprint, fallbackSlugs, record.answer);
   if (cached) {
     return Promise.resolve(cached);
   }
@@ -1355,7 +1384,7 @@ export async function warmPublishedAuthorityTranslations(
 
     const sourceUpdatedAt = resolveAuthorityTranslationSourceUpdatedAt(record);
     const sourceFingerprint = buildAuthorityTranslationSourceFingerprint(record);
-    if (getCachedAuthorityTranslation(slug, sourceUpdatedAt, sourceFingerprint, fallbackSlugs)) {
+    if (getCachedAuthorityTranslation(slug, sourceUpdatedAt, sourceFingerprint, fallbackSlugs, record.answer)) {
       fallbackSlugs.forEach((candidateSlug) => clearAuthorityTranslationFailure(candidateSlug));
       cached += 1;
       return;

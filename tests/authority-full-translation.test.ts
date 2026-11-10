@@ -1,0 +1,223 @@
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import type { AuthorityCacheRecord } from '../src/services/authority-translation.service';
+import { buildAuthorityTranslationSourceFingerprint } from '../src/utils/authority-translation-source';
+
+const englishSentences = [
+  'Discuss your baby’s routine care with the maternity team before birth.',
+  'Keep a written record of medicines and supplements taken during pregnancy, and share it with the doctor looking after your newborn.',
+  'Ask the clinician to explain the benefits of each treatment and any individual medical considerations for your baby.',
+];
+const chineseSentences = [
+  '在分娩前与产科团队讨论宝宝的常规护理。',
+  '记录孕期使用的药物和补充剂，并告知照护新生儿的医生。',
+  '请医生解释每项治疗的益处，以及宝宝个体的医疗情况。',
+];
+const finalEnglishWarning = 'A newborn may receive 1 mg of vitamin K within 6 hours after birth. Do not stop a prescribed medicine without discussing it with your doctor.';
+const finalChineseWarning = '新生儿可在出生后6小时内接受1 mg维生素K。未与医生讨论前，不要自行停用处方药。';
+const longBody = [
+  ...Array.from({ length: 24 }, (_, index) => 'Care section ' + (index + 1) + '. ' + englishSentences.join(' ')),
+  finalEnglishWarning,
+].join('\n\n');
+const source: AuthorityCacheRecord = {
+  id: 'full-translation-newborn-regression',
+  source_id: 'acog',
+  source_org: 'ACOG',
+  source_url: 'https://www.acog.org/womens-health/experts-and-stories/ask-acog/newborn-care-full-translation-regression',
+  source_language: 'en',
+  question: 'What should parents know about routine newborn care?',
+  summary: 'Discuss newborn care, medicines, and vitamin K with your maternity team.',
+  answer: longBody,
+  source_updated_at: '2026-11-01T00:00:00.000Z',
+};
+const squashWhitespace = (value: string) => value.replace(/\s+/g, ' ').trim();
+
+function mockTranslation(body: string) {
+  let translated = body.replace(/Care section (\d+)\./g, '第$1节照护。');
+  englishSentences.forEach((sentence, index) => {
+    translated = translated.replaceAll(sentence, chineseSentences[index]);
+  });
+  return {
+    answer: JSON.stringify({
+      translated_title: '家长应了解哪些新生儿常规护理？',
+      translated_summary: '与产科团队讨论新生儿护理、用药及维生素K，并了解每项治疗的益处。',
+      translated_content: translated.replace(finalEnglishWarning, finalChineseWarning),
+    }),
+    route: { provider: 'freellm', model: 'translation-fixture', route: 'task' as const, label: 'translation-fixture' },
+  };
+}
+
+describe('complete authority article translation', () => {
+  const envKeys = [
+    'AUTHORITY_KNOWLEDGE_CACHE_PATH',
+    'AUTHORITY_TRANSLATION_CACHE_PATH',
+    'AUTHORITY_TRANSLATION_FAILURE_CACHE_PATH',
+    'AUTHORITY_TRANSLATION_SOURCE_CHAR_LIMIT',
+    'AUTHORITY_TRANSLATION_TASK_ROLES',
+  ] as const;
+  let originalEnv: Record<string, string | undefined>;
+  let directory: string;
+  let translationCachePath: string;
+
+  beforeEach(() => {
+    originalEnv = Object.fromEntries(envKeys.map(key => [key, process.env[key]]));
+    directory = fs.mkdtempSync(path.join(os.tmpdir(), 'authority-full-translation-'));
+    translationCachePath = path.join(directory, 'authority-translation-cache.json');
+    process.env.AUTHORITY_KNOWLEDGE_CACHE_PATH = path.join(directory, 'authority-knowledge-cache.json');
+    process.env.AUTHORITY_TRANSLATION_CACHE_PATH = translationCachePath;
+    process.env.AUTHORITY_TRANSLATION_FAILURE_CACHE_PATH = path.join(directory, 'authority-translation-failures.json');
+    process.env.AUTHORITY_TRANSLATION_SOURCE_CHAR_LIMIT = '3200';
+    process.env.AUTHORITY_TRANSLATION_TASK_ROLES = 'deepseek_translate';
+    fs.writeFileSync(process.env.AUTHORITY_KNOWLEDGE_CACHE_PATH, JSON.stringify([source]), 'utf8');
+    fs.writeFileSync(translationCachePath, '{}', 'utf8');
+    fs.writeFileSync(process.env.AUTHORITY_TRANSLATION_FAILURE_CACHE_PATH, '{}', 'utf8');
+    jest.resetModules();
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+    jest.resetModules();
+    fs.rmSync(directory, { recursive: true, force: true });
+    for (const key of envKeys) {
+      if (originalEnv[key] === undefined) delete process.env[key];
+      else process.env[key] = originalEnv[key];
+    }
+  });
+
+  function loadService() {
+    const gateway = require('../src/services/ai-gateway.service') as typeof import('../src/services/ai-gateway.service');
+    const callModel = jest.spyOn(gateway, 'callTaskModelDetailed')
+      .mockRejectedValue(new Error('Unexpected model invocation in an offline translation regression test'));
+    const service = require('../src/services/authority-translation.service') as typeof import('../src/services/authority-translation.service');
+    return { callModel, service };
+  }
+
+  function sourceBodyFromMessages(messages: Array<{ role: string; content: string }>): string {
+    const userContent = messages.find(message => message.role === 'user')?.content || '';
+    const body = userContent.match(/原文正文[^：\n]*：\s*([\s\S]*)$/u)?.[1];
+    expect(body).toBeDefined();
+    return body!.trim();
+  }
+
+  function legacyCachedTranslation(slug: string, record = source) {
+    return {
+      slug,
+      sourceUpdatedAt: record.source_updated_at,
+      sourceFingerprint: buildAuthorityTranslationSourceFingerprint(record),
+      translatedTitle: '新生儿护理',
+      translatedSummary: '了解新生儿护理。',
+      translatedContent: '这份旧译文只包含文章开头的护理介绍。',
+      translationNotice: '缓存译文',
+      updatedAt: '2026-11-02T00:00:00.000Z',
+      model: 'legacy-fixture',
+      provider: 'fixture',
+    };
+  }
+
+  it('translates every source segment, preserves the final medical warning, and saves only the completed article', async () => {
+    expect(longBody.length).toBeGreaterThan(6500);
+    const slug = 'authority-full-translation-success';
+    const { callModel, service } = loadService();
+    const submittedBodies: string[] = [];
+    const writes = jest.spyOn(fs, 'writeFileSync');
+    callModel.mockImplementation(async (_role, messages) => {
+      expect(service.loadAuthorityTranslationCache()[slug]).toBeUndefined();
+      expect(JSON.parse(fs.readFileSync(translationCachePath, 'utf8'))[slug]).toBeUndefined();
+      const body = sourceBodyFromMessages(messages);
+      submittedBodies.push(body);
+      return mockTranslation(body);
+    });
+
+    const result = await service.translateAuthorityRecord(slug, source);
+
+    expect(submittedBodies.length).toBeGreaterThan(2);
+    expect(submittedBodies.every(body => body.length <= 3200)).toBe(true);
+    expect(squashWhitespace(submittedBodies.join('\n\n'))).toBe(squashWhitespace(longBody));
+    for (let section = 1; section <= 24; section += 1) {
+      expect(result.translatedContent).toContain('第' + section + '节照护。');
+    }
+    expect(result.translatedContent).toContain(finalChineseWarning);
+    expect(result).toMatchObject({
+      translationCoverage: 'full',
+      translationVersion: 2,
+      sourceChars: longBody.length,
+      translatedChunks: submittedBodies.length,
+    });
+    const articleWrites = writes.mock.calls.filter(([pathname]) => String(pathname) === translationCachePath);
+    expect(articleWrites).toHaveLength(1);
+    expect(JSON.parse(String(articleWrites[0][1]))[slug]).toEqual(result);
+    expect(JSON.parse(fs.readFileSync(translationCachePath, 'utf8'))[slug]).toEqual(result);
+  });
+
+  it('retries an incomplete freellm segment through the next configured model', async () => {
+    process.env.AUTHORITY_TRANSLATION_TASK_ROLES = 'knowledge_translate,deepseek_translate';
+    const slug = 'authority-full-translation-model-fallback';
+    const { callModel, service } = loadService();
+    const roles: string[] = [];
+    callModel.mockImplementation(async (role, messages) => {
+      roles.push(role);
+      const body = sourceBodyFromMessages(messages);
+      if (role === 'knowledge_translate' && roles.length === 1) {
+        return {
+          answer: JSON.stringify({ translated_title: '新生儿护理', translated_summary: '了解护理。', translated_content: '译文过短。' }),
+          route: { provider: 'freellm', model: 'fixture', route: 'task' as const, label: 'fixture' },
+        };
+      }
+      return mockTranslation(body);
+    });
+
+    const result = await service.translateAuthorityRecord(slug, source);
+
+    expect(roles.slice(0, 2)).toEqual(['knowledge_translate', 'deepseek_translate']);
+    expect(result.translatedContent).toContain(finalChineseWarning);
+    expect(result.translationCoverage).toBe('full');
+  });
+
+  it('does not save a partial translation when a later source segment fails', async () => {
+    const slug = 'authority-full-translation-failure';
+    const { callModel, service } = loadService();
+    const writes = jest.spyOn(fs, 'writeFileSync');
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+    let calls = 0;
+    callModel.mockImplementation(async (_role, messages) => {
+      calls += 1;
+      if (calls > 1) throw new Error('The second source segment failed');
+      return mockTranslation(sourceBodyFromMessages(messages));
+    });
+
+    await expect(service.translateAuthorityRecord(slug, source)).rejects.toThrow('The second source segment failed');
+
+    expect(calls).toBeGreaterThanOrEqual(2);
+    expect(service.loadAuthorityTranslationCache()[slug]).toBeUndefined();
+    expect(JSON.parse(fs.readFileSync(translationCachePath, 'utf8'))[slug]).toBeUndefined();
+    expect(writes.mock.calls.filter(([pathname]) => String(pathname) === translationCachePath)).toHaveLength(0);
+  });
+
+  it('retranslates a long article whose matching legacy cache does not establish full coverage', async () => {
+    const slug = 'authority-full-translation-legacy-long';
+    fs.writeFileSync(translationCachePath, JSON.stringify({ [slug]: legacyCachedTranslation(slug) }), 'utf8');
+    const { callModel, service } = loadService();
+    callModel.mockImplementation(async (_role, messages) => mockTranslation(sourceBodyFromMessages(messages)));
+
+    const result = await service.translateAuthorityRecord(slug, source);
+
+    expect(callModel).toHaveBeenCalled();
+    expect(result.translatedContent).toContain(finalChineseWarning);
+    expect(result).toMatchObject({ translationCoverage: 'full', translationVersion: 2 });
+    expect(JSON.parse(fs.readFileSync(translationCachePath, 'utf8'))[slug]).toEqual(result);
+  });
+
+  it('continues to reuse a matching legacy cache for an article that fits in one source segment', async () => {
+    const slug = 'authority-full-translation-legacy-short';
+    const shortSource = { ...source, answer: englishSentences.join(' ') };
+    const cached = legacyCachedTranslation(slug, shortSource);
+    fs.writeFileSync(translationCachePath, JSON.stringify({ [slug]: cached }), 'utf8');
+    const { callModel, service } = loadService();
+
+    const result = await service.translateAuthorityRecord(slug, shortSource);
+
+    expect(callModel).not.toHaveBeenCalled();
+    expect(result.translatedContent).toBe(cached.translatedContent);
+  });
+});

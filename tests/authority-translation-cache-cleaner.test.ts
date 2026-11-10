@@ -151,6 +151,7 @@ describe('authority translation cache cleaner', () => {
       delete process.env.AUTHORITY_TRANSLATION_ALLOW_PAID_FALLBACK;
 
       expect(__authorityTranslationTestUtils.resolveAuthorityTranslationTaskRoles()).toEqual([
+        'knowledge_translate',
         'deepseek_translate',
         'glm_classify',
       ]);

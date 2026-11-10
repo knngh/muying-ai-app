@@ -1,6 +1,7 @@
 import type { AITaskModelRole } from '../services/ai-gateway.service';
 
 const SUPPORTED_TRANSLATION_TASK_ROLES = new Set<AITaskModelRole>([
+  'knowledge_translate',
   'deepseek_translate',
   'glm_classify',
   'kimi_reason',
@@ -10,7 +11,7 @@ const PAID_TRANSLATION_FALLBACK_ROLES = new Set<AITaskModelRole>([
   'kimi_reason',
   'minimax_render',
 ]);
-const DEFAULT_TRANSLATION_TASK_ROLES: AITaskModelRole[] = ['deepseek_translate', 'glm_classify'];
+const DEFAULT_TRANSLATION_TASK_ROLES: AITaskModelRole[] = ['knowledge_translate', 'deepseek_translate', 'glm_classify'];
 
 function envFlag(value: string | undefined): boolean {
   return /^(1|true|yes|on)$/i.test(value || '');

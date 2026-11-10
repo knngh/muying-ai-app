@@ -36,7 +36,7 @@ describe('authority translation warmup', () => {
     restoreEnv();
   });
 
-  it('defaults translation warmup to DeepSeek official API with free GLM fallback', () => {
+  it('defaults knowledge translation to freellm before DeepSeek and GLM fallback', () => {
     delete process.env.AUTHORITY_TRANSLATION_TASK_ROLES;
 
     let resolveAuthorityTranslationTaskRoles: typeof import('../src/services/authority-translation.service').__authorityTranslationTestUtils.resolveAuthorityTranslationTaskRoles | null = null;
@@ -46,10 +46,10 @@ describe('authority translation warmup', () => {
     });
 
     expect(resolveAuthorityTranslationTaskRoles).not.toBeNull();
-    expect(resolveAuthorityTranslationTaskRoles!()).toEqual(['deepseek_translate', 'glm_classify']);
+    expect(resolveAuthorityTranslationTaskRoles!()).toEqual(['knowledge_translate', 'deepseek_translate', 'glm_classify']);
 
     process.env.AUTHORITY_TRANSLATION_TASK_ROLES = 'unknown_role';
-    expect(resolveAuthorityTranslationTaskRoles!()).toEqual(['deepseek_translate', 'glm_classify']);
+    expect(resolveAuthorityTranslationTaskRoles!()).toEqual(['knowledge_translate', 'deepseek_translate', 'glm_classify']);
   });
 
   it('honors explicitly configured paid translation fallback roles', () => {
@@ -66,6 +66,12 @@ describe('authority translation warmup', () => {
 
     process.env.AUTHORITY_TRANSLATION_ALLOW_PAID_FALLBACK = 'true';
     expect(resolveAuthorityTranslationTaskRoles!()).toEqual(['glm_classify', 'minimax_render', 'kimi_reason']);
+  });
+
+  it('supports freellm as the sole authority translation role', () => {
+    const { resolveAuthorityTranslationTaskRoles } = require('../src/utils/authority-translation-routing');
+    expect(resolveAuthorityTranslationTaskRoles({ AUTHORITY_TRANSLATION_TASK_ROLES: 'knowledge_translate' }))
+      .toEqual(['knowledge_translate']);
   });
 
   it('loads existing translation cache before warming missing articles', async () => {
@@ -105,6 +111,7 @@ describe('authority translation warmup', () => {
     process.env.AUTHORITY_TRANSLATION_FAILURE_CACHE_PATH = failureCachePath;
     process.env.AUTHORITY_TRANSLATION_SYNC_LIMIT = '10';
     process.env.AUTHORITY_TRANSLATION_SYNC_DELAY_MS = '0';
+    process.env.AUTHORITY_TRANSLATION_TASK_ROLES = 'deepseek_translate';
 
     let moduleApi: {
       callTaskModelSpy: jest.SpyInstance;
@@ -627,6 +634,7 @@ describe('authority translation warmup', () => {
     process.env.AUTHORITY_TRANSLATION_FAILURE_CACHE_PATH = failureCachePath;
     process.env.AUTHORITY_TRANSLATION_SYNC_LIMIT = '10';
     process.env.AUTHORITY_TRANSLATION_SYNC_DELAY_MS = '0';
+    process.env.AUTHORITY_TRANSLATION_TASK_ROLES = 'deepseek_translate';
 
     let moduleApi: {
       callTaskModelSpy: jest.SpyInstance;

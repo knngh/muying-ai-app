@@ -493,6 +493,7 @@ function buildTaskModelMessages(params: {
 }): Array<{ role: 'system' | 'user'; content: string }> {
   const taskInstructionMap: Record<AITaskModelRole, string[]> = {
     knowledge_format: ['仅标注文章排版结构，不得改动原文。'],
+    knowledge_translate: ['完整翻译输入资料，不得省略段落、数字或风险提示。'],
     deepseek_translate: [
       '你负责权威资料翻译/压缩层。',
       '只根据输入资料转写，不要扩展成诊断建议。',
