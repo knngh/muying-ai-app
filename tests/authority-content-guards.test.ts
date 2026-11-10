@@ -13,6 +13,7 @@ import {
   evaluateAuthorityDocumentQuality,
   isHighRiskOrClickbaitTitle,
   isLikelyEnglishNavigationShell,
+  isMaternalInfantRelevant,
   isOffTopicGovPolicyTitle,
   shouldPublishDocument,
 } from '../src/services/authority-adapters/base.adapter';
@@ -944,7 +945,7 @@ describe('authority content guards', () => {
       'If nipples hurt, the baby slips off the breast, or feeding sessions feel unusually long, parents can adjust positioning and ask a lactation professional for help.',
       'Good support also means keeping water nearby, resting the baby on pillows when needed, and switching sides based on the baby cues rather than a fixed clock.',
       'Families should seek medical care if the baby has too few wet diapers, poor weight gain, fever, unusual sleepiness, or persistent feeding difficulty.',
-    ].join(' ').repeat(2);
+    ].join(' ').repeat(4);
     const document = {
       sourceId: 'aap',
       sourceOrg: 'AAP',
@@ -973,6 +974,66 @@ describe('authority content guards', () => {
       answer: body,
       sourceUrl: document.sourceUrl,
     })).toBeNull();
+  });
+
+  it('applies the English word floor when an English source has Chinese display metadata', () => {
+    const shortBody = 'Pregnancy guidance helps families prepare for routine prenatal visits and understand common changes. '.repeat(5);
+    expect(getAuthorityKnowledgeDropReason({
+      sourceId: 'who',
+      sourceLanguage: 'en',
+      sourceLocale: 'en',
+      sourceUrl: 'https://www.who.int/en/health-topics/pregnancy',
+      title: '孕期常规产检与身体变化',
+      summary: '这篇文章介绍孕期产检安排以及常见身体变化，帮助家庭了解每个阶段需要关注的健康问题。',
+      answer: shortBody,
+    })).toBe('english_authority_short_content');
+  });
+
+  it('does not apply an English word floor to a Chinese answer citing an English source', () => {
+    expect(getAuthorityKnowledgeDropReason({
+      sourceId: 'aap',
+      sourceLanguage: 'en',
+      sourceUrl: 'https://www.healthychildren.org/English/ages-stages/baby/feeding-nutrition/Pages/Vitamin-D-Iron-Supplements.aspx',
+      title: '宝宝喂养时需要留意什么？',
+      answer: '根据AAP资料，家长可以记录喂养情况，并在随访时与儿科医生讨论宝宝的生长和营养需求。对于具体补充剂的使用，应结合宝宝情况由医生提供建议。',
+    })).toBeNull();
+  });
+
+  it('does not treat an inferred vaccine category as maternal or infant relevance', () => {
+    expect(isMaternalInfantRelevant(
+      'https://www.who.int/zh/news-room/detail/30-07-2015-world-on-the-verge-of-an-effective-ebola-vaccine',
+      '世界即将推出有效的埃博拉疫苗',
+      '对在几内亚开展的三期疫苗有效性试验进行的中期分析结果显示，埃博拉病毒疫苗非常有效。',
+    )).toBe(false);
+
+    expect(getAuthorityKnowledgeDropReason({
+      sourceId: 'who',
+      sourceOrg: 'WHO',
+      sourceLanguage: 'en',
+      sourceLocale: 'en',
+      sourceUrl: 'https://www.who.int/en/news-room/detail/30-07-2015-world-on-the-verge-of-an-effective-ebola-vaccine',
+      title: '世界即将推出有效的埃博拉疫苗',
+      summary: '对在几内亚开展的三期疫苗有效性试验进行的中期分析结果显示，埃博拉病毒疫苗非常有效。',
+      category: 'vaccine',
+      answer: 'Ebola vaccination results from a clinical trial. '.repeat(45),
+    })).toBe('off_topic_non_maternal');
+  });
+
+  it('requires 300 cleaned English body words while allowing a substantive article above the floor', () => {
+    const sentence = 'Breastfeeding support can help parents feed a newborn and recognize when to seek guidance. ';
+    const metadata = {
+      sourceId: 'who',
+      sourceLanguage: 'en',
+      sourceLocale: 'en',
+      sourceUrl: 'https://www.who.int/en/health-topics/breastfeeding',
+      title: 'Breastfeeding Support for Newborns',
+      summary: 'Guidance for parents feeding a newborn baby.',
+    };
+
+    expect(getAuthorityKnowledgeDropReason({ ...metadata, answer: sentence.repeat(19) }))
+      .toBe('english_authority_short_content');
+    expect(getAuthorityKnowledgeDropReason({ ...metadata, answer: sentence.repeat(22) }))
+      .toBeNull();
   });
 
   it('rejects foreign local emergency instructions from English authority content', () => {

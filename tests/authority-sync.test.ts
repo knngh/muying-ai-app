@@ -161,6 +161,9 @@ describe('authority index discovery', () => {
           <p>Newborn care topics include breastfeeding support, formula feeding when needed, diaper counts, skin care, jaundice observation, safe sleep, regular checkups, and vaccines recommended during infancy.</p>
           <p>Infant development changes quickly during the first year. Families can track feeding, sleep, growth, hearing, vision, movement, and social development, while asking clinicians about symptoms that need prompt attention.</p>
           <p>This page is written for patients and families. It explains health topics in plain language, points readers to reliable care, and avoids replacing diagnosis or personalized treatment from a licensed clinician.</p>
+          <p>Pregnant people can use prenatal visits to discuss questions about medicines, nutrition, vaccinations, physical activity, and emotional health. Clinicians can explain which changes are expected and which symptoms deserve a timely assessment. Each family's care plan should reflect medical history, pregnancy stage, and individual circumstances.</p>
+          <p>After delivery, families can ask about feeding, recovery, newborn screening, safe sleep, and follow-up appointments. Care teams can help parents recognize normal changes, plan support at home, and find reliable services when new concerns arise. Written notes may help families remember questions for the next visit.</p>
+          <p>Health information is a starting point for discussion rather than a personal diagnosis. Advice can vary with a person's health history and local care options. Families should contact a qualified clinician when they need recommendations that apply to their own pregnancy, recovery, or newborn.</p>
         </main>
         </body>
       </html>
@@ -1814,5 +1817,37 @@ describe('authority index discovery', () => {
       publishStatus: 'published',
       riskLevelDefault: 'red',
     })).toBe(true);
+  });
+});
+
+describe('WHO source language handling', () => {
+  const source = getAuthoritySourceConfig('who')!;
+  const baseRaw = {
+    sourceId: 'who',
+    httpStatus: 200,
+    contentType: 'text/html; charset=utf-8',
+    contentHash: 'test',
+    fetchedAt: '2026-11-09T00:00:00.000Z',
+  };
+
+  it('marks WHO /zh/ pages as Chinese in normalized records and cache metadata', () => {
+    const content = '孕期健康建议包括规律产检、均衡饮食和及时咨询医生。'.repeat(12);
+    const document = normalizeAuthorityDocument(source, {
+      ...baseRaw,
+      url: 'https://www.who.int/zh/health-topics/pregnancy',
+      rawBody: `<title>孕期健康建议</title><main>${content}</main>`,
+    });
+
+    expect(document).toMatchObject({ sourceLanguage: 'zh', sourceLocale: 'zh-CN' });
+    expect(document?.metadataJson).toMatchObject({ sourceLanguage: 'zh', sourceLocale: 'zh-CN' });
+  });
+
+  it('filters unsupported WHO /fr/ pages before they enter the knowledge cache', () => {
+    const content = 'Breastfeeding support can help parents feed their newborn and recognize when to seek guidance. '.repeat(4);
+    expect(normalizeAuthorityDocument(source, {
+      ...baseRaw,
+      url: 'https://www.who.int/fr/health-topics/breastfeeding',
+      rawBody: `<title>Breastfeeding Support for Newborns</title><main>${content}</main>`,
+    })).toBeNull();
   });
 });

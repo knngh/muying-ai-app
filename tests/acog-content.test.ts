@@ -20,6 +20,11 @@ describe('ACOG source chrome removal', () => {
   it.each(['Leer en español', '广告 ACOG不认可任何公司或产品。', 'Advertisement ACOG does not endorse any companies or products.'])('removes source controls without changing medical body: %s', control => {
     expect(stripAcogArticleChrome(`${control} ${chineseBody}`)).toBe(chineseBody);
   });
+  it('removes translated copyright and promotional library sections from infographic text', () => {
+    const article = '孕期接种疫苗有助于保护宝宝。';
+    const footer = '版权所有 2024年，美国妇产科医师学会。主题：妊娠与疫苗。临床医生：订购数字手册。探索ACOG的患者教育手册库。';
+    expect(stripAcogArticleChrome(`${article}\n\n${footer}`)).toBe(article);
+  });
   it('keeps an ACOG article title, medical questions, warnings, dates and citations in the actual body', () => {
     const input = `问ACOG 孕期服用对乙酰氨基酚安全吗？\n${chineseBody}\n何时应咨询医生？\n2025年1月的研究引用了ACOG指南。不要自行停用医生开的药物。`;
     expect(stripAcogArticleChrome(input)).toBe(input);

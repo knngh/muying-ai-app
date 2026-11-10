@@ -53,7 +53,7 @@ export function authorityBrowsePriority(sourceUrl?: string, topic?: string, titl
   // Professional references remain searchable; family-facing guidance leads recommendations.
   if (/\/(?:clinical|professional|practice-bulletin|committee-opinion)(?:\/|$)|guidelines-review-committee|\/maternal_child_adolescent\/documents\//i.test(pathname)) return 2;
   if (/(^|\.)acog\.org$/i.test(hostname)
-    && /^\/womens-health\/(?:experts-and-stories|healthy-living|videos)(?:\/|$)/i.test(pathname)) return Math.max(1, topicPriority);
+    && /^\/womens-health\/(?:experts-and-stories|healthy-living|videos|infographics|health-tools)(?:\/|$)/i.test(pathname)) return Math.max(1, topicPriority);
   // News remains accessible. This only orders the recommended reading list.
   if (/\/fact-sheets\/|\/questions-and-answers\/|\/q-a-detail\//i.test(pathname)) return topicPriority;
   return /\/news-room\/(?:detail|feature-stories|commentaries|events|spotlight)\/|\/news\/item\/|\/(?:press-releases|news-releases)\//i.test(pathname) ? 3 : topicPriority;
@@ -62,6 +62,13 @@ export function authorityBrowsePriority(sourceUrl?: string, topic?: string, titl
 export function authorityListCacheKey(params: Record<string, unknown>): string {
   const fields = ['category', 'tag', 'stage', 'difficulty', 'keyword', 'source', 'language', 'sort', 'page', 'pageSize'];
   return CacheKeys.ARTICLES_AUTHORITY_FILTERED(JSON.stringify(fields.map(key => params[key] ?? null)));
+}
+
+export function resolveAuthorityBrowseSort(contentType: unknown, sort: unknown): string {
+  if (typeof sort === 'string' && sort.trim()) {
+    return sort;
+  }
+  return contentType === 'authority' ? 'recommended' : 'latest';
 }
 
 /** Filter the original source language, independently of cached translations. */

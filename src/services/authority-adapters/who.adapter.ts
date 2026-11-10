@@ -36,6 +36,11 @@ export const whoAdapter: AuthorityDocumentAdapter = {
     const title = extractTitle(raw.rawBody);
     const description = extractMetaContent(raw.rawBody, 'description');
     const contentText = extractWhoContent(raw.rawBody);
+    const pathname = (() => {
+      try { return new URL(raw.url).pathname; } catch { return ''; }
+    })();
+    const sourceLanguage = /^\/zh(?:\/|$)/i.test(pathname) ? 'zh' : 'en';
+    const sourceLocale = sourceLanguage === 'zh' ? 'zh-CN' : source.locale;
     if (!contentText || contentText.length < 150) {
       return null;
     }
@@ -53,6 +58,8 @@ export const whoAdapter: AuthorityDocumentAdapter = {
       sourceId: source.id,
       sourceOrg: source.org,
       sourceUrl: raw.url,
+      sourceLanguage,
+      sourceLocale,
       title,
       updatedAt: temporal.updatedAt,
       audience: detectAudience({ sourceUrl: raw.url, title, summary: description, contentText }, source),
@@ -66,6 +73,8 @@ export const whoAdapter: AuthorityDocumentAdapter = {
         contentType: raw.contentType,
         fetchedAt: raw.fetchedAt,
         updatedAtSource: temporal.updatedAtSource,
+        sourceLanguage,
+        sourceLocale,
       },
       publishStatus: 'draft',
     };

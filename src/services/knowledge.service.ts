@@ -2,7 +2,7 @@
 import fs from 'fs';
 import path from 'path';
 import { callTaskModelDetailed } from './ai-gateway.service';
-import { getEmbedding, searchKnowledge as searchVectorKnowledge } from './vector.service';
+import { buildAuthorityVectorId, getEmbedding, searchKnowledge as searchVectorKnowledge } from './vector.service';
 import { getAuthoritySourceConfig, inferAuthorityLocaleDefaults, type AuthoritySourceConfig } from '../config/authority-sources';
 import { buildAuthorityDisplayTags } from '../utils/authority-metadata';
 import { shouldFilterAuthoritySourceUrl } from '../utils/authority-source-url';
@@ -1014,6 +1014,8 @@ function shouldIncludeAuthoritySearchRecord(qa: QAPair): boolean {
     category: qa.category,
     source: qa.source,
     sourceOrg: qa.source_org,
+    sourceId: qa.source_id,
+    sourceUrl: qa.source_url || qa.url,
     sourceClass: qa.source_class,
     authoritative: qa.is_verified,
   });
@@ -1064,12 +1066,17 @@ function toVectorSupplementResult(
     source: string;
   },
   rank: number,
+  sourceRecords: QAPair[] = authorityQaData,
 ): KnowledgeSearchResult | null {
   if (!result.id.startsWith('authority-')) {
     return null;
   }
 
-  const matched = findAuthorityMatch(result.question, result.source);
+  const matchedByVectorId = sourceRecords.find((record) => {
+    const sourceUrl = record.source_url || record.url;
+    return Boolean(sourceUrl && buildAuthorityVectorId(sourceUrl) === result.id);
+  });
+  const matched = matchedByVectorId || findAuthorityMatch(result.question, result.source);
   const matchedSummary = (matched as { summary?: string } | undefined)?.summary;
   if (!shouldUseAuthorityVectorSupplement({
     title: result.question,
@@ -1080,6 +1087,8 @@ function toVectorSupplementResult(
     category: matched?.category || result.category,
     source: matched?.source || result.source,
     sourceOrg: matched?.source_org || result.source,
+    sourceId: matched?.source_id,
+    sourceUrl: matched?.source_url || matched?.url,
     sourceClass: matched?.source_class,
   })) {
     return null;
@@ -1094,6 +1103,11 @@ function toVectorSupplementResult(
     sourceReference: buildSourceReference(qa, score),
   };
 }
+
+export const __knowledgeServiceTestUtils = {
+  shouldIncludeAuthoritySearchRecord,
+  toVectorSupplementResult,
+};
 
 async function searchAuthorityVectorSupplements(queries: string[], limit: number): Promise<KnowledgeSearchResult[]> {
   if (!hasAvailableVectorRetrieval()) {

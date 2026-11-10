@@ -122,6 +122,17 @@ function isOutOfScopeEnglishAuthority(record: AuthoritySourceUrlRecord, url: str
   const text = getAuthoritySourceText(record, url, title);
   const pathname = normalizePathname(url);
 
+  if (isWhoSource(record, url)) {
+    const leadingLocale = pathname.match(/^\/([a-z]{2})(?:\/|$)/i)?.[1]?.toLowerCase();
+    if (leadingLocale && leadingLocale !== 'en' && leadingLocale !== 'zh') {
+      return true;
+    }
+
+    if (/\bebola\b/i.test(text)) {
+      return true;
+    }
+  }
+
   if (isAapSource(record, url)) {
     const aapMaternalInfantSignal = /pregnan|prenatal|postnatal|postpartum|newborn|neonat|infant|baby|babies|toddler|preterm|premature|breast[\s-]?feed|breastfeeding|breast milk/i;
     if (/\bteens?\b/i.test(text)) {
@@ -376,7 +387,8 @@ function isAcogSource(record: AuthoritySourceUrlRecord, url: string): boolean {
 
 function isAcogTopicHubPage(url: string): boolean {
   const pathname = normalizePathname(url);
-  return /^\/topics\/[^/]+$/i.test(pathname);
+  return /^\/topics\/[^/]+$/i.test(pathname)
+    || /^\/womens-health\/pregnancy(?:\/(?:labor-and-delivery|getting-pregnant|after-pregnancy|during-pregnancy))?$/i.test(pathname);
 }
 
 function isNhsSource(record: AuthoritySourceUrlRecord, url: string): boolean {

@@ -4,6 +4,25 @@ import {
 } from '../src/utils/authority-vector-filter';
 
 describe('authority vector filter', () => {
+  it('rejects ACOG resource directories even when navigation passes the word threshold', () => {
+    const record = {
+      title: 'Labor and Delivery', sourceId: 'acog', sourceOrg: 'ACOG', sourceClass: 'official',
+      sourceUrl: 'https://www.acog.org/womens-health/pregnancy/labor-and-delivery',
+      answer: 'Pregnancy and birth resources for your family. '.repeat(30),
+    };
+    expect(shouldPublishAuthorityVectorDocument(record)).toBe(false);
+    expect(shouldUseAuthorityVectorSupplement(record)).toBe(false);
+  });
+
+  it('checks cleaned ACOG body length using source identity even with a Chinese title', () => {
+    const record = {
+      title: '孕期疫苗接种', sourceId: 'acog', sourceClass: 'official',
+      answer: 'Discuss vaccination in pregnancy with your doctor.\n\nAbout Ask ACOG\nACOG is here with answers to help you stay healthy. '.repeat(5),
+    };
+    expect(shouldPublishAuthorityVectorDocument(record)).toBe(false);
+    expect(shouldUseAuthorityVectorSupplement(record)).toBe(false);
+  });
+
   it('publishes official authority documents and blocks medical-platform vectors', () => {
     expect(shouldPublishAuthorityVectorDocument({
       title: '孕早期见红怎么办',

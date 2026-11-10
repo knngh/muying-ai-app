@@ -32,6 +32,12 @@ const medicalBody = [
   'The discussion should include the benefits of the injection, the care planned for your newborn, and any individual medical considerations.',
   'Keep a record of the care your baby receives after birth and share that information with the clinician providing follow-up care.',
   'If you have more questions after going home, contact your maternity team or the doctor who looks after your baby.',
+  'During the conversation, ask how the team will document the care provided to your newborn and who you should contact with follow-up questions.',
+  'Share your questions with the clinician before a decision is made so that you understand the explanation and the plan for your baby.',
+  'If another family member will help with newborn care, ask whether they can join the discussion and help keep track of information.',
+  'Before leaving the maternity unit, check that you know when the next appointment is planned and how to reach the team if needed.',
+  'At follow-up, bring the record of newborn care and any questions that have come up at home.',
+  'The clinician can review the record with you and explain any recommendations for your baby.',
 ].join('\n');
 const translatedMedicalBody = [
   '维生素K帮助新生儿的血液正常凝固。',
@@ -44,6 +50,11 @@ const translatedMedicalBody = [
   '讨论应包括注射的益处、新生儿护理计划，以及个体医疗情况。',
   '保存宝宝出生后接受护理的记录，并向提供随访服务的医生说明。',
   '回家后如有更多问题，请联系产科团队或照护宝宝的医生。',
+  '沟通时，请询问团队如何记录新生儿接受的护理，以及随访问题应联系谁。',
+  '作出决定前向医生提出问题，确保理解相关解释和宝宝的护理计划。',
+  '如果有家人协助照护新生儿，可以询问他们能否参与讨论并帮助记录信息。',
+  '离开产科病房前，确认下次就诊时间，以及需要时如何联系团队。',
+  '随访时带上新生儿护理记录和回家后遇到的问题。医生可以一起查看记录，并解释针对宝宝的建议。',
 ].join('\n');
 const relatedQuestionsUrl = 'https://www.acog.org/womens-health/experts-and-stories/ask-acog';
 const legacyTranslatedContent = [

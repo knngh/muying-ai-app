@@ -1,4 +1,5 @@
 import { getAuthorityKnowledgeDropReason } from './knowledge-content-guard';
+import { shouldFilterAuthoritySourceUrl } from './authority-source-url';
 import {
   getMedicalPlatformQualityDropReason,
   isMedicalPlatformRecord,
@@ -46,6 +47,14 @@ export function isWeakAuthorityVectorDocument(record: AuthorityVectorRecord): bo
     return true;
   }
 
+  if (shouldFilterAuthoritySourceUrl({
+    source_id: record.sourceId,
+    source_url: record.sourceUrl,
+    source_org: record.sourceOrg,
+    source: record.source,
+    title,
+  })) return true;
+
   if (getAuthorityKnowledgeDropReason({
     title,
     question: record.question,
@@ -55,6 +64,8 @@ export function isWeakAuthorityVectorDocument(record: AuthorityVectorRecord): bo
     source: record.source,
     source_org: record.sourceOrg,
     source_class: record.sourceClass,
+    sourceId: record.sourceId,
+    sourceUrl: record.sourceUrl,
   })) {
     return true;
   }

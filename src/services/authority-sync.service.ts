@@ -2613,8 +2613,8 @@ export async function exportPublishedAuthoritySnapshot(
         sourceClass: typeof (metadata as { sourceClass?: unknown }).sourceClass === 'string'
           ? (metadata as { sourceClass: 'official' | 'medical_platform' | 'dataset' | 'unknown' }).sourceClass
           : 'official',
-        sourceLanguage: localeDefaults.sourceLanguage,
-        sourceLocale: localeDefaults.sourceLocale,
+        sourceLanguage: typeof metadata.sourceLanguage === 'string' ? metadata.sourceLanguage : localeDefaults.sourceLanguage,
+        sourceLocale: typeof metadata.sourceLocale === 'string' ? metadata.sourceLocale : localeDefaults.sourceLocale,
         qualityTier: getAuthoritySourceQualityTier(row.sourceId) || 'C',
         targetStages,
       },
@@ -2634,6 +2634,7 @@ export async function exportPublishedAuthoritySnapshot(
   try {
     const { publishAuthorityDocumentsToVectorStore } = require('./vector.service') as typeof import('./vector.service');
     const vectorResult = await publishAuthorityDocumentsToVectorStore(payload.map((item) => ({
+      sourceId: item.source_id,
       sourceUrl: item.source_url || item.url || item.original_id,
       title: item.question,
       contentText: item.answer,

@@ -20,6 +20,9 @@ export function stripAcogArticleChrome(input: string): string {
     /\bWhat to Read Next\b/iu,
     /(?:接下来阅读(?:什么)?|下一步阅读|推荐阅读)\s*[:：]?\s*(?:(?:常见问题|专家观点)\s*|(?:询问|问)\s*ACOG)/iu,
     /\bCopyright\s+\d{4}\s*(?:,?\s*by\s+)?the American College of Obstetricians/iu,
+    /版权所有\s*\d{4}\s*年?/u,
+    /临床医生\s*[:：]\s*(?:订购|订阅)(?:数字)?手册/u,
+    /探索\s*ACOG\s*的?患者教育手册库/u,
   ];
   const offsets = boundaries.map(pattern => text.search(pattern)).filter(index => index >= 0);
   if (offsets.length) text = text.slice(0, Math.min(...offsets));

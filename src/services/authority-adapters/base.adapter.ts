@@ -235,9 +235,7 @@ export function isMaternalInfantRelevant(sourceUrl: string, title: string, text:
   const conditionalPositivePatterns = [
     /(fever|jaundice|vomit|vomiting|diarrhea|diarrhoea|cough|rash|cyanosis).*(baby|child|children|infant|newborn)/,
     /(baby|child|children|infant|newborn).*(fever|jaundice|vomit|vomiting|diarrhea|diarrhoea|cough|rash|cyanosis)/,
-    /(vaccin|immuni).*(pregnan|baby|child|children|infant|newborn)/,
-    /(pregnan|baby|child|children|infant|newborn).*(vaccin|immuni)/,
-    /(孕产妇|孕妇|孕期|孕早期|孕中期|孕晚期|妊娠|产后|分娩|母乳|哺乳|新生儿|婴儿|儿童|孩子|小儿|儿科|辅食|疫苗|接种|妇幼|生育|托育|备孕|避孕)/,
+    /(孕产妇|孕妇|孕期|孕早期|孕中期|孕晚期|妊娠|产后|分娩|母乳|哺乳|新生儿|婴儿|儿童|孩子|小儿|儿科|辅食|妇幼|生育|托育|备孕|避孕)/,
   ];
 
   const genericMedicinePattern = /\/medicines\//.test(sourceUrl);
@@ -251,6 +249,11 @@ export function isMaternalInfantRelevant(sourceUrl: string, title: string, text:
   }
 
   if (conditionalPositivePatterns.some((pattern) => pattern.test(normalized))) {
+    return true;
+  }
+
+  if (/vaccin|immuni|疫苗|接种|免疫/i.test(urlTitle)
+    && /(pregnan|baby|babies|child|children|infant|newborn|maternal|postpartum|孕产妇|孕妇|孕期|产后|新生儿|婴儿|儿童|孩子|小儿|妇幼)/iu.test(urlTitle)) {
     return true;
   }
 

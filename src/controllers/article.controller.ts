@@ -1,5 +1,7 @@
+import { hasFullAuthorityTranslation, getAuthorityTranslationSource } from '../utils/authority-full-translation';
+import { translateAuthorityRecord as translateCompleteAuthorityRecord } from '../services/authority-translation.service';
 import { isAcogSource, stripAcogArticleChrome } from '../utils/acog-content';
-import { authorityBrowsePriority, matchesAuthoritySourceLanguage, authorityListCacheKey, matchesAuthorityBrowseCategory } from '../utils/authority-browse';
+import { authorityBrowsePriority, matchesAuthoritySourceLanguage, authorityListCacheKey, matchesAuthorityBrowseCategory, resolveAuthorityBrowseSort } from '../utils/authority-browse';
 import fs from 'fs';
 import path from 'path';
 import { Prisma } from '@prisma/client';
@@ -183,7 +185,7 @@ const AUTHORITY_TRANSLATION_SOURCE_CHAR_LIMIT = Math.max(
 );
 const AUTHORITY_TRANSLATION_MAX_TOKENS = Math.max(
   1000,
-  Number.parseInt(process.env.AUTHORITY_TRANSLATION_MAX_TOKENS || '1600', 10) || 1600,
+  Number.parseInt(process.env.AUTHORITY_TRANSLATION_MAX_TOKENS || '6000', 10) || 6000,
 );
 interface AuthorityTranslationExecutionOptions {
   providerTimeoutMs?: number;
@@ -201,6 +203,10 @@ interface AuthorityTranslationCacheRecord {
   model?: string;
   provider?: string;
   isSourceChinese?: boolean;
+  translationCoverage?: 'full';
+  translationVersion?: number;
+  sourceChars?: number;
+  translatedChunks?: number;
 }
 
 interface AuthorityArticleTranslationApiResponse {
@@ -820,6 +826,7 @@ function getCachedAuthorityTranslation(
   sourceUpdatedAt?: string,
   sourceFingerprint?: string,
   fallbackSlugs: string[] = [],
+  sourceContent?: string,
 ): AuthorityTranslationCacheRecord | null {
   const translationCache = loadAuthorityTranslationCache();
   const candidateSlugs = Array.from(new Set([
@@ -836,6 +843,7 @@ function getCachedAuthorityTranslation(
 
   for (const candidateSlug of candidateSlugs) {
     const cached = translationCache[candidateSlug];
+    if (cached && !hasFullAuthorityTranslation(cached, sourceContent, AUTHORITY_TRANSLATION_SOURCE_CHAR_LIMIT)) continue;
     if (!isAuthorityTranslationCacheFresh(cached, { sourceUpdatedAt, sourceFingerprint })) {
       continue;
     }
@@ -875,6 +883,7 @@ function getCachedAuthorityArticleTranslation(article: AuthorityArticle): Author
     article.sourceUpdatedAt || article.updatedAt || article.publishedAt || article.createdAt,
     article.sourceFingerprint,
     article.slugCandidates,
+    article.translationSourceText,
   );
 }
 
@@ -909,8 +918,8 @@ function withAuthorityDisplayTranslation(
   };
 }
 
-function stripAuthorityInternalFields<T extends { slugCandidates?: string[] }>(article: T): Omit<T, 'slugCandidates'> {
-  const { slugCandidates: _slugCandidates, ...publicArticle } = article;
+function stripAuthorityInternalFields<T extends { slugCandidates?: string[]; translationSourceText?: string }>(article: T): Omit<T, 'slugCandidates' | 'translationSourceText'> {
+  const { slugCandidates: _slugCandidates, translationSourceText: _translationSourceText, ...publicArticle } = article;
   return publicArticle;
 }
 
@@ -1335,9 +1344,13 @@ async function translateAuthorityRecord(
 ): Promise<AuthorityTranslationCacheRecord> {
   const sourceUpdatedAt = resolveAuthorityTranslationSourceUpdatedAt(record);
   const sourceFingerprint = buildAuthorityTranslationSourceFingerprint(record);
-  const cached = getCachedAuthorityTranslation(slug, sourceUpdatedAt, sourceFingerprint);
+  const cached = getCachedAuthorityTranslation(slug, sourceUpdatedAt, sourceFingerprint, [], record.answer);
   if (cached) {
     return cached;
+  }
+
+  if (getAuthorityTranslationSource(record.answer || '').length > AUTHORITY_TRANSLATION_SOURCE_CHAR_LIMIT) {
+    return translateCompleteAuthorityRecord(slug, record, options);
   }
 
   const sourceTitle = record.question || '';
@@ -1494,7 +1507,7 @@ function getOrCreateAuthorityTranslation(
 ): Promise<AuthorityTranslationCacheRecord> {
   const sourceUpdatedAt = resolveAuthorityTranslationSourceUpdatedAt(record);
   const sourceFingerprint = buildAuthorityTranslationSourceFingerprint(record);
-  const cached = getCachedAuthorityTranslation(slug, sourceUpdatedAt, sourceFingerprint, fallbackSlugs);
+  const cached = getCachedAuthorityTranslation(slug, sourceUpdatedAt, sourceFingerprint, fallbackSlugs, record.answer);
   if (cached) {
     return Promise.resolve(cached);
   }
@@ -1520,7 +1533,7 @@ function getOrCreateAuthorityTranslation(
 function prewarmAuthorityTranslation(slug: string, record: AuthorityCacheRecord, fallbackSlugs: string[] = []): void {
   const sourceUpdatedAt = resolveAuthorityTranslationSourceUpdatedAt(record);
   const sourceFingerprint = buildAuthorityTranslationSourceFingerprint(record);
-  if (getCachedAuthorityTranslation(slug, sourceUpdatedAt, sourceFingerprint, fallbackSlugs) || authorityTranslationInFlight.has(slug)) {
+  if (getCachedAuthorityTranslation(slug, sourceUpdatedAt, sourceFingerprint, fallbackSlugs, record.answer) || authorityTranslationInFlight.has(slug)) {
     return;
   }
 
@@ -1539,7 +1552,7 @@ async function waitForAuthorityTranslation(
 ): Promise<AuthorityTranslationCacheRecord | null> {
   const sourceUpdatedAt = resolveAuthorityTranslationSourceUpdatedAt(record);
   const sourceFingerprint = buildAuthorityTranslationSourceFingerprint(record);
-  const cached = getCachedAuthorityTranslation(slug, sourceUpdatedAt, sourceFingerprint, fallbackSlugs);
+  const cached = getCachedAuthorityTranslation(slug, sourceUpdatedAt, sourceFingerprint, fallbackSlugs, record.answer);
   if (cached) {
     return cached;
   }
@@ -1838,6 +1851,7 @@ function mapAuthorityRecordToArticle(record: AuthorityCacheRecord, index: number
     sourceLocale,
     sourceUpdatedAt: record.source_updated_at,
     sourceFingerprint: buildAuthorityTranslationSourceFingerprint(record),
+    translationSourceText: record.answer,
     lastSyncedAt: record.last_synced_at || record.updated_at || record.created_at,
     audience: normalizeAuthorityAudienceLabel(inferredAudience),
     topic: normalizeAuthorityTopicLabel(inferredTopic || record.category),
@@ -2183,10 +2197,11 @@ export const getArticles = async (req: Request, res: Response, next: NextFunctio
       keyword,
       source,
       language,
-      sort = 'latest',
+      sort: requestedSort,
       page = 1,
       pageSize = 20
     } = req.query;
+    const sort = resolveAuthorityBrowseSort(contentType, requestedSort);
 
     if (contentType === 'authority') {
       const currentPage = Number(page);
@@ -2532,7 +2547,7 @@ export const getAuthorityArticleTranslation = async (req: Request, res: Response
     const fallbackSlugs = authorityMatch.slugCandidates;
     const sourceUpdatedAt = resolveAuthorityTranslationSourceUpdatedAt(authorityRecord);
     const sourceFingerprint = buildAuthorityTranslationSourceFingerprint(authorityRecord);
-    const cached = getCachedAuthorityTranslation(canonicalSlug, sourceUpdatedAt, sourceFingerprint, fallbackSlugs);
+    const cached = getCachedAuthorityTranslation(canonicalSlug, sourceUpdatedAt, sourceFingerprint, fallbackSlugs, authorityRecord.answer);
     if (cached) {
       return res.json(successResponse(buildAuthorityTranslationResponse('ready', {
         translation: cached,

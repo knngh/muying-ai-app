@@ -141,13 +141,15 @@ const PSEUDO_MEDICAL_QUACK_PATTERN = /(?:转骨|穿胎|安胎药偏方)|快速.{
 // English authority records (WHO/NHS/AAP/CDC) whose Chinese-only scope patterns
 // never fire. Word boundaries on short ambiguous tokens (labour/iud/child/baby)
 // avoid false positives such as "Laboratories" matching "labour".
-const MATERNAL_RELEVANCE_HEADER_EN = /pregnan|prenatal|antenatal|postnatal|postpartum|perinatal|maternit|maternal|midwif|obstetric|fertility|conceiv|ectopic|miscarr|\blabou?r\b|childbirth|gestation|trimester|fetal|foetal|amniotic|placenta|morning sickness|folic acid|breast[\s-]?feed|breast milk|infant formula|wean|newborn|neonat|infant|\bbaby\b|babies|toddler|\bchild\b|children|childhood|paediatric|pediatric|contracept|\biud\b|family planning|nappy|nappies|diaper|teething|colic|immunis|immuniz|vaccin|parenting|nursery|breastfeeding/i;
+const MATERNAL_RELEVANCE_HEADER_EN = /pregnan|prenatal|antenatal|postnatal|postpartum|perinatal|maternit|maternal|midwif|obstetric|fertility|conceiv|ectopic|miscarr|\blabou?r\b|childbirth|gestation|trimester|fetal|foetal|amniotic|placenta|morning sickness|folic acid|breast[\s-]?feed|breast milk|infant formula|wean|newborn|neonat|infant|\bbaby\b|babies|toddler|\bchild\b|children|childhood|paediatric|pediatric|contracept|\biud\b|family planning|nappy|nappies|diaper|teething|colic|parenting|nursery|breastfeeding/i;
+const MATERNAL_VACCINE_CONTEXT_EN = /pregnan|prenatal|antenatal|postpartum|maternal|newborn|neonat|infant|\bbaby\b|babies|toddler|\bchild\b|children|childhood|paediatric|pediatric/i;
+const MATERNAL_CONTEXT_ZH = /孕妇|怀孕|孕期|孕周|产检|胎儿|产后|哺乳|母乳|备孕|新生儿|婴儿|婴幼儿|宝宝|儿童|孩子|辅食|喂养/u;
 
 function countChineseChars(text: string): number {
   return (text.match(/[\u4e00-\u9fff]/gu) || []).length;
 }
 
-const ENGLISH_AUTHORITY_MIN_BODY_WORDS = 180;
+const ENGLISH_AUTHORITY_MIN_BODY_WORDS = 300;
 
 function normalizePlainText(value: string | undefined): string {
   return (value || '')
@@ -168,29 +170,59 @@ function countEnglishWords(text: string): number {
   return (normalizePlainText(text).match(/[A-Za-z]+(?:[-'’][A-Za-z]+)*/g) || []).length;
 }
 
+function resolveAuthorityRecordLanguage(record: KnowledgeGuardRecord): { language: string; locale: string } {
+  const sourceId = record.sourceId || record.source_id || '';
+  const sourceUrl = record.sourceUrl || record.source_url || record.url || '';
+  if (sourceId === 'who' && /^\/zh(?:\/|$)/i.test(normalizeAuthorityPathname(sourceUrl))) {
+    return { language: 'zh', locale: 'zh' };
+  }
+
+  const sourceConfig = getAuthoritySourceConfig(sourceId);
+  return {
+    language: (record.sourceLanguage || record.source_language || sourceConfig?.language || '').toLowerCase(),
+    locale: (record.sourceLocale || record.source_locale || sourceConfig?.locale || '').toLowerCase(),
+  };
+}
+
+function normalizeAuthorityPathname(sourceUrl: string): string {
+  try {
+    return new URL(sourceUrl).pathname;
+  } catch {
+    return '';
+  }
+}
+
 function getAuthorityBodyText(record: KnowledgeGuardRecord): string {
   const body = record.contentText || record.answer || record.content || '';
   return normalizePlainText(isAcogSource(record) ? stripAcogArticleChrome(body) : body);
 }
 
 function isPredominantlyEnglishAuthorityRecord(record: KnowledgeGuardRecord): boolean {
-  const sourceId = record.sourceId || record.source_id || '';
-  const sourceConfig = getAuthoritySourceConfig(sourceId);
-  const language = (record.sourceLanguage || record.source_language || sourceConfig?.language || '').toLowerCase();
-  const locale = (record.sourceLocale || record.source_locale || sourceConfig?.locale || '').toLowerCase();
+  const { language, locale } = resolveAuthorityRecordLanguage(record);
+  const body = getAuthorityBodyText(record);
+  const chineseBodyChars = countChineseChars(body);
+  // Generated Chinese answers can cite English sources; display titles cannot
+  // override the language of the body whose length we are checking.
+  if (chineseBodyChars >= 8 && chineseBodyChars > countEnglishWords(body)) {
+    return false;
+  }
   const signalText = [
     record.title || record.question || '',
     record.summary || '',
     record.sourceUrl || record.source_url || record.url || '',
-    getAuthorityBodyText(record).slice(0, 600),
+    body.slice(0, 600),
   ].join(' ');
 
-  if (countChineseChars(signalText) >= 40 || language === 'zh' || locale.startsWith('zh')) {
+  if (language === 'zh' || locale.startsWith('zh')) {
     return false;
   }
 
   if (language === 'en' || locale.startsWith('en')) {
     return true;
+  }
+
+  if (countChineseChars(signalText) >= 40) {
+    return false;
   }
 
   return /[A-Za-z]/.test(signalText) && countChineseChars(signalText) < 12;
@@ -239,15 +271,17 @@ const OFF_TOPIC_PROGRAM_NEWS_EN = /memorandum of understanding|\bmou\b|collabora
 function isEnglishAuthorityOffTopic(record: KnowledgeGuardRecord): boolean {
   const title = record.title || record.question || '';
   const summary = record.summary || '';
-  if (countChineseChars(`${title} ${summary}`) >= 6) {
+  const { language, locale } = resolveAuthorityRecordLanguage(record);
+  if (language === 'zh' || locale.startsWith('zh')) {
+    return false;
+  }
+  if (countChineseChars(`${title} ${summary}`) >= 6 && language !== 'en' && !locale.startsWith('en')) {
     return false;
   }
 
   const header = [
     title,
     summary,
-    record.category || '',
-    ...(record.tags || []),
     record.sourceUrl || record.source_url || record.url || '',
   ].join(' ');
 
@@ -264,11 +298,18 @@ function isEnglishAuthorityOffTopic(record: KnowledgeGuardRecord): boolean {
   }
 
   const category = record.category || '';
-  if (/^(pregnancy|parenting|vaccine|fertility|newborn|infant|breastfeeding)/i.test(category)) {
+  if (/^(pregnancy|parenting|fertility|newborn|infant|breastfeeding)/i.test(category)) {
     return false;
   }
 
-  return !MATERNAL_RELEVANCE_HEADER_EN.test(header);
+  const hasVaccineTopic = /vaccin|immuni/i.test(header);
+  const hasMaternalVaccineContext = hasVaccineTopic && MATERNAL_VACCINE_CONTEXT_EN.test(header);
+  const hasTranslatedMaternalContext = MATERNAL_CONTEXT_ZH.test(`${title} ${summary}`);
+  return !(
+    MATERNAL_RELEVANCE_HEADER_EN.test(header)
+    || hasMaternalVaccineContext
+    || hasTranslatedMaternalContext
+  );
 }
 
 function getQuestion(record: KnowledgeGuardRecord): string {

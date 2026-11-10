@@ -114,6 +114,26 @@ describe('authority source url filtering', () => {
     })).toBe(false);
   });
 
+  test('filters unsupported WHO language variants and non-maternal outbreak pages', () => {
+    expect(shouldFilterAuthoritySourceUrl({
+      source_id: 'who',
+      source_url: 'https://www.who.int/fr/news-room/detail/01-08-2017-babies-and-mothers-worldwide-failed-by-lack-of-investment-in-breastfeeding',
+      title: "L’insuffisance des investissements en faveur de l'allaitement",
+    })).toBe(true);
+
+    expect(shouldFilterAuthoritySourceUrl({
+      source_id: 'who',
+      source_url: 'http://www.who.int/zh/news-room/detail/30-07-2015-world-on-the-verge-of-an-effective-ebola-vaccine',
+      title: '世界即将推出有效的埃博拉疫苗',
+    })).toBe(true);
+
+    expect(shouldFilterAuthoritySourceUrl({
+      source_id: 'who',
+      source_url: 'https://www.who.int/en/news-room/fact-sheets/detail/immunization-in-pregnancy',
+      title: 'Immunization in pregnancy',
+    })).toBe(false);
+  });
+
   test('filters NHC topic landing pages but keeps topic article pages', () => {
     expect(shouldFilterAuthoritySourceUrl({
       source_id: 'nhc-fys',

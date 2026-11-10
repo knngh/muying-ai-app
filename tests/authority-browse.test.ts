@@ -1,4 +1,4 @@
-import { authorityBrowsePriority, authorityListCacheKey, matchesAuthorityBrowseCategory, matchesAuthoritySourceLanguage } from '../src/utils/authority-browse';
+import { authorityBrowsePriority, authorityListCacheKey, matchesAuthorityBrowseCategory, matchesAuthoritySourceLanguage, resolveAuthorityBrowseSort } from '../src/utils/authority-browse';
 import { matchesExpandedSearch } from '../src/utils/search-query-expansion';
 
 describe('authority knowledge browsing', () => {
@@ -86,5 +86,11 @@ describe('authority knowledge browsing', () => {
     expect(guide).toBeLessThan(brief);
     expect(guide).toBeLessThan(story);
     expect(guide).toBeLessThan(quiz);
+  });
+
+  it('defaults authority browsing to recommendations while preserving explicit and general-article sorting', () => {
+    expect(resolveAuthorityBrowseSort('authority', undefined)).toBe('recommended');
+    expect(resolveAuthorityBrowseSort('authority', 'latest')).toBe('latest');
+    expect(resolveAuthorityBrowseSort(undefined, undefined)).toBe('latest');
   });
 });

@@ -610,6 +610,7 @@ export async function deleteDocumentsByIds(ids: string[]): Promise<void> {
 }
 
 export async function publishAuthorityDocumentsToVectorStore(documents: Array<{
+  sourceId?: string;
   sourceUrl: string;
   title: string;
   contentText: string;
@@ -628,6 +629,8 @@ export async function publishAuthorityDocumentsToVectorStore(documents: Array<{
   const prepared = documents
     .map((document) => {
       if (!shouldPublishAuthorityVectorDocument({
+        sourceId: document.sourceId,
+        sourceUrl: document.sourceUrl,
         title: document.title,
         answer: document.contentText,
         topic: document.topic,
