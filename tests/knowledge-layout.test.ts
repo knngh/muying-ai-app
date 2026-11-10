@@ -43,6 +43,19 @@ describe('verified knowledge reading layout', () => {
       expect(getKnowledgeLayoutSourceText(html)).toBeNull();
     }
   });
+  it('separates inline FAQ questions from answers before asking the model to mark their structure', () => {
+    const { getKnowledgeLayoutSourceText } = require('../src/utils/knowledge-layout');
+    expect(getKnowledgeLayoutSourceText('<p>可以接种吗？请咨询医生。下一次何时接种？按医嘱安排。</p>'))
+      .toBe('可以接种吗？\n请咨询医生。\n下一次何时接种？\n按医嘱安排。');
+  });
+  it('keeps long or multi-sentence model headings as ordinary paragraphs with every fact intact', () => {
+    const { parseKnowledgeLayoutOutput } = require('../src/utils/knowledge-layout');
+    const { renderKnowledgeLayoutBlocksToHtml } = require('../src/utils/knowledge-layout-html');
+    for (const text of ['在美国，疫苗只有在全面研究后才获批准。测试包括不同人群。', '制造疫苗的方法包括' + '减弱或灭活病原体以及使用病原体的部分成分、'.repeat(6)]) {
+      const verified = parseKnowledgeLayoutOutput(JSON.stringify({ blocks: [{ type: 'heading', text }] }), text);
+      expect(renderKnowledgeLayoutBlocksToHtml(verified.blocks)).toBe(`<p>${text}</p>`);
+    }
+  });
   it('renders model text as escaped text and retains chrome instead of silently deleting it', () => {
     const { renderKnowledgeLayoutBlocksToHtml } = require('../src/utils/knowledge-layout-html');
     const html = renderKnowledgeLayoutBlocksToHtml([{ type: 'paragraph', text: '<img src=x onerror=alert(1)>' }, { type: 'chrome', text: '来源说明' }]);

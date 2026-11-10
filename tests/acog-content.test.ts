@@ -38,6 +38,10 @@ describe('ACOG source chrome removal', () => {
     const footer = '版权所有 2024年，美国妇产科医师学会。主题：妊娠与疫苗。临床医生：订购数字手册。探索ACOG的患者教育手册库。';
     expect(stripAcogArticleChrome(`${article}\n\n${footer}`)).toBe(article);
   });
+  it('removes accordion controls inside section titles', () => {
+    expect(stripAcogArticleChrome(`疫苗安全性（展开全部）\n${chineseBody}\nCOVID-19疫苗（全部展开）`))
+      .toBe(`疫苗安全性\n${chineseBody}\nCOVID-19疫苗`);
+  });
   it('keeps an ACOG article title, medical questions, warnings, dates and citations in the actual body', () => {
     const input = `问ACOG 孕期服用对乙酰氨基酚安全吗？\n${chineseBody}\n何时应咨询医生？\n2025年1月的研究引用了ACOG指南。不要自行停用医生开的药物。`;
     expect(stripAcogArticleChrome(input)).toBe(input);

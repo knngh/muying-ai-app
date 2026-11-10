@@ -10,6 +10,8 @@ export function stripAcogArticleChrome(input: string): string {
     .replace(/^(?:(?:Leer|Ver) en espa(?:ñ|&(?:amp;)?ntilde;)\s*ol|西班牙语阅读|用西班牙语阅读)\s*/iu, '')
     .replace(/^(?:Frequently Asked Questions|常见问题(?:解答)?|经常问答问题)\s*(?:Expand All|展开全部|全部展开)\s*/iu, '')
     .replace(/\bDownload as a PDF\s+Expand All\s+Collapse All\s*/giu, '')
+    .replace(/\b(?:Expand All|Collapse All)\b/giu, '')
+    .replace(/[（(]?(?:展开全部|全部展开|折叠全部|全部折叠)[）)]?/gu, '')
     .replace(/\bAdvertisement\s+ACOG does not endorse any companies or products\.?\s*/giu, '')
     .replace(/广告\s*ACOG\s*不认可任何公司或产品[。.]?\s*/gu, '');
 

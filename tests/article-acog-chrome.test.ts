@@ -149,7 +149,7 @@ it('cleans source and legacy translation chrome on a public article read and inv
     const translationText = article.translation.translatedContent;
     for (const sentence of medicalBody.split('\n')) expect(sourceText).toContain(sentence);
     for (const sentence of translatedMedicalBody.split('\n')) {
-      expect(displayText).toContain(sentence);
+      expect(displayText.replace(/\s/gu, '')).toContain(sentence.replace(/\s/gu, ''));
       expect(translationText).toContain(sentence);
     }
     expect({

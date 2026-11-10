@@ -20,7 +20,9 @@ export function getKnowledgeLayoutSourceText(content: string): string | null {
     .replace(/<(script|style|noscript)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, '')
     .replace(/<br\s*\/?>|<\/(?:p|div|h[1-6]|li|section|article)>/gi, '\n')
     .replace(/<(?:[^"'<>]|"[^"]*"|'[^']*')*>/g, '')
-  ).replace(/\r\n?/g, '\n').replace(/[ \t]+/g, ' ').replace(/\n{2,}/g, '\n').trim();
+  ).replace(/\r\n?/g, '\n').replace(/[ \t]+/g, ' ')
+    .replace(/([。！？；][”’」』）】]*)[ \t]*(?=\S)/gu, '$1\n')
+    .replace(/\n{2,}/g, '\n').trim();
 }
 
 export type VerifiedKnowledgeLayout = {
@@ -156,7 +158,8 @@ export function parseKnowledgeLayoutOutput(
     }
 
     return {
-      type,
+      type: (type === 'heading' || type === 'title')
+        && (text.trim().length > 80 || /[\n。！；;]/u.test(text.trim())) ? 'paragraph' : type,
       text: text.trim(),
     };
   });
