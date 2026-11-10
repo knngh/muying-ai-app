@@ -1,4 +1,4 @@
-import { hasFullAuthorityTranslation, getAuthorityTranslationSource } from '../utils/authority-full-translation';
+import { hasFullAuthorityTranslation, getAuthorityTranslationSource, buildAuthorityTranslationGlossary, validateAuthorityTranslationTerminology } from '../utils/authority-full-translation';
 import { translateAuthorityRecord as translateCompleteAuthorityRecord } from '../services/authority-translation.service';
 import { isAcogSource, stripAcogArticleChrome } from '../utils/acog-content';
 import { authorityBrowsePriority, matchesAuthoritySourceLanguage, authorityListCacheKey, matchesAuthorityBrowseCategory, resolveAuthorityBrowseSort } from '../utils/authority-browse';
@@ -1417,6 +1417,7 @@ async function translateAuthorityRecord(
           `来源机构：${record.source_org || record.source || '权威机构'}`,
           `原文标题：${sourceTitle}`,
           `原文摘要：${sourceSummary}`,
+          buildAuthorityTranslationGlossary([sourceTitle, sourceContent].join('\n')),
           sourceContentTruncated ? '原文正文（较长，以下为前段节选）：' : '原文正文：',
           sourceContent,
         ].join('\n\n'),
@@ -1465,6 +1466,14 @@ async function translateAuthorityRecord(
       continue;
     }
 
+    try {
+      validateAuthorityTranslationTerminology(sourceTitle, title);
+      validateAuthorityTranslationTerminology(sourceContent, content);
+    } catch (error) {
+      lastError = error;
+      console.error(`[Authority Translation] Invalid terminology for ${slug} via ${taskRole}; trying next model`);
+      continue;
+    }
     parsedTranslation = parsed;
     break;
   }

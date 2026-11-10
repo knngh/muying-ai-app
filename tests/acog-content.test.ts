@@ -11,6 +11,19 @@ describe('ACOG source chrome removal', () => {
     const input = `Ask ACOG Why does my newborn need vitamin K? Share Facebook Email Link URL has been copied to the clipboard Close Print ${body} About Ask ACOG Do you have a question about women’s health? ACOG is here with answers to help you stay healthy. Browse all questions. Go Published: April 2026 What to Read Next Ask ACOG Is acetaminophen safe during pregnancy?`;
     expect(stripAcogArticleChrome(input)).toBe(body);
   });
+  it('cleans the clinical FAQ toolbar and related resources without dropping clinical caveats', () => {
+    const caveat = 'This information does not represent ACOG clinical guidance.';
+    const input = `Clinical Resources Physician FAQs Share Menu Bookmark Login to bookmark the page. Share Facebook Bluesky LinkedIn Email Print These FAQs are based on expert opinion. Download as a PDF Expand All Collapse All What is CMV? ${body} ${caveat} More To Explore Physician FAQ Maternal RSV Vaccination`;
+    expect(stripAcogArticleChrome(input)).toBe(`These FAQs are based on expert opinion. What is CMV? ${body} ${caveat}`);
+  });
+  it.each([
+    ['Frequently Asked Questions Expand All ', ' Article continues below Advertisement If you have further questions, contact your ob-gyn. FAQ039'],
+    ['常见问题解答 展开全部 ', ' 文章正文继续于下文 如果您有进一步的问题，请联系您的妇产科医生。'],
+    ['Leer en espa&amp;ntilde; ol Frequently Asked Questions Expand All ', ''],
+    ['西班牙语阅读 常见问题 全部展开 ', ''],
+  ])('cleans FAQ controls and the post-article help widget', (prefix, suffix) => {
+    expect(stripAcogArticleChrome(prefix + body + suffix)).toBe(body);
+  });
   it.each(['关于问ACOG', '关于询问 ACOG', '关于Ask ACOG', '关于ACOG 你对女性健康有疑问吗？', '关于ACOG问答 你对女性健康有疑问吗？', 'ACOG在这里为您提供答案，帮助您保持健康。浏览所有问题。', '接下来阅读', '接下来阅读什么'])('cleans legacy translated footer: %s', marker => {
     expect(sanitizeTranslationText(`${chineseBody}\n\n${marker}\n问ACOG 孕期服用对乙酰氨基酚安全吗？\n问ACOG 我应该在孕期接种RSV疫苗吗？`, 'content')).toBe(chineseBody);
   });

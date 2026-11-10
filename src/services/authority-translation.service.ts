@@ -1,4 +1,4 @@
-import { getAuthorityTranslationSource, splitAuthorityTranslationSource, hasFullAuthorityTranslation, validateAuthorityTranslationSegment } from '../utils/authority-full-translation';
+import { getAuthorityTranslationSource, splitAuthorityTranslationSource, hasFullAuthorityTranslation, validateAuthorityTranslationSegment, buildAuthorityTranslationGlossary, validateAuthorityTranslationTerminology } from '../utils/authority-full-translation';
 import { isAcogSource, stripAcogArticleChrome } from '../utils/acog-content';
 import fs from 'fs';
 import path from 'path';
@@ -1219,6 +1219,7 @@ export async function translateAuthorityRecord(
           `来源机构：${record.source_org || record.source || '权威机构'}`,
           `原文标题：${sourceTitle}`,
           `原文摘要：${sourceSummary}`,
+          buildAuthorityTranslationGlossary([sourceTitle, sourceContent].join('\n')),
           sourceContentTruncated ? '原文正文（较长，以下为前段节选）：' : '原文正文：',
           sourceContent,
         ].join('\n\n'),
@@ -1267,14 +1268,16 @@ export async function translateAuthorityRecord(
       continue;
     }
 
-    if (options.segment) {
-      try {
+    try {
+      validateAuthorityTranslationTerminology(sourceTitle, title);
+      validateAuthorityTranslationTerminology(sourceContent, content);
+      if (options.segment) {
         validateAuthorityTranslationSegment(sourceContent, content);
-      } catch (error) {
-        lastError = error;
-        console.error(`[Authority Translation] Incomplete segment for ${slug} via ${taskRole}; trying next model`);
-        continue;
       }
+    } catch (error) {
+      lastError = error;
+      console.error(`[Authority Translation] Invalid translation for ${slug} via ${taskRole}; trying next model`);
+      continue;
     }
 
     parsedTranslation = parsed;

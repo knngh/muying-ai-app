@@ -194,6 +194,26 @@ describe('complete authority article translation', () => {
     expect(writes.mock.calls.filter(([pathname]) => String(pathname) === translationCachePath)).toHaveLength(0);
   });
 
+  it.each([
+    ['Cytomegalovirus (CMV) in Pregnancy', 'Cytomegalovirus (CMV) is a herpesvirus.', '妊娠期单纯疱疹病毒（CMV）', '单纯疱疹病毒（CMV）是一种疱疹病毒。', '妊娠期巨细胞病毒（CMV）', '巨细胞病毒（CMV）是一种疱疹病毒。'],
+    ['Acetaminophen and Pregnancy', 'Talk with your doctor before taking acetaminophen.', '乙醇酰胺与孕期', '服用乙醇酰胺前请咨询医生。', '对乙酰氨基酚与孕期', '服用对乙酰氨基酚前请咨询医生。'],
+    ['Newborn Male Circumcision', 'Circumcision is an elective procedure.', '新生儿阴茎环龄手术', '阴茎环龄手术是选择性手术。', '新生儿包皮环切术', '包皮环切术是选择性手术。'],
+    ['Valacyclovir', 'Valacyclovir is discussed in this article.', '伐昔洛韦', '伐昔洛韦又称万拉西韦。', '伐昔洛韦', '本文讨论伐昔洛韦。'],
+  ])('rejects a known mistranslation of %s and uses the next model before caching', async (question, answer, wrongTitle, wrongBody, correctTitle, correctBody) => {
+    process.env.AUTHORITY_TRANSLATION_TASK_ROLES = 'knowledge_translate,deepseek_translate';
+    const { callModel, service } = loadService();
+    const slug = 'authority-terminology-regression';
+    callModel.mockImplementation(async role => ({
+      answer: JSON.stringify({ translated_title: role === 'knowledge_translate' ? wrongTitle : correctTitle,
+        translated_summary: '了解权威机构的健康指导。', translated_content: role === 'knowledge_translate' ? wrongBody : correctBody }),
+      route: { provider: role === 'knowledge_translate' ? 'freellm' : 'deepseek', model: 'fixture', route: 'task' as const, label: 'fixture' },
+    }));
+    const result = await service.translateAuthorityRecord(slug, { ...source, question, answer });
+    expect(result.translatedTitle).toBe(correctTitle);
+    expect(result.translatedContent).toBe(correctBody);
+    expect(JSON.parse(fs.readFileSync(translationCachePath, 'utf8'))[slug].translatedContent).toBe(correctBody);
+  });
+
   it('retranslates a long article whose matching legacy cache does not establish full coverage', async () => {
     const slug = 'authority-full-translation-legacy-long';
     fs.writeFileSync(translationCachePath, JSON.stringify({ [slug]: legacyCachedTranslation(slug) }), 'utf8');

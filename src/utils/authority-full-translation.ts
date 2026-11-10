@@ -7,6 +7,25 @@ export interface FullTranslationCoverage {
   translatedChunks?: number;
 }
 
+const MEDICAL_TERMS = [
+  { source: /\bcytomegalovirus\b/i, english: 'cytomegalovirus (CMV)', chinese: '巨细胞病毒', translated: /巨细胞病毒/u, invalid: /单纯疱疹病毒\s*[（(]\s*CMV/iu },
+  { source: /\bacetaminophen\b/i, english: 'acetaminophen', chinese: '对乙酰氨基酚（扑热息痛）', translated: /对乙酰氨基酚|扑热息痛/u, invalid: /乙醇酰胺/u },
+  { source: /\bcircumcision\b/i, english: 'circumcision', chinese: '包皮环切术（割礼）', translated: /包皮环切|割礼/u, invalid: /环龄手术/u },
+  { source: /\bvalacyclovir\b/i, english: 'valacyclovir', chinese: '伐昔洛韦', translated: /伐昔洛韦/u, invalid: /万拉西韦/u },
+];
+
+/** Source-scoped terminology prevents observed drug, virus and procedure substitutions. */
+export function buildAuthorityTranslationGlossary(source: string): string {
+  return MEDICAL_TERMS.filter(term => term.source.test(source))
+    .map(term => `${term.english} 必须译为 ${term.chinese}。`).join('\n');
+}
+
+export function validateAuthorityTranslationTerminology(source: string, translated: string): void {
+  const missing = MEDICAL_TERMS.find(term => term.source.test(source)
+    && (!term.translated.test(translated) || term.invalid.test(translated)));
+  if (missing) throw new Error(`译文医学术语不符：${missing.english}`);
+}
+
 export function getAuthorityTranslationSource(input: string): string {
   return normalizeWhitespace(input
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')

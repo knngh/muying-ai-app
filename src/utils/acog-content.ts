@@ -4,9 +4,12 @@ export function stripAcogArticleChrome(input: string): string {
   // This full sequence belongs to the share toolbar above the article.
   text = text
     .replace(/^[\s\S]*?\bShare\s+Facebook\s+(?:Email|E-mail)\s+Link\s+URL has been copied to the clipboard\s+Close\s+Print\s*/iu, '')
+    .replace(/^[\s\S]*?\bShare\s+Facebook\s+Bluesky\s+LinkedIn\s+Email\s+Print\s*/iu, '')
     .replace(/^[\s\S]*?分享(?:到)?\s*Facebook\s*(?:电子邮件|邮件|邮箱)\s*链接\s*(?:网址|链接|URL)\s*已复制到剪贴板\s*关闭\s*打印\s*/iu, '');
   text = text
-    .replace(/^(?:Leer en español|Ver en espa(?:ñ|&ntilde;)ol)\s*/iu, '')
+    .replace(/^(?:(?:Leer|Ver) en espa(?:ñ|&(?:amp;)?ntilde;)\s*ol|西班牙语阅读|用西班牙语阅读)\s*/iu, '')
+    .replace(/^(?:Frequently Asked Questions|常见问题(?:解答)?|经常问答问题)\s*(?:Expand All|展开全部|全部展开)\s*/iu, '')
+    .replace(/\bDownload as a PDF\s+Expand All\s+Collapse All\s*/giu, '')
     .replace(/\bAdvertisement\s+ACOG does not endorse any companies or products\.?\s*/giu, '')
     .replace(/广告\s*ACOG\s*不认可任何公司或产品[。.]?\s*/gu, '');
 
@@ -18,6 +21,9 @@ export function stripAcogArticleChrome(input: string): string {
     /\bACOG\s+is here with answers to help you stay healthy/iu,
     /ACOG\s*(?:在这里|在此)为[您你]提供答案[，,]\s*帮助[您你]保持健康[。.]\s*浏览所有问题/iu,
     /\bWhat to Read Next\b/iu,
+    /\bMore To Explore\s+(?:Physician FAQ|Patient Resources)\b/iu,
+    /\bArticle continues below\s+Advertisement\b/iu,
+    /文章(?:正文)?继续于?下文\s*(?:广告\s*)?如果[您你]有进一步的问题/u,
     /(?:接下来阅读(?:什么)?|下一步阅读|推荐阅读)\s*[:：]?\s*(?:(?:常见问题|专家观点)\s*|(?:询问|问)\s*ACOG)/iu,
     /\bCopyright\s+\d{4}\s*(?:,?\s*by\s+)?the American College of Obstetricians/iu,
     /版权所有\s*\d{4}\s*年?/u,
