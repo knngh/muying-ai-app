@@ -183,25 +183,40 @@ export async function formatKnowledgeLayoutWithAI(
   }
 
   const invokeModel = options.invokeModel || callTaskModelDetailed;
-  let result: Awaited<ReturnType<typeof callTaskModelDetailed>>;
-  try {
-    result = await invokeModel(KNOWLEDGE_LAYOUT_TASK_ROLE, buildKnowledgeLayoutMessages(sourceText), {
-      temperature: 0,
-      maxTokens: KNOWLEDGE_LAYOUT_MAX_TOKENS,
-      timeoutMs: options.providerTimeoutMs ?? KNOWLEDGE_LAYOUT_TIMEOUT_MS,
-      primaryOnly: true,
-      thinking: 'disabled',
-    });
-  } catch {
-    return { verified: false, blocks: [], reason: 'provider_error' };
+  const lines = getKnowledgeLayoutSourceLines(sourceText);
+  const blocks: KnowledgeLayoutBlock[] = [];
+  let route: AIGatewayRouteInfo | undefined;
+  // Short annotation responses avoid malformed JSON and missed ranges on long FAQs.
+  for (let index = 0; index < lines.length; index += 32) {
+    const section = lines.slice(index, index + 32).join('\n');
+    let result: Awaited<ReturnType<typeof callTaskModelDetailed>>;
+    try {
+      result = await invokeModel(KNOWLEDGE_LAYOUT_TASK_ROLE, buildKnowledgeLayoutMessages(section), {
+        temperature: 0,
+        maxTokens: KNOWLEDGE_LAYOUT_MAX_TOKENS,
+        timeoutMs: options.providerTimeoutMs ?? KNOWLEDGE_LAYOUT_TIMEOUT_MS,
+        primaryOnly: true,
+        thinking: 'disabled',
+        responseFormat: 'json_object',
+      });
+    } catch {
+      return { verified: false, blocks: [], reason: 'provider_error' };
+    }
+    try {
+      blocks.push(...parseKnowledgeLayoutAnnotations(result.answer, section).blocks);
+      route = result.route;
+    } catch {
+      return { verified: false, blocks: [], reason: 'validation_failed' };
+    }
   }
 
   try {
-    const verified = parseKnowledgeLayoutAnnotations(result.answer, sourceText);
+    const verified = parseKnowledgeLayoutOutput(JSON.stringify({ blocks }), sourceText);
+    if (!route) return { verified: false, blocks: [], reason: 'invalid_source' };
     return {
       verified: true,
       blocks: verified.blocks,
-      route: result.route,
+      route,
     };
   } catch {
     return { verified: false, blocks: [], reason: 'validation_failed' };

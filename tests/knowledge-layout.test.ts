@@ -78,6 +78,27 @@ describe('verified knowledge reading layout', () => {
     expect((await formatKnowledgeLayoutWithAI(source, { invokeModel })).verified).toBe(false);
     expect(fs.existsSync(process.env.KNOWLEDGE_LAYOUT_CACHE_PATH!)).toBe(false);
   });
+  it('formats long articles in bounded sections and verifies the entire combined original', async () => {
+    const { formatKnowledgeLayoutWithAI } = require('../src/services/knowledge-layout.service');
+    const longSource = Array.from({ length: 75 }, (_, i) => `第${i + 1}条原文，请完整保留。`).join('\n');
+    const invokeModel = jest.fn().mockImplementation(async (_role, messages) => {
+      const { paragraphs } = JSON.parse(messages[1].content);
+      expect(paragraphs.length).toBeLessThanOrEqual(32);
+      return { answer: JSON.stringify({ blocks: [{ type: 'paragraph', from: 0, to: paragraphs.length - 1 }] }),
+        route: { provider: 'freellm', model: 'auto', route: 'task', label: 'layout' } };
+    });
+    const result = await formatKnowledgeLayoutWithAI(longSource, { invokeModel });
+    expect(result.verified).toBe(true);
+    expect(result.blocks.map(block => block.text).join('\n')).toBe(longSource);
+  });
+  it('discards all sections if a later layout section is incomplete', async () => {
+    const { formatKnowledgeLayoutWithAI } = require('../src/services/knowledge-layout.service');
+    const longSource = Array.from({ length: 40 }, (_, i) => `第${i + 1}条原文。`).join('\n');
+    const invokeModel = jest.fn().mockResolvedValueOnce({ answer: '{"blocks":[{"type":"paragraph","from":0,"to":31}]}', route: { provider: 'freellm', model: 'auto', route: 'task', label: 'layout' } })
+      .mockResolvedValueOnce({ answer: '{"blocks":[{"type":"paragraph","from":0,"to":0}]}', route: { provider: 'freellm', model: 'auto', route: 'task', label: 'layout' } });
+    const result = await formatKnowledgeLayoutWithAI(longSource, { invokeModel });
+    expect(result).toEqual({ verified: false, blocks: [], reason: 'validation_failed' });
+  });
 });
 
 describe('layout annotations reference original paragraphs', () => {
