@@ -57,14 +57,6 @@ const translatedMedicalBody = [
   '随访时带上新生儿护理记录和回家后遇到的问题。医生可以一起查看记录，并解释针对宝宝的建议。',
 ].join('\n');
 const relatedQuestionsUrl = 'https://www.acog.org/womens-health/experts-and-stories/ask-acog';
-const legacyTranslatedContent = [
-  translatedMedicalBody,
-  '推荐阅读',
-  '问 ACOG',
-  relatedQuestionsUrl,
-  '关于问ACOG',
-  'ACOG在这里为您提供答案，帮助您保持健康。浏览所有问题。',
-].join('\n\n');
 const source = {
   id: 'authority-acog-vitamin-k-sample',
   source_id: 'acog',
@@ -91,15 +83,21 @@ const source = {
   is_verified: true,
 };
 
-it('cleans source and legacy translation chrome on a public article read and invalidates the old layout', async () => {
+it.each([
+  { sourceId: 'acog', originalFooter: 'Article continues below Advertisement If you have further questions, contact your ob-gyn. FAQ531', translatedFooter: '文章继续如下 广告 如果您有进一步问题，请联系您的产科医生。FAQ531 最后更新：2026年11月' },
+  { sourceId: 'medlineplus', originalFooter: 'Review Date 10/7/2025 Updated by: Neil K. Kaneshiro, MD. Learn how to cite this page', translatedFooter: '审核日期：2025年10月7日 更新者：Neil K. Kaneshiro, MD。了解如何引用此页面' },
+  { sourceId: 'nhs', originalFooter: 'Get Best Start in Life pregnancy and baby emails Sign up for emails. Page last reviewed: 31 July 2026', translatedFooter: '获取“人生最佳开端”怀孕和婴儿电子邮件 注册接收邮件。页面上次审查：2026年7月31日' },
+])('cleans $sourceId source and legacy translation on a public article read and invalidates the old layout', async ({ sourceId, originalFooter, translatedFooter }) => {
+  const currentSource = { ...source, source_id: sourceId, source_org: sourceId, source_url: `https://example.org/${sourceId}/vitamin-k`, answer: `${medicalBody}\n\n${originalFooter}` };
+  const legacyTranslatedContent = `${translatedMedicalBody}\n\n${translatedFooter}`;
   const originalLayoutEnabled = process.env.KNOWLEDGE_AI_LAYOUT_ENABLED;
   process.env.KNOWLEDGE_AI_LAYOUT_ENABLED = 'true';
   try {
-    const slug = buildStableAuthoritySlug(source, 0);
+    const slug = buildStableAuthoritySlug(currentSource, 0);
     const legacyHtml = textToRichParagraphHtml(legacyTranslatedContent);
     const legacyLayoutSource = getKnowledgeLayoutSourceText(legacyHtml)!;
     const files: Record<string, unknown> = {
-      'authority-knowledge-cache.json': [source],
+      'authority-knowledge-cache.json': [currentSource],
       'authority-translation-cache.json': {
         [slug]: {
           slug,
@@ -126,7 +124,7 @@ it('cleans source and legacy translation chrome on a public article read and inv
     };
     const findFile = (pathname: unknown) => Object.keys(files).find(name => String(pathname).endsWith(name));
     mockedFs.existsSync.mockImplementation(pathname => Boolean(findFile(pathname)));
-    mockedFs.statSync.mockImplementation(() => ({ mtimeMs: 1, size: 1000 }) as fs.Stats);
+    mockedFs.statSync.mockImplementation(pathname => ({ mtimeMs: JSON.stringify(files[findFile(pathname) || ''] || {}).length, size: JSON.stringify(files[findFile(pathname) || ''] || {}).length }) as fs.Stats);
     mockedFs.readFileSync.mockImplementation(pathname => JSON.stringify(files[findFile(pathname) || ''] || {}));
 
     // Prove this is a usable layout for the old text, rather than a malformed fixture.
@@ -147,6 +145,9 @@ it('cleans source and legacy translation chrome on a public article read and inv
     const sourceText = getKnowledgeLayoutSourceText(article.content)!;
     const displayText = getKnowledgeLayoutSourceText(article.displayContent)!;
     const translationText = article.translation.translatedContent;
+    expect(sourceText).not.toContain(originalFooter);
+    expect(displayText).not.toContain(translatedFooter);
+    expect(translationText).not.toContain(translatedFooter);
     for (const sentence of medicalBody.split('\n')) expect(sourceText).toContain(sentence);
     for (const sentence of translatedMedicalBody.split('\n')) {
       expect(displayText.replace(/\s/gu, '')).toContain(sentence.replace(/\s/gu, ''));

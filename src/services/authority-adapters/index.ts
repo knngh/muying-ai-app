@@ -1,9 +1,11 @@
 import type { AuthoritySourceConfig } from '../../config/authority-sources';
 import { shouldFilterAuthoritySourceUrl } from '../../utils/authority-source-url';
+import { stripAuthorityArticleChrome } from '../../utils/authority-article-content';
 import type { AuthorityRawDocument, NormalizedAuthorityDocument } from '../authority-sync.service';
 import {
   containsDeathRelatedTerms,
   isHighRiskOrClickbaitTitle,
+  shouldPublishDocument,
   type AuthorityDocumentAdapter,
 } from './base.adapter';
 import { aapAdapter } from './aap.adapter';
@@ -61,6 +63,14 @@ export function normalizeWithAuthorityAdapter(
   const normalized = adapter ? adapter.normalize(source, raw) : null;
   if (!normalized) {
     return null;
+  }
+
+  const contentText = stripAuthorityArticleChrome(normalized.contentText, normalized);
+  const summary = stripAuthorityArticleChrome(normalized.summary, normalized);
+  if (contentText !== normalized.contentText || summary !== normalized.summary) {
+    normalized.contentText = contentText;
+    normalized.summary = summary;
+    normalized.publishStatus = shouldPublishDocument(normalized);
   }
 
   if (shouldFilterAuthoritySourceUrl({

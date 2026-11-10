@@ -1,5 +1,5 @@
 import { getAuthorityTranslationSource, splitAuthorityTranslationSource, hasFullAuthorityTranslation, validateAuthorityTranslationSegment, buildAuthorityTranslationGlossary, validateAuthorityTranslationTerminology } from '../utils/authority-full-translation';
-import { isAcogSource, stripAcogArticleChrome } from '../utils/acog-content';
+import { stripAuthorityArticleChrome } from '../utils/authority-article-content';
 import fs from 'fs';
 import path from 'path';
 import {
@@ -378,7 +378,7 @@ function normalizeAapCachedContent(content: string): string {
   return normalized;
 }
 
-function normalizeAuthorityCacheRecord(record: AuthorityCacheRecord): AuthorityCacheRecord {
+export function normalizeAuthorityCacheRecord(record: AuthorityCacheRecord): AuthorityCacheRecord {
   const normalizedQuestion = sanitizeAuthorityTitle(record.question || '');
   let normalizedAnswer = typeof record.answer === 'string' ? record.answer.trim() : '';
   let normalizedSummary = typeof record.summary === 'string' ? record.summary.trim() : undefined;
@@ -393,13 +393,11 @@ function normalizeAuthorityCacheRecord(record: AuthorityCacheRecord): AuthorityC
     normalizedSummary = cleanedSummary || normalizedAnswer.slice(0, 300) || normalizedSummary;
   }
 
-  if (isAcogSource(record)) {
-    normalizedAnswer = stripAcogArticleChrome(normalizedAnswer);
-    normalizedSummary = stripAcogArticleChrome(normalizedSummary || '');
-  }
+  normalizedAnswer = stripAuthorityArticleChrome(normalizedAnswer, record);
+  normalizedSummary = stripAuthorityArticleChrome(normalizedSummary || '', record);
 
   const cleanedAnswer = stripAuthorityPageChrome(normalizedAnswer);
-  if (cleanedAnswer.length >= 150 && cleanedAnswer.length < normalizedAnswer.length) {
+  if (cleanedAnswer.length < normalizedAnswer.length) {
     normalizedAnswer = cleanedAnswer;
   }
 
@@ -516,7 +514,7 @@ export function normalizeAuthorityTranslationRecord(
     ...translation,
     translatedTitle: sanitizeTranslationText(translation.translatedTitle || '', 'title'),
     translatedSummary: compactTranslationSummary(translation.translatedSummary || ''),
-    translatedContent: sanitizeTranslationText(translation.translatedContent || '', 'content'),
+    translatedContent: stripAuthorityArticleChrome(sanitizeTranslationText(translation.translatedContent || '', 'content'), translation),
   };
 
   if (!normalized.translatedContent) {

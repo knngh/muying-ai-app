@@ -615,6 +615,9 @@ export function shouldFilterAuthoritySourceUrl(record: AuthoritySourceUrlRecord)
       '/',
       '/clinical',
       '/womens-health',
+      '/womens-health/experts-and-stories',
+      '/womens-health/experts-and-stories/ask-acog',
+      '/womens-health/experts-and-stories/the-latest',
       '/topics',
     ]);
   }

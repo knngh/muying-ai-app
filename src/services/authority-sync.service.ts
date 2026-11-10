@@ -22,6 +22,7 @@ import {
 } from './authority-ai-quality-review.service';
 import { resolveReliableAuthorityUpdatedAt } from '../utils/authority-temporal';
 import { normalizeWithAuthorityAdapter } from './authority-adapters';
+import { stripAuthorityArticleChrome } from '../utils/authority-article-content';
 import { detectAudience, detectTopic, extractTitle, sanitizeAuthorityTitle, stripHtml } from './authority-adapters/base.adapter';
 
 export interface DiscoveredAuthorityUrl {
@@ -2437,6 +2438,11 @@ export async function exportPublishedAuthoritySnapshot(
   );
 
   const exportableRows = rows
+    .map((row) => ({
+      ...row,
+      contentText: stripAuthorityArticleChrome(row.contentText, row),
+      summary: stripAuthorityArticleChrome(row.summary, row),
+    }))
     .filter((row) => shouldExportAuthoritySnapshotDocument({
       publishStatus: row.publishStatus as NormalizedAuthorityDocument['publishStatus'],
       riskLevelDefault: row.riskLevelDefault as NormalizedAuthorityDocument['riskLevelDefault'],

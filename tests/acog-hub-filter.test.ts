@@ -6,3 +6,7 @@ test.each(['', 'labor-and-delivery', 'getting-pregnant', 'after-pregnancy', 'dur
 test('keeps a detailed ACOG pregnancy FAQ eligible for content quality review', () => {
   expect(shouldFilterAuthoritySourceUrl({ source_id: 'acog', source_url: 'https://www.acog.org/womens-health/faqs/healthy-eating-during-pregnancy' })).toBe(false);
 });
+
+test.each(['', '/ask-acog', '/the-latest'])('does not publish the ACOG article directory %s as an article', page => {
+  expect(shouldFilterAuthoritySourceUrl({ source_id: 'acog', source_url: `https://www.acog.org/womens-health/experts-and-stories${page}` })).toBe(true);
+});

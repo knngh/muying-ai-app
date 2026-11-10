@@ -1,6 +1,6 @@
 import { hasFullAuthorityTranslation, getAuthorityTranslationSource, buildAuthorityTranslationGlossary, validateAuthorityTranslationTerminology } from '../utils/authority-full-translation';
 import { translateAuthorityRecord as translateCompleteAuthorityRecord } from '../services/authority-translation.service';
-import { isAcogSource, stripAcogArticleChrome } from '../utils/acog-content';
+import { stripAuthorityArticleChrome } from '../utils/authority-article-content';
 import { authorityBrowsePriority, matchesAuthoritySourceLanguage, authorityListCacheKey, matchesAuthorityBrowseCategory, resolveAuthorityBrowseSort } from '../utils/authority-browse';
 import fs from 'fs';
 import path from 'path';
@@ -622,13 +622,11 @@ function normalizeAuthorityCacheRecord(record: AuthorityCacheRecord): AuthorityC
     normalizedSummary = cleanedSummary || normalizedAnswer.slice(0, 300) || normalizedSummary;
   }
 
-  if (isAcogSource(record)) {
-    normalizedAnswer = stripAcogArticleChrome(normalizedAnswer);
-    normalizedSummary = stripAcogArticleChrome(normalizedSummary || '');
-  }
+  normalizedAnswer = stripAuthorityArticleChrome(normalizedAnswer, record);
+  normalizedSummary = stripAuthorityArticleChrome(normalizedSummary || '', record);
 
   const cleanedAnswer = stripAuthorityPageChrome(normalizedAnswer);
-  if (cleanedAnswer.length >= 150 && cleanedAnswer.length < normalizedAnswer.length) {
+  if (cleanedAnswer.length < normalizedAnswer.length) {
     normalizedAnswer = cleanedAnswer;
   }
 
@@ -1047,7 +1045,7 @@ function normalizeAuthorityTranslationRecord(
     ...translation,
     translatedTitle: sanitizeTranslationText(translation.translatedTitle || '', 'title'),
     translatedSummary: compactTranslationSummary(translation.translatedSummary || ''),
-    translatedContent: sanitizeTranslationText(translation.translatedContent || '', 'content'),
+    translatedContent: stripAuthorityArticleChrome(sanitizeTranslationText(translation.translatedContent || '', 'content'), translation),
   };
 
   if (!normalized.translatedContent) {
