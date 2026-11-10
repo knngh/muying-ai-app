@@ -26,7 +26,7 @@ const SITE_ORIGIN = 'https://hibeihu.com'
 const UPSTREAM_ORIGIN = 'https://beihu.me'
 
 // Rebuild cached indexes and embedded bodies after source cleanup and quality filtering.
-const SEO_CACHE_VERSION = '20261110-quality-300'
+const SEO_CACHE_VERSION = '20261110-quality-300-v2'
 const CACHE_INDEX_KEY = new Request(`${SITE_ORIGIN}/__seo/${SEO_CACHE_VERSION}/index.json`)
 const CACHE_SITEMAP_KEY = new Request(`${SITE_ORIGIN}/__seo/${SEO_CACHE_VERSION}/sitemap.xml`)
 const INDEX_TTL_SEC = 12 * 3600 // 索引软过期
@@ -442,7 +442,7 @@ async function pullAllArticleList(): Promise<SeoIndexItem[]> {
   const fetchPage = async (page: number) => {
     // 全新 Request（干净头，不继承客户端 IP/Cookie），按 Worker 出口 IP 计入限流
     const response = await fetch(
-      `${UPSTREAM_ORIGIN}/api/v1/articles?contentType=authority&page=${page}&pageSize=100`,
+      `${UPSTREAM_ORIGIN}/api/v1/articles?contentType=authority&sort=recommended&page=${page}&pageSize=100`,
       { headers: { accept: 'application/json' } },
     )
     if (!response.ok) throw new Error(`upstream ${response.status}`)

@@ -9,7 +9,7 @@ export const getArticlesQuery = paginationQuery.extend({
   source: z.string().max(120).optional(),
   difficulty: z.string().max(40).optional(),
   contentType: z.string().max(40).optional(),
-  sort: z.enum(['latest', 'popular', 'recommended']).default('latest'),
+  sort: z.enum(['latest', 'popular', 'recommended']).optional(),
   keyword: z.string().max(100, '关键词过长').optional(),
 });
 

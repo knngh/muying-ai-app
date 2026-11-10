@@ -1,5 +1,6 @@
 import { authorityBrowsePriority, authorityListCacheKey, matchesAuthorityBrowseCategory, matchesAuthoritySourceLanguage, resolveAuthorityBrowseSort } from '../src/utils/authority-browse';
 import { matchesExpandedSearch } from '../src/utils/search-query-expansion';
+import { getArticlesQuery } from '../src/schemas/article.schema';
 
 describe('authority knowledge browsing', () => {
   it('filters source language independently of translated presentation', () => {
@@ -92,5 +93,15 @@ describe('authority knowledge browsing', () => {
     expect(resolveAuthorityBrowseSort('authority', undefined)).toBe('recommended');
     expect(resolveAuthorityBrowseSort('authority', 'latest')).toBe('latest');
     expect(resolveAuthorityBrowseSort(undefined, undefined)).toBe('latest');
+  });
+
+  it.each([
+    [{ contentType: 'authority' }, 'recommended'],
+    [{ contentType: 'authority', sort: 'latest' }, 'latest'],
+    [{ contentType: 'authority', sort: 'recommended' }, 'recommended'],
+    [{}, 'latest'],
+  ])('preserves sorting intent through request validation: %j', (query, expected) => {
+    const parsed = getArticlesQuery.parse(query);
+    expect(resolveAuthorityBrowseSort(parsed.contentType, parsed.sort)).toBe(expected);
   });
 });
