@@ -65,6 +65,13 @@ describe('verified knowledge reading layout', () => {
     const paragraphs = renderKnowledgeLayoutBlocksToHtml([{ type: 'paragraph', text: '第一段原文。\n第二段原文。' }]);
     expect(paragraphs).toBe('<p>第一段原文。</p><p>第二段原文。</p>');
   });
+  it('preserves medical prose even when the model calls it chrome and the webpage sanitizes the HTML', () => {
+    const { renderKnowledgeLayoutBlocksToHtml } = require('../src/utils/knowledge-layout-html');
+    const { formatRichArticleContent } = require('../shared/utils/article-format');
+    const fact = '疫苗能训练免疫系统攻击特定的病毒和细菌。';
+    const html = renderKnowledgeLayoutBlocksToHtml([{ type: 'chrome', text: fact }, { type: 'paragraph', text: '孕期接种前请咨询医生。' }]);
+    expect(formatRichArticleContent(html)).toContain(fact);
+  });
   it('rejects unverifiable provider output without saving it', async () => {
     const { formatKnowledgeLayoutWithAI } = require('../src/services/knowledge-layout.service');
     const invokeModel = jest.fn().mockResolvedValue({ answer: JSON.stringify({ blocks: [{ type: 'paragraph', text: '4月龄开始辅食' }] }), route: { provider: 'freellm', model: 'auto', route: 'task', label: 'layout' } });
