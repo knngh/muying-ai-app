@@ -12,8 +12,10 @@ import {
   resolveKnowledgeDisplayContent,
 } from '../shared/utils/knowledge-presentation'
 import { stripHtmlTags } from '../shared/utils/knowledge-text'
+import { handleAuthorityFetch } from '../shared/utils/authority-fetch'
 
 interface Env {
+  AUTHORITY_FETCH_TOKEN?: string
   ASSETS: { fetch(input: RequestInfo, init?: RequestInit): Promise<Response> }
   SEO_STATS: { writeDataPoint(event: { blobs?: string[]; indexes?: string[]; doubles?: number[] }): void }
 }
@@ -26,7 +28,7 @@ const SITE_ORIGIN = 'https://hibeihu.com'
 const UPSTREAM_ORIGIN = 'https://beihu.me'
 
 // Rebuild cached indexes and embedded bodies after source cleanup and quality filtering.
-const SEO_CACHE_VERSION = '20261110-clean-footers-v6'
+const SEO_CACHE_VERSION = '20261110-reviewed-reading-v7'
 const CACHE_INDEX_KEY = new Request(`${SITE_ORIGIN}/__seo/${SEO_CACHE_VERSION}/index.json`)
 const CACHE_SITEMAP_KEY = new Request(`${SITE_ORIGIN}/__seo/${SEO_CACHE_VERSION}/sitemap.xml`)
 const INDEX_TTL_SEC = 12 * 3600 // 索引软过期
@@ -113,6 +115,10 @@ export default {
     const url = new URL(request.url)
 
     recordCrawlerHit(request, env, url)
+
+    if (url.pathname === '/api/internal/authority-fetch') {
+      return handleAuthorityFetch(request, env.AUTHORITY_FETCH_TOKEN)
+    }
 
     if (url.pathname.startsWith('/api/')) {
       const response = await proxyApi(request)

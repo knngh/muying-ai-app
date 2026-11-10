@@ -1,4 +1,5 @@
 import fs from 'fs';
+import { fetchAuthorityViaRelay } from './authority-fetch-relay.service';
 import path from 'path';
 import zlib from 'zlib';
 import prisma from '../config/database';
@@ -1306,6 +1307,15 @@ async function fetchText(url: string, headers?: Record<string, string>): Promise
       throw error;
     }
     lastAuthorityFetchAt = Date.now();
+
+    if (response.status === 403 || response.status === 429
+      || (response.status === 404 && new URL(url).hostname === 'www.fda.gov')) {
+      const relayed = await fetchAuthorityViaRelay(url, headers);
+      if (relayed) {
+        await response.body?.cancel().catch(() => {});
+        response = relayed;
+      }
+    }
 
     if (response.status >= 500 && attempt < 2) {
       await sleep(AUTHORITY_RETRY_429_DELAY_MS * (attempt + 1));

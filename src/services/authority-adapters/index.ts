@@ -52,7 +52,9 @@ export function resolveAuthorityAdapter(
   source: AuthoritySourceConfig,
   raw: AuthorityRawDocument,
 ): AuthorityDocumentAdapter | undefined {
-  return adapters.find((adapter) => adapter.supports(source, raw));
+  // Citations to another publisher must not override the configured parser.
+  return adapters.find((adapter) => adapter.id === source.parserId && adapter.supports(source, raw))
+    || adapters.find((adapter) => adapter.supports(source, raw));
 }
 
 export function normalizeWithAuthorityAdapter(

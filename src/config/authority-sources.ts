@@ -184,8 +184,8 @@ export const AUTHORITY_SOURCES: AuthoritySourceConfig[] = [
     allowedDomains: ['fda.gov', 'www.fda.gov'],
     discoveryType: 'index_page',
     entryUrls: [
-      'https://www.fda.gov/consumers/womens-health-topics/pregnancy',
-      'https://www.fda.gov/consumers/womens-health-topics/breastfeeding',
+      'https://www.fda.gov/consumers/womens-health-topics/medicine-and-pregnancy',
+      'https://www.fda.gov/food/people-risk-foodborne-illness/food-safety-moms-be',
     ],
     region: 'US',
     language: 'en',

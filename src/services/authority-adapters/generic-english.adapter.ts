@@ -1,6 +1,7 @@
 import type { AuthoritySourceConfig } from '../../config/authority-sources';
 import { pickAuthorityUpdatedAt } from '../../utils/authority-temporal';
 import type { AuthorityRawDocument, NormalizedAuthorityDocument } from '../authority-sync.service';
+import { extractHtmlContainers } from './html-content';
 import {
   detectAudience,
   detectRiskLevelDefault,
@@ -20,19 +21,22 @@ const GENERIC_ENGLISH_SOURCE_IDS = new Set([
   'lactmed',
 ]);
 
-function extractGenericEnglishContent(rawBody: string): string {
-  const candidates = [
-    rawBody.match(/<main[\s\S]*?>([\s\S]*?)<\/main>/i)?.[1],
-    rawBody.match(/<article[\s\S]*?>([\s\S]*?)<\/article>/i)?.[1],
-    rawBody.match(/<div[^>]+id=["'](?:maincontent|main-content|content|article|book_content)["'][\s\S]*?>([\s\S]*?)<\/div>/i)?.[1],
-    rawBody.match(/<div[^>]+class=["'][^"']*(?:main-content|article-body|content-area|topic-content|book|chapter)[^"']*["'][\s\S]*?>([\s\S]*?)<\/div>/i)?.[1],
-  ].filter(Boolean) as string[];
-
-  if (candidates.length > 0) {
-    return stripHtml(candidates[0]);
-  }
-
-  return stripHtml(rawBody);
+function extractGenericEnglishContent(rawBody: string, sourceId: string): string {
+  // A topic landing page's resource directory is discovery input, not guidance.
+  const topic = sourceId === 'medlineplus'
+    ? extractHtmlContainers(rawBody, [{ tag: 'div', id: /^topic-summary$/i }])[0] : undefined;
+  const candidates = topic ? [topic] : extractHtmlContainers(rawBody, [
+    { tag: 'article' },
+    { tag: 'div', id: /^(?:maincontent|main-content|content|article|book_content)$/i },
+    { tag: 'div', className: /(?:^|\s)(?:main-content|article-body|content-area|topic-content|book|chapter)(?:\s|$)/i },
+    { tag: 'main' },
+  ]);
+  const content = (candidates[0] || rawBody)
+    .replace(/<nav\b[^>]*>[\s\S]*?<\/nav\s*>/gi, '')
+    .replace(/<li\b[^>]*>/gi, '\n• ')
+    .replace(/<\/(?:p|li|h[1-6]|section|article|div)>/gi, '\n\n');
+  // Strip markup per line so source paragraph and list boundaries survive.
+  return content.split(/\n+/u).map(stripHtml).filter(Boolean).join('\n\n');
 }
 
 export const genericEnglishAdapter: AuthorityDocumentAdapter = {
@@ -43,7 +47,7 @@ export const genericEnglishAdapter: AuthorityDocumentAdapter = {
   normalize(source: AuthoritySourceConfig, raw: AuthorityRawDocument): NormalizedAuthorityDocument | null {
     const title = extractTitle(raw.rawBody);
     const description = extractMetaContent(raw.rawBody, 'description');
-    const contentText = extractGenericEnglishContent(raw.rawBody);
+    const contentText = extractGenericEnglishContent(raw.rawBody, source.id);
     if (!contentText || contentText.length < 150) {
       return null;
     }

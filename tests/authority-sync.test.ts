@@ -191,6 +191,23 @@ describe('authority index discovery', () => {
     });
   });
 
+  test('extracts only MedlinePlus topic guidance and preserves nested article endings', () => {
+    const source = getAuthoritySourceConfig('medlineplus')!;
+    const tail = 'Contact a clinician for infant feeding concerns and follow-up care.';
+    const normalized = normalizeAuthorityDocument(source, {
+      sourceId: source.id, url: 'https://medlineplus.gov/infantandnewbornnutrition.html',
+      httpStatus: 200, contentType: 'text/html', contentHash: 'nested-topic', fetchedAt: '2026-11-10T00:00:00.000Z',
+      rawBody: `<main><h1>Infant and Newborn Nutrition</h1><nav>On this page Start Here</nav>
+        <div id="topic-summary"><div><p>Infant feeding and breastfeeding guidance helps families prepare for newborn care. Discuss feeding concerns and nutrition questions with a qualified clinician.</p></div><p>${tail}</p><aside>Seek clinical help for an infant who cannot feed.</aside></div>
+        <section>Start Here See, Play and Learn Research Hundreds of resource links <a href="https://healthychildren.org/feeding">HealthyChildren</a></section></main>`,
+    });
+    expect(normalized?.metadataJson.parserId).toBe('generic-english');
+    expect(normalized?.contentText).toContain(tail);
+    expect(normalized?.contentText).toContain('Seek clinical help for an infant who cannot feed.');
+    expect(normalized?.contentText).not.toMatch(/Start Here|See, Play|Research|resource links/);
+    expect(normalized?.publishStatus).not.toBe('published');
+  });
+
   test('keeps third-party Chinese medical platforms out of automatic runs', () => {
     const enabledIds = new Set(listEnabledAuthoritySources().map((source) => source.id));
 

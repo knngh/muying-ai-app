@@ -18,6 +18,7 @@ const translationWarmupIntervalMinutes = Math.max(
 );
 
 let translationWarmupInProgress = false;
+let syncInProgress = false;
 
 async function runTranslationWarmup(phase: AuthorityWorkerTranslationWarmupPhase) {
   if (!translationSyncEnabled) {
@@ -47,15 +48,23 @@ async function runTranslationWarmup(phase: AuthorityWorkerTranslationWarmupPhase
   }
 }
 
-async function runAuthoritySyncCycle() {
-  try {
-    const result = await syncAllAuthoritySources(mode);
-    console.log('[Authority Worker] sync result:', JSON.stringify(result));
-  } catch (error) {
-    console.error('[Authority Worker] sync failed, continuing with translation warmup from current snapshot:', error);
+export async function runAuthoritySyncCycle() {
+  if (syncInProgress) {
+    console.log('[Authority Worker] sync skipped: previous cycle still running');
+    return;
   }
-
-  await runTranslationWarmup('after_sync');
+  syncInProgress = true;
+  try {
+    try {
+      const result = await syncAllAuthoritySources(mode);
+      console.log('[Authority Worker] sync result:', JSON.stringify(result));
+    } catch (error) {
+      console.error('[Authority Worker] sync failed, continuing with translation warmup from current snapshot:', error);
+    }
+    await runTranslationWarmup('after_sync');
+  } finally {
+    syncInProgress = false;
+  }
 }
 
 async function main() {
@@ -83,7 +92,9 @@ async function main() {
   }, translationWarmupIntervalMinutes * 60 * 1000);
 }
 
-main().catch((error) => {
-  console.error('[Authority Worker] failed:', error);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error('[Authority Worker] failed:', error);
+    process.exit(1);
+  });
+}
