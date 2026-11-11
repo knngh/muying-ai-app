@@ -3,8 +3,9 @@ import { buildAuthorityTranslationGlossary, validateAuthorityTranslationTerminol
 
 export interface AuthorityTranslationReview {
   approved: true;
-  version: 1;
+  version: 1 | 2;
   reviewedChunks: number;
+  reviewedPasses?: number;
   reviewedAt: string;
   provider: string;
   model: string;
@@ -37,24 +38,31 @@ export async function reviewAuthorityTranslation(
     { role: 'user', content: JSON.stringify({ source, translated }) },
   ] as const;
   let allegations = '';
+  let approvals = 0;
   // A second pass adjudicates a rejection; unsupported stylistic complaints
   // must not make the translator repeatedly rewrite correct medical prose.
-  for (let pass = 0; pass < 2; pass += 1) {
+  for (let pass = 0; pass < 3; pass += 1) {
     const result = await invoke('knowledge_review', [
       ...messages,
-      ...(pass ? [{ role: 'user' as const, content: `请独立复核以下指控是否有实质错误，只以提供的原文和译文为依据。正常摘要、措辞差异、片段边界都不能作为错误：${allegations}` }] : []),
+      ...(allegations ? [{ role: 'user' as const, content: `请独立复核以下指控是否有实质错误，只以提供的原文和译文为依据。正常摘要、措辞差异、片段边界都不能作为错误：${allegations}` }]
+        : approvals ? [{ role: 'user' as const, content: '请重新逐句核对原文与译文，重点检查动作、身体部位、年龄、否定与警告。不要依赖之前的审核结论。只有全部有效内容忠实时才批准。' }] : []),
     ], { temperature: 0, maxTokens: 1800, timeoutMs: options.timeoutMs ?? 90000,
       primaryOnly: true, responseFormat: 'json_object', thinking: 'disabled' });
     let parsed: { approved?: unknown; confidence?: unknown; issues?: unknown };
     try {
       parsed = JSON.parse(result.answer.trim().replace(/^```(?:json)?\s*/iu, '').replace(/\s*```$/u, ''));
     } catch {
-      if (!pass) continue;
+      if (pass < 2) continue;
       throw new Error('独立翻译审查返回无效JSON，请重新翻译');
     }
     if (parsed?.approved === true && typeof parsed.confidence === 'number' && parsed.confidence >= 0.85
       && parsed.confidence <= 1 && Array.isArray(parsed.issues) && parsed.issues.length === 0) {
-      return { approved: true, version: 1, reviewedChunks: 1, reviewedAt: new Date().toISOString(),
+      approvals += 1;
+      if (approvals < 2) {
+        allegations = '';
+        continue;
+      }
+      return { approved: true, version: 2, reviewedChunks: 1, reviewedPasses: approvals, reviewedAt: new Date().toISOString(),
         provider: result.route.provider, model: result.route.model };
     }
     const normalize = (text: string) => text.replace(/\s+/g, ' ').trim();

@@ -70,6 +70,25 @@ it('keeps midwives distinct from generic nurses and doctors', () => {
   expect(() => validateAuthorityTranslationTerminology('Contact your maternity nurse.', '联系您的产科护士。')).not.toThrow();
 });
 
+it.each([
+  ['Infant botulism can cause weakness.', '婴儿腮腺炎可导致无力。', '婴儿肉毒中毒可导致无力。'],
+  ['Screening for thalassaemia.', '筛查镰状细胞贫血。', '筛查地中海贫血。'],
+  ['Placenta previa covers the cervix.', '胎盘位于颈部并覆盖宫颈。', '前置胎盘覆盖宫颈。'],
+  ['They will blink their eyes to bright light.', '他们会用眼睛遮住明亮的光线。', '他们在明亮光线刺激下会眨眼。'],
+  ['They shut their eyes tightly to a bright light.', '他们会用眼睛遮住明亮的光线。', '他们在强光刺激下会紧闭双眼。'],
+])('rejects observed medical substitutions: %s', (source, incorrect, correct) => {
+  const { validateAuthorityTranslationTerminology } = require('../src/utils/authority-full-translation');
+  expect(() => validateAuthorityTranslationTerminology(source, incorrect)).toThrow();
+  expect(() => validateAuthorityTranslationTerminology(source, correct)).not.toThrow();
+});
+
+it('does not add a blinking action to a source that only describes tightly closing eyes', () => {
+  const { buildAuthorityTranslationGlossary } = require('../src/utils/authority-full-translation');
+  const glossary = buildAuthorityTranslationGlossary('They shut their eyes tightly to a bright light.');
+  expect(glossary).toContain('紧闭双眼');
+  expect(glossary).not.toContain('眨眼');
+});
+
 function mockTranslation(body: string) {
   let translated = body.replace(/Care section (\d+)\./g, '第$1节照护。');
   englishSentences.forEach((sentence, index) => {
@@ -266,7 +285,7 @@ describe('complete authority article translation', () => {
       route: { provider: 'freellm', model: 'auto', route: 'task', label: 'fixture' },
     }));
     const result = await service.translateAuthorityRecord('meaning-review', { ...source, answer: finalEnglishWarning });
-    expect(callModel.mock.calls.map(call => call[0])).toEqual(['knowledge_translate', 'knowledge_review', 'knowledge_review', 'knowledge_translate', 'knowledge_review']);
+    expect(callModel.mock.calls.map(call => call[0])).toEqual(['knowledge_translate', 'knowledge_review', 'knowledge_review', 'knowledge_translate', 'knowledge_review', 'knowledge_review']);
     expect(result.qualityReview).toMatchObject({ approved: true, reviewedChunks: 1 });
   });
 

@@ -9,6 +9,11 @@ export interface FullTranslationCoverage {
 }
 
 const MEDICAL_TERMS = [
+  { source: /\bbotulism\b/i, english: 'botulism', chinese: '肉毒中毒（肉毒杆菌中毒、肉毒症）', translated: /肉毒(?:杆菌|梭菌)?中毒|肉毒症/u },
+  { source: /\bthalass[ae]+mia\b/i, english: 'thalassaemia / thalassemia', chinese: '地中海贫血（珠蛋白生成障碍性贫血）', translated: /地中海贫血|珠蛋白生成障碍/u },
+  { source: /\bplacenta\s+pr[ae]+via\b/i, english: 'placenta previa', chinese: '前置胎盘', translated: /前置胎盘|胎盘前置/u },
+  { source: /\bblink\s+(?:their\s+)?eyes\b/i, english: 'blink their eyes', chinese: '眨眼', translated: /眨眼|眨动[^。！？]{0,10}眼/u },
+  { source: /\bshut\s+their\s+eyes\s+tightly\b/i, english: 'shut their eyes tightly', chinese: '紧闭双眼', translated: /闭[^。！？]{0,8}眼|眼[^。！？]{0,8}闭/u },
   { source: /\b(?:midwife|midwives)\b/i, english: 'midwife / midwives', chinese: '助产士（助产师）', translated: /助产士|助产师/u },
   { source: /\bcytomegalovirus\b/i, english: 'cytomegalovirus (CMV)', chinese: '巨细胞病毒', translated: /巨细胞病毒/u, invalid: /单纯疱疹病毒\s*[（(]\s*CMV/iu },
   { source: /\bacetaminophen\b/i, english: 'acetaminophen', chinese: '对乙酰氨基酚（扑热息痛）', translated: /对乙酰氨基酚|扑热息痛/u, invalid: /乙醇酰胺/u },

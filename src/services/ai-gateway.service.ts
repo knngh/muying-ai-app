@@ -552,12 +552,12 @@ function buildKimiTaskProvider(): GatewayProvider | null {
   return buildTaskProvider('task-kimi', 'task-kimi', AI_KIMI_URL, AI_KIMI_KEY, AI_KIMI_MODEL, AI_KIMI_PROVIDER);
 }
 
-function buildKnowledgeFormatTaskProvider(): GatewayProvider | null {
+function buildKnowledgeFormatTaskProvider(model?: string): GatewayProvider | null {
   const url = process.env.AI_KNOWLEDGE_FORMAT_URL;
   const key = process.env.AI_KNOWLEDGE_FORMAT_KEY;
   if (!url || !key) return null;
   return buildTaskProvider('task-knowledge-format', 'task-knowledge-format', url, key,
-    process.env.AI_KNOWLEDGE_FORMAT_MODEL || 'auto', process.env.AI_KNOWLEDGE_FORMAT_PROVIDER || 'freellm');
+    model || process.env.AI_KNOWLEDGE_FORMAT_MODEL || 'auto', process.env.AI_KNOWLEDGE_FORMAT_PROVIDER || 'freellm');
 }
 
 function buildMiniMaxTaskProvider(): GatewayProvider | null {
@@ -689,8 +689,9 @@ function resolveTaskProviderChain(
   switch (taskRole) {
     case 'knowledge_format':
     case 'knowledge_translate':
+      return dedupeProviders([buildKnowledgeFormatTaskProvider(), buildKnowledgeFormatTaskProvider('auto')]);
     case 'knowledge_review':
-      return dedupeProviders([buildKnowledgeFormatTaskProvider()]);
+      return dedupeProviders([buildKnowledgeFormatTaskProvider(process.env.AI_KNOWLEDGE_REVIEW_MODEL), buildKnowledgeFormatTaskProvider('auto')]);
     case 'deepseek_translate':
       return dedupeProviders(options.primaryOnly
         ? [hasConfiguredDeepSeekTaskKey() ? buildDeepSeekTranslationTaskProvider() : null]
@@ -1261,7 +1262,7 @@ export function getTaskModelBindings(): AITaskModelBinding[] {
     { role: 'minimax_render', provider: buildMiniMaxTaskProvider() },
     { role: 'knowledge_format', provider: buildKnowledgeFormatTaskProvider() },
     { role: 'knowledge_translate', provider: buildKnowledgeFormatTaskProvider() },
-    { role: 'knowledge_review', provider: buildKnowledgeFormatTaskProvider() },
+    { role: 'knowledge_review', provider: buildKnowledgeFormatTaskProvider(process.env.AI_KNOWLEDGE_REVIEW_MODEL) },
   ];
 
   return bindings.map(({ role, provider }) => ({

@@ -14,6 +14,7 @@ describe('AI gateway provider circuit breaker', () => {
     AI_KNOWLEDGE_FORMAT_KEY: process.env.AI_KNOWLEDGE_FORMAT_KEY,
     AI_KNOWLEDGE_FORMAT_PROVIDER: process.env.AI_KNOWLEDGE_FORMAT_PROVIDER,
     AI_KNOWLEDGE_FORMAT_MODEL: process.env.AI_KNOWLEDGE_FORMAT_MODEL,
+    AI_KNOWLEDGE_REVIEW_MODEL: process.env.AI_KNOWLEDGE_REVIEW_MODEL,
   };
 
   function restoreEnv() {
@@ -27,6 +28,7 @@ describe('AI gateway provider circuit breaker', () => {
   }
 
   beforeEach(() => {
+    process.env.AI_KNOWLEDGE_REVIEW_MODEL = '';
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2026-05-15T00:00:00.000Z'));
   });
@@ -104,7 +106,7 @@ describe('AI gateway provider circuit breaker', () => {
     process.env.AI_KNOWLEDGE_FORMAT_URL = 'https://freellm.example/v1';
     process.env.AI_KNOWLEDGE_FORMAT_KEY = 'offline-key';
     process.env.AI_KNOWLEDGE_FORMAT_PROVIDER = 'freellm';
-    process.env.AI_KNOWLEDGE_FORMAT_MODEL = 'mistral-large-3';
+    process.env.AI_KNOWLEDGE_FORMAT_MODEL = 'auto';
     const retryAtMs = Date.now() + 5000;
     const fetchMock = jest.spyOn(globalThis, 'fetch').mockResolvedValueOnce(Response.json({
       error: { message: 'All models exhausted: all routes rate-limited or on cooldown.', type: 'rate_limit_error', retryAtMs },
@@ -120,5 +122,20 @@ describe('AI gateway provider circuit breaker', () => {
     jest.setSystemTime(retryAtMs + 1);
     await expect(gateway.callTaskModelDetailed('knowledge_review', [{ role: 'user', content: 'ping' }], options)).resolves.toMatchObject({ answer: 'ok' });
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('uses the configured freellm reviewer and falls back to auto when its route cools down', async () => {
+    process.env.AI_KNOWLEDGE_FORMAT_URL = 'https://freellm.example/v1';
+    process.env.AI_KNOWLEDGE_FORMAT_KEY = 'offline-key';
+    process.env.AI_KNOWLEDGE_FORMAT_PROVIDER = 'freellm';
+    process.env.AI_KNOWLEDGE_FORMAT_MODEL = 'auto';
+    process.env.AI_KNOWLEDGE_REVIEW_MODEL = 'gpt-oss-120b';
+    const fetchMock = jest.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(Response.json({ error: { message: 'All models rate-limited', retryAtMs: Date.now() + 5000 } }, { status: 429 }))
+      .mockImplementation(async () => Response.json({ choices: [{ message: { content: 'ok' } }] }));
+    const gateway = require('../src/services/ai-gateway.service') as typeof import('../src/services/ai-gateway.service');
+    await expect(gateway.callTaskModelDetailed('knowledge_review', [{ role: 'user', content: 'review' }])).resolves.toMatchObject({ answer: 'ok', route: { model: 'auto' } });
+    expect(fetchMock.mock.calls.map(call => JSON.parse(String(call[1]?.body)).model)).toEqual(['gpt-oss-120b', 'auto']);
+    expect(gateway.getTaskModelBindings().find(item => item.role === 'knowledge_review')?.model).toBe('gpt-oss-120b');
   });
 });
