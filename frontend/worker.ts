@@ -558,14 +558,15 @@ function buildArticleBodyRender(detail: ArticleDetailPayload): ArticleBodyRender
     .filter(Boolean)
     .join(' · ')
 
+  const contentHtml = detail.readingLayout?.verified ? detail.readingLayout.html : display.content
   const html =
     `<article>` +
     `<h1>${escapeHtmlAttr(title)}</h1>` +
     `<p>${meta}</p>` +
-    (detail.readingLayout?.verified ? detail.readingLayout.html : display.content) +
+    contentHtml +
     `</article>`
 
-  const plainText = stripHtmlTags(display.content).trim().slice(0, ARTICLE_BODY_JSONLD_MAX)
+  const plainText = stripHtmlTags(contentHtml).trim().slice(0, ARTICLE_BODY_JSONLD_MAX)
   return { html, plainText: plainText || DEFAULT_DESCRIPTION }
 }
 
