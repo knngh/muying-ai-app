@@ -60,7 +60,7 @@ function atomic(file, data) {
       report.skipped.push({ slug: r.slug, reason: "source changed" });
       continue;
     }
-    if (r.reviewerVersion === 5 && !r.audit?.exportable) held.add(r.slug);
+    if (r.reviewerVersion >= 5 && !r.audit?.exportable) held.add(r.slug);
     if (r.slug === "authority-acog-9nj69u")
       r.audit = {
         decision: "review",
@@ -117,19 +117,29 @@ function atomic(file, data) {
       continue;
     }
     if (!r.audit?.exportable || !r.layout) continue;
+    if (r.reviewerVersion !== 6) {
+      report.skipped.push({ slug: r.slug, reason: "review upgrade required" });
+      continue;
+    }
     let translated = r.translation || translations[r.slug];
     try {
+      if (!r.translation && !/^zh(?:-|$)/i.test(current.record.source_language || ""))
+        throw new Error("reviewed translation missing");
       if (r.translation) {
         if (
           !r.recheck?.translationApproved ||
           !r.recheck?.exportable ||
           (!r.translation.isSourceChinese &&
-            !r.translation.qualityReview?.approved)
+            (!r.translation.qualityReview?.approved || r.translation.qualityReview.version !== 2))
         )
           throw new Error("independent approval missing");
         full.validateAuthorityTranslationSegment(
           full.getAuthorityTranslationSource(current.record.answer),
           r.translation.translatedContent,
+        );
+        full.validateAuthorityTranslationTerminology(
+          current.record.question,
+          r.translation.translatedTitle,
         );
         full.validateAuthorityTranslationTerminology(
           current.record.answer,

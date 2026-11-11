@@ -60,6 +60,9 @@ globalThis.fetch = async function (input, init) {
       signal: AbortSignal.timeout(120000),
     });
     if (response.status !== 429) return response;
+    // A selected model can cool down independently. Let the gateway try auto;
+    // only the aggregate route should pause the entire batch here.
+    if (JSON.parse(init?.body || "{}").model !== "auto") return response;
     const body = await response.clone().text();
     if (!/rate.?limit|requests?.?per.?minute|120.*minute|retry in/i.test(body))
       return response;
@@ -170,9 +173,10 @@ async function audit(record, translation) {
           /^zh(?:-|$)/i.test(record.source_language || "") ||
           Boolean(translation?.isSourceChinese),
         translationIssues = [];
+      let translationReview;
       if (exportable && body && !translationApproved) {
         try {
-          await reviewAuthorityTranslation(
+          translationReview = await reviewAuthorityTranslation(
             { title: record.question, content: source },
             {
               title: translation.translatedTitle,
@@ -194,6 +198,7 @@ async function audit(record, translation) {
         model: result.route.model,
         translationApproved,
         translationIssues,
+        translationReview,
       };
     } catch (e) {
       last = e;
@@ -202,9 +207,7 @@ async function audit(record, translation) {
 }
 (async () => {
   let publicList;
-  if (fs.existsSync(out + "/public-list.json"))
-    publicList = JSON.parse(fs.readFileSync(out + "/public-list.json"));
-  else {
+  {
     publicList = [];
     for (let p = 1; p <= 30; p++) {
       const d = await readApi(
@@ -216,19 +219,40 @@ async function audit(record, translation) {
     }
     save(out + "/public-list.json", publicList);
   }
+  // Refresh the input after a crawl or guarded merge. Checkpoints still require
+  // the same article fingerprint; an old snapshot must not retry forever.
+  save(out + "/source.json", JSON.parse(fs.readFileSync(app + "/data/authority-knowledge-cache.json")));
+  const stagedTranslations = JSON.parse(fs.readFileSync(out + "/translations.json"));
+  const liveTranslations = JSON.parse(fs.readFileSync(app + "/data/authority-translation-cache.json"));
+  for (const [slug, live] of Object.entries(liveTranslations)) {
+    const staged = stagedTranslations[slug];
+    if (!staged || Date.parse(live.updatedAt) > Date.parse(staged.updatedAt)) stagedTranslations[slug] = live;
+  }
+  save(out + "/translations.json", stagedTranslations);
   const all = JSON.parse(fs.readFileSync(out + "/source.json")).map(
     service.normalizeAuthorityCacheRecord,
   );
   const map = new Map(
     all.map((r, i) => [identity.buildStableAuthoritySlug(r, i), r]),
   );
-  const selected = publicList.slice(
+  const selected = publicList.filter(item => !process.env.QUALITY_BATCH_SLUG || item.slug === process.env.QUALITY_BATCH_SLUG).slice(
     0,
     Number(process.env.QUALITY_BATCH_LIMIT || publicList.length),
   );
   let cursor = 0,
     finished = 0;
   const start = Date.now();
+  let readySinceApply = 0;
+  function applyBatch() {
+    if (!process.env.AUTHORITY_QUALITY_APPLY_SCRIPT) return;
+    const result = require("node:child_process").spawnSync(
+      "python3", [process.env.AUTHORITY_QUALITY_APPLY_SCRIPT],
+      { stdio: "inherit", env: process.env },
+    );
+    if (result.status !== 0) throw new Error("quality merge failed");
+    readySinceApply = 0;
+  }
+  save(out + "/progress.json", { event: "running", total: selected.length, finished: 0, startedAt: new Date(start).toISOString() });
   await Promise.all(
     Array.from({ length: 2 }, async () => {
       while (cursor < selected.length) {
@@ -243,20 +267,30 @@ async function audit(record, translation) {
           continue;
         }
         const sourceFingerprint = fingerprint(record);
+        const current = service.getCachedAuthorityTranslation(
+          item.slug,
+          service.resolveAuthorityTranslationSourceUpdatedAt(record),
+          sourceFingerprint,
+          identity.buildAuthoritySlugCandidates(record, rank),
+          record.answer,
+        );
         let report = fs.existsSync(file)
           ? JSON.parse(fs.readFileSync(file))
           : null;
         if (
-          [4, 5].includes(report?.reviewerVersion) &&
+          report?.reviewerVersion === 6 &&
           report.sourceFingerprint === sourceFingerprint &&
           report.complete &&
-          (report.reviewerVersion === 5 || report.audit?.exportable)
+          (!report.audit?.exportable || report.layout?.sourceFingerprint ===
+            layout.buildKnowledgeLayoutSourceFingerprint(getKnowledgeLayoutSourceText(
+              report.translation?.translatedContent || current?.translatedContent || record.answer,
+            )))
         ) {
           finished++;
           continue;
         }
         report = {
-          reviewerVersion: 5,
+          reviewerVersion: 6,
           slug: item.slug,
           rank,
           sourceFingerprint,
@@ -265,13 +299,6 @@ async function audit(record, translation) {
           startedAt: new Date().toISOString(),
         };
         try {
-          const current = service.getCachedAuthorityTranslation(
-            item.slug,
-            service.resolveAuthorityTranslationSourceUpdatedAt(record),
-            sourceFingerprint,
-            identity.buildAuthoritySlugCandidates(record, rank),
-            record.answer,
-          );
           report.audit = await audit(record, current);
           const chinese =
             /^zh(?:-|$)/i.test(record.source_language || "") ||
@@ -299,8 +326,7 @@ async function audit(record, translation) {
               }
             if (
               !chinese &&
-              (rank < 20 ||
-                !current ||
+              (!current ||
                 !report.audit.translationApproved ||
                 invalid)
             ) {
@@ -322,6 +348,13 @@ async function audit(record, translation) {
               report.translation = translated;
             }
             const display = translated?.translatedContent || record.answer;
+            // Bind reuse and apply to the exact text that passed review, even
+            // when a complete legacy translation did not need rewriting.
+            if (translated && !report.translation) {
+              report.translation = translated;
+              report.recheck = report.audit;
+              if (!chinese) report.translation.qualityReview = report.audit.translationReview;
+            }
             const source = getKnowledgeLayoutSourceText(display);
             if (source) {
               const result = await layout.formatKnowledgeLayoutWithAI(source, {
@@ -352,6 +385,9 @@ async function audit(record, translation) {
         report.finishedAt = new Date().toISOString();
         save(file, report);
         finished++;
+        save(out + "/progress.json", { event: "running", total: selected.length, finished,
+          slug: item.slug, updatedAt: report.finishedAt });
+        if (report.complete && ++readySinceApply >= 25) applyBatch();
         console.log(
           JSON.stringify({
             finished,
@@ -378,7 +414,8 @@ async function audit(record, translation) {
     complete: reports.filter((r) => r.complete).length,
     sourcePassed: reports.filter((r) => r.audit?.exportable).length,
     sourceHeld: reports.filter((r) => r.audit && !r.audit.exportable).length,
-    retranslated: reports.filter((r) => r.translation).length,
+    retranslated: reports.filter((r) => r.retranslated).length,
+    verifiedTranslations: reports.filter((r) => r.translation).length,
     layouts: reports.filter((r) => r.layout).length,
     errors: reports
       .filter((r) => r.error)
@@ -401,14 +438,7 @@ async function audit(record, translation) {
     }),
   );
   if (summary.errors.length) process.exitCode = 2;
-  if (process.env.AUTHORITY_QUALITY_APPLY_SCRIPT) {
-    const result = require("node:child_process").spawnSync(
-      "python3",
-      [process.env.AUTHORITY_QUALITY_APPLY_SCRIPT],
-      { stdio: "inherit", env: process.env },
-    );
-    if (result.status !== 0) throw new Error("quality merge failed");
-  }
+  if (selected.length) applyBatch();
 })().catch((e) => {
   console.error(e);
   process.exitCode = 1;
